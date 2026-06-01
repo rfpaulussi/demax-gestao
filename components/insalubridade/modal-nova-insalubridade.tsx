@@ -8,8 +8,7 @@ import { registrarInsalubridade } from '@/app/(admin)/insalubridade/actions'
 interface Funcionario {
   id: string
   nome: string
-  posto: string
-  posto_id: string
+  posto_id: string | null
 }
 
 interface Props {
@@ -42,7 +41,7 @@ export function ModalNovaInsalubridade({ open, onClose }: Props) {
       const supabase = createClient()
       const { data } = await supabase
         .from('funcionarios')
-        .select('id, nome, posto, posto_id')
+        .select('id, nome, posto_id')
         .eq('status', 'ativo')
         .ilike('nome', `%${busca.trim()}%`)
         .limit(8)
@@ -67,7 +66,7 @@ export function ModalNovaInsalubridade({ open, onClose }: Props) {
     const form = e.currentTarget
     const data = new FormData(form)
     data.set('funcionario_id', selecionado.id)
-    data.set('posto_id', selecionado.posto_id)
+    data.set('posto_id', selecionado.posto_id ?? '')
     data.set('percentual', String(PERCENTUAIS[grau] ?? 0))
     setPending(true)
     try {
@@ -109,7 +108,6 @@ export function ModalNovaInsalubridade({ open, onClose }: Props) {
                           className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
                         >
                           <span className="font-medium">{f.nome}</span>
-                          <span className="ml-2 text-gray-400">{f.posto}</span>
                         </button>
                       </li>
                     ))}
@@ -124,7 +122,6 @@ export function ModalNovaInsalubridade({ open, onClose }: Props) {
                 <div className="flex items-center justify-between rounded border border-gray-200 bg-gray-50 px-3 py-2">
                   <div>
                     <p className="text-sm font-medium">{selecionado.nome}</p>
-                    <p className="text-xs text-gray-500">{selecionado.posto}</p>
                   </div>
                   <button
                     type="button"

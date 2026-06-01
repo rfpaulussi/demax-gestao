@@ -49,7 +49,7 @@ export default async function EfetivoPage({
     `)
     .order('nome')
 
-  const funcionarios = (raw ?? []) as FuncionarioRow[]
+  const funcionarios = (raw ?? []) as unknown as FuncionarioRow[]
 
   // Counters over unfiltered data
   const total     = funcionarios.length

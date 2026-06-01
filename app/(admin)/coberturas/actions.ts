@@ -28,61 +28,44 @@ export async function registrarCobertura(formData: FormData) {
 
   const urgencia = calcUrgencia(dataPrevRetorno)
 
-  const ops: Promise<unknown>[] = [
-    supabase.from('coberturas_temporarias').insert({
-      funcionario_id:   funcionarioId,
-      posto_destino_id: postoDestinoId,
-      posto_origem_id:  postoOrigemId,
-      motivo,
-      data_inicio:      dataInicio,
-      data_prev_retorno: dataPrevRetorno,
-      urgencia,
-      status: 'ativa',
-    }),
-    supabase
-      .from('funcionarios')
-      .update({ posto_id: postoDestinoId })
-      .eq('id', funcionarioId),
-  ]
-
+  await supabase.from('coberturas_temporarias').insert({
+    funcionario_id:   funcionarioId,
+    posto_destino_id: postoDestinoId,
+    posto_origem_id:  postoOrigemId,
+    motivo,
+    data_inicio:      dataInicio,
+    data_prev_retorno: dataPrevRetorno,
+    urgencia,
+    status: 'ativa',
+  })
+  await supabase.from('funcionarios').update({ posto_id: postoDestinoId }).eq('id', funcionarioId)
   if (ausenteId) {
-    ops.push(
-      supabase
-        .from('funcionarios')
-        .update({ status: 'afastado' })
-        .eq('id', ausenteId),
-    )
+    await supabase.from('funcionarios').update({ status: 'afastado' }).eq('id', ausenteId)
   }
-
-  await Promise.all(ops)
   revalidatePath('/coberturas')
 }
 
-export async function encerrarCobertura(formData: FormData) {
+export async function encerrarCobertura(id: string) {
   const supabase = createClient()
-
-  const coberturaId   = formData.get('cobertura_id') as string
-  const funcionarioId = formData.get('funcionario_id') as string
-  const postoOrigemId = (formData.get('posto_origem_id') as string) || null
-
   const hoje = new Date().toISOString().split('T')[0]
 
-  const ops: Promise<unknown>[] = [
-    supabase
-      .from('coberturas_temporarias')
-      .update({ status: 'encerrada', data_retorno_real: hoje })
-      .eq('id', coberturaId),
-  ]
+  const { data: cob } = await supabase
+    .from('coberturas_temporarias')
+    .select('funcionario_id, posto_origem_id')
+    .eq('id', id)
+    .single()
 
-  if (postoOrigemId) {
-    ops.push(
-      supabase
-        .from('funcionarios')
-        .update({ posto_id: postoOrigemId })
-        .eq('id', funcionarioId),
-    )
+  await supabase
+    .from('coberturas_temporarias')
+    .update({ status: 'encerrada', data_retorno_real: hoje })
+    .eq('id', id)
+
+  if (cob?.posto_origem_id && cob?.funcionario_id) {
+    await supabase
+      .from('funcionarios')
+      .update({ posto_id: cob.posto_origem_id })
+      .eq('id', cob.funcionario_id)
   }
 
-  await Promise.all(ops)
   revalidatePath('/coberturas')
 }

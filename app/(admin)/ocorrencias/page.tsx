@@ -27,7 +27,7 @@ export default async function OcorrenciasAdminPage({
     `)
     .order('created_at', { ascending: false })
 
-  const ocorrencias = (raw ?? []) as OcorrenciaRow[]
+  const ocorrencias = (raw ?? []) as unknown as OcorrenciaRow[]
 
   const secretarias = Array.from(
     new Set(

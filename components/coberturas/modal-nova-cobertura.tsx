@@ -8,13 +8,11 @@ import { registrarCobertura } from '@/app/(admin)/coberturas/actions'
 interface Funcionario {
   id: string
   nome: string
-  posto: string
-  secretaria?: string
 }
 
 interface Supervisor {
   id: string
-  nome: string
+  nome: string | null
 }
 
 interface Posto {
@@ -90,7 +88,7 @@ export function ModalNovaCobertura({ open, onClose }: Props) {
     const supabase = createClient()
     supabase
       .from('funcionarios')
-      .select('id, nome, posto')
+      .select('id, nome')
       .eq('posto_id', postoId)
       .eq('status', 'ativo')
       .order('nome')
@@ -105,7 +103,7 @@ export function ModalNovaCobertura({ open, onClose }: Props) {
       const supabase = createClient()
       const { data } = await supabase
         .from('funcionarios')
-        .select('id, nome, posto, secretaria')
+        .select('id, nome')
         .eq('status', 'ativo')
         .ilike('nome', `%${busca.trim()}%`)
         .limit(8)
@@ -183,7 +181,6 @@ export function ModalNovaCobertura({ open, onClose }: Props) {
                               className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
                             >
                               <span className="font-medium">{f.nome}</span>
-                              <span className="ml-2 text-gray-400">{f.posto}</span>
                             </button>
                           </li>
                         ))}
@@ -198,10 +195,6 @@ export function ModalNovaCobertura({ open, onClose }: Props) {
                     <div className="flex items-start justify-between rounded border border-gray-200 bg-gray-50 px-3 py-2">
                       <div>
                         <p className="text-sm font-medium">{substituto.nome}</p>
-                        <p className="text-xs text-gray-500">{substituto.posto}</p>
-                        {substituto.secretaria && (
-                          <p className="text-xs text-gray-400">{substituto.secretaria}</p>
-                        )}
                       </div>
                       <button
                         type="button"

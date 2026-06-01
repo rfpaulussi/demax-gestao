@@ -16,7 +16,7 @@ export default async function CoberturasPage() {
     .eq('status', 'ativa')
     .order('data_prev_retorno', { ascending: true, nullsFirst: false })
 
-  const coberturas = (raw ?? []) as CoberturaRow[]
+  const coberturas = (raw ?? []) as unknown as CoberturaRow[]
 
   return (
     <div className="space-y-6">

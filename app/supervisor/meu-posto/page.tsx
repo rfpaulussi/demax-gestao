@@ -47,20 +47,18 @@ export default async function MeuPostoPage() {
       id: string; nome: string; secretaria: string | null; efetivo_previsto: number | null
     }
     const funcs = (funcionarios ?? []).filter(f => f.posto_id === p.id)
-    const ativosCount = funcs.filter(f => f.status === 'ativo').length
-    const previsto    = p.efetivo_previsto ?? 0
-    const diff        = ativosCount - previsto
 
     return {
-      posto: { id: p.id, nome: p.nome, secretaria: p.secretaria, efetivo_previsto: previsto },
+      id:               p.id,
+      nome:             p.nome,
+      secretaria:       p.secretaria ?? '',
+      efetivo_previsto: p.efetivo_previsto ?? 0,
       funcionarios: funcs.map(f => ({
         id:          f.id,
         nome:        f.nome,
         status:      f.status as string,
         funcao_nome: (f.funcoes as unknown as { nome: string } | null)?.nome ?? null,
       })),
-      ativosCount,
-      situacao: diff === 0 ? 'completo' : diff < 0 ? 'deficit' : 'excesso',
     }
   })
 

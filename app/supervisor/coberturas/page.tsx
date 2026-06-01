@@ -27,10 +27,10 @@ export default async function CoberturasSupervisorPage() {
     const { data } = await supabase
       .from('coberturas_temporarias')
       .select(`
-        id, motivo, data_inicio, data_prev_retorno, urgencia, status,
-        funcionarios!funcionario_id ( id, nome, posto_id ),
-        posto_destino:postos!posto_destino_id ( id, nome, secretaria ),
-        posto_origem:postos!posto_origem_id   ( id, nome, secretaria )
+        id, data_inicio, data_prev_retorno, urgencia, status,
+        funcionarios!funcionario_id ( nome ),
+        posto_destino:postos!posto_destino_id ( nome ),
+        posto_origem:postos!posto_origem_id ( nome )
       `)
       .or(
         `posto_destino_id.in.(${postoIds.join(',')}),posto_origem_id.in.(${postoIds.join(',')})`,
@@ -38,7 +38,28 @@ export default async function CoberturasSupervisorPage() {
       .eq('status', 'ativa')
       .order('data_prev_retorno', { ascending: true, nullsFirst: false })
 
-    coberturas = (data ?? []) as CoberturaSupRow[]
+    coberturas = (data ?? []).map(d => {
+      const r = d as unknown as {
+        id: string
+        data_inicio: string | null
+        data_prev_retorno: string | null
+        urgencia: string | null
+        status: string | null
+        funcionarios: { nome: string } | null
+        posto_destino: { nome: string } | null
+        posto_origem: { nome: string } | null
+      }
+      return {
+        id: r.id,
+        funcionario_nome: r.funcionarios?.nome ?? '—',
+        posto_destino_nome: r.posto_destino?.nome ?? '—',
+        posto_origem_nome: r.posto_origem?.nome ?? null,
+        data_inicio: r.data_inicio ?? '',
+        data_prev_retorno: r.data_prev_retorno,
+        urgencia: r.urgencia ?? 'baixa',
+        status: r.status ?? 'ativa',
+      }
+    })
   }
 
   return (
@@ -49,7 +70,7 @@ export default async function CoberturasSupervisorPage() {
           Coberturas ativas nos postos sob sua supervisão
         </p>
       </div>
-      <CoberturasSupervisor coberturas={coberturas} postos={postos} />
+      <CoberturasSupervisor coberturas={coberturas} postoIds={postoIds} />
     </div>
   )
 }

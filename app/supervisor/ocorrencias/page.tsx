@@ -35,7 +35,7 @@ export default async function OcorrenciasSupervisorPage() {
       .in('posto_id', postoIds)
       .order('data_ocorrencia', { ascending: false })
 
-    const all = (data ?? []) as OcorrenciaSupRow[]
+    const all = (data ?? []) as unknown as OcorrenciaSupRow[]
     abertas    = all.filter(o => o.status === 'aberta' || o.status === 'em_analise')
     encerradas = all.filter(o => o.status === 'encerrada')
   }

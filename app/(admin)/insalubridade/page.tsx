@@ -42,7 +42,7 @@ export default async function InsalubridadePage({
     `)
     .order('data_inicio', { ascending: false })
 
-  const registros = (raw ?? []) as InsalubridadeRow[]
+  const registros = (raw ?? []) as unknown as InsalubridadeRow[]
 
   const now          = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]

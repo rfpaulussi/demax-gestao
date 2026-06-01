@@ -8,16 +8,18 @@ interface Funcionario {
   id: string
   nome: string
   status: string
-  funcao_nome: string
+  funcao_nome: string | null
 }
 
-interface Posto {
+export interface PostoData {
   id: string
   nome: string
   secretaria: string
   efetivo_previsto: number
   funcionarios: Funcionario[]
 }
+
+type Posto = PostoData
 
 interface Props {
   postos: Posto[]

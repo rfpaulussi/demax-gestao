@@ -42,7 +42,7 @@ export default async function FeriasPage({
     `)
     .order('data_inicio', { ascending: false })
 
-  const ferias = (raw ?? []) as FeriasRow[]
+  const ferias = (raw ?? []) as unknown as FeriasRow[]
 
   const total     = ferias.length
   const agendadas = ferias.filter(f => f.status === 'agendada').length

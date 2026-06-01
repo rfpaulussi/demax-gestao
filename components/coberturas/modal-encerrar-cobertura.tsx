@@ -3,18 +3,10 @@
 import { useState } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { encerrarCobertura } from '@/app/(admin)/coberturas/actions'
-
-interface Cobertura {
-  id: string
-  funcionario_nome: string
-  posto_destino_nome: string
-  posto_origem_nome: string | null
-  data_inicio: string
-  data_prev_retorno: string | null
-}
+import type { CoberturaRow } from './coberturas-list'
 
 interface Props {
-  cobertura: Cobertura | null
+  cobertura: CoberturaRow | null
   open: boolean
   onClose: () => void
 }
@@ -48,15 +40,15 @@ export function ModalEncerrarCobertura({ cobertura, open, onClose }: Props) {
           <div className="mb-4 space-y-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Funcionário</p>
-              <p className="text-sm font-medium">{cobertura?.funcionario_nome ?? '—'}</p>
+              <p className="text-sm font-medium">{cobertura?.funcionarios?.nome ?? '—'}</p>
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Posto Destino</p>
-              <p className="text-sm">{cobertura?.posto_destino_nome ?? '—'}</p>
+              <p className="text-sm">{cobertura?.posto_destino?.nome ?? '—'}</p>
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Posto Origem</p>
-              <p className="text-sm">{cobertura?.posto_origem_nome ?? '—'}</p>
+              <p className="text-sm">{cobertura?.posto_origem?.nome ?? '—'}</p>
             </div>
             <div className="flex gap-6">
               <div>

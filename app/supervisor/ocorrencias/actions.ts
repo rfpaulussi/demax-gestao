@@ -11,7 +11,7 @@ export async function registrarOcorrencia(formData: FormData) {
 
   const posto_id       = formData.get('posto_id') as string
   const descricao      = formData.get('descricao') as string
-  const gravidade      = formData.get('gravidade') as string
+  const gravidade      = formData.get('gravidade') as 'baixa' | 'media' | 'alta' | null
   const data_ocorrencia = formData.get('data_ocorrencia') as string
 
   await supabase.from('ocorrencias').insert({

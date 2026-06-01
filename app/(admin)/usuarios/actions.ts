@@ -25,7 +25,7 @@ export async function criarUsuario(formData: FormData) {
     id:    data.user.id,
     nome,
     email,
-    role,
+    role: role as 'admin' | 'coordenador' | 'supervisor' | 'viewer',
     ativo: true,
   })
 
@@ -40,7 +40,7 @@ export async function atualizarRole(formData: FormData) {
 
   await supabase
     .from('perfis')
-    .update({ role })
+    .update({ role: role as 'admin' | 'coordenador' | 'supervisor' | 'viewer' })
     .eq('id', perfil_id)
 
   revalidatePath('/usuarios')

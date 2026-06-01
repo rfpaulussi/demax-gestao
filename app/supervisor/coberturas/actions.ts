@@ -47,6 +47,48 @@ export async function registrarCoberturasSupervisor(formData: FormData) {
   revalidatePath('/supervisor/coberturas')
 }
 
+export async function encerrarCobertura(id: string) {
+  const supabase = createClient()
+  const hoje = new Date().toISOString().split('T')[0]
+  await supabase
+    .from('coberturas_temporarias')
+    .update({ status: 'encerrada', data_retorno_real: hoje })
+    .eq('id', id)
+  revalidatePath('/supervisor/coberturas')
+}
+
+export async function registrarCobertura(formData: FormData) {
+  const supabase = createClient()
+
+  const funcionario_id    = formData.get('substituto_id') as string
+  const posto_destino_id  = formData.get('posto_destino_id') as string
+  const posto_origem_id   = (formData.get('posto_origem_id') as string) || null
+  const motivo            = (formData.get('motivo') as string) || null
+  const data_inicio       = formData.get('data_inicio') as string
+  const data_prev_retorno = (formData.get('data_fim') as string) || null
+
+  const urgencia = calcUrgencia(data_prev_retorno)
+
+  await Promise.all([
+    supabase.from('coberturas_temporarias').insert({
+      funcionario_id,
+      posto_destino_id,
+      posto_origem_id,
+      motivo,
+      data_inicio,
+      data_prev_retorno,
+      urgencia,
+      status: 'ativa',
+    }),
+    supabase
+      .from('funcionarios')
+      .update({ posto_id: posto_destino_id })
+      .eq('id', funcionario_id),
+  ])
+
+  revalidatePath('/supervisor/coberturas')
+}
+
 export async function encerrarCoberturasSupervisor(formData: FormData) {
   const supabase = createClient()
 
@@ -56,22 +98,17 @@ export async function encerrarCoberturasSupervisor(formData: FormData) {
 
   const hoje = new Date().toISOString().split('T')[0]
 
-  const ops: Promise<unknown>[] = [
-    supabase
-      .from('coberturas_temporarias')
-      .update({ status: 'encerrada', data_retorno_real: hoje })
-      .eq('id', cobertura_id),
-  ]
+  await supabase
+    .from('coberturas_temporarias')
+    .update({ status: 'encerrada', data_retorno_real: hoje })
+    .eq('id', cobertura_id)
 
   if (posto_origem_id) {
-    ops.push(
-      supabase
-        .from('funcionarios')
-        .update({ posto_id: posto_origem_id })
-        .eq('id', funcionario_id),
-    )
+    await supabase
+      .from('funcionarios')
+      .update({ posto_id: posto_origem_id })
+      .eq('id', funcionario_id)
   }
 
-  await Promise.all(ops)
   revalidatePath('/supervisor/coberturas')
 }

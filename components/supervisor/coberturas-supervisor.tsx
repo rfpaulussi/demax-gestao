@@ -5,7 +5,7 @@ import { Dialog } from '@base-ui/react/dialog'
 import { createClient } from '@/lib/supabase/client'
 import { encerrarCobertura, registrarCobertura } from '@/app/supervisor/coberturas/actions'
 
-interface Cobertura {
+export interface Cobertura {
   id: string
   funcionario_nome: string
   posto_destino_nome: string
@@ -15,6 +15,8 @@ interface Cobertura {
   urgencia: string
   status: string
 }
+
+export type CoberturaSupRow = Cobertura
 
 interface Props {
   coberturas: Cobertura[]
@@ -29,7 +31,6 @@ interface PostoOption {
 interface FuncionarioOption {
   id: string
   nome: string
-  posto: string
 }
 
 function formatDate(iso: string | null) {
@@ -99,7 +100,7 @@ export function CoberturasSupervisor({ coberturas, postoIds }: Props) {
       const supabase = createClient()
       const { data } = await supabase
         .from('funcionarios')
-        .select('id, nome, posto')
+        .select('id, nome')
         .eq('status', 'ativo')
         .ilike('nome', `%${busca.trim()}%`)
         .limit(8)
@@ -272,7 +273,6 @@ export function CoberturasSupervisor({ coberturas, postoIds }: Props) {
                             className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
                           >
                             <span className="font-medium">{f.nome}</span>
-                            <span className="ml-2 text-gray-400">{f.posto}</span>
                           </button>
                         </li>
                       ))}
@@ -287,7 +287,6 @@ export function CoberturasSupervisor({ coberturas, postoIds }: Props) {
                   <div className="flex items-center justify-between rounded border border-gray-200 bg-gray-50 px-3 py-2">
                     <div>
                       <p className="text-sm font-medium">{substituto.nome}</p>
-                      <p className="text-xs text-gray-500">{substituto.posto}</p>
                     </div>
                     <button
                       type="button"

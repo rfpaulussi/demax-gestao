@@ -47,7 +47,7 @@ export default async function AdvertenciasPage({
     `)
     .order('data_ocorrencia', { ascending: false })
 
-  const all = (raw ?? []) as AdvertenciaRow[]
+  const all = (raw ?? []) as unknown as AdvertenciaRow[]
 
   // Counts (before filtering)
   const total     = all.length

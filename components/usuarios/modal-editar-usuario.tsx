@@ -6,9 +6,9 @@ import { atualizarRole } from '@/app/(admin)/usuarios/actions'
 
 interface Perfil {
   id: string
-  nome: string
-  email: string
-  role: string
+  nome: string | null
+  email: string | null
+  role: string | null
 }
 
 interface Props {

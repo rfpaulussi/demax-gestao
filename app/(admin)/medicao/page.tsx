@@ -46,7 +46,7 @@ export default async function MedicaoPage() {
   if (logs && logs.length > 0) {
     temSnapshot = true
     rows = logs.map(l => {
-      const posto = l.postos as { id: string; nome: string; secretaria: string | null } | null
+      const posto = l.postos as unknown as { id: string; nome: string; secretaria: string | null } | null
       const prev = l.efetivo_previsto ?? 0
       const real = l.efetivo_real ?? 0
       const diff = real - prev
