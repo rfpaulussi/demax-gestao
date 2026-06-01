@@ -27,9 +27,14 @@ export default async function AdminLayout({
   const displayName = perfil.nome ?? perfil.email ?? 'Usuário'
   const roleLabel = perfil.role ? ROLE_LABELS[perfil.role] : ''
 
+  const { count: pendingCount } = await createClient()
+    .from('solicitacoes')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'pendente')
+
   return (
     <div className={`${inter.className} min-h-screen bg-gray-50`}>
-      <SidebarNav role={perfil.role} />
+      <SidebarNav role={perfil.role} pendingCount={pendingCount ?? 0} />
 
       {/* Content area — offset by sidebar width on desktop */}
       <div className="flex min-h-screen flex-col md:pl-64">
