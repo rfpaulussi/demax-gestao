@@ -1,0 +1,6 @@
+export { FuncionariosTable } from './funcionarios-table'
+export { FiltrosEfetivo } from './filtros-efetivo'
+export { ModalAtestado } from './modal-atestado'
+export { ModalFerias } from './modal-ferias'
+export { ModalAfastar } from './modal-afastar'
+export { ModalDesligar } from './modal-desligar'

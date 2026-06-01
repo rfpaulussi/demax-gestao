@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-Content \"C:\\\\Users\\\\Rodolfo\\\\projetos-claude\\\\demax-gestao\\\\types\\\\roles.ts\")",
+      "Bash(Measure-Object -Line)",
+      "Bash(Select-Object -ExpandProperty Lines)",
+      "Bash(Get-Content \"C:\\\\Users\\\\Rodolfo\\\\projetos-claude\\\\demax-gestao\\\\types\\\\database.ts\")",
+      "Bash(Get-Content \"C:\\\\Users\\\\Rodolfo\\\\projetos-claude\\\\demax-gestao\\\\types\\\\index.ts\")",
+      "PowerShell(Get-Content *)",
+      "Bash(node -e \"const p = require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.dependencies, null, 2\\)\\)\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\Rodolfo\\\\projetos-claude\\\\demax-gestao\\\\app\\\\\\(admin\\)\\\\insalubridade\")",
+      "Bash(mkdir -p \"C:\\\\Users\\\\Rodolfo\\\\projetos-claude\\\\demax-gestao\\\\components\\\\insalubridade\")",
+      "Bash(New-Item -ItemType Directory -Force -Path \"C:\\\\Users\\\\Rodolfo\\\\projetos-claude\\\\demax-gestao\\\\components\\\\medicao\")",
+      "Bash(Out-Null)",
+      "Bash(Write-Host \"ok\")",
+      "PowerShell(New-Item *)",
+      "Bash(npm run *)",
+      "Bash(Get-Content \"C:\\\\Users\\\\Rodolfo\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Rodolfo-projetos-claude-demax-gestao\\\\87ef69f2-173d-47b6-b7cd-ee76ad956592\\\\tasks\\\\b646zpb96.output\" -Tail 20)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":3000\\\\|:3001\")",
+      "Bash(findstr \"LISTENING\")",
+      "Bash(findstr \":3000 \\\\|:3001 \")",
+      "Bash(tasklist *)",
+      "PowerShell(Get-Process *)",
+      "PowerShell(Stop-Process *)",
+      "PowerShell(Get-NetTCPConnection *)",
+      "Bash(xargs sed -i \"s/import \\\\* as Dialog from '@base-ui\\\\/react\\\\/dialog'/import { Dialog } from '@base-ui\\\\/react\\\\/dialog'/g\")",
+      "PowerShell(\\(Get-Item \"C:\\\\Users\\\\Rodolfo\\\\projetos-claude\\\\demax-gestao\\\\components\\\\efetivo\\\\modal-afastar.tsx\"\\).Length; [System.IO.File]::ReadAllBytes\\(\"C:\\\\Users\\\\Rodolfo\\\\projetos-claude\\\\demax-gestao\\\\components\\\\efetivo\\\\modal-afastar.tsx\"\\) | Select-Object -First 100 | ForEach-Object { [char]$_ } | Join-String)",
+      "PowerShell(Get-Item *)",
+      "PowerShell($bytes = [System.IO.File]::ReadAllBytes\\(\"C:\\\\Users\\\\Rodolfo\\\\projetos-claude\\\\demax-gestao\\\\components\\\\efetivo\\\\modal-afastar.tsx\"\\); $bytes[0..20] -join \",\")",
+      "PowerShell($bytes = [System.IO.File]::ReadAllBytes\\(\"C:\\\\Users\\\\Rodolfo\\\\projetos-claude\\\\demax-gestao\\\\components\\\\efetivo\\\\modal-afastar.tsx\"\\); $nonzero = $bytes | Where-Object { $_ -ne 0 }; Write-Output \"Total bytes: $\\($bytes.Length\\)\"; Write-Output \"Non-zero bytes: $\\($nonzero.Count\\)\"; Write-Output \"First 40 non-zero positions:\"; for\\($i=0; $i -lt $bytes.Length; $i++\\) { if\\($bytes[$i] -ne 0\\) { Write-Output \"pos $i = $\\($bytes[$i]\\) \\(char: $\\([char]$bytes[$i]\\)\\)\"; if\\($i -gt 80\\) { break } } })",
+      "PowerShell($bytes = [System.IO.File]::ReadAllBytes\\(\"C:\\\\Users\\\\Rodolfo\\\\projetos-claude\\\\demax-gestao\\\\components\\\\efetivo\\\\modal-afastar.tsx\"\\); Write-Output \"Length: $\\($bytes.Length\\)\"; # Try UTF-16 LE \\(first 2 bytes should be FF FE for BOM\\); Write-Output \"First 4 bytes: $\\($bytes[0]\\),$\\($bytes[1]\\),$\\($bytes[2]\\),$\\($bytes[3]\\)\"; # Try reading as UTF-16 $text16 = [System.Text.Encoding]::Unicode.GetString\\($bytes\\); Write-Output \"UTF-16 first 100: $\\($text16.Substring\\(0, [Math]::Min\\(100, $text16.Length\\)\\)\\)\")",
+      "Bash(type \"C:\\\\\\\\Users\\\\\\\\Rodolfo\\\\\\\\projetos-claude\\\\\\\\demax-gestao\\\\\\\\components\\\\\\\\efetivo\\\\\\\\modal-afastar.tsx\")",
+      "Read(//mnt/c/Users/Rodolfo/projetos-claude/demax-gestao/components/efetivo/**)",
+      "Bash(xxd /mnt/c/Users/Rodolfo/projetos-claude/demax-gestao/components/efetivo/modal-afastar.tsx)",
+      "PowerShell(Get-Content \"C:\\\\Users\\\\Rodolfo\\\\projetos-claude\\\\demax-gestao\\\\app\\\\\\(admin\\)\\\\efetivo\\\\page.tsx\" -Encoding Byte | Select-Object -First 10; \\(Get-Item \"C:\\\\Users\\\\Rodolfo\\\\projetos-claude\\\\demax-gestao\\\\app\\\\\\(admin\\)\\\\efetivo\\\\page.tsx\"\\).Length)",
+      "Bash(npm -v)"
+    ]
+  }
+}
