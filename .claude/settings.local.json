@@ -34,7 +34,15 @@
       "Read(//mnt/c/Users/Rodolfo/projetos-claude/demax-gestao/components/efetivo/**)",
       "Bash(xxd /mnt/c/Users/Rodolfo/projetos-claude/demax-gestao/components/efetivo/modal-afastar.tsx)",
       "PowerShell(Get-Content \"C:\\\\Users\\\\Rodolfo\\\\projetos-claude\\\\demax-gestao\\\\app\\\\\\(admin\\)\\\\efetivo\\\\page.tsx\" -Encoding Byte | Select-Object -First 10; \\(Get-Item \"C:\\\\Users\\\\Rodolfo\\\\projetos-claude\\\\demax-gestao\\\\app\\\\\\(admin\\)\\\\efetivo\\\\page.tsx\"\\).Length)",
-      "Bash(npm -v)"
+      "Bash(npm -v)",
+      "Bash(git *)",
+      "Bash(npx tsc *)",
+      "PowerShell(git stash *)",
+      "Bash(cp \"app/\\(admin\\)/efetivo/actions.ts\" /tmp/new_actions.ts)",
+      "Bash(cp /tmp/orig_actions.ts \"app/\\(admin\\)/efetivo/actions.ts\")",
+      "Bash(git show *)",
+      "Bash(npx eslint *)",
+      "Bash(Remove-Item *)"
     ]
   }
 }
