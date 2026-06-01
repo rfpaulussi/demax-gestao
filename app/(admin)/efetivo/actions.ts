@@ -281,3 +281,54 @@ export async function solicitarPromocao(formData: FormData) {
   revalidatePath('/efetivo')
   revalidatePath('/aprovacoes')
 }
+
+export async function solicitarMudancaSupervisor(formData: FormData) {
+  const supabase = createClient()
+  const auth = await getUser()
+  if (!auth) throw new Error('Não autenticado')
+
+  const funcionarioId    = formData.get('funcionario_id') as string
+  const novoSupervisorId = formData.get('novo_supervisor_id') as string
+  const motivo           = (formData.get('motivo') as string) || null
+
+  const { data: func } = await supabase
+    .from('funcionarios')
+    .select('posto_id')
+    .eq('id', funcionarioId)
+    .single()
+
+  const postoId = func?.posto_id ?? null
+
+  let supervisorAtualId: string | null = null
+  let supervisorAtualNome: string | null = null
+  if (postoId) {
+    const { data: cfg } = await supabase
+      .from('config_supervisores_postos')
+      .select('supervisor_id, perfis!supervisor_id(nome)')
+      .eq('posto_id', postoId)
+      .eq('ativo', true)
+      .limit(1)
+      .single()
+    supervisorAtualId   = cfg?.supervisor_id ?? null
+    supervisorAtualNome = (cfg as unknown as { perfis?: { nome: string | null } } | null)?.perfis?.nome ?? null
+  }
+
+  const { data: novoSup } = await supabase
+    .from('perfis')
+    .select('nome')
+    .eq('id', novoSupervisorId)
+    .single()
+
+  await supabase.from('solicitacoes').insert({
+    tipo: 'mudanca_supervisor',
+    status: 'pendente',
+    funcionario_id: funcionarioId,
+    supervisor_id: auth.user.id,
+    dados_antes: { supervisor_id: supervisorAtualId, supervisor_nome: supervisorAtualNome },
+    dados_depois: { novo_supervisor_id: novoSupervisorId, novo_supervisor_nome: novoSup?.nome ?? null, motivo },
+    motivo,
+  })
+
+  revalidatePath('/efetivo')
+  revalidatePath('/aprovacoes')
+}
