@@ -10,13 +10,42 @@ export interface BuscarFeriasRelatorioResult {
   error?: string
 }
 
-/**
- * Busca férias com status agendado | aprovado | em_curso
- * cujo data_inicio cai no mês/ano informado.
- *
- * Se supervisorId for passado, filtra apenas aquele supervisor (painel do supervisor).
- * Se omitido, retorna todos (painel do coordenador).
- */
+export interface SupervisorOption {
+  id: string
+  nome: string
+}
+
+export async function buscarSupervisoresAtivos(): Promise<SupervisorOption[]> {
+  const supabase = createClient()
+
+  const { data, error } = await supabase
+    .from('config_supervisores_postos')
+    .select(`
+      supervisor_id,
+      perfis!config_supervisores_postos_supervisor_id_fkey (
+        id,
+        nome_completo
+      )
+    `)
+    .eq('ativo', true)
+
+  if (error || !data) return []
+
+  // Deduplica por supervisor_id
+  const mapa = new Map<string, string>()
+  for (const row of data) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const perfil = row.perfis as any
+    if (perfil?.id && perfil?.nome_completo) {
+      mapa.set(perfil.id, perfil.nome_completo)
+    }
+  }
+
+  return Array.from(mapa.entries())
+    .map(([id, nome]) => ({ id, nome }))
+    .sort((a, b) => a.nome.localeCompare(b.nome))
+}
+
 export async function buscarFeriasParaRelatorio(
   mes: number,
   ano: number,
@@ -25,13 +54,12 @@ export async function buscarFeriasParaRelatorio(
   const supabase = createClient()
   const mesAno = `${String(mes).padStart(2, '0')}/${ano}`
 
-  // Intervalo do mês
   const dataInicio = new Date(ano, mes - 1, 1).toISOString().split('T')[0]
   const dataFim    = new Date(ano, mes, 0).toISOString().split('T')[0]
 
   try {
-    // Busca férias do período com joins necessários
-    const query = supabase
+    // Etapa 1 — férias do período com funcionário e posto
+    const { data, error } = await supabase
       .from('ferias')
       .select(`
         id,
@@ -50,15 +78,11 @@ export async function buscarFeriasParaRelatorio(
           registro,
           nome,
           cargo,
+          posto_id,
           postos (
+            id,
             nome,
             secretaria
-          ),
-          config_supervisores_postos (
-            perfis (
-              id,
-              nome_completo
-            )
           )
         )
       `)
@@ -67,10 +91,8 @@ export async function buscarFeriasParaRelatorio(
       .lte('data_inicio', dataFim)
       .order('data_inicio', { ascending: true })
 
-    const { data, error } = await query
-
     if (error) {
-      console.error('[buscarFeriasParaRelatorio]', error)
+      console.error('[buscarFeriasParaRelatorio] step1:', error)
       return { supervisores: [], mesAno, totalRegistros: 0, error: error.message }
     }
 
@@ -78,29 +100,69 @@ export async function buscarFeriasParaRelatorio(
       return { supervisores: [], mesAno, totalRegistros: 0 }
     }
 
+    // Coleta posto_ids únicos
+    const postoIdsSet = new Set<string>()
+    for (const r of data) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const id = (r.funcionarios as any)?.postos?.id
+      if (id) postoIdsSet.add(id)
+    }
+    const postoIds = Array.from(postoIdsSet)
+
+    // Etapa 2 — supervisor de cada posto
+    const { data: cspData, error: cspError } = await supabase
+      .from('config_supervisores_postos')
+      .select(`
+        posto_id,
+        supervisor_id,
+        perfis!config_supervisores_postos_supervisor_id_fkey (
+          id,
+          nome_completo
+        )
+      `)
+      .in('posto_id', postoIds)
+      .eq('ativo', true)
+
+    if (cspError) {
+      console.error('[buscarFeriasParaRelatorio] step2:', cspError)
+      return { supervisores: [], mesAno, totalRegistros: 0, error: cspError.message }
+    }
+
+    // Monta mapa posto_id → { supId, supNome }
+    const mapaPostoSup = new Map<string, { supId: string; supNome: string }>()
+    for (const csp of cspData ?? []) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const perfil = csp.perfis as any
+      if (perfil?.id) {
+        mapaPostoSup.set(csp.posto_id, {
+          supId:   perfil.id,
+          supNome: perfil.nome_completo ?? 'Sem supervisor',
+        })
+      }
+    }
+
     // Agrupa por supervisor
     const mapaSuper = new Map<string, { nome: string; itens: FeriasItem[] }>()
 
     for (const row of data) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const func = row.funcionarios as any
+      const func  = row.funcionarios as any
       if (!func) continue
 
-      // Determina supervisor via config_supervisores_postos
-      const supervisorEntry = func.config_supervisores_postos?.[0]
-      const perfil          = supervisorEntry?.perfis
-      const supId           = perfil?.id ?? 'sem_supervisor'
-      const supNome         = perfil?.nome_completo ?? 'Sem supervisor'
-
-      // Filtra por supervisor se solicitado
-      if (supervisorId && supId !== supervisorId) continue
-
-      if (!mapaSuper.has(supId)) {
-        mapaSuper.set(supId, { nome: supNome, itens: [] })
-      }
-
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const posto = func.postos as any
+      const posto   = func.postos as any
+      const postoId = posto?.id
+
+      const sup = postoId
+        ? mapaPostoSup.get(postoId) ?? { supId: 'sem_supervisor', supNome: 'Sem supervisor' }
+        : { supId: 'sem_supervisor', supNome: 'Sem supervisor' }
+
+      // Filtra por supervisor se selecionado
+      if (supervisorId && sup.supId !== supervisorId) continue
+
+      if (!mapaSuper.has(sup.supId)) {
+        mapaSuper.set(sup.supId, { nome: sup.supNome, itens: [] })
+      }
 
       const item: FeriasItem = {
         funcionario_nome: func.nome ?? '',
@@ -120,10 +182,9 @@ export async function buscarFeriasParaRelatorio(
         observacao:       row.observacao ?? null,
       }
 
-      mapaSuper.get(supId)!.itens.push(item)
+      mapaSuper.get(sup.supId)!.itens.push(item)
     }
 
-    // Ordena supervisores por nome e itens por data_inicio
     const supervisores: SupervisorRelatorio[] = Array.from(mapaSuper.values())
       .map(s => ({
         supervisor_nome: s.nome,
