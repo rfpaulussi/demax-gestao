@@ -24,7 +24,7 @@ export async function buscarSupervisoresAtivos(): Promise<SupervisorOption[]> {
       supervisor_id,
       perfis!config_supervisores_postos_supervisor_id_fkey (
         id,
-        nome_completo
+        nome
       )
     `)
     .eq('ativo', true)
@@ -35,8 +35,8 @@ export async function buscarSupervisoresAtivos(): Promise<SupervisorOption[]> {
   for (const row of data) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const perfil = row.perfis as any
-    if (perfil?.id && perfil?.nome_completo) {
-      mapa.set(perfil.id, perfil.nome_completo)
+    if (perfil?.id && perfil?.nome) {
+      mapa.set(perfil.id, perfil.nome)
     }
   }
 
@@ -116,7 +116,7 @@ export async function buscarFeriasParaRelatorio(
         supervisor_id,
         perfis!config_supervisores_postos_supervisor_id_fkey (
           id,
-          nome_completo
+          nome
         )
       `)
       .in('posto_id', postoIds)
@@ -135,7 +135,7 @@ export async function buscarFeriasParaRelatorio(
       if (perfil?.id) {
         mapaPostoSup.set(csp.posto_id, {
           supId:   perfil.id,
-          supNome: perfil.nome_completo ?? 'Sem supervisor',
+          supNome: perfil.nome ?? 'Sem supervisor',
         })
       }
     }
