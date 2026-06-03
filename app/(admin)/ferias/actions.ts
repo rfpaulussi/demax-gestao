@@ -128,3 +128,144 @@ export async function buscarPeriodosAquisitivos(funcionario_id: string) {
   if (error) throw new Error(error.message)
   return data
 }
+
+// ─── Nova: lista de férias com supervisor ─────────────────────────────────────
+
+export interface FeriasListaItem {
+  id: string
+  funcionario_id: string
+  funcionario_nome: string
+  registro: string
+  cargo: string
+  posto_nome: string
+  secretaria: string
+  posto_id: string | null
+  supervisor_nome: string
+  numero_periodo: number
+  data_inicio: string | null
+  data_fim: string | null
+  dias_direito: number
+  dias_utilizados: number | null
+  status: string
+  observacao: string | null
+  aprovado_em: string | null
+}
+
+export interface SupervisorOpcao {
+  id: string
+  nome: string
+}
+
+export async function buscarSupervisoresParaFiltro(): Promise<SupervisorOpcao[]> {
+  const supabase = createClient()
+
+  const { data, error } = await supabase
+    .from('config_supervisores_postos')
+    .select(`
+      supervisor_id,
+      perfis!config_supervisores_postos_supervisor_id_fkey ( id, nome )
+    `)
+    .eq('ativo', true)
+
+  if (error || !data) return []
+
+  const mapa = new Map<string, string>()
+  for (const row of data) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const perfil = row.perfis as any
+    if (perfil?.id && perfil?.nome) mapa.set(perfil.id, perfil.nome)
+  }
+
+  return Array.from(mapa.entries())
+    .map(([id, nome]) => ({ id, nome }))
+    .sort((a, b) => a.nome.localeCompare(b.nome))
+}
+
+export async function buscarFeriasLista(): Promise<FeriasListaItem[]> {
+  const supabase = createClient()
+
+  // Etapa 1 — férias com funcionário, posto e função
+  const { data, error } = await supabase
+    .from('ferias')
+    .select(`
+      id,
+      funcionario_id,
+      numero_periodo,
+      data_inicio,
+      data_fim,
+      dias_direito,
+      dias_utilizados,
+      status,
+      observacao,
+      aprovado_em,
+      funcionarios (
+        id,
+        nome,
+        registro,
+        posto_id,
+        funcoes ( nome ),
+        postos ( id, nome, secretaria )
+      )
+    `)
+    .order('data_inicio', { ascending: false })
+
+  if (error || !data) return []
+
+  // Coleta posto_ids únicos
+  const postoIdsSet = new Set<string>()
+  for (const r of data) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const id = (r.funcionarios as any)?.postos?.id
+    if (id) postoIdsSet.add(id)
+  }
+  const postoIds = Array.from(postoIdsSet)
+
+  // Etapa 2 — supervisor por posto
+  const mapaPostoSup = new Map<string, string>()
+
+  if (postoIds.length > 0) {
+    const { data: cspData } = await supabase
+      .from('config_supervisores_postos')
+      .select(`
+        posto_id,
+        perfis!config_supervisores_postos_supervisor_id_fkey ( id, nome )
+      `)
+      .in('posto_id', postoIds)
+      .eq('ativo', true)
+
+    for (const csp of cspData ?? []) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const perfil = csp.perfis as any
+      if (perfil?.nome) mapaPostoSup.set(csp.posto_id, perfil.nome)
+    }
+  }
+
+  return data.map(row => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const func   = row.funcionarios as any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const posto  = func?.postos as any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const funcao = func?.funcoes as any
+
+    return {
+      id:               row.id,
+      funcionario_id:   row.funcionario_id,
+      funcionario_nome: func?.nome ?? '—',
+      registro:         func?.registro ?? '—',
+      cargo:            funcao?.nome ?? '—',
+      posto_nome:       posto?.nome ?? '—',
+      secretaria:       posto?.secretaria ?? '—',
+      posto_id:         posto?.id ?? null,
+      supervisor_nome:  posto?.id ? (mapaPostoSup.get(posto.id) ?? 'Sem supervisor') : 'Sem supervisor',
+      numero_periodo:   row.numero_periodo ?? 1,
+      data_inicio:      row.data_inicio,
+      data_fim:         row.data_fim,
+      dias_direito:     row.dias_direito ?? 30,
+      dias_utilizados:  row.dias_utilizados,
+      status:           row.status ?? 'disponivel',
+      observacao:       row.observacao,
+      aprovado_em:      row.aprovado_em,
+    }
+  })
+}
