@@ -12,13 +12,20 @@ const STATUS_OPTIONS = [
   { value: 'desligado', label: 'Desligado' },
 ]
 
-export function FiltrosEfetivo({ secretarias }: { secretarias: string[] }) {
+export function FiltrosEfetivo({
+  secretarias,
+  supervisores,
+}: {
+  secretarias: string[]
+  supervisores: { id: string; nome: string | null }[]
+}) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
   const busca = searchParams.get('busca') ?? ''
   const status = searchParams.get('status') ?? ''
   const secretaria = searchParams.get('secretaria') ?? ''
+  const supervisor = searchParams.get('supervisor') ?? ''
 
   const update = useCallback(
     (key: string, value: string) => {
@@ -48,6 +55,18 @@ export function FiltrosEfetivo({ secretarias }: { secretarias: string[] }) {
           className={`${inputClass} pl-9 w-full`}
         />
       </div>
+
+      <select
+        value={supervisor}
+        onChange={e => update('supervisor', e.target.value)}
+        className={inputClass}
+      >
+        <option value="">Todos os supervisores</option>
+        <option value="sem_supervisor">Sem Supervisor</option>
+        {supervisores.map(s => (
+          <option key={s.id} value={s.id}>{s.nome ?? '—'}</option>
+        ))}
+      </select>
 
       <select
         value={secretaria}

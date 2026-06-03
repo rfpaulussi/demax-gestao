@@ -65,15 +65,17 @@ export default async function EfetivoPage({
   const funcionarios = (raw ?? []) as unknown as FuncionarioRow[]
 
   // supervisor_id → Set<posto_id>
+  type ConfigRow = { supervisor_id: string; posto_id: string }
+
   const supervisorPostoMap = new Map<string, Set<string>>()
-  for (const row of configRaw ?? []) {
+  for (const row of (configRaw ?? []) as ConfigRow[]) {
     if (!supervisorPostoMap.has(row.supervisor_id)) {
       supervisorPostoMap.set(row.supervisor_id, new Set())
     }
     supervisorPostoMap.get(row.supervisor_id)!.add(row.posto_id)
   }
   // todos os posto_ids com pelo menos um supervisor ativo
-  const supervisedPostoIds = new Set((configRaw ?? []).map(r => r.posto_id))
+  const supervisedPostoIds = new Set(((configRaw ?? []) as ConfigRow[]).map(r => r.posto_id))
 
   // Counters over unfiltered data
   const total     = funcionarios.length
