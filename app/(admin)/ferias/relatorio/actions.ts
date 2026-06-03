@@ -31,7 +31,6 @@ export async function buscarSupervisoresAtivos(): Promise<SupervisorOption[]> {
 
   if (error || !data) return []
 
-  // Deduplica por supervisor_id
   const mapa = new Map<string, string>()
   for (const row of data) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -58,7 +57,7 @@ export async function buscarFeriasParaRelatorio(
   const dataFim    = new Date(ano, mes, 0).toISOString().split('T')[0]
 
   try {
-    // Etapa 1 — férias do período com funcionário e posto
+    // Etapa 1 — férias do período com funcionário, posto e função
     const { data, error } = await supabase
       .from('ferias')
       .select(`
@@ -77,8 +76,8 @@ export async function buscarFeriasParaRelatorio(
           id,
           registro,
           nome,
-          cargo,
           posto_id,
+          funcoes ( nome ),
           postos (
             id,
             nome,
@@ -128,7 +127,7 @@ export async function buscarFeriasParaRelatorio(
       return { supervisores: [], mesAno, totalRegistros: 0, error: cspError.message }
     }
 
-    // Monta mapa posto_id → { supId, supNome }
+    // Mapa posto_id → supervisor
     const mapaPostoSup = new Map<string, { supId: string; supNome: string }>()
     for (const csp of cspData ?? []) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -152,12 +151,13 @@ export async function buscarFeriasParaRelatorio(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const posto   = func.postos as any
       const postoId = posto?.id
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const funcao  = func.funcoes as any
 
       const sup = postoId
         ? mapaPostoSup.get(postoId) ?? { supId: 'sem_supervisor', supNome: 'Sem supervisor' }
         : { supId: 'sem_supervisor', supNome: 'Sem supervisor' }
 
-      // Filtra por supervisor se selecionado
       if (supervisorId && sup.supId !== supervisorId) continue
 
       if (!mapaSuper.has(sup.supId)) {
@@ -167,7 +167,7 @@ export async function buscarFeriasParaRelatorio(
       const item: FeriasItem = {
         funcionario_nome: func.nome ?? '',
         registro:         func.registro ?? '',
-        cargo:            func.cargo ?? '',
+        cargo:            funcao?.nome ?? '—',
         posto_nome:       posto?.nome ?? '—',
         secretaria:       posto?.secretaria ?? '—',
         data_inicio:      row.data_inicio ?? '',
