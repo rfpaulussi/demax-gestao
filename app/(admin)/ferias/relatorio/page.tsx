@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { buscarFeriasParaRelatorio } from './actions'
+import { useEffect, useState, useTransition } from 'react'
+import { buscarFeriasParaRelatorio, buscarSupervisoresAtivos } from './actions'
+import type { SupervisorOption } from './actions'
 import { downloadRelatorioFerias } from '@/components/ferias/relatorio-supervisor-pdf'
 import type { SupervisorRelatorio } from '@/components/ferias/relatorio-supervisor-pdf'
 
@@ -9,12 +10,8 @@ import type { SupervisorRelatorio } from '@/components/ferias/relatorio-supervis
 
 function mesAtualDefault() {
   const d = new Date()
-  // Sugere o próximo mês (o que o supervisor está preparando para enviar ao RH)
   const proximo = new Date(d.getFullYear(), d.getMonth() + 1, 1)
-  return {
-    mes: proximo.getMonth() + 1,
-    ano: proximo.getFullYear(),
-  }
+  return { mes: proximo.getMonth() + 1, ano: proximo.getFullYear() }
 }
 
 function prazoRH(mes: number, ano: number): string {
@@ -86,15 +83,9 @@ function TabelaSupervisor({ supervisor, itens }: { supervisor: string; itens: an
         <table className="w-full text-xs">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200">
-              <th className="text-left px-3 py-2 font-semibold uppercase tracking-widest text-slate-400 text-[10px]">Funcionário</th>
-              <th className="text-left px-3 py-2 font-semibold uppercase tracking-widest text-slate-400 text-[10px]">Matr.</th>
-              <th className="text-left px-3 py-2 font-semibold uppercase tracking-widest text-slate-400 text-[10px]">Cargo</th>
-              <th className="text-left px-3 py-2 font-semibold uppercase tracking-widest text-slate-400 text-[10px]">Posto</th>
-              <th className="text-left px-3 py-2 font-semibold uppercase tracking-widest text-slate-400 text-[10px]">Período Aquisitivo</th>
-              <th className="text-center px-3 py-2 font-semibold uppercase tracking-widest text-slate-400 text-[10px]">Início</th>
-              <th className="text-center px-3 py-2 font-semibold uppercase tracking-widest text-slate-400 text-[10px]">Retorno</th>
-              <th className="text-center px-3 py-2 font-semibold uppercase tracking-widest text-slate-400 text-[10px]">Dias</th>
-              <th className="text-center px-3 py-2 font-semibold uppercase tracking-widest text-slate-400 text-[10px]">Status</th>
+              {['Funcionário','Matr.','Cargo','Posto','Período Aquisitivo','Início','Retorno','Dias','Status'].map(h => (
+                <th key={h} className="text-left px-3 py-2 font-semibold uppercase tracking-widest text-slate-400 text-[10px]">{h}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -132,6 +123,8 @@ export default function RelatorioFeriasPage() {
   const defaultPeriodo = mesAtualDefault()
   const [mes, setMes] = useState(defaultPeriodo.mes)
   const [ano, setAno] = useState(defaultPeriodo.ano)
+  const [supervisorId, setSupervisorId] = useState<string>('')
+  const [supervisoresOpcoes, setSupervisoresOpcoes] = useState<SupervisorOption[]>([])
   const [supervisores, setSupervisores] = useState<SupervisorRelatorio[] | null>(null)
   const [mesAnoAtual, setMesAnoAtual]   = useState('')
   const [, setTotalRegistros] = useState(0)
@@ -141,14 +134,23 @@ export default function RelatorioFeriasPage() {
 
   const anos = Array.from({ length: 4 }, (_, i) => new Date().getFullYear() - 1 + i)
 
-  const diasPrazo = diasParaPrazo(mes, ano)
-  const prazoStr  = prazoRH(mes, ano)
+  const diasPrazo    = diasParaPrazo(mes, ano)
+  const prazoStr     = prazoRH(mes, ano)
   const prazoUrgente = diasPrazo >= 0 && diasPrazo <= 10
+
+  // Carrega supervisores ativos ao montar
+  useEffect(() => {
+    buscarSupervisoresAtivos().then(setSupervisoresOpcoes)
+  }, [])
 
   async function handleBuscar() {
     setErro(null)
     start(async () => {
-      const result = await buscarFeriasParaRelatorio(mes, ano)
+      const result = await buscarFeriasParaRelatorio(
+        mes,
+        ano,
+        supervisorId || undefined,
+      )
       if (result.error) {
         setErro(result.error)
         setSupervisores(null)
@@ -170,11 +172,15 @@ export default function RelatorioFeriasPage() {
         hour: '2-digit', minute: '2-digit',
       }).replace(',', ' às')
 
+      const nomeSupervisor = supervisorId
+        ? supervisoresOpcoes.find(s => s.id === supervisorId)?.nome
+        : undefined
+
       await downloadRelatorioFerias({
         supervisores,
         mesAno: mesAnoAtual,
         geradoEm: agora,
-        geradoPor: 'Supervisor',
+        geradoPor: nomeSupervisor ?? 'Coordenação',
       })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
@@ -184,9 +190,9 @@ export default function RelatorioFeriasPage() {
     }
   }
 
-  const total = supervisores?.reduce((a, s) => a + s.itens.length, 0) ?? 0
-  const totalAprovados = supervisores?.reduce((a, s) => a + s.itens.filter(i => i.status === 'aprovado').length, 0) ?? 0
-  const totalAgendados = supervisores?.reduce((a, s) => a + s.itens.filter(i => i.status === 'agendado').length, 0) ?? 0
+  const total           = supervisores?.reduce((a, s) => a + s.itens.length, 0) ?? 0
+  const totalAprovados  = supervisores?.reduce((a, s) => a + s.itens.filter(i => i.status === 'aprovado').length, 0) ?? 0
+  const totalAgendados  = supervisores?.reduce((a, s) => a + s.itens.filter(i => i.status === 'agendado').length, 0) ?? 0
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -203,6 +209,8 @@ export default function RelatorioFeriasPage() {
 
         {/* Controles */}
         <div className="bg-white border border-slate-200 rounded-xl p-5 mb-6 flex flex-wrap items-end gap-4">
+
+          {/* Mês */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Mês</label>
             <select
@@ -215,6 +223,8 @@ export default function RelatorioFeriasPage() {
               ))}
             </select>
           </div>
+
+          {/* Ano */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Ano</label>
             <select
@@ -224,6 +234,21 @@ export default function RelatorioFeriasPage() {
             >
               {anos.map(a => (
                 <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Supervisor */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Supervisor</label>
+            <select
+              value={supervisorId}
+              onChange={e => setSupervisorId(e.target.value)}
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300 min-w-[200px]"
+            >
+              <option value="">Todos os supervisores</option>
+              {supervisoresOpcoes.map(s => (
+                <option key={s.id} value={s.id}>{s.nome}</option>
               ))}
             </select>
           </div>
@@ -243,6 +268,7 @@ export default function RelatorioFeriasPage() {
             </span>
           </div>
 
+          {/* Buscar */}
           <button
             onClick={handleBuscar}
             disabled={isPending}
@@ -251,6 +277,7 @@ export default function RelatorioFeriasPage() {
             {isPending ? 'Buscando...' : 'Buscar'}
           </button>
 
+          {/* Baixar PDF — só aparece quando há resultados */}
           {supervisores && supervisores.length > 0 && (
             <button
               onClick={handleDownload}
@@ -272,13 +299,12 @@ export default function RelatorioFeriasPage() {
         {/* Resultado */}
         {supervisores !== null && (
           <>
-            {/* KPIs */}
             {supervisores.length > 0 && (
               <div className="grid grid-cols-4 gap-4 mb-6">
                 {[
-                  { label: 'Total', value: total, color: 'border-slate-900' },
-                  { label: 'Aprovados', value: totalAprovados, color: 'border-green-500' },
-                  { label: 'Agendados', value: totalAgendados, color: 'border-blue-500' },
+                  { label: 'Total',        value: total,          color: 'border-slate-900' },
+                  { label: 'Aprovados',    value: totalAprovados, color: 'border-green-500' },
+                  { label: 'Agendados',    value: totalAgendados, color: 'border-blue-500'  },
                   { label: 'Supervisores', value: supervisores.length, color: 'border-amber-400' },
                 ].map(({ label, value, color }) => (
                   <div key={label} className={`bg-white border-t-4 ${color} border border-slate-200 rounded-xl px-5 py-4`}>
@@ -289,15 +315,15 @@ export default function RelatorioFeriasPage() {
               </div>
             )}
 
-            {/* Tabelas */}
             {supervisores.length === 0 ? (
               <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
                 <p className="text-slate-400 text-sm">
                   Nenhuma féria encontrada para <strong>{MESES[mes - 1]} / {ano}</strong>
+                  {supervisorId && supervisoresOpcoes.find(s => s.id === supervisorId) && (
+                    <> — supervisor <strong>{supervisoresOpcoes.find(s => s.id === supervisorId)?.nome}</strong></>
+                  )}
                 </p>
-                <p className="text-slate-300 text-xs mt-1">
-                  Status buscados: Aprovado, Agendado, Em Curso
-                </p>
+                <p className="text-slate-300 text-xs mt-1">Status buscados: Aprovado, Agendado, Em Curso</p>
               </div>
             ) : (
               <div className="bg-white border border-slate-200 rounded-xl p-6">
