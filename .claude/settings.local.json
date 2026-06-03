@@ -42,7 +42,21 @@
       "Bash(cp /tmp/orig_actions.ts \"app/\\(admin\\)/efetivo/actions.ts\")",
       "Bash(git show *)",
       "Bash(npx eslint *)",
-      "Bash(Remove-Item *)"
+      "Bash(Remove-Item *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Rodolfo\\\\projetos-claude\\\\demax-gestao\" -MaxDepth 2 -Filter \"*.md\")",
+      "Bash(Select-Object FullName)",
+      "PowerShell(Get-ChildItem *)",
+      "Bash(vercel *)",
+      "Bash(npm i *)",
+      "Bash(Select-String -Pattern '\"scripts\"' -A 20)",
+      "Bash(npx next *)",
+      "Bash(Test-Path *)",
+      "Bash(npm list *)",
+      "Bash(New-Item *)",
+      "Bash(code *)",
+      "Bash(npm ls *)",
+      "Bash(find lib *)",
+      "Bash(dir lib *)"
     ]
   }
 }

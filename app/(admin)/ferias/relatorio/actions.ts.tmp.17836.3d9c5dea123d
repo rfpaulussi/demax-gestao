@@ -1,0 +1,150 @@
+'use server'
+
+import { createClient } from '@/lib/supabase/server'
+import type { SupervisorRelatorio, FeriasItem } from '@/components/ferias/relatorio-supervisor-pdf'
+
+export interface BuscarFeriasRelatorioResult {
+  supervisores: SupervisorRelatorio[]
+  mesAno: string
+  totalRegistros: number
+  error?: string
+}
+
+/**
+ * Busca férias com status agendado | aprovado | em_curso
+ * cujo data_inicio cai no mês/ano informado.
+ *
+ * Se supervisorId for passado, filtra apenas aquele supervisor (painel do supervisor).
+ * Se omitido, retorna todos (painel do coordenador).
+ */
+export async function buscarFeriasParaRelatorio(
+  mes: number,
+  ano: number,
+  supervisorId?: string,
+): Promise<BuscarFeriasRelatorioResult> {
+  const supabase = createClient()
+  const mesAno = `${String(mes).padStart(2, '0')}/${ano}`
+
+  // Intervalo do mês
+  const dataInicio = new Date(ano, mes - 1, 1).toISOString().split('T')[0]
+  const dataFim    = new Date(ano, mes, 0).toISOString().split('T')[0]
+
+  try {
+    // Busca férias do período com joins necessários
+    const query = supabase
+      .from('ferias')
+      .select(`
+        id,
+        status,
+        data_inicio,
+        data_fim,
+        dias_direito,
+        dias_utilizados,
+        numero_periodo,
+        periodo_inicio,
+        periodo_fim,
+        limite_gozo,
+        observacao,
+        funcionarios (
+          id,
+          registro,
+          nome,
+          cargo,
+          postos (
+            nome,
+            secretaria
+          ),
+          config_supervisores_postos (
+            perfis (
+              id,
+              nome_completo
+            )
+          )
+        )
+      `)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .in('status', ['agendado', 'aprovado', 'em_curso'] as any)
+      .gte('data_inicio', dataInicio)
+      .lte('data_inicio', dataFim)
+      .order('data_inicio', { ascending: true })
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error('[buscarFeriasParaRelatorio]', error)
+      return { supervisores: [], mesAno, totalRegistros: 0, error: error.message }
+    }
+
+    if (!data || data.length === 0) {
+      return { supervisores: [], mesAno, totalRegistros: 0 }
+    }
+
+    // Agrupa por supervisor
+    const mapaSuper = new Map<string, { nome: string; itens: FeriasItem[] }>()
+
+    for (const row of data) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const func = row.funcionarios as any
+      if (!func) continue
+
+      // Determina supervisor via config_supervisores_postos
+      const supervisorEntry = func.config_supervisores_postos?.[0]
+      const perfil          = supervisorEntry?.perfis
+      const supId           = perfil?.id ?? 'sem_supervisor'
+      const supNome         = perfil?.nome_completo ?? 'Sem supervisor'
+
+      // Filtra por supervisor se solicitado
+      if (supervisorId && supId !== supervisorId) continue
+
+      if (!mapaSuper.has(supId)) {
+        mapaSuper.set(supId, { nome: supNome, itens: [] })
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const posto = func.postos as any
+
+      const item: FeriasItem = {
+        funcionario_nome: func.nome ?? '',
+        registro:         func.registro ?? '',
+        cargo:            func.cargo ?? '',
+        posto_nome:       posto?.nome ?? '—',
+        secretaria:       posto?.secretaria ?? '—',
+        data_inicio:      row.data_inicio,
+        data_fim:         row.data_fim,
+        dias_direito:     row.dias_direito ?? 30,
+        dias_utilizados:  row.dias_utilizados ?? null,
+        numero_periodo:   row.numero_periodo ?? 1,
+        periodo_inicio:   row.periodo_inicio,
+        periodo_fim:      row.periodo_fim,
+        limite_gozo:      row.limite_gozo ?? null,
+        status:           row.status,
+        observacao:       row.observacao ?? null,
+      }
+
+      mapaSuper.get(supId)!.itens.push(item)
+    }
+
+    // Ordena supervisores por nome e itens por data_inicio
+    const supervisores: SupervisorRelatorio[] = Array.from(mapaSuper.values())
+      .map(s => ({
+        supervisor_nome: s.nome,
+        itens: s.itens.sort((a, b) =>
+          new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime()
+        ),
+      }))
+      .sort((a, b) => a.supervisor_nome.localeCompare(b.supervisor_nome))
+
+    const totalRegistros = supervisores.reduce((acc, s) => acc + s.itens.length, 0)
+
+    return { supervisores, mesAno, totalRegistros }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (err: any) {
+    console.error('[buscarFeriasParaRelatorio] erro inesperado:', err)
+    return {
+      supervisores: [],
+      mesAno,
+      totalRegistros: 0,
+      error: err?.message ?? 'Erro desconhecido',
+    }
+  }
+}

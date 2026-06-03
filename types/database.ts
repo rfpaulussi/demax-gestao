@@ -379,8 +379,19 @@ export type Database = {
           data_inicio: string | null
           data_fim: string | null
           observacao: string | null
-          status: 'agendada' | 'em_curso' | 'concluida' | null
+          status: 'agendado' | 'aprovado' | 'em_curso' | 'concluido' | 'cancelado' | null
           created_at: string
+          numero_periodo: number | null
+          periodo_inicio: string | null
+          periodo_fim: string | null
+          limite_gozo: string | null
+          dias_direito: number | null
+          dias_utilizados: number | null
+          aprovado_por: string | null
+          aprovado_em: string | null
+          pdf_url: string | null
+          criado_por: string | null
+          updated_at: string | null
         }
         Insert: {
           id?: string
@@ -388,8 +399,19 @@ export type Database = {
           data_inicio?: string | null
           data_fim?: string | null
           observacao?: string | null
-          status?: 'agendada' | 'em_curso' | 'concluida' | null
+          status?: 'agendado' | 'aprovado' | 'em_curso' | 'concluido' | 'cancelado' | null
           created_at?: string
+          numero_periodo?: number | null
+          periodo_inicio?: string | null
+          periodo_fim?: string | null
+          limite_gozo?: string | null
+          dias_direito?: number | null
+          dias_utilizados?: number | null
+          aprovado_por?: string | null
+          aprovado_em?: string | null
+          pdf_url?: string | null
+          criado_por?: string | null
+          updated_at?: string | null
         }
         Update: {
           id?: string
@@ -397,7 +419,18 @@ export type Database = {
           data_inicio?: string | null
           data_fim?: string | null
           observacao?: string | null
-          status?: 'agendada' | 'em_curso' | 'concluida' | null
+          status?: 'agendado' | 'aprovado' | 'em_curso' | 'concluido' | 'cancelado' | null
+          numero_periodo?: number | null
+          periodo_inicio?: string | null
+          periodo_fim?: string | null
+          limite_gozo?: string | null
+          dias_direito?: number | null
+          dias_utilizados?: number | null
+          aprovado_por?: string | null
+          aprovado_em?: string | null
+          pdf_url?: string | null
+          criado_por?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }

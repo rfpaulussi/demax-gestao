@@ -4,9 +4,6 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getUser } from '@/lib/auth/get-user'
 
-async function gerarPDFMovimentacao(_solicitacaoId: string): Promise<null> {
-  return null
-}
 
 export async function aprovarSolicitacao(id: string, observacao?: string) {
   const supabase = createClient()
@@ -106,10 +103,6 @@ export async function aprovarSolicitacao(id: string, observacao?: string) {
       observacao_admin: observacao ?? null,
     })
     .eq('id', id)
-
-  if (sol.tipo === 'mudanca_funcao') {
-    await gerarPDFMovimentacao(id)
-  }
 
   revalidatePath('/aprovacoes')
   revalidatePath('/efetivo')

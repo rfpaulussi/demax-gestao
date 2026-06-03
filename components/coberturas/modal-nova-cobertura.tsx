@@ -18,7 +18,7 @@ interface Supervisor {
 interface Posto {
   id: string
   nome: string
-  secretaria: string
+  secretaria: string | null
 }
 
 interface Props {
@@ -70,11 +70,14 @@ export function ModalNovaCobertura({ open, onClose }: Props) {
       .select('posto_id, postos(id, nome, secretaria)')
       .eq('supervisor_id', supervisorId)
       .then(({ data }) => {
-        const lista: Posto[] = (data ?? []).map((r: any) => ({
-          id: r.postos.id,
-          nome: r.postos.nome,
-          secretaria: r.postos.secretaria,
-        }))
+        type RawRow = { postos: { id: string; nome: string; secretaria: string | null } | null }
+        const lista: Posto[] = ((data ?? []) as unknown as RawRow[])
+          .filter(r => r.postos != null)
+          .map(r => ({
+            id: r.postos!.id,
+            nome: r.postos!.nome,
+            secretaria: r.postos!.secretaria,
+          }))
         setPostos(lista)
         setPostoId('')
         setSecretaria('')

@@ -37,7 +37,6 @@ const STATUS_BADGE: Record<string, string> = {
 }
 
 function PostoCard({ posto }: { posto: Posto }) {
-  const ativosCount = posto.funcionarios.filter((f) => f.status === 'ativo').length
   const efetivo_real = posto.funcionarios.length
   const diff = efetivo_real - posto.efetivo_previsto
 

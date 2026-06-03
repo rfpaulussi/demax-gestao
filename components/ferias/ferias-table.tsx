@@ -8,7 +8,7 @@ import { ModalNovaFerias } from './modal-nova-ferias'
 
 export type FeriasRow = {
   id: string
-  status: 'agendada' | 'em_curso' | 'concluida' | null
+  status: 'agendado' | 'aprovado' | 'em_curso' | 'concluido' | 'cancelado' | null
   data_inicio: string | null
   data_fim: string | null
   observacao: string | null
@@ -24,9 +24,11 @@ const STATUS_BADGE: Record<
   NonNullable<FeriasRow['status']>,
   { label: string; className: string }
 > = {
-  agendada: { label: 'Agendada', className: 'bg-yellow-50 text-yellow-700 ring-yellow-200' },
+  agendado:  { label: 'Agendado',  className: 'bg-yellow-50 text-yellow-700 ring-yellow-200' },
+  aprovado:  { label: 'Aprovado',  className: 'bg-blue-50 text-blue-700 ring-blue-200'       },
   em_curso: { label: 'Em Curso', className: 'bg-blue-50 text-blue-700 ring-blue-200'       },
-  concluida:{ label: 'Concluída', className: 'bg-green-50 text-green-700 ring-green-200'   },
+  concluido: { label: 'Concluído', className: 'bg-green-50 text-green-700 ring-green-200'  },
+  cancelado: { label: 'Cancelado', className: 'bg-gray-50 text-gray-500 ring-gray-200'    },
 }
 
 const COLS = ['Funcionário', 'Posto', 'Secretaria', 'Data Início', 'Data Fim', 'Status', 'Ações']
@@ -40,10 +42,7 @@ function ConcluirButton({ ferias }: { ferias: FeriasRow }) {
   const [pending, startTransition] = useTransition()
 
   function handleClick() {
-    const fd = new FormData()
-    fd.set('ferias_id',      ferias.id)
-    fd.set('funcionario_id', ferias.funcionarios?.id ?? '')
-    startTransition(() => concluirFerias(fd))
+    startTransition(async () => { await concluirFerias(ferias.id) })
   }
 
   return (

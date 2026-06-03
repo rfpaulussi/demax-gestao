@@ -17,10 +17,6 @@ export default async function CoberturasSupervisorPage() {
     .eq('ativo', true)
 
   const postoIds = (configs ?? []).map(c => c.posto_id)
-  const postos   = (configs ?? []).map(c => {
-    const p = c.postos as unknown as { id: string; nome: string }
-    return { id: p.id, nome: p.nome }
-  })
 
   let coberturas: CoberturaSupRow[] = []
   if (postoIds.length > 0) {

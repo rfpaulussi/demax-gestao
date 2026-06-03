@@ -1,5 +1,8 @@
 import Link from 'next/link'
-import { Users, UserMinus, Umbrella, TrendingDown, ClipboardList, ArrowLeftRight, type LucideIcon } from 'lucide-react'
+import {
+  Users, UserMinus, Umbrella, TrendingDown, ClipboardList, ArrowLeftRight,
+  AlertCircle, AlertTriangle, CheckCircle2, type LucideIcon,
+} from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { cn } from '@/lib/utils'
 import type { TipoSolicitacao } from '@/types'
@@ -53,13 +56,17 @@ const TIPO_BADGE: Record<TipoSolicitacao, { label: string; className: string }> 
 // ─── sub-components ───────────────────────────────────────────────────────────
 
 function KpiCard({
-  label, value, icon: Icon, topColor, iconBg,
+  label, value, icon: Icon, topColor, iconBg, href,
 }: {
-  label: string; value: number; icon: LucideIcon; topColor: string; iconBg: string
+  label: string; value: number; icon: LucideIcon; topColor: string; iconBg: string; href?: string
 }) {
   const [iconClass, bgClass] = iconBg.split(' ')
-  return (
-    <div className={cn('rounded-xl border border-gray-100 border-t-4 bg-white p-5 shadow-sm', topColor)}>
+  const inner = (
+    <div className={cn(
+      'rounded-xl border border-gray-100 border-t-4 bg-white p-5 shadow-sm transition-shadow',
+      href && 'cursor-pointer hover:shadow-md',
+      topColor,
+    )}>
       <div className={cn('inline-flex rounded-lg p-2.5', bgClass)}>
         <Icon className={cn('h-5 w-5', iconClass)} />
       </div>
@@ -67,10 +74,43 @@ function KpiCard({
       <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
     </div>
   )
+  if (href) return <Link href={href}>{inner}</Link>
+  return inner
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400">{children}</h2>
+}
+
+type Severity = 'critical' | 'warning'
+
+function PendenciaRow({
+  href,
+  severity,
+  children,
+}: {
+  href: string
+  severity: Severity
+  children: React.ReactNode
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-gray-50"
+    >
+      {severity === 'critical'
+        ? <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+        : <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+      }
+      <span className={cn(
+        'flex-1 text-sm font-medium',
+        severity === 'critical' ? 'text-red-700' : 'text-amber-700',
+      )}>
+        {children}
+      </span>
+      <span className="text-xs text-gray-400">→</span>
+    </Link>
+  )
 }
 
 // ─── page ─────────────────────────────────────────────────────────────────────
@@ -78,9 +118,12 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 export default async function DashboardPage() {
   const supabase = createClient()
 
-  const today = new Date()
-  const todayStr = today.toISOString().split('T')[0]
-  const sevenDaysAgo = new Date(today.getTime() - 7 * 86_400_000).toISOString()
+  const today     = new Date()
+  const todayStr  = today.toISOString().split('T')[0]
+  const tomorrow  = new Date(today.getTime() + 86_400_000)
+  const tomorrowStr     = tomorrow.toISOString().split('T')[0]
+  const sevenDaysAgo    = new Date(today.getTime() - 7 * 86_400_000).toISOString()
+  const threeDaysAgoStr = new Date(today.getTime() - 3 * 86_400_000).toISOString()
 
   const [
     { count: totalAtivos },
@@ -93,6 +136,10 @@ export default async function DashboardPage() {
     { data: solicitacoesPendentesData },
     { data: retornosHojeData },
     { data: insalubreAbertasData },
+    // pendências operacionais
+    { count: funcSemPostoCount },
+    { data: coberturasVencendoData },
+    { count: solsAntigasCount },
   ] = await Promise.all([
     supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'ativo'),
     supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'afastado'),
@@ -117,12 +164,24 @@ export default async function DashboardPage() {
       .select('id, created_at, funcionarios!funcionario_id(nome), postos!posto_id(nome)')
       .eq('status', 'pendente')
       .lte('created_at', sevenDaysAgo),
+    // pendências
+    supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'ativo').is('posto_id', null),
+    supabase
+      .from('coberturas_temporarias')
+      .select('id, data_prev_retorno')
+      .eq('status', 'ativa')
+      .lte('data_prev_retorno', tomorrowStr),
+    supabase.from('solicitacoes').select('*', { count: 'exact', head: true }).eq('status', 'pendente').lt('created_at', threeDaysAgoStr),
   ])
 
-  const postos          = (postosData ?? []) as PostoItem[]
-  const solsPendentes   = (solicitacoesPendentesData ?? []) as unknown as SolicitacaoPendente[]
-  const retornosHoje    = (retornosHojeData ?? []) as unknown as RetornoHoje[]
+  const postos           = (postosData ?? []) as PostoItem[]
+  const solsPendentes    = (solicitacoesPendentesData ?? []) as unknown as SolicitacaoPendente[]
+  const retornosHoje     = (retornosHojeData ?? []) as unknown as RetornoHoje[]
   const insalubreAbertas = (insalubreAbertasData ?? []) as unknown as InsalubreAberta[]
+
+  const coberturasVencendo = coberturasVencendoData ?? []
+  const coberturasHoje     = coberturasVencendo.filter(c => c.data_prev_retorno === todayStr).length
+  const coberturasAmanha   = coberturasVencendo.filter(c => c.data_prev_retorno === tomorrowStr).length
 
   // Postos por ID para lookup
   const postoById = new Map(postos.map(p => [p.id, p]))
@@ -164,6 +223,11 @@ export default async function DashboardPage() {
 
   const temAlertas = retornosHoje.length > 0 || deficitCritico.length > 0 || insalubreAbertas.length > 0
 
+  // Pendências operacionais
+  const semPosto   = funcSemPostoCount ?? 0
+  const solsAtigas = solsAntigasCount ?? 0
+  const temPendencias = semPosto > 0 || coberturasHoje > 0 || coberturasAmanha > 0 || solsAtigas > 0
+
   // ─── render ───────────────────────────────────────────────────────────────
 
   return (
@@ -173,12 +237,56 @@ export default async function DashboardPage() {
       <section className="space-y-3">
         <SectionTitle>Visão geral</SectionTitle>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
-          <KpiCard label="Ativos"             value={totalAtivos ?? 0}           icon={Users}          topColor="border-t-blue-500"   iconBg="text-blue-600 bg-blue-50"     />
-          <KpiCard label="Afastados"          value={afastados ?? 0}             icon={UserMinus}      topColor="border-t-orange-500" iconBg="text-orange-600 bg-orange-50" />
-          <KpiCard label="Em Férias"          value={emFerias ?? 0}              icon={Umbrella}       topColor="border-t-amber-500"  iconBg="text-amber-600 bg-amber-50"   />
-          <KpiCard label="Postos em Déficit"  value={deficit}                    icon={TrendingDown}   topColor="border-t-red-500"    iconBg="text-red-600 bg-red-50"       />
-          <KpiCard label="Aprovações Pend."   value={solicitacoesPendentes ?? 0} icon={ClipboardList}  topColor="border-t-violet-500" iconBg="text-violet-600 bg-violet-50" />
-          <KpiCard label="Coberturas Ativas"  value={coberturasAtivas ?? 0}      icon={ArrowLeftRight} topColor="border-t-teal-500"   iconBg="text-teal-600 bg-teal-50"     />
+          <KpiCard label="Ativos"            value={totalAtivos ?? 0}           icon={Users}          topColor="border-t-blue-500"   iconBg="text-blue-600 bg-blue-50"     href="/efetivo?status=ativo"     />
+          <KpiCard label="Afastados"         value={afastados ?? 0}             icon={UserMinus}      topColor="border-t-orange-500" iconBg="text-orange-600 bg-orange-50" href="/efetivo?status=afastado"  />
+          <KpiCard label="Em Férias"         value={emFerias ?? 0}              icon={Umbrella}       topColor="border-t-amber-500"  iconBg="text-amber-600 bg-amber-50"   href="/efetivo?status=ferias"    />
+          <KpiCard label="Postos em Déficit" value={deficit}                    icon={TrendingDown}   topColor="border-t-red-500"    iconBg="text-red-600 bg-red-50"                                        />
+          <KpiCard label="Aprovações Pend."  value={solicitacoesPendentes ?? 0} icon={ClipboardList}  topColor="border-t-violet-500" iconBg="text-violet-600 bg-violet-50" href="/aprovacoes"               />
+          <KpiCard label="Coberturas Ativas" value={coberturasAtivas ?? 0}      icon={ArrowLeftRight} topColor="border-t-teal-500"   iconBg="text-teal-600 bg-teal-50"     href="/coberturas"               />
+        </div>
+      </section>
+
+      {/* Pendências Operacionais */}
+      <section className="space-y-3">
+        <SectionTitle>Pendências operacionais</SectionTitle>
+        <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
+          {!temPendencias ? (
+            <div className="flex items-center gap-2.5 px-5 py-4">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" />
+              <p className="text-sm font-medium text-green-700">Nenhuma pendência no momento.</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-50">
+              {semPosto > 0 && (
+                <li>
+                  <PendenciaRow href="/efetivo" severity="critical">
+                    {semPosto} funcionário{semPosto > 1 ? 's' : ''} ativo{semPosto > 1 ? 's' : ''} sem posto alocado
+                  </PendenciaRow>
+                </li>
+              )}
+              {coberturasHoje > 0 && (
+                <li>
+                  <PendenciaRow href="/coberturas" severity="critical">
+                    {coberturasHoje} cobertura{coberturasHoje > 1 ? 's' : ''} com retorno previsto para hoje
+                  </PendenciaRow>
+                </li>
+              )}
+              {coberturasAmanha > 0 && (
+                <li>
+                  <PendenciaRow href="/coberturas" severity="warning">
+                    {coberturasAmanha} cobertura{coberturasAmanha > 1 ? 's' : ''} vencendo amanhã
+                  </PendenciaRow>
+                </li>
+              )}
+              {solsAtigas > 0 && (
+                <li>
+                  <PendenciaRow href="/aprovacoes" severity="warning">
+                    {solsAtigas} solicitação{solsAtigas > 1 ? 'ões' : ''} pendente{solsAtigas > 1 ? 's' : ''} há mais de 3 dias
+                  </PendenciaRow>
+                </li>
+              )}
+            </ul>
+          )}
         </div>
       </section>
 

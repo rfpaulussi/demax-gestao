@@ -5,7 +5,7 @@ import { Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { toggleAtivo } from '@/app/(admin)/usuarios/actions'
-import { ROLE_LABELS } from '@/types'
+
 import type { Perfil, Role } from '@/types'
 import { ModalNovoUsuario }   from './modal-novo-usuario'
 import { ModalEditarUsuario } from './modal-editar-usuario'

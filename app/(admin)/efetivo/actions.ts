@@ -72,7 +72,7 @@ export async function registrarFerias(formData: FormData) {
       data_inicio: dataInicio,
       data_fim: dataFim,
       observacao,
-      status: 'agendada',
+      status: 'agendado',
     }),
     supabase
       .from('funcionarios')
