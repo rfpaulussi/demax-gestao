@@ -15,7 +15,7 @@ export function EfetivoPorSecretaria({ secretarias }: EfetivoPorSecretariaProps)
       {secretarias.length === 0 ? (
         <p className="text-sm text-gray-400">Sem dados de secretaria.</p>
       ) : (
-        <ul className="space-y-4">
+        <ul className="max-h-80 space-y-4 overflow-y-auto">
           {secretarias.map(({ nome, previsto, real, pct }) => {
             const isPleno = pct >= 100
             const barColor =

@@ -36,8 +36,8 @@ export function ProximasFerias({ ferias }: ProximasFeriasProps) {
       {ferias.length === 0 ? (
         <p className="text-sm text-gray-400">Nenhuma férias nos próximos 7 dias.</p>
       ) : (
-        <ul className="divide-y divide-gray-50">
-          {ferias.map(f => {
+        <ul className="max-h-80 divide-y divide-gray-50 overflow-y-auto">
+          {ferias.slice(0, 7).map(f => {
             const badgeClass = STATUS_BADGE[f.status] ?? 'bg-gray-50 text-gray-600 ring-gray-200'
             const badgeLabel = STATUS_LABEL[f.status] ?? f.status
             return (

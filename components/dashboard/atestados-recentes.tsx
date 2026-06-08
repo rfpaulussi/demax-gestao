@@ -1,3 +1,4 @@
+import { FileX } from 'lucide-react'
 import type { AtestadoRecente } from '@/app/(admin)/dashboard/actions'
 
 interface AtestadosRecentesProps {
@@ -18,7 +19,10 @@ export function AtestadosRecentes({ atestados }: AtestadosRecentesProps) {
       </p>
 
       {atestados.length === 0 ? (
-        <p className="text-sm text-gray-400">Nenhum atestado nos últimos 7 dias.</p>
+        <div className="flex flex-col items-center gap-2 py-6 text-gray-300">
+          <FileX className="h-8 w-8" />
+          <p className="text-sm text-gray-400">Nenhum atestado nos últimos 7 dias.</p>
+        </div>
       ) : (
         <ul className="divide-y divide-gray-50">
           {atestados.map(a => {

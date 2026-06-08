@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import {
   Users, UserMinus, Umbrella, TrendingDown, ClipboardList, ArrowLeftRight,
-  AlertCircle, AlertTriangle, type LucideIcon,
+  type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { TipoSolicitacao } from '@/types'
@@ -85,42 +85,6 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   )
 }
 
-// ─── Pendências operacionais helpers ──────────────────────────────────────────
-
-type Severity = 'critical' | 'warning'
-
-function PendenciaRow({
-  href,
-  severity,
-  children,
-}: {
-  href: string
-  severity: Severity
-  children: React.ReactNode
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-gray-50"
-    >
-      {severity === 'critical' ? (
-        <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
-      ) : (
-        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
-      )}
-      <span
-        className={cn(
-          'flex-1 text-sm font-medium',
-          severity === 'critical' ? 'text-red-700' : 'text-amber-700'
-        )}
-      >
-        {children}
-      </span>
-      <span className="text-xs text-gray-400">→</span>
-    </Link>
-  )
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
@@ -134,9 +98,6 @@ export default async function DashboardPage() {
       buscarSecretariaData(),
       buscarAprovacoesData(),
     ])
-
-  const semPosto = alertas.funcSemPosto
-  const temPendencias = semPosto > 0
 
   return (
     <div className="space-y-8">
@@ -222,18 +183,16 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      {/* ── LINHA 4: Aprovações Pendentes ──────────────────────────────────── */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <SectionTitle>Aprovações pendentes</SectionTitle>
-          <Link href="/aprovacoes" className="text-xs font-semibold text-slate-600 hover:text-slate-900">
-            Ver todas →
-          </Link>
-        </div>
-        <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-          {aprovacoes.length === 0 ? (
-            <p className="px-6 py-8 text-center text-sm text-gray-400">Nenhuma solicitação pendente.</p>
-          ) : (
+      {/* ── LINHA 4: Aprovações Pendentes (só se houver) ───────────────────── */}
+      {aprovacoes.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <SectionTitle>Aprovações pendentes</SectionTitle>
+            <Link href="/aprovacoes" className="text-xs font-semibold text-slate-600 hover:text-slate-900">
+              Ver todas →
+            </Link>
+          </div>
+          <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
             <ul className="divide-y divide-gray-50">
               {aprovacoes.map(s => {
                 const tipo = s.tipo as TipoSolicitacao
@@ -260,24 +219,6 @@ export default async function DashboardPage() {
                   </li>
                 )
               })}
-            </ul>
-          )}
-        </div>
-      </section>
-
-      {/* ── Pendências operacionais (funcionários sem posto) ────────────────── */}
-      {temPendencias && (
-        <section className="space-y-3">
-          <SectionTitle>Pendências operacionais</SectionTitle>
-          <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-            <ul className="divide-y divide-gray-50">
-              {semPosto > 0 && (
-                <li>
-                  <PendenciaRow href="/efetivo" severity="critical">
-                    {semPosto} funcionário{semPosto > 1 ? 's' : ''} ativo{semPosto > 1 ? 's' : ''} sem posto alocado
-                  </PendenciaRow>
-                </li>
-              )}
             </ul>
           </div>
         </section>
