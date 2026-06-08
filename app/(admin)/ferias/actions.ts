@@ -3,6 +3,44 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
+// ─── Tipos ────────────────────────────────────────────────────────────────────
+
+export type FeriasListaItem = {
+  id: string
+  funcionario_id: string
+  funcionario_nome: string
+  funcionario_registro: string
+  posto_nome: string
+  secretaria: string
+  supervisor_nome: string
+  numero_periodo: number | null
+  periodo_inicio: string | null
+  periodo_fim: string | null
+  limite_gozo: string | null
+  dias_direito: number | null
+  data_inicio: string | null
+  data_fim: string | null
+  dias_utilizados: number | null
+  status: string
+}
+
+export type SupervisorFiltro = {
+  nome: string
+}
+
+// Alias para compatibilidade com page.tsx
+export type SupervisorOpcao = SupervisorFiltro
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function addMonths(dateStr: string, months: number): string {
+  const d = new Date(dateStr)
+  d.setMonth(d.getMonth() + months)
+  return d.toISOString().split('T')[0]
+}
+
+// ─── Mutações ─────────────────────────────────────────────────────────────────
+
 export async function registrarFerias(formData: FormData) {
   const supabase = createClient()
 
@@ -102,6 +140,8 @@ export async function cancelarFerias(id: string, motivo?: string) {
   return { ok: true }
 }
 
+// ─── Queries auxiliares ───────────────────────────────────────────────────────
+
 export async function buscarFuncionarioParaFerias(nome: string) {
   const supabase = createClient()
 
@@ -129,100 +169,49 @@ export async function buscarPeriodosAquisitivos(funcionario_id: string) {
   return data
 }
 
-// ─── Nova: lista de férias com supervisor ─────────────────────────────────────
-
-export interface FeriasListaItem {
-  id: string
-  funcionario_id: string
-  funcionario_nome: string
-  registro: string
-  cargo: string
-  posto_nome: string
-  secretaria: string
-  posto_id: string | null
-  supervisor_nome: string
-  numero_periodo: number
-  data_inicio: string | null
-  data_fim: string | null
-  dias_direito: number
-  dias_utilizados: number | null
-  status: string
-  observacao: string | null
-  aprovado_em: string | null
-}
-
-export interface SupervisorOpcao {
-  id: string
-  nome: string
-}
-
-export async function buscarSupervisoresParaFiltro(): Promise<SupervisorOpcao[]> {
-  const supabase = createClient()
-
-  const { data, error } = await supabase
-    .from('config_supervisores_postos')
-    .select(`
-      supervisor_id,
-      perfis!config_supervisores_postos_supervisor_id_fkey ( id, nome )
-    `)
-    .eq('ativo', true)
-
-  if (error || !data) return []
-
-  const mapa = new Map<string, string>()
-  for (const row of data) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const perfil = row.perfis as any
-    if (perfil?.id && perfil?.nome) mapa.set(perfil.id, perfil.nome)
-  }
-
-  return Array.from(mapa.entries())
-    .map(([id, nome]) => ({ id, nome }))
-    .sort((a, b) => a.nome.localeCompare(b.nome))
-}
+// ─── Buscar lista principal de férias ─────────────────────────────────────────
 
 export async function buscarFeriasLista(): Promise<FeriasListaItem[]> {
   const supabase = createClient()
 
-  // Etapa 1 — férias com funcionário, posto e função
+  // Etapa 1 — dados principais
   const { data, error } = await supabase
     .from('ferias')
     .select(`
       id,
       funcionario_id,
       numero_periodo,
+      periodo_inicio,
+      periodo_fim,
+      limite_gozo,
+      dias_direito,
       data_inicio,
       data_fim,
-      dias_direito,
       dias_utilizados,
       status,
-      observacao,
-      aprovado_em,
       funcionarios (
         id,
         nome,
         registro,
         posto_id,
-        funcoes ( nome ),
         postos ( id, nome, secretaria )
       )
     `)
-    .order('data_inicio', { ascending: false })
+    .order('funcionarios(nome)', { ascending: true })
 
-  if (error || !data) return []
+  if (error) {
+    console.error('Erro ao buscar férias lista:', error)
+    return []
+  }
 
   // Coleta posto_ids únicos
-  const postoIdsSet = new Set<string>()
-  for (const r of data) {
+  const postoIds = Array.from(new Set(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const id = (r.funcionarios as any)?.postos?.id
-    if (id) postoIdsSet.add(id)
-  }
-  const postoIds = Array.from(postoIdsSet)
+    (data ?? []).map((r: any) => r.funcionarios?.postos?.id).filter(Boolean)
+  ))
 
   // Etapa 2 — supervisor por posto
   const mapaPostoSup = new Map<string, string>()
-
   if (postoIds.length > 0) {
     const { data: cspData } = await supabase
       .from('config_supervisores_postos')
@@ -235,37 +224,67 @@ export async function buscarFeriasLista(): Promise<FeriasListaItem[]> {
 
     for (const csp of cspData ?? []) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const perfil = csp.perfis as any
+      const perfil = (csp as any).perfis
       if (perfil?.nome) mapaPostoSup.set(csp.posto_id, perfil.nome)
     }
   }
 
-  return data.map(row => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const func   = row.funcionarios as any
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const posto  = func?.postos as any
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const funcao = func?.funcoes as any
+  // Monta resultado
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((r: any) => {
+    const func = r.funcionarios
+    const posto = func?.postos
+    const postoId = posto?.id ?? ''
+    const supervisorNome = mapaPostoSup.get(postoId) ?? '—'
+
+    // Calcula limite_gozo se não vier do banco (período_fim + 10 meses)
+    let limiteGozo = r.limite_gozo ?? null
+    if (!limiteGozo && r.periodo_fim) {
+      limiteGozo = addMonths(r.periodo_fim, 10)
+    }
 
     return {
-      id:               row.id,
-      funcionario_id:   row.funcionario_id,
+      id: r.id,
+      funcionario_id: r.funcionario_id,
       funcionario_nome: func?.nome ?? '—',
-      registro:         func?.registro ?? '—',
-      cargo:            funcao?.nome ?? '—',
-      posto_nome:       posto?.nome ?? '—',
-      secretaria:       posto?.secretaria ?? '—',
-      posto_id:         posto?.id ?? null,
-      supervisor_nome:  posto?.id ? (mapaPostoSup.get(posto.id) ?? 'Sem supervisor') : 'Sem supervisor',
-      numero_periodo:   row.numero_periodo ?? 1,
-      data_inicio:      row.data_inicio,
-      data_fim:         row.data_fim,
-      dias_direito:     row.dias_direito ?? 30,
-      dias_utilizados:  row.dias_utilizados,
-      status:           row.status ?? 'disponivel',
-      observacao:       row.observacao,
-      aprovado_em:      row.aprovado_em,
+      funcionario_registro: func?.registro ?? '—',
+      posto_nome: posto?.nome ?? '—',
+      secretaria: posto?.secretaria ?? '—',
+      supervisor_nome: supervisorNome,
+      numero_periodo: r.numero_periodo,
+      periodo_inicio: r.periodo_inicio,
+      periodo_fim: r.periodo_fim,
+      limite_gozo: limiteGozo,
+      dias_direito: r.dias_direito,
+      data_inicio: r.data_inicio,
+      data_fim: r.data_fim,
+      dias_utilizados: r.dias_utilizados,
+      status: r.status,
     }
   })
+}
+
+// ─── Buscar supervisores para filtro ─────────────────────────────────────────
+
+export async function buscarSupervisoresParaFiltro(): Promise<SupervisorFiltro[]> {
+  const supabase = createClient()
+
+  const { data, error } = await supabase
+    .from('config_supervisores_postos')
+    .select(`
+      perfis!config_supervisores_postos_supervisor_id_fkey ( nome )
+    `)
+    .eq('ativo', true)
+
+  if (error) {
+    console.error('Erro ao buscar supervisores:', error)
+    return []
+  }
+
+  const nomes = Array.from(new Set(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (data ?? []).map((d: any) => d.perfis?.nome).filter(Boolean)
+  )).sort() as string[]
+
+  return nomes.map(nome => ({ nome }))
 }

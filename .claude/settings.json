@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build)",
+      "Bash(npm run dev)",
+      "Bash(npm run lint)",
+      "Bash(npx tsc*)",
+      "Bash(mkdir*)",
+      "Read(*)",
+      "Write(app/*)",
+      "Write(components/*)",
+      "Write(lib/*)",
+      "Write(types/*)",
+      "Write(hooks/*)",
+      "Write(public/*)",
+      "Edit(app/*)",
+      "Edit(components/*)",
+      "Edit(lib/*)",
+      "Edit(types/*)",
+      "Edit(hooks/*)",
+      "Edit(public/*)"
+    ]
+  }
+}

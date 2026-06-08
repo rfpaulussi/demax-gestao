@@ -1,149 +1,155 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { FileText, Plus } from 'lucide-react'
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import { marcarEntregue } from '@/app/(admin)/advertencias/actions'
-import { ModalNovaAdvertencia } from './modal-nova-advertencia'
+import { downloadAdvertenciaPDF } from './advertencia-pdf'
+import { marcarEntregue, marcarGerada } from '@/app/(admin)/advertencias/actions'
+import type { AdvertenciaCompleta } from '@/app/(admin)/advertencias/actions'
 
-export type AdvertenciaRow = {
-  id: string
-  tipo: string | null
-  data_ocorrencia: string | null
-  status: 'pendente' | 'gerada' | 'entregue' | null
-  pdf_url: string | null
-  descricao: string | null
-  funcionarios: {
-    id: string
-    nome: string
-    postos: { nome: string; secretaria: string | null } | null
-  } | null
+const GRAU_BADGE: Record<string, { label: string; cls: string }> = {
+  verbal:    { label: 'Verbal',    cls: 'bg-yellow-50 text-yellow-700 ring-yellow-200' },
+  escrita:   { label: 'Escrita',   cls: 'bg-orange-50 text-orange-700 ring-orange-200' },
+  suspensao: { label: 'Suspensão', cls: 'bg-red-50 text-red-700 ring-red-200'          },
 }
 
-const STATUS_BADGE: Record<
-  NonNullable<AdvertenciaRow['status']>,
-  { label: string; className: string }
-> = {
-  pendente: { label: 'Pendente', className: 'bg-yellow-50 text-yellow-700 ring-yellow-200' },
-  gerada:   { label: 'Gerada',   className: 'bg-blue-50 text-blue-700 ring-blue-200'       },
-  entregue: { label: 'Entregue', className: 'bg-green-50 text-green-700 ring-green-200'    },
+const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
+  pendente: { label: 'Pendente', cls: 'bg-gray-50 text-gray-600 ring-gray-200'    },
+  gerada:   { label: 'Gerada',   cls: 'bg-blue-50 text-blue-700 ring-blue-200'    },
+  entregue: { label: 'Entregue', cls: 'bg-green-50 text-green-700 ring-green-200' },
 }
 
-const COLS = ['Funcionário', 'Posto', 'Tipo', 'Data Ocorrência', 'Status', 'PDF', 'Ações']
-
-function fmt(d: string | null) {
-  if (!d) return '—'
-  return new Date(d).toLocaleDateString('pt-BR')
+function fmt(iso: string | null): string {
+  if (!iso) return '—'
+  const [y, m, d] = iso.split('T')[0].split('-')
+  return `${d}/${m}/${y}`
 }
 
-function EntregarButton({ advertencia }: { advertencia: AdvertenciaRow }) {
-  const [pending, startTransition] = useTransition()
+interface Props {
+  advertencias: AdvertenciaCompleta[]
+  reincidencias: Record<string, number>
+}
 
-  function handleClick() {
-    const fd = new FormData()
-    fd.set('advertencia_id', advertencia.id)
-    startTransition(() => marcarEntregue(fd))
+export function AdvertenciasTable({ advertencias, reincidencias }: Props) {
+  const [loadingPdf, setLoadingPdf] = useState<string | null>(null)
+
+  async function handleDownloadPDF(adv: AdvertenciaCompleta) {
+    setLoadingPdf(adv.id)
+    try {
+      await downloadAdvertenciaPDF(adv)
+    } finally {
+      setLoadingPdf(null)
+    }
+  }
+
+  if (advertencias.length === 0) {
+    return (
+      <div className="rounded-xl border border-gray-100 bg-white py-12 text-center shadow-sm">
+        <p className="text-sm text-gray-400">Nenhuma advertência encontrada.</p>
+      </div>
+    )
   }
 
   return (
-    <Button size="sm" variant="outline" onClick={handleClick} disabled={pending}>
-      {pending ? 'Salvando...' : 'Marcar Entregue'}
-    </Button>
-  )
-}
+    <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-100 bg-gray-50">
+              {['Colaborador', 'Posto', 'Secretaria', 'Grau', 'Ocorrência', 'Status', 'Reinc.', 'Ações'].map(h => (
+                <th
+                  key={h}
+                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400"
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {advertencias.map(adv => {
+              const reinc = reincidencias[adv.funcionario_id] ?? 1
+              const isReinc = reinc > 1
+              const grauKey = adv.grau ?? (adv.tipo as string) ?? ''
+              const grauBadge = GRAU_BADGE[grauKey] ?? { label: grauKey || '—', cls: 'bg-gray-50 text-gray-600 ring-gray-200' }
+              const statusBadge = STATUS_BADGE[adv.status ?? 'pendente'] ?? STATUS_BADGE.pendente
 
-export function AdvertenciasTable({ advertencias }: { advertencias: AdvertenciaRow[] }) {
-  const [showModal, setShowModal] = useState(false)
-
-  return (
-    <>
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-          {advertencias.length} advertência{advertencias.length !== 1 ? 's' : ''}
-        </p>
-        <Button size="sm" onClick={() => setShowModal(true)}>
-          <Plus className="h-4 w-4" />
-          Nova Advertência
-        </Button>
-      </div>
-
-      <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-        {advertencias.length === 0 ? (
-          <p className="px-6 py-10 text-center text-sm text-gray-400">
-            Nenhuma advertência encontrada.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-gray-100">
-                <tr>
-                  {COLS.map(h => (
-                    <th
-                      key={h}
-                      className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400"
-                    >
-                      {h}
-                    </th>
-                  ))}
+              return (
+                <tr
+                  key={adv.id}
+                  className={cn(
+                    'transition-colors hover:bg-gray-50/80',
+                    isReinc && 'bg-red-50 hover:bg-red-100/60'
+                  )}
+                >
+                  <td
+                    className={cn(
+                      'px-4 py-3 font-medium text-gray-900',
+                      isReinc && 'border-l-[3px] border-l-red-400'
+                    )}
+                  >
+                    {adv.funcionarios?.nome ?? '—'}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">{adv.funcionarios?.postos?.nome ?? '—'}</td>
+                  <td className="px-4 py-3 text-gray-500">{adv.funcionarios?.postos?.secretaria ?? '—'}</td>
+                  <td className="px-4 py-3">
+                    <span className={cn('inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset', grauBadge.cls)}>
+                      {grauBadge.label}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">{fmt(adv.data_ocorrencia)}</td>
+                  <td className="px-4 py-3">
+                    <span className={cn('inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset', statusBadge.cls)}>
+                      {statusBadge.label}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {isReinc ? (
+                      <span className="inline-flex rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700">
+                        {reinc}ª vez
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">1ª vez</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleDownloadPDF(adv)}
+                        disabled={loadingPdf === adv.id}
+                        className="flex h-7 items-center rounded-md bg-amber-500 px-2.5 text-xs font-semibold text-slate-900 transition-colors hover:bg-amber-400 disabled:opacity-50"
+                      >
+                        {loadingPdf === adv.id ? '...' : 'PDF'}
+                      </button>
+                      {adv.status === 'pendente' && (
+                        <form action={marcarGerada}>
+                          <input type="hidden" name="advertencia_id" value={adv.id} />
+                          <button
+                            type="submit"
+                            className="flex h-7 items-center rounded-md border border-blue-200 bg-blue-50 px-2.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                          >
+                            Gerar
+                          </button>
+                        </form>
+                      )}
+                      {adv.status === 'gerada' && (
+                        <form action={marcarEntregue}>
+                          <input type="hidden" name="advertencia_id" value={adv.id} />
+                          <button
+                            type="submit"
+                            className="flex h-7 items-center rounded-md border border-green-200 bg-green-50 px-2.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-100"
+                          >
+                            Entregar
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {advertencias.map(a => {
-                  const badge = a.status ? STATUS_BADGE[a.status] : null
-                  return (
-                    <tr key={a.id} className="transition-colors hover:bg-gray-50">
-                      <td className="px-5 py-3.5 font-medium text-gray-900">
-                        {a.funcionarios?.nome ?? '—'}
-                      </td>
-                      <td className="px-5 py-3.5 text-gray-500">
-                        <div>{a.funcionarios?.postos?.nome ?? '—'}</div>
-                        {a.funcionarios?.postos?.secretaria && (
-                          <div className="text-xs text-gray-400">{a.funcionarios.postos.secretaria}</div>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5 text-gray-500">{a.tipo ?? '—'}</td>
-                      <td className="px-5 py-3.5 text-gray-500">{fmt(a.data_ocorrencia)}</td>
-                      <td className="px-5 py-3.5">
-                        {badge ? (
-                          <span
-                            className={cn(
-                              'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
-                              badge.className,
-                            )}
-                          >
-                            {badge.label}
-                          </span>
-                        ) : '—'}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {a.pdf_url ? (
-                          <a
-                            href={a.pdf_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800"
-                          >
-                            <FileText className="h-4 w-4" />
-                            <span className="text-xs">PDF</span>
-                          </a>
-                        ) : (
-                          <span className="text-gray-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        {a.status === 'gerada' && <EntregarButton advertencia={a} />}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+              )
+            })}
+          </tbody>
+        </table>
       </div>
-
-      <ModalNovaAdvertencia open={showModal} onClose={() => setShowModal(false)} />
-    </>
+    </div>
   )
 }

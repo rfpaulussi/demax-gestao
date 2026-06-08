@@ -1,206 +1,172 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useTransition } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
-import { createClient } from '@/lib/supabase/client'
-import { registrarInsalubridade } from '@/app/(admin)/insalubridade/actions'
-
-interface Funcionario {
-  id: string
-  nome: string
-  posto_id: string | null
-}
+import { cn } from '@/lib/utils'
+import { criarInsalubridade, buscarAgentesHigienizacao } from '@/app/(admin)/insalubridade/actions'
+import type { FuncOpt } from '@/app/(admin)/insalubridade/actions'
 
 interface Props {
   open: boolean
   onClose: () => void
+  funcionariosOpt: FuncOpt[]
+  mesAtual: number
+  anoAtual: number
 }
 
-const PERCENTUAIS: Record<string, number> = {
-  Mínimo: 10,
-  Médio: 20,
-  Máximo: 40,
-}
+const input = 'flex h-9 w-full rounded-lg border border-gray-200 bg-transparent px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
+const lbl   = 'block text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1.5'
 
-export function ModalNovaInsalubridade({ open, onClose }: Props) {
-  const [busca, setBusca] = useState('')
-  const [resultados, setResultados] = useState<Funcionario[]>([])
-  const [selecionado, setSelecionado] = useState<Funcionario | null>(null)
-  const [grau, setGrau] = useState('')
-  const [pending, setPending] = useState(false)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, mesAtual, anoAtual }: Props) {
+  const [buscaFunc,     setBuscaFunc]     = useState('')
+  const [selectedFunc,  setSelectedFunc]  = useState<FuncOpt | null>(null)
+  const [agentes,       setAgentes]       = useState<FuncOpt[]>([])
+  const [selectedAg,    setSelectedAg]    = useState<FuncOpt | null>(null)
+  const [isPending,     startTransition]  = useTransition()
 
-  useEffect(() => {
-    if (!open) return
-    if (busca.trim().length < 2) {
-      setResultados([])
-      return
-    }
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(async () => {
-      const supabase = createClient()
-      const { data } = await supabase
-        .from('funcionarios')
-        .select('id, nome, posto_id')
-        .eq('status', 'ativo')
-        .ilike('nome', `%${busca.trim()}%`)
-        .limit(8)
-      setResultados(data ?? [])
-    }, 300)
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-    }
-  }, [busca, open])
+  const mesStr = String(mesAtual).padStart(2, '0')
+  const defaultDate = `${anoAtual}-${mesStr}-01`
+
+  const funcFiltradas = buscaFunc
+    ? funcionariosOpt.filter(f => f.nome.toLowerCase().includes(buscaFunc.toLowerCase()))
+    : funcionariosOpt.slice(0, 80)
+
+  async function onFuncSelect(f: FuncOpt) {
+    setSelectedFunc(f)
+    const ags = await buscarAgentesHigienizacao(f.postos?.id)
+    setAgentes(ags)
+  }
 
   function handleClose() {
-    setBusca('')
-    setResultados([])
-    setSelecionado(null)
-    setGrau('')
+    setBuscaFunc('')
+    setSelectedFunc(null)
+    setAgentes([])
+    setSelectedAg(null)
     onClose()
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    if (!selecionado) return
     const form = e.currentTarget
-    const data = new FormData(form)
-    data.set('funcionario_id', selecionado.id)
-    data.set('posto_id', selecionado.posto_id ?? '')
-    data.set('percentual', String(PERCENTUAIS[grau] ?? 0))
-    setPending(true)
-    try {
-      await registrarInsalubridade(data)
+    const formData = new FormData(form)
+    if (selectedFunc) formData.set('funcionario_id', selectedFunc.id)
+    if (selectedFunc?.postos?.id) formData.set('posto_id', selectedFunc.postos.id)
+    if (selectedAg) {
+      formData.set('agente_ausente_id', selectedAg.id)
+      formData.set('agente_ausente_nome', selectedAg.nome)
+    }
+    startTransition(async () => {
+      await criarInsalubridade(formData)
       form.reset()
       handleClose()
-    } finally {
-      setPending(false)
-    }
+    })
   }
 
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose() }}>
       <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 bg-black/50 z-40" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-xl">
-          <Dialog.Title className="mb-4 text-lg font-semibold">Nova Insalubridade</Dialog.Title>
+        <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/50" />
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-full max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl bg-white p-6 shadow-xl">
+          <Dialog.Title className="mb-1 text-lg font-semibold text-gray-900">
+            Nova Declaração
+          </Dialog.Title>
+          <p className="mb-6 text-sm text-gray-400">Lançamento manual de cobertura insalubre</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!selecionado ? (
+            {/* Funcionário */}
+            <div>
+              <label className={lbl}>Buscar funcionário</label>
+              <input
+                type="text"
+                placeholder="Digite para filtrar..."
+                value={buscaFunc}
+                onChange={e => setBuscaFunc(e.target.value)}
+                className={input}
+                disabled={!!selectedFunc}
+              />
+            </div>
+            {!selectedFunc ? (
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600">
-                  Funcionário
-                </label>
-                <input
-                  type="text"
-                  value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
-                  placeholder="Digite o nome..."
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-                />
-                {resultados.length > 0 && (
-                  <ul className="mt-1 max-h-40 overflow-y-auto rounded border border-gray-200 bg-white shadow">
-                    {resultados.map((f) => (
-                      <li key={f.id}>
-                        <button
-                          type="button"
-                          onClick={() => { setSelecionado(f); setBusca(''); setResultados([]) }}
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50"
-                        >
-                          <span className="font-medium">{f.nome}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <label className={lbl}>Funcionário *</label>
+                <select
+                  required
+                  onChange={e => {
+                    const f = funcionariosOpt.find(x => x.id === e.target.value)
+                    if (f) onFuncSelect(f)
+                  }}
+                  className={input}
+                >
+                  <option value="">Selecione...</option>
+                  {funcFiltradas.map(f => (
+                    <option key={f.id} value={f.id}>
+                      {f.nome}{f.postos?.nome ? ` — ${f.postos.nome}` : ''}
+                    </option>
+                  ))}
+                </select>
               </div>
             ) : (
-              <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600">
-                  Funcionário
-                </label>
-                <div className="flex items-center justify-between rounded border border-gray-200 bg-gray-50 px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium">{selecionado.nome}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => { setSelecionado(null); setGrau('') }}
-                    className="text-xs text-blue-600 hover:underline"
-                  >
-                    Trocar
-                  </button>
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{selectedFunc.nome}</p>
+                  {selectedFunc.postos && (
+                    <p className="text-xs text-gray-500">{selectedFunc.postos.nome} · {selectedFunc.postos.secretaria}</p>
+                  )}
                 </div>
+                <button type="button" onClick={() => { setSelectedFunc(null); setAgentes([]); setSelectedAg(null) }} className="text-xs text-slate-500 hover:underline">Trocar</button>
               </div>
             )}
 
+            {/* Data */}
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600">
-                Grau
-              </label>
-              <select
-                name="grau"
-                required
-                value={grau}
-                onChange={(e) => setGrau(e.target.value)}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-              >
-                <option value="">Selecione...</option>
-                <option value="Mínimo">Mínimo</option>
-                <option value="Médio">Médio</option>
-                <option value="Máximo">Máximo</option>
-              </select>
+              <label className={lbl}>Data da Cobertura *</label>
+              <input type="date" name="data_cobertura" required defaultValue={defaultDate} className={input} />
             </div>
 
+            {/* Agente ausente */}
+            {agentes.length > 0 ? (
+              <div>
+                <label className={lbl}>Agente Ausente</label>
+                <select
+                  onChange={e => {
+                    const ag = agentes.find(a => a.id === e.target.value) ?? null
+                    setSelectedAg(ag)
+                  }}
+                  className={input}
+                >
+                  <option value="">Selecione ou deixe em branco...</option>
+                  {agentes.map(a => (
+                    <option key={a.id} value={a.id}>{a.nome}</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label className={lbl}>Agente Ausente (nome livre)</label>
+                <input type="text" name="agente_ausente_nome" placeholder="Nome do agente ausente..." className={input} />
+              </div>
+            )}
+
+            {/* Observação */}
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600">
-                Percentual
-              </label>
-              <input
-                type="text"
-                readOnly
-                value={grau ? `${PERCENTUAIS[grau]}%` : '—'}
-                className="w-full rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500"
+              <label className={lbl}>Observação</label>
+              <textarea
+                name="observacao"
+                rows={2}
+                placeholder="Observações opcionais..."
+                className={cn(input, 'h-auto py-2 resize-none')}
               />
             </div>
 
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600">
-                Data Início
-              </label>
-              <input
-                type="date"
-                name="data_inicio"
-                required
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600">
-                Data Fim
-              </label>
-              <input
-                type="date"
-                name="data_fim"
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="rounded px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
-              >
+            <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+              <button type="button" onClick={handleClose} className="flex h-9 items-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-500 hover:bg-gray-50">
                 Cancelar
               </button>
               <button
                 type="submit"
-                disabled={pending || !selecionado}
-                className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                disabled={isPending || !selectedFunc}
+                className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
               >
-                {pending ? 'Salvando...' : 'Salvar'}
+                {isPending ? 'Salvando...' : 'Registrar'}
               </button>
             </div>
           </form>

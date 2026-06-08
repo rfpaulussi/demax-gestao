@@ -34,6 +34,12 @@ type SearchParams = {
   supervisor?: string
 }
 
+type ConfigRow = {
+  supervisor_id: string
+  posto_id: string
+  perfis: { id: string; nome: string | null } | null
+}
+
 export default async function EfetivoPage({
   searchParams,
 }: {
@@ -58,32 +64,40 @@ export default async function EfetivoPage({
       .order('nome'),
     supabase
       .from('config_supervisores_postos')
-      .select('supervisor_id, posto_id')
+      .select('supervisor_id, posto_id, perfis!supervisor_id(id, nome)')
       .eq('ativo', true),
   ])
 
   const funcionarios = (raw ?? []) as unknown as FuncionarioRow[]
 
-  // supervisor_id → Set<posto_id>
-  type ConfigRow = { supervisor_id: string; posto_id: string }
-
+  // supervisor_id → Set<posto_id>  (for filtering by supervisor)
   const supervisorPostoMap = new Map<string, Set<string>>()
-  for (const row of (configRaw ?? []) as ConfigRow[]) {
+  // posto_id → { id, nomeCompleto }  (for enriching display)
+  const postoSupervisorMap = new Map<string, { id: string; nomeCompleto: string }>()
+
+  for (const row of (configRaw ?? []) as unknown as ConfigRow[]) {
     if (!supervisorPostoMap.has(row.supervisor_id)) {
       supervisorPostoMap.set(row.supervisor_id, new Set())
     }
     supervisorPostoMap.get(row.supervisor_id)!.add(row.posto_id)
-  }
-  // todos os posto_ids com pelo menos um supervisor ativo
-  const supervisedPostoIds = new Set(((configRaw ?? []) as ConfigRow[]).map(r => r.posto_id))
 
-  // Counters over unfiltered data
+    const nomeCompleto = row.perfis?.nome
+    if (nomeCompleto && !postoSupervisorMap.has(row.posto_id)) {
+      postoSupervisorMap.set(row.posto_id, { id: row.supervisor_id, nomeCompleto })
+    }
+  }
+
+  const supervisedPostoIds = new Set(
+    ((configRaw ?? []) as unknown as ConfigRow[]).map(r => r.posto_id),
+  )
+
+  // Counters over unfiltered data (for KPI cards — unchanged)
   const total     = funcionarios.length
   const ativos    = funcionarios.filter(f => f.status === 'ativo').length
   const afastados = funcionarios.filter(f => f.status === 'afastado').length
   const emFerias  = funcionarios.filter(f => f.status === 'ferias').length
 
-  // Distinct secretarias for the filter select
+  // Distinct secretarias for filter select
   const secretarias = Array.from(
     new Set(
       funcionarios
@@ -91,6 +105,29 @@ export default async function EfetivoPage({
         .filter((s): s is string => Boolean(s)),
     ),
   ).sort()
+
+  // Counts for filter dropdowns
+  const supervisorCounts: Record<string, number> = {}
+  let semSupervisorCount = 0
+  for (const f of funcionarios) {
+    const sup = f.posto_id ? postoSupervisorMap.get(f.posto_id) : undefined
+    if (sup) {
+      supervisorCounts[sup.id] = (supervisorCounts[sup.id] ?? 0) + 1
+    } else {
+      semSupervisorCount++
+    }
+  }
+
+  const secretariaCounts: Record<string, number> = {}
+  for (const f of funcionarios) {
+    const s = f.postos?.secretaria
+    if (s) secretariaCounts[s] = (secretariaCounts[s] ?? 0) + 1
+  }
+
+  const statusCounts: Record<string, number> = {}
+  for (const f of funcionarios) {
+    if (f.status) statusCounts[f.status] = (statusCounts[f.status] ?? 0) + 1
+  }
 
   // Apply search-param filters
   const { busca, status, secretaria, supervisor } = searchParams
@@ -113,6 +150,16 @@ export default async function EfetivoPage({
     filtered = filtered.filter(f => !!f.posto_id && postosDoSup.has(f.posto_id))
   }
 
+  // Enrich each row with supervisor_nome resolved from posto_id
+  const enriched: FuncionarioRow[] = filtered.map(f => ({
+    ...f,
+    supervisor_nome: f.posto_id
+      ? (postoSupervisorMap.get(f.posto_id)?.nomeCompleto ?? null)
+      : null,
+  }))
+
+  const supervisores = (supervisoresRaw ?? []) as { id: string; nome: string | null }[]
+
   return (
     <div className="space-y-6">
       <div>
@@ -128,13 +175,20 @@ export default async function EfetivoPage({
         <CounterCard label="Em Férias"  value={emFerias}  topColor="border-t-orange-500" />
       </div>
 
-      {/* Filters — wrapped in Suspense because useSearchParams() requires it */}
+      {/* Filters */}
       <Suspense>
-        <FiltrosEfetivo secretarias={secretarias} supervisores={supervisoresRaw ?? []} />
+        <FiltrosEfetivo
+          secretarias={secretarias}
+          supervisores={supervisores}
+          supervisorCounts={supervisorCounts}
+          secretariaCounts={secretariaCounts}
+          statusCounts={statusCounts}
+          semSupervisorCount={semSupervisorCount}
+        />
       </Suspense>
 
       {/* Table */}
-      <FuncionariosTable funcionarios={filtered} />
+      <FuncionariosTable funcionarios={enriched} />
     </div>
   )
 }

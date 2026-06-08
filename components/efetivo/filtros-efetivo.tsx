@@ -4,26 +4,33 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback } from 'react'
 import { Search } from 'lucide-react'
 
-const STATUS_OPTIONS = [
-  { value: '', label: 'Todos os status' },
-  { value: 'ativo', label: 'Ativo' },
-  { value: 'afastado', label: 'Afastado' },
-  { value: 'ferias', label: 'Em Férias' },
-  { value: 'desligado', label: 'Desligado' },
-]
+const STATUS_LABELS: Record<string, string> = {
+  ativo:     'Ativo',
+  afastado:  'Afastado',
+  ferias:    'Em Férias',
+  desligado: 'Desligado',
+}
 
 export function FiltrosEfetivo({
   secretarias,
   supervisores,
+  supervisorCounts,
+  secretariaCounts,
+  statusCounts,
+  semSupervisorCount,
 }: {
   secretarias: string[]
   supervisores: { id: string; nome: string | null }[]
+  supervisorCounts: Record<string, number>
+  secretariaCounts: Record<string, number>
+  statusCounts: Record<string, number>
+  semSupervisorCount: number
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const busca = searchParams.get('busca') ?? ''
-  const status = searchParams.get('status') ?? ''
+  const busca      = searchParams.get('busca')      ?? ''
+  const status     = searchParams.get('status')     ?? ''
   const secretaria = searchParams.get('secretaria') ?? ''
   const supervisor = searchParams.get('supervisor') ?? ''
 
@@ -62,9 +69,11 @@ export function FiltrosEfetivo({
         className={inputClass}
       >
         <option value="">Todos os supervisores</option>
-        <option value="sem_supervisor">Sem Supervisor</option>
+        <option value="sem_supervisor">Sem Supervisor ({semSupervisorCount})</option>
         {supervisores.map(s => (
-          <option key={s.id} value={s.id}>{s.nome ?? '—'}</option>
+          <option key={s.id} value={s.id}>
+            {s.nome ?? '—'} ({supervisorCounts[s.id] ?? 0})
+          </option>
         ))}
       </select>
 
@@ -75,7 +84,9 @@ export function FiltrosEfetivo({
       >
         <option value="">Todas as secretarias</option>
         {secretarias.map(s => (
-          <option key={s} value={s}>{s}</option>
+          <option key={s} value={s}>
+            {s} ({secretariaCounts[s] ?? 0})
+          </option>
         ))}
       </select>
 
@@ -84,8 +95,11 @@ export function FiltrosEfetivo({
         onChange={e => update('status', e.target.value)}
         className={inputClass}
       >
-        {STATUS_OPTIONS.map(o => (
-          <option key={o.value} value={o.value}>{o.label}</option>
+        <option value="">Todos os status</option>
+        {Object.entries(STATUS_LABELS).map(([val, label]) => (
+          <option key={val} value={val}>
+            {label} ({statusCounts[val] ?? 0})
+          </option>
         ))}
       </select>
     </div>

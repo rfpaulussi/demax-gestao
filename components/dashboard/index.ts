@@ -1,1 +1,5 @@
-// placeholder
+export { AlertasCriticos } from './alertas-criticos'
+export { ProximasFerias } from './proximas-ferias'
+export { AtestadosRecentes } from './atestados-recentes'
+export { EvolucaoEfetivo } from './evolucao-efetivo'
+export { EfetivoPorSecretaria } from './efetivo-por-secretaria'

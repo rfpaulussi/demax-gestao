@@ -1,3 +1,4 @@
-export { AdvertenciasTable } from './advertencias-table'
-export type { AdvertenciaRow } from './advertencias-table'
-export { ModalNovaAdvertencia } from './modal-nova-advertencia'
+﻿export { AdvertenciasTable } from './advertencias-table'
+export { ModalAdvertencia } from './modal-advertencia'
+export { NovaAdvertenciaBtn } from './nova-advertencia-btn'
+export { downloadAdvertenciaPDF } from './advertencia-pdf'

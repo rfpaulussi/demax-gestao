@@ -1,16 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
-import { AdvertenciasTable } from '@/components/advertencias/advertencias-table'
-import type { AdvertenciaRow } from '@/components/advertencias/advertencias-table'
 import { cn } from '@/lib/utils'
-
-// ─── style constants ──────────────────────────────────────────────────────────
+import { AdvertenciasTable } from '@/components/advertencias/advertencias-table'
+import { NovaAdvertenciaBtn } from '@/components/advertencias/nova-advertencia-btn'
+import type { AdvertenciaCompleta, FuncionarioOpt } from '@/app/(admin)/advertencias/actions'
 
 const inputClass =
   'flex h-9 rounded-lg border border-gray-200 bg-transparent px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
 
-// ─── counter card ─────────────────────────────────────────────────────────────
-
-function CounterCard({
+function KpiCard({
   label,
   value,
   borderColor,
@@ -21,66 +18,81 @@ function CounterCard({
 }) {
   return (
     <div className={cn('rounded-xl border border-gray-100 border-t-4 bg-white p-5 shadow-sm', borderColor)}>
-      <p className="text-2xl font-bold text-gray-900">{value}</p>
+      <p className="text-3xl font-black tracking-tight text-gray-900">{value}</p>
       <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
     </div>
   )
 }
 
-// ─── page ─────────────────────────────────────────────────────────────────────
+const ADV_SELECT = `
+  id, funcionario_id, tipo, grau, descricao, data_ocorrencia, horario_fato,
+  natureza, relato, testemunha_1, testemunha_2, defesa_colaborador,
+  dias_suspensao, data_aplicacao, pdf_url, status, criado_por, registrado_por, created_at,
+  funcionarios!funcionario_id (
+    id, nome,
+    postos!posto_id ( nome, secretaria )
+  )
+`
 
 export default async function AdvertenciasPage({
   searchParams,
 }: {
-  searchParams: { busca?: string; status?: string }
+  searchParams: { busca?: string; status?: string; grau?: string }
 }) {
   const supabase = createClient()
 
-  const { data: raw } = await supabase
-    .from('advertencias')
-    .select(`
-      id, tipo, data_ocorrencia, status, pdf_url, descricao,
-      funcionarios!funcionario_id (
-        id, nome,
-        postos!posto_id ( nome, secretaria )
-      )
-    `)
-    .order('data_ocorrencia', { ascending: false })
+  const [{ data: rawAdv }, { data: rawFunc }] = await Promise.all([
+    supabase
+      .from('advertencias')
+      .select(ADV_SELECT)
+      .order('data_ocorrencia', { ascending: false }),
+    supabase
+      .from('funcionarios')
+      .select('id, nome, postos!posto_id(nome, secretaria)')
+      .in('status', ['ativo', 'ferias', 'afastado'])
+      .order('nome'),
+  ])
 
-  const all = (raw ?? []) as unknown as AdvertenciaRow[]
+  const all = (rawAdv ?? []) as unknown as AdvertenciaCompleta[]
+  const funcionarios = (rawFunc ?? []) as unknown as FuncionarioOpt[]
 
-  // Counts (before filtering)
+  const reincidencias: Record<string, number> = {}
+  for (const a of all) {
+    reincidencias[a.funcionario_id] = (reincidencias[a.funcionario_id] ?? 0) + 1
+  }
+
   const total     = all.length
   const pendentes = all.filter(a => a.status === 'pendente').length
   const geradas   = all.filter(a => a.status === 'gerada').length
   const entregues = all.filter(a => a.status === 'entregue').length
 
-  // Apply filters
-  const buscaLower = searchParams.busca?.toLowerCase() ?? ''
+  const buscaLower  = searchParams.busca?.toLowerCase() ?? ''
   const statusFilter = searchParams.status ?? ''
+  const grauFilter   = searchParams.grau ?? ''
 
-  const filtered = all.filter(a => {
-    const matchBusca = buscaLower
-      ? (a.funcionarios?.nome ?? '').toLowerCase().includes(buscaLower)
-      : true
-    const matchStatus = statusFilter ? a.status === statusFilter : true
-    return matchBusca && matchStatus
-  })
+  let filtered = all
+  if (buscaLower)   filtered = filtered.filter(a => (a.funcionarios?.nome ?? '').toLowerCase().includes(buscaLower))
+  if (statusFilter) filtered = filtered.filter(a => a.status === statusFilter)
+  if (grauFilter)   filtered = filtered.filter(a => (a.grau ?? a.tipo) === grauFilter)
 
   return (
     <div className="space-y-6">
+
       {/* Header */}
-      <div>
-        <h1 className="text-lg font-bold text-gray-900">Advertências</h1>
-        <p className="text-sm text-gray-400">Registro e acompanhamento de advertências</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-lg font-bold text-gray-900">Advertências</h1>
+          <p className="text-sm text-gray-400">Registro e acompanhamento de medidas disciplinares</p>
+        </div>
+        <NovaAdvertenciaBtn funcionarios={funcionarios} reincidencias={reincidencias} />
       </div>
 
-      {/* Counter cards */}
+      {/* KPI cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <CounterCard label="Total"     value={total}     borderColor="border-t-gray-400"   />
-        <CounterCard label="Pendentes" value={pendentes} borderColor="border-t-yellow-500" />
-        <CounterCard label="Geradas"   value={geradas}   borderColor="border-t-blue-500"   />
-        <CounterCard label="Entregues" value={entregues} borderColor="border-t-green-500"  />
+        <KpiCard label="Total"     value={total}     borderColor="border-t-gray-400"   />
+        <KpiCard label="Pendentes" value={pendentes} borderColor="border-t-amber-500"  />
+        <KpiCard label="Geradas"   value={geradas}   borderColor="border-t-blue-500"   />
+        <KpiCard label="Entregues" value={entregues} borderColor="border-t-green-500"  />
       </div>
 
       {/* Filters */}
@@ -93,6 +105,16 @@ export default async function AdvertenciasPage({
           className={cn(inputClass, 'w-56')}
         />
         <select
+          name="grau"
+          defaultValue={searchParams.grau}
+          className={cn(inputClass, 'w-44')}
+        >
+          <option value="">Todos os graus</option>
+          <option value="verbal">Verbal</option>
+          <option value="escrita">Escrita</option>
+          <option value="suspensao">Suspensão</option>
+        </select>
+        <select
           name="status"
           defaultValue={searchParams.status}
           className={cn(inputClass, 'w-40')}
@@ -104,7 +126,7 @@ export default async function AdvertenciasPage({
         </select>
         <button
           type="submit"
-          className="flex h-9 items-center rounded-lg bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+          className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition-colors hover:bg-slate-700"
         >
           Filtrar
         </button>
@@ -117,7 +139,8 @@ export default async function AdvertenciasPage({
       </form>
 
       {/* Table */}
-      <AdvertenciasTable advertencias={filtered} />
+      <AdvertenciasTable advertencias={filtered} reincidencias={reincidencias} />
+
     </div>
   )
 }
