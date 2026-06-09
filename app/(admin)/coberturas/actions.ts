@@ -2,6 +2,15 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getUser } from '@/lib/auth/get-user'
+
+type ActionResult = { success: true } | { success: false; error: string }
+
+async function assertAuth(): Promise<{ success: true; userId: string } | { success: false; error: string }> {
+  const auth = await getUser()
+  if (!auth) return { success: false, error: 'Não autenticado' }
+  return { success: true, userId: auth.user.id }
+}
 
 function calcUrgencia(dataPrevRetorno: string | null): 'baixa' | 'media' | 'alta' {
   if (!dataPrevRetorno) return 'baixa'
@@ -15,52 +24,90 @@ function calcUrgencia(dataPrevRetorno: string | null): 'baixa' | 'media' | 'alta
   return 'baixa'
 }
 
-export async function registrarCobertura(formData: FormData) {
+export async function registrarCobertura(formData: FormData): Promise<ActionResult> {
+  const guard = await assertAuth()
+  if (!guard.success) return guard
+
   const supabase = createClient()
 
-  const funcionarioId  = formData.get('funcionario_id') as string
-  const postoOrigemId  = (formData.get('posto_origem_id') as string) || null
-  const postoDestinoId = formData.get('posto_destino_id') as string
-  const motivo         = (formData.get('motivo') as string) || null
-  const dataInicio     = formData.get('data_inicio') as string
-  const dataPrevRetorno = (formData.get('data_prev_retorno') as string) || null
-  const ausenteId      = (formData.get('ausente_id') as string) || null
+  // Bug fix: modal envia 'substituto_id', não 'funcionario_id'
+  const substitutoId    = formData.get('substituto_id') as string
+  const postoDestinoId  = formData.get('posto_destino_id') as string
+  const motivo          = (formData.get('motivo') as string) || null
+  const dataInicio      = formData.get('data_inicio') as string
+  // Bug fix: modal envia 'data_fim', não 'data_prev_retorno'
+  const dataPrevRetorno = (formData.get('data_fim') as string) || null
+  // Bug fix: modal envia 'funcionario_ausente_id', não 'ausente_id'
+  const ausenteId       = (formData.get('funcionario_ausente_id') as string) || null
 
-  const urgencia = calcUrgencia(dataPrevRetorno)
+  if (!substitutoId || !postoDestinoId || !dataInicio) {
+    return { success: false, error: 'Campos obrigatórios faltando' }
+  }
 
-  await supabase.from('coberturas_temporarias').insert({
-    funcionario_id:   funcionarioId,
-    posto_destino_id: postoDestinoId,
-    posto_origem_id:  postoOrigemId,
+  // Fetch posto atual do substituto para usar como posto_origem
+  const { data: substituto } = await supabase
+    .from('funcionarios')
+    .select('posto_id')
+    .eq('id', substitutoId)
+    .single()
+
+  const postoOrigemId = substituto?.posto_id ?? null
+  const urgencia      = calcUrgencia(dataPrevRetorno)
+
+  const { error } = await supabase.from('coberturas_temporarias').insert({
+    funcionario_id:    substitutoId,
+    posto_destino_id:  postoDestinoId,
+    posto_origem_id:   postoOrigemId,
     motivo,
-    data_inicio:      dataInicio,
+    data_inicio:       dataInicio,
     data_prev_retorno: dataPrevRetorno,
     urgencia,
     status: 'ativa',
   })
-  await supabase.from('funcionarios').update({ posto_id: postoDestinoId }).eq('id', funcionarioId)
+
+  if (error) return { success: false, error: error.message }
+
+  await supabase
+    .from('funcionarios')
+    .update({ posto_id: postoDestinoId })
+    .eq('id', substitutoId)
+
   if (ausenteId) {
-    await supabase.from('funcionarios').update({ status: 'afastado' }).eq('id', ausenteId)
+    await supabase
+      .from('funcionarios')
+      .update({ status: 'afastado' })
+      .eq('id', ausenteId)
   }
+
   revalidatePath('/coberturas')
+  revalidatePath('/efetivo')
+  revalidatePath('/dashboard')
+  return { success: true }
 }
 
-export async function encerrarCobertura(id: string) {
+export async function encerrarCobertura(id: string): Promise<ActionResult> {
+  const guard = await assertAuth()
+  if (!guard.success) return guard
+
   const supabase = createClient()
   const hoje = new Date().toISOString().split('T')[0]
 
-  const { data: cob } = await supabase
+  const { data: cob, error: fetchError } = await supabase
     .from('coberturas_temporarias')
     .select('funcionario_id, posto_origem_id')
     .eq('id', id)
     .single()
 
-  await supabase
+  if (fetchError || !cob) return { success: false, error: 'Cobertura não encontrada' }
+
+  const { error } = await supabase
     .from('coberturas_temporarias')
     .update({ status: 'encerrada', data_retorno_real: hoje })
     .eq('id', id)
 
-  if (cob?.posto_origem_id && cob?.funcionario_id) {
+  if (error) return { success: false, error: error.message }
+
+  if (cob.posto_origem_id && cob.funcionario_id) {
     await supabase
       .from('funcionarios')
       .update({ posto_id: cob.posto_origem_id })
@@ -68,4 +115,7 @@ export async function encerrarCobertura(id: string) {
   }
 
   revalidatePath('/coberturas')
+  revalidatePath('/efetivo')
+  revalidatePath('/dashboard')
+  return { success: true }
 }

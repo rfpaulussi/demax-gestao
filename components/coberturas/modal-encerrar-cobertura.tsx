@@ -18,20 +18,28 @@ function formatDate(iso: string | null) {
 
 export function ModalEncerrarCobertura({ cobertura, open, onClose }: Props) {
   const [pending, setPending] = useState(false)
+  const [erro, setErro]       = useState<string | null>(null)
+
+  function handleClose() {
+    setErro(null)
+    onClose()
+  }
 
   async function handleConfirmar() {
     if (!cobertura) return
+    setErro(null)
     setPending(true)
     try {
-      await encerrarCobertura(cobertura.id)
-      onClose()
+      const result = await encerrarCobertura(cobertura.id)
+      if (!result.success) { setErro(result.error); return }
+      handleClose()
     } finally {
       setPending(false)
     }
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
+    <Dialog.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose() }}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/50 z-40" />
         <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-xl">
@@ -62,11 +70,18 @@ export function ModalEncerrarCobertura({ cobertura, open, onClose }: Props) {
             </div>
           </div>
 
+          {erro && (
+            <p className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {erro}
+            </p>
+          )}
+
           <div className="flex justify-end gap-2 pt-2">
             <button
               type="button"
-              onClick={onClose}
-              className="rounded px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+              onClick={handleClose}
+              disabled={pending}
+              className="rounded px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50"
             >
               Cancelar
             </button>

@@ -36,10 +36,17 @@ export async function registrarCobertura(formData: FormData): Promise<ActionResu
 
   const funcionario_id    = formData.get('substituto_id') as string
   const posto_destino_id  = formData.get('posto_destino_id') as string
-  const posto_origem_id   = (formData.get('posto_origem_id') as string) || null
   const motivo            = (formData.get('motivo') as string) || null
   const data_inicio       = formData.get('data_inicio') as string
   const data_prev_retorno = (formData.get('data_fim') as string) || null
+
+  // Fetch substituto's current posto to enable restore on encerramento
+  const { data: substituto } = await supabase
+    .from('funcionarios')
+    .select('posto_id')
+    .eq('id', funcionario_id)
+    .single()
+  const posto_origem_id = substituto?.posto_id ?? null
 
   const urgencia = calcUrgencia(data_prev_retorno)
 
@@ -72,6 +79,14 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
   const supabase = createClient()
   const hoje     = new Date().toISOString().split('T')[0]
 
+  const { data: cob, error: fetchError } = await supabase
+    .from('coberturas_temporarias')
+    .select('funcionario_id, posto_origem_id')
+    .eq('id', id)
+    .single()
+
+  if (fetchError || !cob) return { success: false, error: 'Cobertura não encontrada' }
+
   const { error } = await supabase
     .from('coberturas_temporarias')
     .update({ status: 'encerrada', data_retorno_real: hoje })
@@ -79,6 +94,15 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
 
   if (error) return { success: false, error: error.message }
 
+  // Restaura o substituto ao posto de origem
+  if (cob.posto_origem_id && cob.funcionario_id) {
+    await supabase
+      .from('funcionarios')
+      .update({ posto_id: cob.posto_origem_id })
+      .eq('id', cob.funcionario_id)
+  }
+
   revalidatePath('/supervisor/coberturas')
+  revalidatePath('/efetivo')
   return { success: true }
 }
