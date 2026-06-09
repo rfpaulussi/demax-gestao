@@ -18,6 +18,14 @@ export type FuncionarioRow = {
   funcoes: { id: string; nome: string } | null
   postos: { id: string; nome: string; secretaria: string | null } | null
   supervisor_nome?: string | null
+  supervisor_id?: string | null
+}
+
+function fmtSupervisor(nome: string | null | undefined): string | null {
+  if (!nome) return null
+  const parts = nome.trim().split(/\s+/)
+  if (parts.length === 1) return parts[0]
+  return `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.`
 }
 
 const STATUS_BADGE: Record<
@@ -80,7 +88,7 @@ export function FuncionariosTable({
                 {funcionarios.map(f => {
                   const badge    = f.status ? STATUS_BADGE[f.status] : null
                   const rowStyle = f.status ? STATUS_ROW[f.status] : null
-                  const supFirst = f.supervisor_nome?.split(' ')[0]?.toUpperCase() ?? null
+                  const supLabel = fmtSupervisor(f.supervisor_nome)
 
                   return (
                     <tr
@@ -109,12 +117,15 @@ export function FuncionariosTable({
                       <td className="px-5 py-3.5 text-gray-500">{f.postos?.nome ?? '—'}</td>
                       <td className="px-5 py-3.5 text-gray-500">{f.postos?.secretaria ?? '—'}</td>
                       <td className="px-5 py-3.5">
-                        {supFirst ? (
-                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-                            {supFirst}
+                        {supLabel ? (
+                          <span
+                            className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700"
+                            title={f.supervisor_nome ?? undefined}
+                          >
+                            {supLabel}
                           </span>
                         ) : (
-                          <span className="text-gray-400 text-xs">—</span>
+                          <span className="text-xs text-gray-400">—</span>
                         )}
                       </td>
                       <td className="px-5 py-3.5">

@@ -1,7 +1,5 @@
-import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import { FuncionariosTable } from '@/components/efetivo/funcionarios-table'
-import { FiltrosEfetivo } from '@/components/efetivo/filtros-efetivo'
+import { EfetivoClient } from '@/components/efetivo/efetivo-client'
 import type { FuncionarioRow } from '@/components/efetivo/funcionarios-table'
 
 // ─── counter card ─────────────────────────────────────────────────────────────
@@ -25,14 +23,7 @@ function CounterCard({
   )
 }
 
-// ─── page ─────────────────────────────────────────────────────────────────────
-
-type SearchParams = {
-  secretaria?: string
-  status?: string
-  busca?: string
-  supervisor?: string
-}
+// ─── types ────────────────────────────────────────────────────────────────────
 
 type ConfigRow = {
   supervisor_id: string
@@ -40,11 +31,9 @@ type ConfigRow = {
   perfis: { id: string; nome: string | null } | null
 }
 
-export default async function EfetivoPage({
-  searchParams,
-}: {
-  searchParams: SearchParams
-}) {
+// ─── page ─────────────────────────────────────────────────────────────────────
+
+export default async function EfetivoPage() {
   const supabase = createClient()
 
   const [
@@ -76,95 +65,30 @@ export default async function EfetivoPage({
     supabase.from('funcoes').select('id, nome').order('nome'),
   ])
 
-  const funcionarios = (raw ?? []) as unknown as FuncionarioRow[]
-
-  // supervisor_id → Set<posto_id>  (for filtering by supervisor)
-  const supervisorPostoMap = new Map<string, Set<string>>()
-  // posto_id → { id, nomeCompleto }  (for enriching display)
+  // posto_id → { supervisor_id, nomeCompleto }
   const postoSupervisorMap = new Map<string, { id: string; nomeCompleto: string }>()
-
   for (const row of (configRaw ?? []) as unknown as ConfigRow[]) {
-    if (!supervisorPostoMap.has(row.supervisor_id)) {
-      supervisorPostoMap.set(row.supervisor_id, new Set())
-    }
-    supervisorPostoMap.get(row.supervisor_id)!.add(row.posto_id)
-
-    const nomeCompleto = row.perfis?.nome
-    if (nomeCompleto && !postoSupervisorMap.has(row.posto_id)) {
-      postoSupervisorMap.set(row.posto_id, { id: row.supervisor_id, nomeCompleto })
+    const nome = row.perfis?.nome
+    if (nome && !postoSupervisorMap.has(row.posto_id)) {
+      postoSupervisorMap.set(row.posto_id, { id: row.supervisor_id, nomeCompleto: nome })
     }
   }
 
-  const supervisedPostoIds = new Set(
-    ((configRaw ?? []) as unknown as ConfigRow[]).map(r => r.posto_id),
-  )
+  // Enrich ALL funcionarios with supervisor_nome + supervisor_id
+  const funcionarios = ((raw ?? []) as unknown as FuncionarioRow[]).map(f => {
+    const sup = f.posto_id ? postoSupervisorMap.get(f.posto_id) : undefined
+    return {
+      ...f,
+      supervisor_nome: sup?.nomeCompleto ?? null,
+      supervisor_id:   sup?.id ?? null,
+    }
+  })
 
-  // Counters over unfiltered data (for KPI cards — unchanged)
+  // KPI counters (always over full list)
   const total     = funcionarios.length
   const ativos    = funcionarios.filter(f => f.status === 'ativo').length
   const afastados = funcionarios.filter(f => f.status === 'afastado').length
   const emFerias  = funcionarios.filter(f => f.status === 'ferias').length
-
-  // Distinct secretarias for filter select
-  const secretarias = Array.from(
-    new Set(
-      funcionarios
-        .map(f => f.postos?.secretaria)
-        .filter((s): s is string => Boolean(s)),
-    ),
-  ).sort()
-
-  // Counts for filter dropdowns
-  const supervisorCounts: Record<string, number> = {}
-  let semSupervisorCount = 0
-  for (const f of funcionarios) {
-    const sup = f.posto_id ? postoSupervisorMap.get(f.posto_id) : undefined
-    if (sup) {
-      supervisorCounts[sup.id] = (supervisorCounts[sup.id] ?? 0) + 1
-    } else {
-      semSupervisorCount++
-    }
-  }
-
-  const secretariaCounts: Record<string, number> = {}
-  for (const f of funcionarios) {
-    const s = f.postos?.secretaria
-    if (s) secretariaCounts[s] = (secretariaCounts[s] ?? 0) + 1
-  }
-
-  const statusCounts: Record<string, number> = {}
-  for (const f of funcionarios) {
-    if (f.status) statusCounts[f.status] = (statusCounts[f.status] ?? 0) + 1
-  }
-
-  // Apply search-param filters
-  const { busca, status, secretaria, supervisor } = searchParams
-  let filtered = funcionarios
-
-  if (busca) {
-    const q = busca.toLowerCase()
-    filtered = filtered.filter(f => f.nome.toLowerCase().includes(q))
-  }
-  if (status) {
-    filtered = filtered.filter(f => f.status === status)
-  }
-  if (secretaria) {
-    filtered = filtered.filter(f => f.postos?.secretaria === secretaria)
-  }
-  if (supervisor === 'sem_supervisor') {
-    filtered = filtered.filter(f => !f.posto_id || !supervisedPostoIds.has(f.posto_id))
-  } else if (supervisor) {
-    const postosDoSup = supervisorPostoMap.get(supervisor) ?? new Set<string>()
-    filtered = filtered.filter(f => !!f.posto_id && postosDoSup.has(f.posto_id))
-  }
-
-  // Enrich each row with supervisor_nome resolved from posto_id
-  const enriched: FuncionarioRow[] = filtered.map(f => ({
-    ...f,
-    supervisor_nome: f.posto_id
-      ? (postoSupervisorMap.get(f.posto_id)?.nomeCompleto ?? null)
-      : null,
-  }))
 
   const supervisores = (supervisoresRaw ?? []) as { id: string; nome: string | null }[]
   const postos       = (postosRaw ?? []) as { id: string; nome: string }[]
@@ -185,20 +109,13 @@ export default async function EfetivoPage({
         <CounterCard label="Em Férias"  value={emFerias}  topColor="border-t-orange-500" />
       </div>
 
-      {/* Filters */}
-      <Suspense>
-        <FiltrosEfetivo
-          secretarias={secretarias}
-          supervisores={supervisores}
-          supervisorCounts={supervisorCounts}
-          secretariaCounts={secretariaCounts}
-          statusCounts={statusCounts}
-          semSupervisorCount={semSupervisorCount}
-        />
-      </Suspense>
-
-      {/* Table */}
-      <FuncionariosTable funcionarios={enriched} postos={postos} funcoes={funcoes} />
+      {/* Filters + Table (client-side) */}
+      <EfetivoClient
+        funcionarios={funcionarios}
+        supervisores={supervisores}
+        postos={postos}
+        funcoes={funcoes}
+      />
     </div>
   )
 }
