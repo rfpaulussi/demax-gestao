@@ -3,13 +3,14 @@
 import { useState, useTransition } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { cn } from '@/lib/utils'
-import { criarInsalubridade, buscarAgentesHigienizacao } from '@/app/(admin)/insalubridade/actions'
+import { criarInsalubridade, buscarAgentesPorPosto } from '@/app/(admin)/insalubridade/actions'
 import type { FuncOpt } from '@/app/(admin)/insalubridade/actions'
 
 interface Props {
   open: boolean
   onClose: () => void
   funcionariosOpt: FuncOpt[]
+  postos: { id: string; nome: string; secretaria: string | null }[]
   mesAtual: number
   anoAtual: number
 }
@@ -17,31 +18,34 @@ interface Props {
 const input = 'flex h-9 w-full rounded-lg border border-gray-200 bg-transparent px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
 const lbl   = 'block text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1.5'
 
-export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, mesAtual, anoAtual }: Props) {
-  const [buscaFunc,     setBuscaFunc]     = useState('')
-  const [selectedFunc,  setSelectedFunc]  = useState<FuncOpt | null>(null)
-  const [agentes,       setAgentes]       = useState<FuncOpt[]>([])
-  const [selectedAg,    setSelectedAg]    = useState<FuncOpt | null>(null)
-  const [isPending,     startTransition]  = useTransition()
+export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos, mesAtual, anoAtual }: Props) {
+  const [selectedPosto,      setSelectedPosto]      = useState<{ id: string; nome: string; secretaria: string | null } | null>(null)
+  const [buscaSubstituto,    setBuscaSubstituto]    = useState('')
+  const [selectedSubstituto, setSelectedSubstituto] = useState<FuncOpt | null>(null)
+  const [ausentes,           setAusentes]           = useState<FuncOpt[]>([])
+  const [selectedAusente,    setSelectedAusente]    = useState<FuncOpt | null>(null)
+  const [isPending,          startTransition]       = useTransition()
 
   const mesStr = String(mesAtual).padStart(2, '0')
   const defaultDate = `${anoAtual}-${mesStr}-01`
 
-  const funcFiltradas = buscaFunc
-    ? funcionariosOpt.filter(f => f.nome.toLowerCase().includes(buscaFunc.toLowerCase()))
+  const substitutosFiltrados = buscaSubstituto
+    ? funcionariosOpt.filter(f => f.nome.toLowerCase().includes(buscaSubstituto.toLowerCase()))
     : funcionariosOpt.slice(0, 80)
 
-  async function onFuncSelect(f: FuncOpt) {
-    setSelectedFunc(f)
-    const ags = await buscarAgentesHigienizacao(f.postos?.id)
-    setAgentes(ags)
+  async function onPostoSelect(posto: { id: string; nome: string; secretaria: string | null }) {
+    setSelectedPosto(posto)
+    setSelectedAusente(null)
+    const ags = await buscarAgentesPorPosto(posto.id)
+    setAusentes(ags)
   }
 
   function handleClose() {
-    setBuscaFunc('')
-    setSelectedFunc(null)
-    setAgentes([])
-    setSelectedAg(null)
+    setSelectedPosto(null)
+    setBuscaSubstituto('')
+    setSelectedSubstituto(null)
+    setAusentes([])
+    setSelectedAusente(null)
     onClose()
   }
 
@@ -49,11 +53,11 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, mesAtua
     e.preventDefault()
     const form = e.currentTarget
     const formData = new FormData(form)
-    if (selectedFunc) formData.set('funcionario_id', selectedFunc.id)
-    if (selectedFunc?.postos?.id) formData.set('posto_id', selectedFunc.postos.id)
-    if (selectedAg) {
-      formData.set('agente_ausente_id', selectedAg.id)
-      formData.set('agente_ausente_nome', selectedAg.nome)
+    if (selectedSubstituto) formData.set('funcionario_id', selectedSubstituto.id)
+    if (selectedPosto) formData.set('posto_id', selectedPosto.id)
+    if (selectedAusente) {
+      formData.set('agente_ausente_id', selectedAusente.id)
+      formData.set('agente_ausente_nome', selectedAusente.nome)
     }
     startTransition(async () => {
       await criarInsalubridade(formData)
@@ -73,31 +77,69 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, mesAtua
           <p className="mb-6 text-sm text-gray-400">Lançamento manual de cobertura insalubre</p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Funcionário */}
+            {/* Posto */}
+            {!selectedPosto ? (
+              <div>
+                <label className={lbl}>Posto *</label>
+                <select
+                  required
+                  onChange={e => {
+                    const p = postos.find(x => x.id === e.target.value)
+                    if (p) onPostoSelect(p)
+                  }}
+                  className={input}
+                >
+                  <option value="">Selecione o posto...</option>
+                  {postos.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.nome}{p.secretaria ? ` — ${p.secretaria}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{selectedPosto.nome}</p>
+                  {selectedPosto.secretaria && (
+                    <p className="text-xs text-gray-500">{selectedPosto.secretaria}</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedPosto(null); setAusentes([]); setSelectedAusente(null) }}
+                  className="text-xs text-slate-500 hover:underline"
+                >
+                  Trocar
+                </button>
+              </div>
+            )}
+
+            {/* Substituto */}
             <div>
-              <label className={lbl}>Buscar funcionário</label>
+              <label className={lbl}>Buscar substituto</label>
               <input
                 type="text"
                 placeholder="Digite para filtrar..."
-                value={buscaFunc}
-                onChange={e => setBuscaFunc(e.target.value)}
+                value={buscaSubstituto}
+                onChange={e => setBuscaSubstituto(e.target.value)}
                 className={input}
-                disabled={!!selectedFunc}
+                disabled={!!selectedSubstituto}
               />
             </div>
-            {!selectedFunc ? (
+            {!selectedSubstituto ? (
               <div>
-                <label className={lbl}>Funcionário *</label>
+                <label className={lbl}>Substituto *</label>
                 <select
                   required
                   onChange={e => {
                     const f = funcionariosOpt.find(x => x.id === e.target.value)
-                    if (f) onFuncSelect(f)
+                    if (f) setSelectedSubstituto(f)
                   }}
                   className={input}
                 >
                   <option value="">Selecione...</option>
-                  {funcFiltradas.map(f => (
+                  {substitutosFiltrados.map(f => (
                     <option key={f.id} value={f.id}>
                       {f.nome}{f.postos?.nome ? ` — ${f.postos.nome}` : ''}
                     </option>
@@ -107,44 +149,47 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, mesAtua
             ) : (
               <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{selectedFunc.nome}</p>
-                  {selectedFunc.postos && (
-                    <p className="text-xs text-gray-500">{selectedFunc.postos.nome} · {selectedFunc.postos.secretaria}</p>
+                  <p className="text-sm font-medium text-gray-900">{selectedSubstituto.nome}</p>
+                  {selectedSubstituto.postos && (
+                    <p className="text-xs text-gray-500">{selectedSubstituto.postos.nome} · {selectedSubstituto.postos.secretaria}</p>
                   )}
                 </div>
-                <button type="button" onClick={() => { setSelectedFunc(null); setAgentes([]); setSelectedAg(null) }} className="text-xs text-slate-500 hover:underline">Trocar</button>
+                <button type="button" onClick={() => setSelectedSubstituto(null)} className="text-xs text-slate-500 hover:underline">Trocar</button>
               </div>
             )}
+
+            {/* Agente ausente */}
+            <div>
+              <label className={lbl}>Agente Ausente</label>
+              {ausentes.length > 0 ? (
+                <select
+                  onChange={e => {
+                    const ag = ausentes.find(a => a.id === e.target.value) ?? null
+                    setSelectedAusente(ag)
+                  }}
+                  className={input}
+                >
+                  <option value="">Selecione ou deixe em branco...</option>
+                  {ausentes.map(a => (
+                    <option key={a.id} value={a.id}>{a.nome}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  name="agente_ausente_nome"
+                  placeholder={selectedPosto ? 'Nenhum agente ativo neste posto' : 'Selecione um posto primeiro...'}
+                  className={input}
+                  disabled={!selectedPosto || ausentes.length === 0}
+                />
+              )}
+            </div>
 
             {/* Data */}
             <div>
               <label className={lbl}>Data da Cobertura *</label>
               <input type="date" name="data_cobertura" required defaultValue={defaultDate} className={input} />
             </div>
-
-            {/* Agente ausente */}
-            {agentes.length > 0 ? (
-              <div>
-                <label className={lbl}>Agente Ausente</label>
-                <select
-                  onChange={e => {
-                    const ag = agentes.find(a => a.id === e.target.value) ?? null
-                    setSelectedAg(ag)
-                  }}
-                  className={input}
-                >
-                  <option value="">Selecione ou deixe em branco...</option>
-                  {agentes.map(a => (
-                    <option key={a.id} value={a.id}>{a.nome}</option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <div>
-                <label className={lbl}>Agente Ausente (nome livre)</label>
-                <input type="text" name="agente_ausente_nome" placeholder="Nome do agente ausente..." className={input} />
-              </div>
-            )}
 
             {/* Observação */}
             <div>
@@ -163,7 +208,7 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, mesAtua
               </button>
               <button
                 type="submit"
-                disabled={isPending || !selectedFunc}
+                disabled={isPending || !selectedPosto || !selectedSubstituto}
                 className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
               >
                 {isPending ? 'Salvando...' : 'Registrar'}

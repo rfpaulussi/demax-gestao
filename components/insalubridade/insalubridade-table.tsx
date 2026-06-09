@@ -98,9 +98,10 @@ interface Props {
   mes: number
   ano: number
   funcionariosOpt: FuncOpt[]
+  postos: { id: string; nome: string; secretaria: string | null }[]
 }
 
-export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt }: Props) {
+export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [showModal, setShowModal] = useState(false)
 
@@ -234,6 +235,7 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt }: Props)
         open={showModal}
         onClose={() => setShowModal(false)}
         funcionariosOpt={funcionariosOpt}
+        postos={postos}
         mesAtual={mes}
         anoAtual={ano}
       />

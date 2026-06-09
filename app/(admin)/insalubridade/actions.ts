@@ -278,6 +278,17 @@ export async function buscarFuncionariosParaDeclaracao(): Promise<FuncOpt[]> {
   return (data ?? []) as unknown as FuncOpt[]
 }
 
+export async function buscarAgentesPorPosto(postoId: string): Promise<FuncOpt[]> {
+  const supabase = createClient()
+  const { data } = await supabase
+    .from('funcionarios')
+    .select('id, nome, postos!posto_id(id, nome, secretaria)')
+    .eq('posto_id', postoId)
+    .eq('status', 'ativo')
+    .order('nome')
+  return (data ?? []) as unknown as FuncOpt[]
+}
+
 export async function buscarAgentesHigienizacao(postoId?: string): Promise<FuncOpt[]> {
   const supabase = createClient()
   let q = supabase

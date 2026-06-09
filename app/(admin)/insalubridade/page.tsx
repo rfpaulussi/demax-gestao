@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getUser } from '@/lib/auth/get-user'
 import { cn } from '@/lib/utils'
 import { buscarInsalubridades, buscarFuncionariosParaDeclaracao } from './actions'
 import { InsalubridadeTable } from '@/components/insalubridade/insalubridade-table'
@@ -24,16 +25,43 @@ export default async function InsalubridadePage({
   const mes  = Number(searchParams.mes  ?? now.getMonth() + 1)
   const ano  = Number(searchParams.ano  ?? now.getFullYear())
 
-  const [grupos, funcionariosOpt] = await Promise.all([
+  const [grupos, funcionariosOpt, auth] = await Promise.all([
     buscarInsalubridades(mes, ano, {
       status:     searchParams.status,
       secretaria: searchParams.secretaria,
     }),
     buscarFuncionariosParaDeclaracao(),
+    getUser(),
   ])
 
+  const supabasePostos = createClient()
+  let postos: { id: string; nome: string; secretaria: string | null }[] = []
+  if (auth?.perfil.role === 'admin') {
+    const { data } = await supabasePostos
+      .from('postos')
+      .select('id, nome, secretaria')
+      .eq('ativo', true)
+      .order('nome')
+    postos = (data ?? []) as { id: string; nome: string; secretaria: string | null }[]
+  } else if (auth) {
+    const { data: cfgData } = await supabasePostos
+      .from('config_supervisores_postos')
+      .select('posto_id')
+      .eq('supervisor_id', auth.user.id)
+      .eq('ativo', true)
+    const postoIds = (cfgData ?? []).map((r: { posto_id: string }) => r.posto_id)
+    if (postoIds.length > 0) {
+      const { data } = await supabasePostos
+        .from('postos')
+        .select('id, nome, secretaria')
+        .in('id', postoIds)
+        .order('nome')
+      postos = (data ?? []) as { id: string; nome: string; secretaria: string | null }[]
+    }
+  }
+
   // KPI data (sem filtro de status/secretaria para contar totais do mês)
-  const supabase = createClient()
+  const supabase = supabasePostos
   const { data: kpiRaw } = await supabase
     .from('insalubridade_coberturas')
     .select('status, funcionario_id')
@@ -118,6 +146,7 @@ export default async function InsalubridadePage({
         mes={mes}
         ano={ano}
         funcionariosOpt={funcionariosOpt}
+        postos={postos}
       />
 
     </div>
