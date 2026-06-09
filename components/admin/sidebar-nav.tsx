@@ -15,6 +15,7 @@ import {
   AlertCircle,
   UserCog,
   Menu,
+  MapPin,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
@@ -25,6 +26,7 @@ import type { Role } from '@/types'
 const NAV = [
   { href: '/dashboard',     label: 'Dashboard',     icon: LayoutDashboard },
   { href: '/efetivo',       label: 'Efetivo',       icon: Users           },
+  { href: '/postos',        label: 'Postos',        icon: MapPin          },
   { href: '/aprovacoes',    label: 'Aprovações',    icon: CheckSquare, badge: true },
   { href: '/coberturas',    label: 'Coberturas',    icon: ArrowLeftRight  },
   { href: '/ferias',        label: 'Férias',        icon: Calendar        },
