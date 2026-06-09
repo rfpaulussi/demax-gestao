@@ -56,7 +56,9 @@
       "Bash(code *)",
       "Bash(npm ls *)",
       "Bash(find lib *)",
-      "Bash(dir lib *)"
+      "Bash(dir lib *)",
+      "Bash(xargs ls -la)",
+      "Bash(npx supabase *)"
     ]
   }
 }
