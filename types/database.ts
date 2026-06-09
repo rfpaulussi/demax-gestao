@@ -295,6 +295,7 @@ export type Database = {
           status: 'ativo' | 'afastado' | 'ferias' | 'desligado' | null
           data_admissao: string | null
           data_desligamento: string | null
+          salario_base: number | null
           created_at: string
           updated_at: string
         }
@@ -307,6 +308,7 @@ export type Database = {
           status?: 'ativo' | 'afastado' | 'ferias' | 'desligado' | null
           data_admissao?: string | null
           data_desligamento?: string | null
+          salario_base?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -319,6 +321,7 @@ export type Database = {
           status?: 'ativo' | 'afastado' | 'ferias' | 'desligado' | null
           data_admissao?: string | null
           data_desligamento?: string | null
+          salario_base?: number | null
           updated_at?: string
         }
         Relationships: []
@@ -756,7 +759,7 @@ export type Database = {
       solicitacoes: {
         Row: {
           id: string
-          tipo: 'desligamento' | 'transferencia' | 'mudanca_funcao' | 'promocao' | 'mudanca_supervisor'
+          tipo: 'desligamento' | 'transferencia' | 'mudanca_funcao' | 'promocao' | 'mudanca_supervisor' | 'alteracao_salario'
           status: 'pendente' | 'aprovada' | 'rejeitada'
           funcionario_id: string
           supervisor_id: string | null
@@ -770,7 +773,7 @@ export type Database = {
         }
         Insert: {
           id?: string
-          tipo: 'desligamento' | 'transferencia' | 'mudanca_funcao' | 'promocao' | 'mudanca_supervisor'
+          tipo: 'desligamento' | 'transferencia' | 'mudanca_funcao' | 'promocao' | 'mudanca_supervisor' | 'alteracao_salario'
           status?: 'pendente' | 'aprovada' | 'rejeitada'
           funcionario_id: string
           supervisor_id?: string | null
@@ -784,7 +787,7 @@ export type Database = {
         }
         Update: {
           id?: string
-          tipo?: 'desligamento' | 'transferencia' | 'mudanca_funcao' | 'promocao' | 'mudanca_supervisor'
+          tipo?: 'desligamento' | 'transferencia' | 'mudanca_funcao' | 'promocao' | 'mudanca_supervisor' | 'alteracao_salario'
           status?: 'pendente' | 'aprovada' | 'rejeitada'
           funcionario_id?: string
           supervisor_id?: string | null

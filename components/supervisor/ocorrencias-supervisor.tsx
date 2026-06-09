@@ -46,7 +46,7 @@ function EncerrarButton({ ocorrencia }: { ocorrencia: OcorrenciaSupRow }) {
   function handleClick() {
     const fd = new FormData()
     fd.set('ocorrencia_id', ocorrencia.id)
-    startTransition(() => encerrarOcorrenciaSupervisor(fd))
+    startTransition(async () => { await encerrarOcorrenciaSupervisor(fd) })
   }
 
   return (

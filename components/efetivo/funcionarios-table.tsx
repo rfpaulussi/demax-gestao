@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { FileMinus, ArrowUpRight } from 'lucide-react'
+import { FileMinus, ArrowUpRight, ClipboardList } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ModalAtestado } from './modal-atestado'
+import { ModalNovaSolicitacao } from './modal-nova-solicitacao'
 
 export type FuncionarioRow = {
   id: string
@@ -43,10 +44,15 @@ const COLS = ['Nome', 'Função', 'Posto', 'Secretaria', 'Supervisor', 'Status',
 
 export function FuncionariosTable({
   funcionarios,
+  postos,
+  funcoes,
 }: {
   funcionarios: FuncionarioRow[]
+  postos: { id: string; nome: string }[]
+  funcoes: { id: string; nome: string }[]
 }) {
-  const [atestadoFuncionario, setAtestadoFuncionario] = useState<FuncionarioRow | null>(null)
+  const [atestadoFuncionario, setAtestadoFuncionario]     = useState<FuncionarioRow | null>(null)
+  const [solicitarFuncionario, setSolicitarFuncionario]   = useState<FuncionarioRow | null>(null)
 
   return (
     <>
@@ -130,6 +136,16 @@ export function FuncionariosTable({
                             <FileMinus className="h-3.5 w-3.5" />
                             Atestado
                           </Button>
+                          {f.status !== 'desligado' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setSolicitarFuncionario(f)}
+                            >
+                              <ClipboardList className="h-3.5 w-3.5" />
+                              Solicitar
+                            </Button>
+                          )}
                           <Link
                             href={`/efetivo/${f.id}`}
                             className={buttonVariants({ size: 'sm', variant: 'outline' })}
@@ -153,6 +169,16 @@ export function FuncionariosTable({
           open
           onClose={() => setAtestadoFuncionario(null)}
           funcionario={atestadoFuncionario}
+        />
+      )}
+
+      {solicitarFuncionario && (
+        <ModalNovaSolicitacao
+          open
+          onClose={() => setSolicitarFuncionario(null)}
+          funcionario={solicitarFuncionario}
+          postos={postos}
+          funcoes={funcoes}
         />
       )}
     </>

@@ -1,8 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { FileDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { TipoSolicitacao, StatusSolicitacao } from '@/types'
+import { downloadMovimentacaoPDF } from './movimentacao-pdf'
+import type { FuncionarioParaPDF } from './movimentacao-pdf'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -58,42 +61,79 @@ const STATUS_ADV: Record<NonNullable<AdvertenciaItem['status']>, { label: string
 
 // ─── sub-views ────────────────────────────────────────────────────────────────
 
-function TabMovimentacoes({ items }: { items: MovimentacaoItem[] }) {
+function TabMovimentacoes({
+  items,
+  funcionario,
+}: {
+  items: MovimentacaoItem[]
+  funcionario: FuncionarioParaPDF
+}) {
+  const [baixando, setBaixando] = useState<string | null>(null)
+
   if (items.length === 0) {
     return <p className="py-8 text-center text-sm text-gray-400">Nenhuma movimentação registrada.</p>
   }
+
+  async function handleDownload(mov: MovimentacaoItem) {
+    setBaixando(mov.id)
+    try {
+      await downloadMovimentacaoPDF(mov, funcionario)
+    } finally {
+      setBaixando(null)
+    }
+  }
+
   return (
     <ol className="relative ml-3 border-l border-gray-200">
       {items.map(m => (
         <li key={m.id} className="mb-6 ml-5">
           <span className="absolute -left-1.5 mt-1 h-3 w-3 rounded-full border-2 border-white bg-slate-400" />
-          <p className="text-xs text-gray-400">
-            {m.created_at ? fmt(m.created_at) : '—'}
-            {m.perfis?.nome && <span> · {m.perfis.nome}</span>}
-          </p>
-          <p className="mt-0.5 text-sm font-semibold capitalize text-gray-900">
-            {m.tipo.replace(/_/g, ' ')}
-          </p>
-          {m.campo_alterado && (
-            <p className="text-xs text-gray-500">
-              {m.campo_alterado}:{' '}
-              <span className="line-through text-gray-400">{m.valor_antes ?? '—'}</span>
-              {' → '}
-              <span className="text-gray-700">{m.valor_depois ?? '—'}</span>
-            </p>
-          )}
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-xs text-gray-400">
+                {m.created_at ? fmt(m.created_at) : '—'}
+                {m.perfis?.nome && <span> · {m.perfis.nome}</span>}
+              </p>
+              <p className="mt-0.5 text-sm font-semibold capitalize text-gray-900">
+                {m.tipo.replace(/_/g, ' ')}
+              </p>
+              {m.campo_alterado && (
+                <p className="text-xs text-gray-500">
+                  {m.campo_alterado}:{' '}
+                  <span className="line-through text-gray-400">{m.valor_antes ?? '—'}</span>
+                  {' → '}
+                  <span className="text-gray-700">{m.valor_depois ?? '—'}</span>
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => handleDownload(m)}
+              disabled={baixando === m.id}
+              title="Baixar termo em PDF"
+              className="shrink-0 rounded bg-amber-500 px-2 py-1 text-xs font-semibold text-slate-900 hover:bg-amber-400 disabled:opacity-50 flex items-center gap-1"
+            >
+              <FileDown className="h-3 w-3" />
+              {baixando === m.id ? '...' : 'PDF'}
+            </button>
+          </div>
         </li>
       ))}
     </ol>
   )
 }
 
-function TabAfastamentos({ items }: { items: MovimentacaoItem[] }) {
+function TabAfastamentos({
+  items,
+  funcionario,
+}: {
+  items: MovimentacaoItem[]
+  funcionario: FuncionarioParaPDF
+}) {
   const afastamentos = items.filter(m => m.tipo === 'afastamento' || m.tipo === 'atestado')
   if (afastamentos.length === 0) {
     return <p className="py-8 text-center text-sm text-gray-400">Nenhum afastamento registrado.</p>
   }
-  return <TabMovimentacoes items={afastamentos} />
+  return <TabMovimentacoes items={afastamentos} funcionario={funcionario} />
 }
 
 function TabAdvertencias({ items }: { items: AdvertenciaItem[] }) {
@@ -186,10 +226,12 @@ export function PerfilTabs({
   movimentacoes,
   advertencias,
   solicitacoes,
+  funcionario,
 }: {
   movimentacoes: MovimentacaoItem[]
   advertencias: AdvertenciaItem[]
   solicitacoes: SolicitacaoItem[]
+  funcionario: FuncionarioParaPDF
 }) {
   const [tab, setTab] = useState<Tab>('movimentacoes')
 
@@ -213,8 +255,8 @@ export function PerfilTabs({
       </div>
 
       <div className="pt-4">
-        {tab === 'movimentacoes' && <TabMovimentacoes items={movimentacoes} />}
-        {tab === 'afastamentos'  && <TabAfastamentos  items={movimentacoes} />}
+        {tab === 'movimentacoes' && <TabMovimentacoes items={movimentacoes} funcionario={funcionario} />}
+        {tab === 'afastamentos'  && <TabAfastamentos  items={movimentacoes} funcionario={funcionario} />}
         {tab === 'advertencias'  && <TabAdvertencias  items={advertencias}  />}
         {tab === 'solicitacoes'  && <TabSolicitacoes  items={solicitacoes}  />}
       </div>

@@ -7,8 +7,9 @@ import { Button } from '@/components/ui/button'
 import { toggleAtivo } from '@/app/(admin)/usuarios/actions'
 
 import type { Perfil, Role } from '@/types'
-import { ModalNovoUsuario }   from './modal-novo-usuario'
-import { ModalEditarUsuario } from './modal-editar-usuario'
+import { ModalNovoUsuario }    from './modal-novo-usuario'
+import { ModalEditarUsuario }  from './modal-editar-usuario'
+import { ModalResetarSenha }   from './modal-resetar-senha'
 
 const ROLE_BADGE: Record<Role, { label: string; className: string }> = {
   admin:       { label: 'Admin',        className: 'bg-purple-50 text-purple-700 ring-purple-200' },
@@ -83,8 +84,9 @@ export function UsuariosTable({
   perfis: Perfil[]
   currentUserId: string
 }) {
-  const [showNovo, setShowNovo]     = useState(false)
-  const [editando, setEditando]     = useState<Perfil | null>(null)
+  const [showNovo, setShowNovo]         = useState(false)
+  const [editando, setEditando]         = useState<Perfil | null>(null)
+  const [resetando, setResetando]       = useState<string | null>(null)
 
   return (
     <>
@@ -173,6 +175,13 @@ export function UsuariosTable({
                           >
                             Editar Role
                           </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setResetando(p.id)}
+                          >
+                            Redefinir Senha
+                          </Button>
                           <ToggleAtivoButton perfil={p} disabled={isSelf} />
                         </div>
                       </td>
@@ -185,8 +194,9 @@ export function UsuariosTable({
         )}
       </div>
 
-      <ModalNovoUsuario    open={showNovo}       onClose={() => setShowNovo(false)} />
-      <ModalEditarUsuario  open={editando !== null} onClose={() => setEditando(null)} perfil={editando} />
+      <ModalNovoUsuario    open={showNovo}          onClose={() => setShowNovo(false)}    />
+      <ModalEditarUsuario  open={editando !== null}  onClose={() => setEditando(null)}  perfil={editando} />
+      <ModalResetarSenha   open={resetando !== null} onClose={() => setResetando(null)} perfilId={resetando} />
     </>
   )
 }

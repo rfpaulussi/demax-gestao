@@ -3,31 +3,98 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getUser } from '@/lib/auth/get-user'
+import type { TipoSolicitacao } from '@/types'
 
+// ─── Tipos públicos ───────────────────────────────────────────────────────────
 
-export async function aprovarSolicitacao(id: string, observacao?: string) {
-  const supabase = createClient()
+type ActionResult = { success: true } | { success: false; error: string }
+
+export type SolicitacaoFiltros = {
+  tipo?: TipoSolicitacao
+  status?: 'pendente' | 'aprovada' | 'rejeitada'
+  supervisor_id?: string
+}
+
+export type SolicitacaoRow = {
+  id: string
+  tipo: TipoSolicitacao
+  status: 'pendente' | 'aprovada' | 'rejeitada'
+  motivo: string | null
+  observacao_admin: string | null
+  dados_antes: Record<string, unknown> | null
+  dados_depois: Record<string, unknown> | null
+  created_at: string | null
+  funcionarios: { nome: string; cpf: string | null } | null
+  perfis: { nome: string | null; email: string | null } | null
+}
+
+// ─── Helper interno ────────────────────────────────────────────────────────────
+
+type AdminGuard =
+  | { success: true; userId: string }
+  | { success: false; error: string }
+
+async function assertAdmin(): Promise<AdminGuard> {
   const auth = await getUser()
-  if (!auth) throw new Error('Não autenticado')
-  if (auth.perfil.role !== 'admin') throw new Error('Acesso negado')
+  if (!auth || auth.perfil.role !== 'admin') {
+    return { success: false, error: 'Acesso negado' }
+  }
+  return { success: true, userId: auth.user.id }
+}
 
-  const { data: sol } = await supabase
+// ─── buscarSolicitacoes ────────────────────────────────────────────────────────
+
+const SOL_SELECT = `
+  id, tipo, status, motivo, observacao_admin, dados_antes, dados_depois, created_at,
+  funcionarios!funcionario_id ( nome, cpf ),
+  perfis!supervisor_id ( nome, email )
+`
+
+export async function buscarSolicitacoes(
+  filtros: SolicitacaoFiltros = {},
+): Promise<SolicitacaoRow[]> {
+  const supabase = createClient()
+
+  let query = supabase
+    .from('solicitacoes')
+    .select(SOL_SELECT)
+    .order('created_at', { ascending: false })
+
+  if (filtros.tipo)          query = query.eq('tipo', filtros.tipo)
+  if (filtros.status)        query = query.eq('status', filtros.status)
+  if (filtros.supervisor_id) query = query.eq('supervisor_id', filtros.supervisor_id)
+
+  const { data } = await query
+  return (data ?? []) as unknown as SolicitacaoRow[]
+}
+
+// ─── aprovarSolicitacao ────────────────────────────────────────────────────────
+
+export async function aprovarSolicitacao(
+  id: string,
+  observacao?: string,
+): Promise<ActionResult> {
+  const guard = await assertAdmin()
+  if (!guard.success) return guard
+
+  const supabase = createClient()
+
+  const { data: sol, error: solError } = await supabase
     .from('solicitacoes')
     .select('*')
     .eq('id', id)
     .single()
 
-  if (!sol) throw new Error('Solicitação não encontrada')
-  if (sol.status !== 'pendente') throw new Error('Solicitação já processada')
+  if (solError || !sol) return { success: false, error: 'Solicitação não encontrada' }
+  if (sol.status !== 'pendente') return { success: false, error: 'Solicitação já processada' }
 
   const { data: func } = await supabase
     .from('funcionarios')
-    .select('status, posto_id, funcao_id')
+    .select('status, posto_id, funcao_id, salario_base')
     .eq('id', sol.funcionario_id)
     .single()
 
   const dadosDepois = (sol.dados_depois ?? {}) as Record<string, unknown>
-  const now = new Date().toISOString()
 
   switch (sol.tipo) {
     case 'desligamento': {
@@ -40,66 +107,56 @@ export async function aprovarSolicitacao(id: string, observacao?: string) {
     }
 
     case 'transferencia': {
-      const postoDestinoId = dadosDepois.posto_destino_id as string
       await supabase
         .from('funcionarios')
-        .update({ posto_id: postoDestinoId })
+        .update({ posto_id: dadosDepois.posto_destino_id as string })
         .eq('id', sol.funcionario_id)
       break
     }
 
     case 'mudanca_funcao':
     case 'promocao': {
-      const funcaoDestinoId = dadosDepois.funcao_destino_id as string
       await supabase
         .from('funcionarios')
-        .update({ funcao_id: funcaoDestinoId })
+        .update({ funcao_id: dadosDepois.funcao_destino_id as string })
         .eq('id', sol.funcionario_id)
       break
     }
 
-    case 'mudanca_supervisor': {
-      const novoSupervisorId = dadosDepois.novo_supervisor_id as string
-      const postoId = func?.posto_id
-      if (postoId) {
-        await supabase
-          .from('config_supervisores_postos')
-          .update({ ativo: false })
-          .eq('posto_id', postoId)
-          .eq('ativo', true)
-        await supabase
-          .from('config_supervisores_postos')
-          .insert({ supervisor_id: novoSupervisorId, posto_id: postoId, ativo: true })
-      }
+    case 'alteracao_salario': {
+      await supabase
+        .from('funcionarios')
+        .update({ salario_base: dadosDepois.novo_salario as number })
+        .eq('id', sol.funcionario_id)
       break
     }
   }
 
-  const campoMap: Record<string, { campo: string; antes: string | null; depois: string | null }> = {
-    desligamento:       { campo: 'status',    antes: func?.status ?? null,    depois: 'desligado' },
-    transferencia:      { campo: 'posto_id',  antes: func?.posto_id ?? null,  depois: dadosDepois.posto_destino_id as string ?? null },
-    mudanca_funcao:     { campo: 'funcao_id', antes: func?.funcao_id ?? null, depois: dadosDepois.funcao_destino_id as string ?? null },
-    promocao:           { campo: 'funcao_id', antes: func?.funcao_id ?? null, depois: dadosDepois.funcao_destino_id as string ?? null },
-    mudanca_supervisor: { campo: 'supervisor_id', antes: null,               depois: dadosDepois.novo_supervisor_id as string ?? null },
+  const campoMap: Partial<Record<TipoSolicitacao, { campo: string; antes: string | null; depois: string | null }>> = {
+    desligamento:     { campo: 'status',       antes: func?.status ?? null,              depois: 'desligado' },
+    transferencia:    { campo: 'posto_id',     antes: func?.posto_id ?? null,            depois: (dadosDepois.posto_destino_id as string) ?? null },
+    mudanca_funcao:   { campo: 'funcao_id',    antes: func?.funcao_id ?? null,           depois: (dadosDepois.funcao_destino_id as string) ?? null },
+    promocao:         { campo: 'funcao_id',    antes: func?.funcao_id ?? null,           depois: (dadosDepois.funcao_destino_id as string) ?? null },
+    alteracao_salario:{ campo: 'salario_base', antes: String(func?.salario_base ?? ''), depois: String(dadosDepois.novo_salario ?? '') },
   }
   const mov = campoMap[sol.tipo]
 
   await supabase.from('movimentacoes').insert({
-    funcionario_id: sol.funcionario_id,
-    tipo: sol.tipo,
-    campo_alterado: mov?.campo ?? null,
-    valor_antes: mov?.antes ?? null,
-    valor_depois: mov?.depois ?? null,
-    executado_por: auth.user.id,
-    solicitacao_id: id,
+    funcionario_id:  sol.funcionario_id,
+    tipo:            sol.tipo,
+    campo_alterado:  mov?.campo ?? null,
+    valor_antes:     mov?.antes ?? null,
+    valor_depois:    mov?.depois ?? null,
+    executado_por:   guard.userId,
+    solicitacao_id:  id,
   })
 
   await supabase
     .from('solicitacoes')
     .update({
-      status: 'aprovada',
-      aprovado_por: auth.user.id,
-      aprovado_em: now,
+      status:           'aprovada',
+      aprovado_por:     guard.userId,
+      aprovado_em:      new Date().toISOString(),
       observacao_admin: observacao ?? null,
     })
     .eq('id', id)
@@ -107,25 +164,32 @@ export async function aprovarSolicitacao(id: string, observacao?: string) {
   revalidatePath('/aprovacoes')
   revalidatePath('/efetivo')
   revalidatePath('/dashboard')
+
+  return { success: true }
 }
 
-export async function rejeitarSolicitacao(id: string, motivo: string) {
+// ─── rejeitarSolicitacao ───────────────────────────────────────────────────────
+
+export async function rejeitarSolicitacao(id: string, motivo: string): Promise<ActionResult> {
+  const guard = await assertAdmin()
+  if (!guard.success) return guard
+
+  if (!motivo.trim()) return { success: false, error: 'Motivo da rejeição é obrigatório' }
+
   const supabase = createClient()
-  const auth = await getUser()
-  if (!auth) throw new Error('Não autenticado')
-  if (auth.perfil.role !== 'admin') throw new Error('Acesso negado')
 
-  if (!motivo.trim()) throw new Error('Motivo obrigatório')
-
-  await supabase
+  const { error } = await supabase
     .from('solicitacoes')
     .update({
-      status: 'rejeitada',
-      aprovado_por: auth.user.id,
-      aprovado_em: new Date().toISOString(),
+      status:           'rejeitada',
+      aprovado_por:     guard.userId,
+      aprovado_em:      new Date().toISOString(),
       observacao_admin: motivo,
     })
     .eq('id', id)
 
+  if (error) return { success: false, error: error.message }
+
   revalidatePath('/aprovacoes')
+  return { success: true }
 }

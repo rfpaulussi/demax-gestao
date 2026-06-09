@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { cn } from '@/lib/utils'
 import { PerfilTabs } from '@/components/efetivo/perfil-tabs'
 import type { MovimentacaoItem, AdvertenciaItem, SolicitacaoItem } from '@/components/efetivo/perfil-tabs'
+import type { FuncionarioParaPDF } from '@/components/efetivo/movimentacao-pdf'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -158,6 +159,14 @@ export default async function PerfilFuncionarioPage({
           movimentacoes={movimentacoes}
           advertencias={advertencias}
           solicitacoes={solicitacoes}
+          funcionario={{
+            nome:          f.nome,
+            cpf:           f.cpf,
+            funcao:        f.funcoes?.nome ?? null,
+            posto:         f.postos?.nome ?? null,
+            secretaria:    f.postos?.secretaria ?? null,
+            data_admissao: f.data_admissao,
+          } satisfies FuncionarioParaPDF}
         />
       </div>
 

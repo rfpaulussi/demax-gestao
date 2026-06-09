@@ -126,10 +126,12 @@ export async function afastarFuncionario(formData: FormData) {
 
 // ─── solicitações (requerem aprovação do admin) ───────────────────────────────
 
-export async function solicitarDesligamento(formData: FormData) {
+type ActionResult = { success: true } | { success: false; error: string }
+
+export async function solicitarDesligamento(formData: FormData): Promise<ActionResult> {
   const supabase = createClient()
   const auth = await getUser()
-  if (!auth) throw new Error('Não autenticado')
+  if (!auth) return { success: false, error: 'Não autenticado' }
 
   const funcionarioId    = formData.get('funcionario_id') as string
   const dataDesligamento = formData.get('data_desligamento') as string
@@ -141,7 +143,7 @@ export async function solicitarDesligamento(formData: FormData) {
     .eq('id', funcionarioId)
     .single()
 
-  await supabase.from('solicitacoes').insert({
+  const { error } = await supabase.from('solicitacoes').insert({
     tipo: 'desligamento',
     status: 'pendente',
     funcionario_id: funcionarioId,
@@ -155,14 +157,17 @@ export async function solicitarDesligamento(formData: FormData) {
     motivo,
   })
 
+  if (error) return { success: false, error: error.message }
+
   revalidatePath('/efetivo')
   revalidatePath('/aprovacoes')
+  return { success: true }
 }
 
-export async function solicitarTransferencia(formData: FormData) {
+export async function solicitarTransferencia(formData: FormData): Promise<ActionResult> {
   const supabase = createClient()
   const auth = await getUser()
-  if (!auth) throw new Error('Não autenticado')
+  if (!auth) return { success: false, error: 'Não autenticado' }
 
   const funcionarioId  = formData.get('funcionario_id') as string
   const postoDestinoId = formData.get('posto_destino_id') as string
@@ -186,7 +191,7 @@ export async function solicitarTransferencia(formData: FormData) {
   const postoOrigemNome  = (postoOrigemResult as { data: { nome: string } | null }).data?.nome ?? null
   const postoDestinoNome = postoDestino?.nome ?? null
 
-  await supabase.from('solicitacoes').insert({
+  const { error } = await supabase.from('solicitacoes').insert({
     tipo: 'transferencia',
     status: 'pendente',
     funcionario_id: funcionarioId,
@@ -196,14 +201,17 @@ export async function solicitarTransferencia(formData: FormData) {
     motivo,
   })
 
+  if (error) return { success: false, error: error.message }
+
   revalidatePath('/efetivo')
   revalidatePath('/aprovacoes')
+  return { success: true }
 }
 
-export async function solicitarMudancaFuncao(formData: FormData) {
+export async function solicitarMudancaFuncao(formData: FormData): Promise<ActionResult> {
   const supabase = createClient()
   const auth = await getUser()
-  if (!auth) throw new Error('Não autenticado')
+  if (!auth) return { success: false, error: 'Não autenticado' }
 
   const funcionarioId   = formData.get('funcionario_id') as string
   const funcaoDestinoId = formData.get('funcao_destino_id') as string
@@ -227,7 +235,7 @@ export async function solicitarMudancaFuncao(formData: FormData) {
   const funcaoOrigemNome  = (funcaoOrigemResult as { data: { nome: string } | null }).data?.nome ?? null
   const funcaoDestinoNome = funcaoDestino?.nome ?? null
 
-  await supabase.from('solicitacoes').insert({
+  const { error } = await supabase.from('solicitacoes').insert({
     tipo: 'mudanca_funcao',
     status: 'pendente',
     funcionario_id: funcionarioId,
@@ -237,14 +245,17 @@ export async function solicitarMudancaFuncao(formData: FormData) {
     motivo,
   })
 
+  if (error) return { success: false, error: error.message }
+
   revalidatePath('/efetivo')
   revalidatePath('/aprovacoes')
+  return { success: true }
 }
 
-export async function solicitarPromocao(formData: FormData) {
+export async function solicitarPromocao(formData: FormData): Promise<ActionResult> {
   const supabase = createClient()
   const auth = await getUser()
-  if (!auth) throw new Error('Não autenticado')
+  if (!auth) return { success: false, error: 'Não autenticado' }
 
   const funcionarioId   = formData.get('funcionario_id') as string
   const funcaoDestinoId = formData.get('funcao_destino_id') as string
@@ -268,7 +279,7 @@ export async function solicitarPromocao(formData: FormData) {
   const funcaoOrigemNome  = (funcaoOrigemResult as { data: { nome: string } | null }).data?.nome ?? null
   const funcaoDestinoNome = funcaoDestino?.nome ?? null
 
-  await supabase.from('solicitacoes').insert({
+  const { error } = await supabase.from('solicitacoes').insert({
     tipo: 'promocao',
     status: 'pendente',
     funcionario_id: funcionarioId,
@@ -278,8 +289,47 @@ export async function solicitarPromocao(formData: FormData) {
     motivo,
   })
 
+  if (error) return { success: false, error: error.message }
+
   revalidatePath('/efetivo')
   revalidatePath('/aprovacoes')
+  return { success: true }
+}
+
+export async function solicitarAlteracaoSalario(formData: FormData): Promise<ActionResult> {
+  const supabase = createClient()
+  const auth = await getUser()
+  if (!auth) return { success: false, error: 'Não autenticado' }
+
+  const funcionarioId = formData.get('funcionario_id') as string
+  const novoSalario   = parseFloat(formData.get('novo_salario') as string)
+  const motivo        = (formData.get('motivo') as string) || null
+
+  if (isNaN(novoSalario) || novoSalario <= 0) {
+    return { success: false, error: 'Salário inválido' }
+  }
+
+  const { data: func } = await supabase
+    .from('funcionarios')
+    .select('salario_base')
+    .eq('id', funcionarioId)
+    .single()
+
+  const { error } = await supabase.from('solicitacoes').insert({
+    tipo: 'alteracao_salario',
+    status: 'pendente',
+    funcionario_id: funcionarioId,
+    supervisor_id: auth.user.id,
+    dados_antes: { salario_base: func?.salario_base ?? null },
+    dados_depois: { novo_salario: novoSalario, motivo },
+    motivo,
+  })
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/efetivo')
+  revalidatePath('/aprovacoes')
+  return { success: true }
 }
 
 export async function solicitarMudancaSupervisor(formData: FormData) {

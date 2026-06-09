@@ -47,7 +47,13 @@ export default async function EfetivoPage({
 }) {
   const supabase = createClient()
 
-  const [{ data: raw }, { data: supervisoresRaw }, { data: configRaw }] = await Promise.all([
+  const [
+    { data: raw },
+    { data: supervisoresRaw },
+    { data: configRaw },
+    { data: postosRaw },
+    { data: funcoesRaw },
+  ] = await Promise.all([
     supabase
       .from('funcionarios')
       .select(`
@@ -66,6 +72,8 @@ export default async function EfetivoPage({
       .from('config_supervisores_postos')
       .select('supervisor_id, posto_id, perfis!supervisor_id(id, nome)')
       .eq('ativo', true),
+    supabase.from('postos').select('id, nome').order('nome'),
+    supabase.from('funcoes').select('id, nome').order('nome'),
   ])
 
   const funcionarios = (raw ?? []) as unknown as FuncionarioRow[]
@@ -159,6 +167,8 @@ export default async function EfetivoPage({
   }))
 
   const supervisores = (supervisoresRaw ?? []) as { id: string; nome: string | null }[]
+  const postos       = (postosRaw ?? []) as { id: string; nome: string }[]
+  const funcoes      = (funcoesRaw ?? []) as { id: string; nome: string }[]
 
   return (
     <div className="space-y-6">
@@ -188,7 +198,7 @@ export default async function EfetivoPage({
       </Suspense>
 
       {/* Table */}
-      <FuncionariosTable funcionarios={enriched} />
+      <FuncionariosTable funcionarios={enriched} postos={postos} funcoes={funcoes} />
     </div>
   )
 }

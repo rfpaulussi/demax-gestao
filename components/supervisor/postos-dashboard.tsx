@@ -59,6 +59,7 @@ function PostoCard({ posto }: { posto: Posto }) {
     const form = e.currentTarget
     const data = new FormData(form)
     data.set('funcionario_id', modal.funcionarioId)
+    data.set('posto_id', posto.id)
     setPending(true)
     try {
       await registrarAtestadoSupervisor(data)

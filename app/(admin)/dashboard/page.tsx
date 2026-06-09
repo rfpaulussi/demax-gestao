@@ -35,6 +35,7 @@ const TIPO_BADGE: Record<TipoSolicitacao, { label: string; className: string }> 
   mudanca_funcao:     { label: 'Mudança Função',     className: 'bg-indigo-50 text-indigo-700 ring-indigo-200' },
   promocao:           { label: 'Promoção',           className: 'bg-green-50 text-green-700 ring-green-200'    },
   mudanca_supervisor: { label: 'Mudança Supervisor', className: 'bg-purple-50 text-purple-700 ring-purple-200' },
+  alteracao_salario:  { label: 'Alteração Salário',  className: 'bg-amber-50 text-amber-700 ring-amber-200'   },
 }
 
 // ─── KpiCard ──────────────────────────────────────────────────────────────────

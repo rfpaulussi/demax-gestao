@@ -5,9 +5,10 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 const TABS = [
-  { href: '/supervisor/meu-posto',   label: 'Meu Posto'   },
-  { href: '/supervisor/coberturas',  label: 'Coberturas'  },
-  { href: '/supervisor/ocorrencias', label: 'Ocorrências' },
+  { href: '/supervisor/meu-posto',    label: 'Meu Posto'    },
+  { href: '/supervisor/coberturas',   label: 'Coberturas'   },
+  { href: '/supervisor/ocorrencias',  label: 'Ocorrências'  },
+  { href: '/supervisor/solicitacoes', label: 'Solicitações' },
 ]
 
 export function SupervisorNav() {

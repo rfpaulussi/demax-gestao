@@ -11,18 +11,22 @@ interface Props {
 
 export function ModalNovoUsuario({ open, onClose }: Props) {
   const [pending, setPending] = useState(false)
+  const [erro, setErro]       = useState<string | null>(null)
 
   function handleClose() {
+    setErro(null)
     onClose()
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    setErro(null)
     const form = e.currentTarget
     const data = new FormData(form)
     setPending(true)
     try {
-      await criarUsuario(data)
+      const result = await criarUsuario(data)
+      if (!result.success) { setErro(result.error); return }
       form.reset()
       handleClose()
     } finally {
@@ -50,7 +54,7 @@ export function ModalNovoUsuario({ open, onClose }: Props) {
                 type="text"
                 name="nome"
                 required
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600"
               />
             </div>
 
@@ -62,7 +66,7 @@ export function ModalNovoUsuario({ open, onClose }: Props) {
                 type="email"
                 name="email"
                 required
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600"
               />
             </div>
 
@@ -73,13 +77,13 @@ export function ModalNovoUsuario({ open, onClose }: Props) {
               <select
                 name="role"
                 required
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600"
               >
                 <option value="">Selecione...</option>
-                <option value="admin">Admin</option>
+                <option value="admin">Administrador</option>
                 <option value="coordenador">Coordenador</option>
                 <option value="supervisor">Supervisor</option>
-                <option value="viewer">Viewer</option>
+                <option value="viewer">Visualizador</option>
               </select>
             </div>
 
@@ -92,9 +96,15 @@ export function ModalNovoUsuario({ open, onClose }: Props) {
                 name="senha"
                 required
                 minLength={8}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600"
               />
             </div>
+
+            {erro && (
+              <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {erro}
+              </p>
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
               <button
@@ -107,7 +117,7 @@ export function ModalNovoUsuario({ open, onClose }: Props) {
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
               >
                 {pending ? 'Criando...' : 'Criar Usuário'}
               </button>

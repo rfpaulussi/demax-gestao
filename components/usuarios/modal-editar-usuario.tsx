@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { atualizarRole } from '@/app/(admin)/usuarios/actions'
-
 interface Perfil {
   id: string
   nome: string | null
@@ -19,16 +18,19 @@ interface Props {
 
 export function ModalEditarUsuario({ perfil, open, onClose }: Props) {
   const [pending, setPending] = useState(false)
+  const [erro, setErro]       = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!perfil) return
+    setErro(null)
     const form = e.currentTarget
     const data = new FormData(form)
-    data.set('usuario_id', perfil.id)
+    data.set('perfil_id', perfil.id)
     setPending(true)
     try {
-      await atualizarRole(data)
+      const result = await atualizarRole(data)
+      if (!result.success) { setErro(result.error); return }
       onClose()
     } finally {
       setPending(false)
@@ -75,15 +77,21 @@ export function ModalEditarUsuario({ perfil, open, onClose }: Props) {
                 name="role"
                 required
                 defaultValue={perfil?.role ?? ''}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600"
               >
                 <option value="">Selecione...</option>
-                <option value="admin">Admin</option>
+                <option value="admin">Administrador</option>
                 <option value="coordenador">Coordenador</option>
                 <option value="supervisor">Supervisor</option>
-                <option value="viewer">Viewer</option>
+                <option value="viewer">Visualizador</option>
               </select>
             </div>
+
+            {erro && (
+              <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {erro}
+              </p>
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
               <button
@@ -96,7 +104,7 @@ export function ModalEditarUsuario({ perfil, open, onClose }: Props) {
               <button
                 type="submit"
                 disabled={pending}
-                className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
               >
                 {pending ? 'Salvando...' : 'Salvar'}
               </button>
