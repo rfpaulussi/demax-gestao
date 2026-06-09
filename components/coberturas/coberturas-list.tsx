@@ -167,9 +167,11 @@ const URG_FILTER_LABELS: Record<UrgFilter, string> = {
 export function CoberturasList({
   coberturas,
   historico = [],
+  supervisores = [],
 }: {
   coberturas: CoberturaRow[]
   historico?: CoberturaRow[]
+  supervisores?: { id: string; nome: string }[]
 }) {
   const [novaOpen, setNovaOpen]     = useState(false)
   const [encerrando, setEncerrando] = useState<CoberturaRow | null>(null)
@@ -278,7 +280,7 @@ export function CoberturasList({
       )}
 
       {/* Modals */}
-      <ModalNovaCobertura open={novaOpen} onClose={() => setNovaOpen(false)} />
+      <ModalNovaCobertura open={novaOpen} onClose={() => setNovaOpen(false)} supervisores={supervisores} />
 
       {encerrando && (
         <ModalEncerrarCobertura

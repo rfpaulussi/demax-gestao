@@ -24,14 +24,14 @@ interface Posto {
 interface Props {
   open: boolean
   onClose: () => void
+  supervisores?: Supervisor[]
 }
 
-export function ModalNovaCobertura({ open, onClose }: Props) {
+export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) {
   const [busca, setBusca] = useState('')
   const [resultadosBusca, setResultadosBusca] = useState<Funcionario[]>([])
   const [substituto, setSubstituto] = useState<Funcionario | null>(null)
 
-  const [supervisores, setSupervisores] = useState<Supervisor[]>([])
   const [supervisorId, setSupervisorId] = useState('')
   const [postos, setPostos] = useState<Posto[]>([])
   const [postoId, setPostoId] = useState('')
@@ -50,17 +50,6 @@ export function ModalNovaCobertura({ open, onClose }: Props) {
 
   const [pending, setPending] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const supabase = createClient()
-    supabase
-      .from('perfis')
-      .select('id, nome')
-      .eq('role', 'supervisor')
-      .order('nome')
-      .then(({ data }) => setSupervisores(data ?? []))
-  }, [open])
 
   useEffect(() => {
     if (!supervisorId) { setPostos([]); setPostoId(''); setSecretaria(''); return }
@@ -117,7 +106,7 @@ export function ModalNovaCobertura({ open, onClose }: Props) {
 
   function handleClose() {
     setBusca(''); setResultadosBusca([]); setSubstituto(null)
-    setSupervisores([]); setSupervisorId(''); setPostos([]); setPostoId(''); setSecretaria('')
+    setSupervisorId(''); setPostos([]); setPostoId(''); setSecretaria('')
     setMotivo(''); setApenasUmDia(false); setDataInicio(''); setDataFim('')
     setTipoCobertura('reforco'); setFuncionariosPostoDestino([])
     setFuncionarioAusenteId(''); setDataInicioAusencia(''); setDataFimAusencia('')

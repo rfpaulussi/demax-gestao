@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { buscarTodosSupervisores } from './actions'
 import { CoberturasList } from '@/components/coberturas/coberturas-list'
 import type { CoberturaRow } from '@/components/coberturas/coberturas-list'
 
@@ -47,7 +48,7 @@ const COB_SELECT = `
 export default async function CoberturasPage() {
   const supabase = createClient()
 
-  const [{ data: ativasRaw }, { data: encerradasRaw }] = await Promise.all([
+  const [{ data: ativasRaw }, { data: encerradasRaw }, supervisores] = await Promise.all([
     supabase
       .from('coberturas_temporarias')
       .select(COB_SELECT)
@@ -59,6 +60,7 @@ export default async function CoberturasPage() {
       .eq('status', 'encerrada')
       .order('data_retorno_real', { ascending: false })
       .limit(50),
+    buscarTodosSupervisores(),
   ])
 
   const coberturas = (ativasRaw ?? []) as unknown as CoberturaRow[]
@@ -82,7 +84,7 @@ export default async function CoberturasPage() {
         <KpiCard label="Encerradas"   value={historico.length}  topColor="border-t-gray-400"   />
       </div>
 
-      <CoberturasList coberturas={coberturas} historico={historico} />
+      <CoberturasList coberturas={coberturas} historico={historico} supervisores={supervisores} />
     </div>
   )
 }

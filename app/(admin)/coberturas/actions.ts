@@ -31,14 +31,16 @@ export async function registrarCobertura(formData: FormData): Promise<ActionResu
   const supabase = createClient()
 
   // Bug fix: modal envia 'substituto_id', não 'funcionario_id'
-  const substitutoId    = formData.get('substituto_id') as string
-  const postoDestinoId  = formData.get('posto_destino_id') as string
-  const motivo          = (formData.get('motivo') as string) || null
-  const dataInicio      = formData.get('data_inicio') as string
+  const substitutoId       = formData.get('substituto_id') as string
+  const postoDestinoId     = formData.get('posto_destino_id') as string
+  const motivo             = (formData.get('motivo') as string) || null
+  const dataInicio         = formData.get('data_inicio') as string
   // Bug fix: modal envia 'data_fim', não 'data_prev_retorno'
-  const dataPrevRetorno = (formData.get('data_fim') as string) || null
+  const dataPrevRetorno    = (formData.get('data_fim') as string) || null
   // Bug fix: modal envia 'funcionario_ausente_id', não 'ausente_id'
-  const ausenteId       = (formData.get('funcionario_ausente_id') as string) || null
+  const ausenteId          = (formData.get('funcionario_ausente_id') as string) || null
+  const supervisorDestinoId = (formData.get('supervisor_id') as string) || null
+  const tipoCobertura      = (formData.get('tipo_cobertura') as string) || null
 
   if (!substitutoId || !postoDestinoId || !dataInicio) {
     return { success: false, error: 'Campos obrigatórios faltando' }
@@ -54,16 +56,21 @@ export async function registrarCobertura(formData: FormData): Promise<ActionResu
   const postoOrigemId = substituto?.posto_id ?? null
   const urgencia      = calcUrgencia(dataPrevRetorno)
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await supabase.from('coberturas_temporarias').insert({
-    funcionario_id:    substitutoId,
-    posto_destino_id:  postoDestinoId,
-    posto_origem_id:   postoOrigemId,
+    funcionario_id:        substitutoId,
+    posto_destino_id:      postoDestinoId,
+    posto_origem_id:       postoOrigemId,
     motivo,
-    data_inicio:       dataInicio,
-    data_prev_retorno: dataPrevRetorno,
+    data_inicio:           dataInicio,
+    data_prev_retorno:     dataPrevRetorno,
     urgencia,
-    status: 'ativa',
-  })
+    status:                'ativa',
+    supervisor_origem_id:  guard.userId,
+    supervisor_destino_id: supervisorDestinoId,
+    funcionario_ausente_id: ausenteId,
+    tipo_cobertura:        tipoCobertura,
+  } as any)
 
   if (error) return { success: false, error: error.message }
 
@@ -118,4 +125,15 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
   revalidatePath('/efetivo')
   revalidatePath('/dashboard')
   return { success: true }
+}
+
+export async function buscarTodosSupervisores(): Promise<{ id: string; nome: string }[]> {
+  const supabase = createClient()
+  const { data } = await supabase
+    .from('perfis')
+    .select('id, nome')
+    .eq('role', 'supervisor')
+    .eq('ativo', true)
+    .order('nome')
+  return (data ?? []).map(s => ({ id: s.id, nome: s.nome ?? '' }))
 }
