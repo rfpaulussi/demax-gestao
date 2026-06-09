@@ -398,6 +398,7 @@ export type Database = {
           salario_base: number | null
           created_at: string
           updated_at: string
+          salario: number | null
         }
         Insert: {
           id?: string
@@ -413,6 +414,7 @@ export type Database = {
           salario_base?: number | null
           created_at?: string
           updated_at?: string
+          salario?: number | null
         }
         Update: {
           id?: string
@@ -427,6 +429,7 @@ export type Database = {
           data_desligamento?: string | null
           salario_base?: number | null
           updated_at?: string
+          salario?: number | null
         }
         Relationships: []
       }
@@ -898,7 +901,9 @@ export type Database = {
           dados_antes: Json | null
           dados_depois: Json | null
           motivo: string | null
+          motivo_rejeicao: string | null
           observacao_admin: string | null
+          vigencia: string | null
           aprovado_por: string | null
           aprovado_em: string | null
           created_at: string | null
@@ -912,7 +917,9 @@ export type Database = {
           dados_antes?: Json | null
           dados_depois?: Json | null
           motivo?: string | null
+          motivo_rejeicao?: string | null
           observacao_admin?: string | null
+          vigencia?: string | null
           aprovado_por?: string | null
           aprovado_em?: string | null
           created_at?: string | null
@@ -926,7 +933,9 @@ export type Database = {
           dados_antes?: Json | null
           dados_depois?: Json | null
           motivo?: string | null
+          motivo_rejeicao?: string | null
           observacao_admin?: string | null
+          vigencia?: string | null
           aprovado_por?: string | null
           aprovado_em?: string | null
         }
