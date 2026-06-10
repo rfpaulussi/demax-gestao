@@ -804,6 +804,46 @@ export type Database = {
       // ----------------------------------------------------------
       // movimentacoes
       // ----------------------------------------------------------
+      // faltas
+      // ----------------------------------------------------------
+      faltas: {
+        Row: {
+          id: string
+          funcionario_id: string
+          data_falta: string
+          tipo: string
+          dias: number
+          observacao: string | null
+          registrado_por: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          funcionario_id: string
+          data_falta: string
+          tipo: string
+          dias?: number
+          observacao?: string | null
+          registrado_por: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          funcionario_id?: string
+          data_falta?: string
+          tipo?: string
+          dias?: number
+          observacao?: string | null
+          registrado_por?: string
+        }
+        Relationships: [
+          { foreignKeyName: 'faltas_funcionario_id_fkey'; columns: ['funcionario_id']; referencedRelation: 'funcionarios'; referencedColumns: ['id'] },
+          { foreignKeyName: 'faltas_registrado_por_fkey'; columns: ['registrado_por']; referencedRelation: 'perfis'; referencedColumns: ['id'] },
+        ]
+      }
+
+      // movimentacoes
+      // ----------------------------------------------------------
       movimentacoes: {
         Row: {
           id: string
