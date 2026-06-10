@@ -56,7 +56,6 @@ export async function registrarCobertura(formData: FormData): Promise<ActionResu
   const postoOrigemId = substituto?.posto_id ?? null
   const urgencia      = calcUrgencia(dataPrevRetorno)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await supabase.from('coberturas_temporarias').insert({
     funcionario_id:        substitutoId,
     posto_destino_id:      postoDestinoId,
@@ -70,7 +69,7 @@ export async function registrarCobertura(formData: FormData): Promise<ActionResu
     supervisor_destino_id: supervisorDestinoId,
     funcionario_ausente_id: ausenteId,
     tipo_cobertura:        tipoCobertura,
-  } as any)
+  } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
 
   if (error) return { success: false, error: error.message }
 
