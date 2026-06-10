@@ -62,16 +62,16 @@ function CounterCard({
 
 // ─── column definitions ───────────────────────────────────────────────────────
 
-type ColDef = { label: string; sortKey: SortCol | null }
+type ColDef = { label: string; sortKey: SortCol | null; align: 'left' | 'center' }
 
 const COLS: ColDef[] = [
-  { label: 'Posto',         sortKey: 'nome'             },
-  { label: 'Secretaria',    sortKey: 'secretaria'       },
-  { label: 'Supervisor',    sortKey: 'supervisor'       },
-  { label: 'Alocado',       sortKey: 'efetivo_atual'    },
-  { label: 'Previsto',      sortKey: 'efetivo_previsto' },
-  { label: 'Insalubridade', sortKey: null               },
-  { label: 'Status',        sortKey: 'status'           },
+  { label: 'Posto',         sortKey: 'nome',             align: 'left'   },
+  { label: 'Secretaria',    sortKey: 'secretaria',       align: 'left'   },
+  { label: 'Supervisor',    sortKey: 'supervisor',       align: 'left'   },
+  { label: 'Alocado',       sortKey: 'efetivo_atual',    align: 'center' },
+  { label: 'Previsto',      sortKey: 'efetivo_previsto', align: 'center' },
+  { label: 'Insalubridade', sortKey: null,               align: 'center' },
+  { label: 'Status',        sortKey: 'status',           align: 'center' },
 ]
 
 const selectClass =
@@ -222,7 +222,7 @@ export function PostosClient({ postos }: { postos: PostoRow[] }) {
                   key={col.label}
                   onClick={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
                   className={[
-                    'px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest',
+                    `px-4 py-3 ${col.align === 'center' ? 'text-center' : 'text-left'} text-xs font-semibold uppercase tracking-widest`,
                     col.sortKey === sortCol ? 'text-gray-700' : 'text-gray-400',
                     col.sortKey ? 'cursor-pointer select-none hover:text-gray-600' : '',
                   ].join(' ')}
@@ -262,10 +262,10 @@ export function PostosClient({ postos }: { postos: PostoRow[] }) {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 tabular-nums text-gray-900">{p.efetivo_atual}</td>
-                    <td className="px-4 py-3 tabular-nums text-gray-600">{p.efetivo_previsto}</td>
-                    <td className="px-4 py-3 tabular-nums text-gray-600">{p.cota_insalubridade}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-center tabular-nums text-gray-900">{p.efetivo_atual}</td>
+                    <td className="px-4 py-3 text-center tabular-nums text-gray-600">{p.efetivo_previsto}</td>
+                    <td className="px-4 py-3 text-center tabular-nums text-gray-600">{p.cota_insalubridade}</td>
+                    <td className="px-4 py-3 text-center">
                       <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CHIP[st]}`}>
                         {STATUS_LABELS[st]}
                       </span>
