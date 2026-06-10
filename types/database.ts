@@ -283,6 +283,25 @@ export type Database = {
       }
 
       // ----------------------------------------------------------
+      // config_escalas_postos
+      // ----------------------------------------------------------
+      config_escalas_postos: {
+        Row: {
+          posto_id: string
+          regime: string
+        }
+        Insert: {
+          posto_id: string
+          regime: string
+        }
+        Update: {
+          posto_id?: string
+          regime?: string
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
       // funcionarios
       // ----------------------------------------------------------
       funcionarios: {

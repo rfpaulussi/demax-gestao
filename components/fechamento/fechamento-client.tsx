@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import * as XLSX from 'xlsx-js-style'
-import { FileSpreadsheet, FileText } from 'lucide-react'
+import { FileSpreadsheet, FileText, Settings2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FechamentoFuncionario } from '@/app/(admin)/fechamento/actions'
 
@@ -189,6 +190,13 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
             <FileText className="h-4 w-4" />
             {loadingPdf ? 'Gerando…' : 'PDF'}
           </button>
+          <Link
+            href="/fechamento/config-escalas"
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            <Settings2 className="h-4 w-4 text-slate-500" />
+            Config. Escalas
+          </Link>
         </div>
       </form>
 
