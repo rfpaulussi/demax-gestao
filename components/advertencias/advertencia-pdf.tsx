@@ -1,6 +1,6 @@
 'use client'
 
-import { Document, Page, Text, View, StyleSheet, pdf } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import type { AdvertenciaCompleta } from '@/app/(admin)/advertencias/actions'
 
 const GRAU_LABEL: Record<string, string> = {
@@ -229,6 +229,7 @@ export async function downloadAdvertenciaPDF(adv: AdvertenciaCompleta): Promise<
   const idShort = adv.id.substring(0, 8).toUpperCase()
   const filename = `ADVERTENCIA_${idShort}_${nome}_${data}.pdf`
 
+  const { pdf } = await import('@react-pdf/renderer')
   const blob = await pdf(<AdvertenciaDocument adv={adv} />).toBlob()
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

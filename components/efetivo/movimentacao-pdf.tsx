@@ -1,6 +1,6 @@
 'use client'
 
-import { Document, Page, Text, View, StyleSheet, pdf } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import type { MovimentacaoItem } from './perfil-tabs'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -236,6 +236,7 @@ export async function downloadMovimentacaoPDF(
   const idShort  = mov.id.substring(0, 8).toUpperCase()
   const filename = `MOV_${idShort}_${nomeSlug}_${dataSlug}.pdf`
 
+  const { pdf } = await import('@react-pdf/renderer')
   const blob = await pdf(<MovimentacaoDocument mov={mov} func={func} />).toBlob()
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement('a')

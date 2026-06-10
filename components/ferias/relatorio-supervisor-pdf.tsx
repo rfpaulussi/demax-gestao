@@ -6,7 +6,6 @@ import {
   Text,
   View,
   StyleSheet,
-  pdf,
 } from '@react-pdf/renderer'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -666,6 +665,7 @@ function RelatorioDocument({
 // ─── Função de download (client-side) ────────────────────────────────────────
 
 export async function downloadRelatorioFerias(props: RelatorioFeriasPDFProps) {
+  const { pdf } = await import('@react-pdf/renderer')
   const blob     = await pdf(<RelatorioDocument {...props} />).toBlob()
   const url      = URL.createObjectURL(blob)
   const a        = document.createElement('a')

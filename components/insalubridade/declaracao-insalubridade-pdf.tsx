@@ -1,6 +1,6 @@
 'use client'
 
-import { Document, Page, Text, View, StyleSheet, pdf } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import type { InsalubridadeGrupo, InsalubridadeCobertura } from '@/app/(admin)/insalubridade/actions'
 
 const MESES_EXT = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
@@ -197,6 +197,7 @@ export async function downloadDeclaracaoPDF(
   const mesAno = `${String(mes).padStart(2,'0')}-${ano}`
   const filename = `Declaracao_Insalubridade_${nome}_${mesAno}.pdf`
 
+  const { pdf } = await import('@react-pdf/renderer')
   const blob = await pdf(<DeclaracaoDocument grupo={grupo} mes={mes} ano={ano} />).toBlob()
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
