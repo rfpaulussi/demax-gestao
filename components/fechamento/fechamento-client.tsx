@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import * as XLSX from 'xlsx'
+import * as XLSX from 'xlsx-js-style'
 import { FileSpreadsheet, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FechamentoFuncionario } from '@/app/(admin)/fechamento/actions'
@@ -18,42 +18,81 @@ function pad2(n: number) { return String(n).padStart(2, '0') }
 
 // ─── Excel export ─────────────────────────────────────────────────────────────
 
+type XlsxRow = { data: (string | number)[]; rowStyle?: 'groupHeader' | 'totals' | 'colHeader' }
+
 function exportExcel(dados: FechamentoFuncionario[], mes: number, ano: number, MESES: string[]) {
   const wb = XLSX.utils.book_new()
   const secretarias = Array.from(new Set(dados.map(f => f.secretaria ?? 'Sem Secretaria'))).sort()
-  const COL_HEADERS = ['Nome','Função','Posto','Secretaria','Regime','D.Úteis','Férias','Faltas','Atestados','Suspensão','Trabalhados','Insalubridade','Advertência']
+  const HEADERS = ['Nome','Função','Posto','Secretaria','Regime','D.Úteis','Férias','Faltas','Atestados','Suspensão','Trabalhados','Insalubridade','Advertência']
+  const NC = HEADERS.length
 
-  const rows: (string | number)[][] = [
-    [`Fechamento — ${MESES[mes]} ${ano}`],
-    [],
+  const rows: XlsxRow[] = [
+    { data: [`Fechamento — ${MESES[mes]} ${ano}`] },
+    { data: [] },
   ]
 
   for (const sec of secretarias) {
-    rows.push([sec.toUpperCase()])
-    rows.push(COL_HEADERS)
-    for (const f of dados.filter(d => (d.secretaria ?? 'Sem Secretaria') === sec)) {
-      rows.push([
-        f.funcionario_nome,
-        f.funcao ?? '—',
-        f.posto_nome ?? '—',
-        f.secretaria ?? '—',
-        f.regime,
-        f.dias_uteis,
-        f.ferias_dias || 0,
-        f.faltas_dias || 0,
-        f.atestados_dias || 0,
-        f.dias_suspensao || 0,
-        f.dias_trabalhados,
-        f.insalubridade_dias || 0,
+    const grupo = dados.filter(d => (d.secretaria ?? 'Sem Secretaria') === sec)
+    rows.push({ data: [sec.toUpperCase(), ...Array(NC - 1).fill('')], rowStyle: 'groupHeader' })
+    rows.push({ data: HEADERS, rowStyle: 'colHeader' })
+
+    for (const f of grupo) {
+      rows.push({ data: [
+        f.funcionario_nome, f.funcao ?? '—', f.posto_nome ?? '—', f.secretaria ?? '—', f.regime,
+        f.dias_uteis, f.ferias_dias || 0, f.faltas_dias || 0, f.atestados_dias || 0,
+        f.dias_suspensao || 0, f.dias_trabalhados, f.insalubridade_dias || 0,
         f.tem_suspensao ? 'Suspensão' : f.tem_advertencia ? 'Sim' : '',
-      ])
+      ]})
     }
-    rows.push([])
+
+    rows.push({ data: [
+      'TOTAL', '', '', '', '',
+      grupo.reduce((s, f) => s + f.dias_uteis, 0),
+      grupo.reduce((s, f) => s + (f.ferias_dias || 0), 0),
+      grupo.reduce((s, f) => s + (f.faltas_dias || 0), 0),
+      grupo.reduce((s, f) => s + (f.atestados_dias || 0), 0),
+      grupo.reduce((s, f) => s + (f.dias_suspensao || 0), 0),
+      grupo.reduce((s, f) => s + f.dias_trabalhados, 0),
+      grupo.reduce((s, f) => s + (f.insalubridade_dias || 0), 0),
+      '',
+    ], rowStyle: 'totals' })
+
+    rows.push({ data: [] })
   }
 
-  const ws = XLSX.utils.aoa_to_sheet(rows)
-  ws['!cols'] = [{ wch: 32 }, { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 7 },
-    ...Array(7).fill({ wch: 10 }), { wch: 12 }]
+  const aoa = rows.map(r => r.data)
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+
+  rows.forEach((row, ri) => {
+    if (!row.rowStyle) return
+    const isGroup  = row.rowStyle === 'groupHeader'
+    const isTotals = row.rowStyle === 'totals'
+    const isColHdr = row.rowStyle === 'colHeader'
+
+    for (let ci = 0; ci < NC; ci++) {
+      const addr = XLSX.utils.encode_cell({ r: ri, c: ci })
+      if (!ws[addr]) ws[addr] = { v: '', t: 's' }
+      if (isGroup) {
+        ws[addr].s = {
+          fill: { patternType: 'solid', fgColor: { rgb: '1e293b' } },
+          font: { color: { rgb: 'FFFFFF' }, bold: true, sz: 10 },
+        }
+      } else if (isTotals) {
+        ws[addr].s = {
+          font: { bold: true },
+          fill: { patternType: 'solid', fgColor: { rgb: 'f1f5f9' } },
+        }
+      } else if (isColHdr) {
+        ws[addr].s = {
+          font: { bold: true, color: { rgb: '475569' } },
+          fill: { patternType: 'solid', fgColor: { rgb: 'e2e8f0' } },
+        }
+      }
+    }
+  })
+
+  ws['!cols'] = [{ wch: 32 }, { wch: 18 }, { wch: 22 }, { wch: 14 }, { wch: 7 },
+    ...Array(7).fill({ wch: 10 }), { wch: 13 }]
   XLSX.utils.book_append_sheet(wb, ws, 'Fechamento')
   XLSX.writeFile(wb, `fechamento-${pad2(mes)}-${ano}.xlsx`)
 }
@@ -162,25 +201,25 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
           <p className="text-sm text-gray-400">Nenhum funcionário encontrado para o período.</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm" style={{ minWidth: '1100px' }}>
+        <div className="w-full overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-sm" style={{ minWidth: '1400px' }}>
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="min-w-[200px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Funcionário</th>
-                  <th className="min-w-[120px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Função</th>
-                  <th className="min-w-[130px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Posto</th>
-                  <th className="min-w-[130px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Secretaria</th>
+                  <th className="min-w-[220px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Funcionário</th>
+                  <th className="min-w-[160px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Função</th>
+                  <th className="min-w-[200px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Posto</th>
+                  <th className="min-w-[80px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Secretaria</th>
                   <th className="min-w-[160px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Período no mês</th>
                   <th className="min-w-[55px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Regime</th>
-                  <th className="min-w-[55px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">D. Úteis</th>
-                  <th className="min-w-[55px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Férias</th>
-                  <th className="min-w-[55px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Faltas</th>
+                  <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">D. Úteis</th>
+                  <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Férias</th>
+                  <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Faltas</th>
                   <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Atestados</th>
                   <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Suspensão</th>
-                  <th className="min-w-[80px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Trabalhados</th>
+                  <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Trabalhados</th>
                   <th className="min-w-[90px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Insalubridade</th>
-                  <th className="min-w-[85px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Advertência</th>
+                  <th className="min-w-[90px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Advertência</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
