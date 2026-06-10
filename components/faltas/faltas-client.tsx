@@ -7,9 +7,8 @@ import { ModalFalta } from './modal-falta'
 import type { FaltaCompleta, FuncOpt } from '@/app/(admin)/faltas/actions'
 
 const TIPO_BADGE: Record<string, { label: string; cls: string }> = {
-  sem_justificativa: { label: 'Sem Justificativa', cls: 'bg-red-50 text-red-700 ring-red-200'        },
-  declaracao:        { label: 'Declaração',        cls: 'bg-amber-50 text-amber-700 ring-amber-200'  },
-  suspensao:         { label: 'Suspensão',         cls: 'bg-purple-50 text-purple-700 ring-purple-200' },
+  sem_justificativa: { label: 'Sem Justificativa', cls: 'bg-red-50 text-red-700 ring-red-200'       },
+  declaracao:        { label: 'Declaração',        cls: 'bg-amber-50 text-amber-700 ring-amber-200' },
 }
 
 const sel = 'h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
@@ -71,7 +70,6 @@ export function FaltasClient({ faltas, funcionariosOpt, mes, ano, tipoAtivo, MES
             <option value="">Todos</option>
             <option value="sem_justificativa">Sem Justificativa</option>
             <option value="declaracao">Declaração</option>
-            <option value="suspensao">Suspensão</option>
           </select>
         </div>
         <button type="submit" className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700">

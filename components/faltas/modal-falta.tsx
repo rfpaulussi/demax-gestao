@@ -190,7 +190,6 @@ export function ModalFalta({ open, onClose, funcionariosOpt, mesAtual, anoAtual 
                 <option value="">Selecione...</option>
                 <option value="sem_justificativa">Sem Justificativa</option>
                 <option value="declaracao">Declaração</option>
-                <option value="suspensao">Suspensão</option>
               </select>
             </div>
 

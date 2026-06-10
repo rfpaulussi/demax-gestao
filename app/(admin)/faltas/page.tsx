@@ -30,7 +30,6 @@ export default async function FaltasPage({
   const kpiTotal       = todasFaltas.length
   const kpiSemJustificativa = todasFaltas.filter(f => f.tipo === 'sem_justificativa').length
   const kpiDeclaracao       = todasFaltas.filter(f => f.tipo === 'declaracao').length
-  const kpiSuspensao        = todasFaltas.filter(f => f.tipo === 'suspensao').length
 
   const faltas = searchParams.tipo
     ? todasFaltas.filter(f => f.tipo === searchParams.tipo)
@@ -46,10 +45,9 @@ export default async function FaltasPage({
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <KpiCard label="Total no Mês"      value={kpiTotal}             borderColor="border-t-slate-500"  />
-        <KpiCard label="Sem Justificativa" value={kpiSemJustificativa}  borderColor="border-t-red-500"    />
-        <KpiCard label="Declarações"       value={kpiDeclaracao}        borderColor="border-t-amber-500"  />
-        <KpiCard label="Suspensões"        value={kpiSuspensao}         borderColor="border-t-purple-500" />
+        <KpiCard label="Total no Mês"      value={kpiTotal}            borderColor="border-t-slate-500" />
+        <KpiCard label="Sem Justificativa" value={kpiSemJustificativa} borderColor="border-t-red-500"   />
+        <KpiCard label="Declarações"       value={kpiDeclaracao}       borderColor="border-t-amber-500" />
       </div>
 
       <FaltasClient

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getUser } from '@/lib/auth/get-user'
 
-export type FaltaTipo = 'sem_justificativa' | 'declaracao' | 'suspensao'
+export type FaltaTipo = 'sem_justificativa' | 'declaracao'
 
 export interface FaltaCompleta {
   id: string
