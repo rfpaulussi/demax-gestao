@@ -1,5 +1,3 @@
-'use client'
-
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import type { MovimentacaoItem } from './perfil-tabs'
 

@@ -1,5 +1,3 @@
-'use client'
-
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import type { AdvertenciaCompleta } from '@/app/(admin)/advertencias/actions'
 
@@ -230,7 +228,15 @@ export async function downloadAdvertenciaPDF(adv: AdvertenciaCompleta): Promise<
   const filename = `ADVERTENCIA_${idShort}_${nome}_${data}.pdf`
 
   const { pdf } = await import('@react-pdf/renderer')
-  const blob = await pdf(<AdvertenciaDocument adv={adv} />).toBlob()
+  console.log('pdf importado:', typeof pdf)
+  let blob: Blob
+  try {
+    blob = await pdf(<AdvertenciaDocument adv={adv} />).toBlob()
+    console.log('blob gerado:', blob?.size)
+  } catch (err) {
+    console.error('ERRO no toBlob:', err)
+    throw err
+  }
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
