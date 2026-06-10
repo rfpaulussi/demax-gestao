@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { marcarEnviado, enviarTodosRH, removerDia } from '@/app/(admin)/insalubridade/actions'
+import { marcarEnviado, removerDia } from '@/app/(admin)/insalubridade/actions'
 import { ModalNovaInsalubridade } from './modal-nova-insalubridade'
 import { downloadDeclaracaoPDF } from './declaracao-insalubridade-pdf'
 import type { InsalubridadeGrupo, InsalubridadeCobertura, FuncOpt } from '@/app/(admin)/insalubridade/actions'
@@ -80,19 +80,6 @@ function PDFBtn({ grupo, mes, ano }: { grupo: InsalubridadeGrupo; mes: number; a
   )
 }
 
-function EnviarTodosBtn({ mes, ano }: { mes: number; ano: number }) {
-  const [pending, start] = useTransition()
-  return (
-    <button
-      onClick={() => start(() => enviarTodosRH(mes, ano))}
-      disabled={pending}
-      className="flex h-9 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
-    >
-      {pending ? 'Enviando...' : 'Enviar Todos ao RH'}
-    </button>
-  )
-}
-
 interface Props {
   grupos: InsalubridadeGrupo[]
   mes: number
@@ -125,7 +112,6 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos }
           {grupos.length} funcionário{grupos.length !== 1 ? 's' : ''}
         </p>
         <div className="flex items-center gap-2">
-          <EnviarTodosBtn mes={mes} ano={ano} />
           <button
             onClick={() => setShowModal(true)}
             className="flex h-9 items-center rounded-lg bg-amber-500 px-4 text-sm font-semibold text-slate-900 transition-colors hover:bg-amber-400"

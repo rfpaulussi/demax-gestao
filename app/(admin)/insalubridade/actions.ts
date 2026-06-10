@@ -263,17 +263,6 @@ export async function marcarEnviado(
   revalidatePath('/insalubridade')
 }
 
-export async function enviarTodosRH(mes: number, ano: number) {
-  const supabase = createClient()
-  await supabase
-    .from('insalubridade_coberturas')
-    .update({ status: 'enviado' })
-    .eq('mes', mes)
-    .eq('ano', ano)
-    .eq('status', 'pendente')
-  revalidatePath('/insalubridade')
-}
-
 export async function removerDia(id: string) {
   const supabase = createClient()
   await supabase.from('insalubridade_coberturas').delete().eq('id', id)
