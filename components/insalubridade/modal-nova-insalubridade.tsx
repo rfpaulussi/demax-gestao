@@ -18,6 +18,14 @@ interface Props {
 const input = 'flex h-9 w-full rounded-lg border border-gray-200 bg-transparent px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
 const lbl   = 'block text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1.5'
 
+function funcaoBadgeCls(nome: string): string {
+  const n = nome.toUpperCase()
+  if (n.includes('AJUDANTE')) return 'text-blue-600 bg-blue-50'
+  if (n.includes('HIGIENIZA') || n.includes('AGENTE')) return 'text-purple-600 bg-purple-50'
+  if (n.includes('JARDINEIRO') || n.includes('ROÇADOR') || n.includes('ROCADOR') || n.includes('ÁREA VERDE') || n.includes('AREA VERDE')) return 'text-green-600 bg-green-50'
+  return 'text-gray-600 bg-gray-100'
+}
+
 export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos, mesAtual, anoAtual }: Props) {
   const [selectedPosto,      setSelectedPosto]      = useState<{ id: string; nome: string; secretaria: string | null } | null>(null)
   const [buscaSubstituto,    setBuscaSubstituto]    = useState('')
@@ -141,7 +149,7 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos,
                   <option value="">Selecione...</option>
                   {substitutosFiltrados.map(f => (
                     <option key={f.id} value={f.id}>
-                      {f.nome}{f.postos?.nome ? ` — ${f.postos.nome}` : ''}
+                      {f.funcoes?.nome ? `[${f.funcoes.nome}] ` : ''}{f.nome}{f.postos?.nome ? ` — ${f.postos.nome}` : ''}
                     </option>
                   ))}
                 </select>
@@ -150,8 +158,13 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos,
               <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
                 <div>
                   <p className="text-sm font-medium text-gray-900">{selectedSubstituto.nome}</p>
+                  {selectedSubstituto.funcoes?.nome && (
+                    <span className={`mt-0.5 inline-block px-1.5 py-0.5 rounded text-xs font-medium ${funcaoBadgeCls(selectedSubstituto.funcoes.nome)}`}>
+                      {selectedSubstituto.funcoes.nome}
+                    </span>
+                  )}
                   {selectedSubstituto.postos && (
-                    <p className="text-xs text-gray-500">{selectedSubstituto.postos.nome} · {selectedSubstituto.postos.secretaria}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{selectedSubstituto.postos.nome} · {selectedSubstituto.postos.secretaria}</p>
                   )}
                 </div>
                 <button type="button" onClick={() => setSelectedSubstituto(null)} className="text-xs text-slate-500 hover:underline">Trocar</button>

@@ -48,6 +48,7 @@ export interface FuncOpt {
   id: string
   nome: string
   postos: { id: string; nome: string; secretaria: string | null } | null
+  funcoes: { nome: string } | null
 }
 
 const INS_SELECT = `
@@ -273,7 +274,7 @@ export async function buscarFuncionariosParaDeclaracao(): Promise<FuncOpt[]> {
   const supabase = createClient()
   const { data } = await supabase
     .from('funcionarios')
-    .select('id, nome, postos!posto_id(id, nome, secretaria)')
+    .select('id, nome, postos!posto_id(id, nome, secretaria), funcoes!fk_funcionarios_funcao_id(nome)')
     .in('status', ['ativo', 'ferias', 'afastado'])
     .order('nome')
   return (data ?? []) as unknown as FuncOpt[]
