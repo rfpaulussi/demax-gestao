@@ -17,6 +17,7 @@ import {
   UserCog,
   Menu,
   MapPin,
+  FileCheck,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
@@ -38,7 +39,10 @@ const NAV = [
   { href: '/ocorrencias',   label: 'Ocorrências',   icon: AlertCircle     },
 ] as const
 
-const ADMIN_NAV = [{ href: '/usuarios', label: 'Usuários', icon: UserCog }] as const
+const ADMIN_NAV = [
+  { href: '/fechamento', label: 'Fechamento', icon: FileCheck },
+  { href: '/usuarios',   label: 'Usuários',   icon: UserCog       },
+] as const
 
 // ─── shared nav content ──────────────────────────────────────────────────────
 
