@@ -118,6 +118,7 @@ export function AdvertenciasTable({ advertencias, reincidencias }: Props) {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <button
+                        type="button"
                         onClick={() => handleDownloadPDF(adv)}
                         disabled={loadingPdf === adv.id}
                         className="flex h-7 items-center rounded-md bg-amber-500 px-2.5 text-xs font-semibold text-slate-900 transition-colors hover:bg-amber-400 disabled:opacity-50"
