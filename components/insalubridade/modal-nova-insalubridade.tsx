@@ -18,12 +18,16 @@ interface Props {
 const input = 'flex h-9 w-full rounded-lg border border-gray-200 bg-transparent px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
 const lbl   = 'block text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1.5'
 
+const FUNCAO_BADGE_CLS: Array<{ test: (n: string) => boolean; cls: string }> = [
+  { test: n => n.includes('AJUDANTE'),                                                                              cls: 'text-blue-600 bg-blue-50'   },
+  { test: n => n.includes('HIGIENIZA') || n.includes('AGENTE'),                                                    cls: 'text-purple-600 bg-purple-50' },
+  { test: n => n.includes('JARDINEIRO') || n.includes('ROÇADOR') || n.includes('ROCADOR') || n.includes('VERDE'), cls: 'text-green-600 bg-green-50'  },
+  { test: n => n.includes('JOVEM APRENDIZ') || n.includes('APRENDIZ'),                                             cls: 'text-orange-600 bg-orange-50' },
+]
+
 function funcaoBadgeCls(nome: string): string {
   const n = nome.toUpperCase()
-  if (n.includes('AJUDANTE')) return 'text-blue-600 bg-blue-50'
-  if (n.includes('HIGIENIZA') || n.includes('AGENTE')) return 'text-purple-600 bg-purple-50'
-  if (n.includes('JARDINEIRO') || n.includes('ROÇADOR') || n.includes('ROCADOR') || n.includes('ÁREA VERDE') || n.includes('AREA VERDE')) return 'text-green-600 bg-green-50'
-  return 'text-gray-600 bg-gray-100'
+  return FUNCAO_BADGE_CLS.find(e => e.test(n))?.cls ?? 'text-gray-600 bg-gray-100'
 }
 
 export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos, mesAtual, anoAtual }: Props) {
