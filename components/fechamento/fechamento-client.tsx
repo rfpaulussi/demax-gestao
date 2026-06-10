@@ -1,5 +1,8 @@
 'use client'
 
+import { useState } from 'react'
+import * as XLSX from 'xlsx'
+import { FileSpreadsheet, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FechamentoFuncionario } from '@/app/(admin)/fechamento/actions'
 
@@ -10,6 +13,66 @@ function fmt(iso: string | null): string {
   const [y, m, d] = iso.split('-')
   return `${d}/${m}/${y}`
 }
+
+function pad2(n: number) { return String(n).padStart(2, '0') }
+
+// ─── Excel export ─────────────────────────────────────────────────────────────
+
+function exportExcel(dados: FechamentoFuncionario[], mes: number, ano: number, MESES: string[]) {
+  const wb = XLSX.utils.book_new()
+  const secretarias = Array.from(new Set(dados.map(f => f.secretaria ?? 'Sem Secretaria'))).sort()
+  const COL_HEADERS = ['Nome','Função','Posto','Secretaria','Regime','D.Úteis','Férias','Faltas','Atestados','Suspensão','Trabalhados','Insalubridade','Advertência']
+
+  const rows: (string | number)[][] = [
+    [`Fechamento — ${MESES[mes]} ${ano}`],
+    [],
+  ]
+
+  for (const sec of secretarias) {
+    rows.push([sec.toUpperCase()])
+    rows.push(COL_HEADERS)
+    for (const f of dados.filter(d => (d.secretaria ?? 'Sem Secretaria') === sec)) {
+      rows.push([
+        f.funcionario_nome,
+        f.funcao ?? '—',
+        f.posto_nome ?? '—',
+        f.secretaria ?? '—',
+        f.regime,
+        f.dias_uteis,
+        f.ferias_dias || 0,
+        f.faltas_dias || 0,
+        f.atestados_dias || 0,
+        f.dias_suspensao || 0,
+        f.dias_trabalhados,
+        f.insalubridade_dias || 0,
+        f.tem_suspensao ? 'Suspensão' : f.tem_advertencia ? 'Sim' : '',
+      ])
+    }
+    rows.push([])
+  }
+
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  ws['!cols'] = [{ wch: 32 }, { wch: 18 }, { wch: 20 }, { wch: 20 }, { wch: 7 },
+    ...Array(7).fill({ wch: 10 }), { wch: 12 }]
+  XLSX.utils.book_append_sheet(wb, ws, 'Fechamento')
+  XLSX.writeFile(wb, `fechamento-${pad2(mes)}-${ano}.xlsx`)
+}
+
+// ─── PDF export ───────────────────────────────────────────────────────────────
+
+async function exportPDF(dados: FechamentoFuncionario[], mes: number, ano: number, MESES: string[]) {
+  const { pdf }               = await import('@react-pdf/renderer')
+  const { FechamentoPDFDoc }  = await import('./fechamento-pdf-doc')
+  const blob = await pdf(<FechamentoPDFDoc dados={dados} mes={mes} ano={ano} MESES={MESES} />).toBlob()
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `fechamento-${pad2(mes)}-${ano}.pdf`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+// ─── component ────────────────────────────────────────────────────────────────
 
 interface Props {
   dados: FechamentoFuncionario[]
@@ -22,9 +85,22 @@ interface Props {
 }
 
 export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias, MESES, anos }: Props) {
+  const [loadingXlsx, setLoadingXlsx] = useState(false)
+  const [loadingPdf,  setLoadingPdf]  = useState(false)
+
+  async function handleExcel() {
+    setLoadingXlsx(true)
+    try { exportExcel(dados, mes, ano, MESES) } finally { setLoadingXlsx(false) }
+  }
+
+  async function handlePDF() {
+    setLoadingPdf(true)
+    try { await exportPDF(dados, mes, ano, MESES) } finally { setLoadingPdf(false) }
+  }
+
   return (
     <>
-      {/* Filters */}
+      {/* Filters + export buttons */}
       <form method="get" className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
           <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Mês</label>
@@ -53,6 +129,28 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
         <a href="/fechamento" className="flex h-9 items-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-500 hover:bg-gray-50">
           Limpar
         </a>
+
+        {/* Export buttons — fora do form para não submeter */}
+        <div className="ml-auto flex items-end gap-2">
+          <button
+            type="button"
+            onClick={handleExcel}
+            disabled={loadingXlsx || dados.length === 0}
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+          >
+            <FileSpreadsheet className="h-4 w-4 text-green-600" />
+            {loadingXlsx ? 'Gerando…' : 'Excel'}
+          </button>
+          <button
+            type="button"
+            onClick={handlePDF}
+            disabled={loadingPdf || dados.length === 0}
+            className="flex h-9 items-center gap-1.5 rounded-lg bg-amber-500 px-3 text-sm font-medium text-slate-900 hover:bg-amber-400 disabled:opacity-40"
+          >
+            <FileText className="h-4 w-4" />
+            {loadingPdf ? 'Gerando…' : 'PDF'}
+          </button>
+        </div>
       </form>
 
       <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
@@ -66,19 +164,23 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
       ) : (
         <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" style={{ minWidth: '1100px' }}>
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  {[
-                    'Funcionário', 'Função', 'Posto', 'Secretaria',
-                    'Período no mês', 'D. Úteis',
-                    'Férias', 'Faltas', 'Atestados', 'Suspensão',
-                    'Trabalhados', 'Insalubridade', 'Advertência',
-                  ].map(h => (
-                    <th key={h} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400 whitespace-nowrap">
-                      {h}
-                    </th>
-                  ))}
+                  <th className="min-w-[200px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Funcionário</th>
+                  <th className="min-w-[120px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Função</th>
+                  <th className="min-w-[130px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Posto</th>
+                  <th className="min-w-[130px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Secretaria</th>
+                  <th className="min-w-[160px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Período no mês</th>
+                  <th className="min-w-[55px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Regime</th>
+                  <th className="min-w-[55px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">D. Úteis</th>
+                  <th className="min-w-[55px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Férias</th>
+                  <th className="min-w-[55px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Faltas</th>
+                  <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Atestados</th>
+                  <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Suspensão</th>
+                  <th className="min-w-[80px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Trabalhados</th>
+                  <th className="min-w-[90px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Insalubridade</th>
+                  <th className="min-w-[85px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Advertência</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -108,6 +210,7 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
                       {fmt(f.periodo_inicio)} – {fmt(f.periodo_fim)}
                       <span className="ml-1 text-gray-400">({f.dias_calendario}d)</span>
                     </td>
+                    <td className="px-3 py-2.5 text-center text-xs font-mono text-gray-500">{f.regime}</td>
                     <td className="px-3 py-2.5 text-center font-mono text-gray-700">{f.dias_uteis}</td>
                     <td className="px-3 py-2.5 text-center">
                       {f.ferias_dias > 0
