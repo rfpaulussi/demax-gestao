@@ -216,16 +216,6 @@ function AdvertenciaDocument({ adv }: { adv: AdvertenciaCompleta }) {
 }
 
 export async function downloadAdvertenciaPDF(adv: AdvertenciaCompleta): Promise<void> {
-  const nome = (adv.funcionarios?.nome ?? 'sem-nome')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/\s+/g, '_')
-    .toUpperCase()
-
-  const data = (adv.data_ocorrencia ?? new Date().toISOString().split('T')[0]).replace(/-/g, '')
-  const idShort = adv.id.substring(0, 8).toUpperCase()
-  const filename = `ADVERTENCIA_${idShort}_${nome}_${data}.pdf`
-
   const { pdf } = await import('@react-pdf/renderer')
   const blob = await pdf(<AdvertenciaDocument adv={adv} />).toBlob()
   const url = URL.createObjectURL(blob)
