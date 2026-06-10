@@ -95,14 +95,11 @@ export async function calcularFechamento(
   const funcionarios = funcs ?? []
   if (funcionarios.length === 0) return []
 
-  const fids = funcionarios.map(f => f.id)
-
   // 2. Busca paralela de todos os eventos do mês
   const [ferRes, atRes, falRes, advRes, insRes] = await Promise.all([
     supabase
       .from('ferias')
       .select('funcionario_id, data_inicio, data_fim')
-      .in('funcionario_id', fids)
       .in('status', ['em_curso', 'concluido', 'aprovado'])
       .lte('data_inicio', mesEndStr)
       .gte('data_fim',    mesStartStr),
@@ -110,28 +107,24 @@ export async function calcularFechamento(
     supabase
       .from('atestados')
       .select('funcionario_id, data_inicio, data_fim')
-      .in('funcionario_id', fids)
       .lte('data_inicio', mesEndStr)
       .gte('data_fim',    mesStartStr),
 
     supabase
       .from('faltas')
       .select('funcionario_id, dias')
-      .in('funcionario_id', fids)
       .gte('data_falta', mesStartStr)
       .lte('data_falta', mesEndStr),
 
     supabase
       .from('advertencias')
       .select('funcionario_id, grau, dias_suspensao')
-      .in('funcionario_id', fids)
       .gte('data_ocorrencia', mesStartStr)
       .lte('data_ocorrencia', mesEndStr),
 
     supabase
       .from('insalubridade_coberturas')
       .select('funcionario_id')
-      .in('funcionario_id', fids)
       .eq('mes', mes)
       .eq('ano', ano),
   ])
