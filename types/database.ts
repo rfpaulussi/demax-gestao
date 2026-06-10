@@ -449,6 +449,7 @@ export type Database = {
           data_inicio: string
           data_fim: string
           motivo: string | null
+          cid: string | null
           registrado_por: string
           created_at: string
         }
@@ -459,6 +460,7 @@ export type Database = {
           data_inicio: string
           data_fim: string
           motivo?: string | null
+          cid?: string | null
           registrado_por: string
           created_at?: string
         }
@@ -469,6 +471,7 @@ export type Database = {
           data_inicio?: string
           data_fim?: string
           motivo?: string | null
+          cid?: string | null
           registrado_por?: string
         }
         Relationships: []
@@ -814,6 +817,8 @@ export type Database = {
           tipo: string
           dias: number
           observacao: string | null
+          tem_documento: boolean
+          justificativa: string | null
           registrado_por: string
           created_at: string
         }
@@ -824,6 +829,8 @@ export type Database = {
           tipo: string
           dias?: number
           observacao?: string | null
+          tem_documento?: boolean
+          justificativa?: string | null
           registrado_por: string
           created_at?: string
         }
@@ -834,6 +841,8 @@ export type Database = {
           tipo?: string
           dias?: number
           observacao?: string | null
+          tem_documento?: boolean
+          justificativa?: string | null
           registrado_por?: string
         }
         Relationships: [

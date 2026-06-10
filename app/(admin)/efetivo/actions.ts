@@ -17,37 +17,44 @@ export async function registrarAtestado(formData: FormData) {
   const dataFim       = formData.get('data_fim') as string
   const motivo        = (formData.get('motivo') as string) || null
 
+  const cid = (formData.get('cid') as string) || null
+
   const { data: func } = await supabase
     .from('funcionarios')
     .select('status')
     .eq('id', funcionarioId)
     .single()
 
-  await Promise.all([
-    supabase.from('atestados').insert({
-      funcionario_id: funcionarioId,
-      posto_id: postoId,
-      data_inicio: dataInicio,
-      data_fim: dataFim,
-      motivo,
-      registrado_por: auth.user.id,
-    }),
-    supabase
-      .from('funcionarios')
-      .update({ status: 'afastado' })
-      .eq('id', funcionarioId),
-    supabase.from('movimentacoes').insert({
-      funcionario_id: funcionarioId,
-      tipo: 'atestado',
-      campo_alterado: 'status',
-      valor_antes: func?.status ?? null,
-      valor_depois: 'afastado',
-      executado_por: auth.user.id,
-    }),
-  ])
+  const { error: errAtestado } = await supabase.from('atestados').insert({
+    funcionario_id: funcionarioId,
+    posto_id: postoId,
+    data_inicio: dataInicio,
+    data_fim: dataFim,
+    motivo,
+    cid,
+    registrado_por: auth.user.id,
+  })
+  if (errAtestado) throw new Error(errAtestado.message)
+
+  const { error: errStatus } = await supabase
+    .from('funcionarios')
+    .update({ status: 'afastado' })
+    .eq('id', funcionarioId)
+  if (errStatus) throw new Error(errStatus.message)
+
+  const { error: errMov } = await supabase.from('movimentacoes').insert({
+    funcionario_id: funcionarioId,
+    tipo: 'atestado',
+    campo_alterado: 'status',
+    valor_antes: func?.status ?? null,
+    valor_depois: 'afastado',
+    executado_por: auth.user.id,
+  })
+  if (errMov) throw new Error(errMov.message)
 
   revalidatePath('/efetivo')
   revalidatePath('/dashboard')
+  revalidatePath('/faltas')
 }
 
 export async function registrarFerias(formData: FormData) {

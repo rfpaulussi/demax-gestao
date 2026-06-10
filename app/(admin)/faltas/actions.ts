@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getUser } from '@/lib/auth/get-user'
 
-export type FaltaTipo = 'sem_atestado' | 'com_atestado' | 'suspensao'
+export type FaltaTipo = 'sem_justificativa' | 'declaracao' | 'suspensao'
 
 export interface FaltaCompleta {
   id: string
@@ -13,6 +13,8 @@ export interface FaltaCompleta {
   tipo: FaltaTipo
   dias: number
   observacao: string | null
+  tem_documento: boolean
+  justificativa: string | null
   registrado_por: string
   created_at: string
   funcionarios: {
@@ -103,6 +105,8 @@ export async function criarFalta(formData: FormData) {
     tipo,
     dias:           isNaN(dias) || dias < 1 ? 1 : dias,
     observacao:     (formData.get('observacao') as string) || null,
+    tem_documento:  formData.get('tem_documento') === 'true',
+    justificativa:  (formData.get('justificativa') as string) || null,
     registrado_por: auth.user.id,
   })
 

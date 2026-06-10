@@ -34,6 +34,8 @@ export function ModalFalta({ open, onClose, funcionariosOpt, mesAtual, anoAtual 
   const [busca,              setBusca]              = useState('')
   const [selectedFunc,       setSelectedFunc]       = useState<FuncOpt | null>(null)
   const [dropdownOpen,       setDropdownOpen]       = useState(false)
+  const [tipoSelecionado,    setTipoSelecionado]    = useState('')
+  const [temDocumento,       setTemDocumento]       = useState(false)
   const [erroSubmit,         setErroSubmit]         = useState<string | null>(null)
   const [isPending,          startTransition]       = useTransition()
 
@@ -61,6 +63,8 @@ export function ModalFalta({ open, onClose, funcionariosOpt, mesAtual, anoAtual 
     setBusca('')
     setSelectedFunc(null)
     setDropdownOpen(false)
+    setTipoSelecionado('')
+    setTemDocumento(false)
     setErroSubmit(null)
     onClose()
   }
@@ -70,6 +74,7 @@ export function ModalFalta({ open, onClose, funcionariosOpt, mesAtual, anoAtual 
     const form = e.currentTarget
     const formData = new FormData(form)
     if (selectedFunc) formData.set('funcionario_id', selectedFunc.id)
+    formData.set('tem_documento', String(temDocumento))
 
     setErroSubmit(null)
     startTransition(async () => {
@@ -175,13 +180,47 @@ export function ModalFalta({ open, onClose, funcionariosOpt, mesAtual, anoAtual 
             {/* Tipo */}
             <div>
               <label className={lbl}>Tipo *</label>
-              <select name="tipo" required className={input}>
+              <select
+                name="tipo"
+                required
+                className={input}
+                value={tipoSelecionado}
+                onChange={e => setTipoSelecionado(e.target.value)}
+              >
                 <option value="">Selecione...</option>
-                <option value="sem_atestado">Sem Atestado</option>
-                <option value="com_atestado">Com Atestado</option>
+                <option value="sem_justificativa">Sem Justificativa</option>
+                <option value="declaracao">Declaração</option>
                 <option value="suspensao">Suspensão</option>
               </select>
             </div>
+
+            {/* Tem documento */}
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="tem_documento"
+                checked={temDocumento}
+                onChange={e => setTemDocumento(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 accent-slate-900"
+              />
+              <label htmlFor="tem_documento" className="text-sm text-gray-700">
+                Tem documento?
+              </label>
+            </div>
+
+            {/* Justificativa — obrigatório quando tipo = declaracao */}
+            {tipoSelecionado === 'declaracao' && (
+              <div>
+                <label className={lbl}>Justificativa *</label>
+                <textarea
+                  name="justificativa"
+                  required
+                  rows={2}
+                  placeholder="Descreva a justificativa..."
+                  className={cn(input, 'h-auto py-2 resize-none')}
+                />
+              </div>
+            )}
 
             {/* Dias */}
             <div>
