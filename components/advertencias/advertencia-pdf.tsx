@@ -82,6 +82,14 @@ function AdvertenciaDocument({ adv }: { adv: AdvertenciaCompleta }) {
             <Text style={s.value}>{adv.funcionarios?.nome ?? '—'}</Text>
           </View>
           <View style={s.row}>
+            <Text style={s.label}>CPF:</Text>
+            <Text style={s.value}>***.***.***-**</Text>
+          </View>
+          <View style={s.row}>
+            <Text style={s.label}>Função:</Text>
+            <Text style={s.value}>{adv.funcionarios?.funcoes?.nome ?? '—'}</Text>
+          </View>
+          <View style={s.row}>
             <Text style={s.label}>Posto de Trabalho:</Text>
             <Text style={s.value}>{adv.funcionarios?.postos?.nome ?? '—'}</Text>
           </View>

@@ -29,6 +29,8 @@ export interface AdvertenciaCompleta {
   funcionarios: {
     id: string
     nome: string
+    cpf: string | null
+    funcoes: { nome: string } | null
     postos: { nome: string; secretaria: string | null } | null
   } | null
 }
@@ -44,7 +46,8 @@ const ADV_SELECT = `
   natureza, relato, testemunha_1, testemunha_2, defesa_colaborador,
   dias_suspensao, data_aplicacao, pdf_url, status, criado_por, registrado_por, created_at,
   funcionarios!funcionario_id (
-    id, nome,
+    id, nome, cpf,
+    funcoes!funcao_id ( nome ),
     postos!posto_id ( nome, secretaria )
   )
 `
@@ -113,4 +116,14 @@ export async function marcarGerada(formData: FormData) {
     .update({ status: 'gerada' })
     .eq('id', advertencia_id)
   revalidatePath('/advertencias')
+}
+
+export async function gerarPDFAdvertencia(id: string): Promise<AdvertenciaCompleta | null> {
+  const supabase = createClient()
+  const { data } = await supabase
+    .from('advertencias')
+    .select(ADV_SELECT)
+    .eq('id', id)
+    .single()
+  return (data ?? null) as unknown as AdvertenciaCompleta | null
 }

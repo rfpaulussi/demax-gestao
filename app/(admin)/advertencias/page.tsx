@@ -29,7 +29,8 @@ const ADV_SELECT = `
   natureza, relato, testemunha_1, testemunha_2, defesa_colaborador,
   dias_suspensao, data_aplicacao, pdf_url, status, criado_por, registrado_por, created_at,
   funcionarios!funcionario_id (
-    id, nome,
+    id, nome, cpf,
+    funcoes!funcao_id ( nome ),
     postos!posto_id ( nome, secretaria )
   )
 `
