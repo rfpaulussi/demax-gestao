@@ -218,6 +218,7 @@ function AdvertenciaDocument({ adv }: { adv: AdvertenciaCompleta }) {
 }
 
 export async function downloadAdvertenciaPDF(adv: AdvertenciaCompleta): Promise<void> {
+  console.log('iniciando geração PDF')
   const nome = (adv.funcionarios?.nome ?? 'sem-nome')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
