@@ -216,7 +216,6 @@ function AdvertenciaDocument({ adv }: { adv: AdvertenciaCompleta }) {
 }
 
 export async function downloadAdvertenciaPDF(adv: AdvertenciaCompleta): Promise<void> {
-  console.log('iniciando geração PDF')
   const nome = (adv.funcionarios?.nome ?? 'sem-nome')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
@@ -228,21 +227,8 @@ export async function downloadAdvertenciaPDF(adv: AdvertenciaCompleta): Promise<
   const filename = `ADVERTENCIA_${idShort}_${nome}_${data}.pdf`
 
   const { pdf } = await import('@react-pdf/renderer')
-  console.log('pdf importado:', typeof pdf)
-  let blob: Blob
-  try {
-    blob = await pdf(<AdvertenciaDocument adv={adv} />).toBlob()
-    console.log('blob gerado:', blob?.size)
-  } catch (err) {
-    console.error('ERRO no toBlob:', err)
-    throw err
-  }
+  const blob = await pdf(<AdvertenciaDocument adv={adv} />).toBlob()
   const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+  window.open(url, '_blank')
+  setTimeout(() => URL.revokeObjectURL(url), 10000)
 }

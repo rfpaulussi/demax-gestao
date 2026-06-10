@@ -33,7 +33,6 @@ export function AdvertenciasTable({ advertencias, reincidencias }: Props) {
   const [loadingPdf, setLoadingPdf] = useState<string | null>(null)
 
   async function handleDownloadPDF(adv: AdvertenciaCompleta) {
-    console.log('handleDownloadPDF chamado', adv.id)
     setLoadingPdf(adv.id)
     try {
       await downloadAdvertenciaPDF(adv)
