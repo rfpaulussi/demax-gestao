@@ -17,6 +17,17 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes }: P
   const [values, setValues] = useState<FiltrosValues>({
     busca: '', status: '', secretaria: '', supervisor: '',
   })
+  const [sortCol, setSortCol] = useState<string>('nome')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  function toggleSort(col: string) {
+    if (sortCol === col) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortCol(col)
+      setSortDir('asc')
+    }
+  }
 
   const secretarias = useMemo(
     () =>
@@ -43,6 +54,21 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes }: P
     }
     return list
   }, [funcionarios, values])
+
+  const sorted = useMemo(() => {
+    const list = [...filtered]
+    list.sort((a, b) => {
+      let av = '', bv = ''
+      if (sortCol === 'nome')       { av = a.nome ?? '';                bv = b.nome ?? ''                }
+      if (sortCol === 'funcao')     { av = a.funcoes?.nome ?? '';       bv = b.funcoes?.nome ?? ''       }
+      if (sortCol === 'posto')      { av = a.postos?.nome ?? '';        bv = b.postos?.nome ?? ''        }
+      if (sortCol === 'secretaria') { av = a.postos?.secretaria ?? '';  bv = b.postos?.secretaria ?? ''  }
+      if (sortCol === 'status')     { av = a.status ?? '';              bv = b.status ?? ''              }
+      const cmp = av.localeCompare(bv, 'pt-BR', { sensitivity: 'base' })
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+    return list
+  }, [filtered, sortCol, sortDir])
 
   const counts = useMemo<FiltrosCounts>(() => {
     const statusCounts: Record<string, number> = {}
@@ -75,7 +101,14 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes }: P
         values={values}
         onChange={handleChange}
       />
-      <FuncionariosTable funcionarios={filtered} postos={postos} funcoes={funcoes} />
+      <FuncionariosTable
+        funcionarios={sorted}
+        postos={postos}
+        funcoes={funcoes}
+        sortCol={sortCol}
+        sortDir={sortDir}
+        onSort={toggleSort}
+      />
     </div>
   )
 }

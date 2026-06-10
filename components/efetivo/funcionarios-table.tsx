@@ -48,16 +48,30 @@ const STATUS_ROW: Record<
   desligado: { bg: 'bg-gray-50',  hover: 'hover:bg-gray-100',  borderLeft: '',                                   dimmed: true  },
 }
 
-const COLS = ['Nome', 'Função', 'Posto', 'Secretaria', 'Supervisor', 'Status', 'Ações']
+const COLS: { label: string; sortKey?: string }[] = [
+  { label: 'Nome',       sortKey: 'nome'       },
+  { label: 'Função',     sortKey: 'funcao'     },
+  { label: 'Posto',      sortKey: 'posto'      },
+  { label: 'Secretaria', sortKey: 'secretaria' },
+  { label: 'Supervisor'                         },
+  { label: 'Status',     sortKey: 'status'     },
+  { label: 'Ações'                              },
+]
 
 export function FuncionariosTable({
   funcionarios,
   postos,
   funcoes,
+  sortCol,
+  sortDir,
+  onSort,
 }: {
   funcionarios: FuncionarioRow[]
   postos: { id: string; nome: string }[]
   funcoes: { id: string; nome: string }[]
+  sortCol?: string
+  sortDir?: 'asc' | 'desc'
+  onSort?: (col: string) => void
 }) {
   const [atestadoFuncionario, setAtestadoFuncionario]     = useState<FuncionarioRow | null>(null)
   const [solicitarFuncionario, setSolicitarFuncionario]   = useState<FuncionarioRow | null>(null)
@@ -74,12 +88,19 @@ export function FuncionariosTable({
             <table className="w-full text-sm">
               <thead className="border-b border-gray-100 bg-slate-50">
                 <tr>
-                  {COLS.map(h => (
+                  {COLS.map(col => (
                     <th
-                      key={h}
-                      className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400"
+                      key={col.label}
+                      onClick={col.sortKey ? () => onSort?.(col.sortKey!) : undefined}
+                      className={cn(
+                        'px-5 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400',
+                        col.sortKey && 'cursor-pointer select-none hover:text-gray-600',
+                      )}
                     >
-                      {h}
+                      {col.label}
+                      {col.sortKey && sortCol === col.sortKey && (
+                        <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                      )}
                     </th>
                   ))}
                 </tr>
