@@ -274,7 +274,7 @@ export async function buscarFuncionariosParaDeclaracao(): Promise<FuncOpt[]> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from('funcionarios')
-    .select('id, nome, postos!posto_id(id, nome, secretaria), funcoes!fk_funcionarios_funcao_id(nome)')
+    .select('id, nome, postos!posto_id(id, nome, secretaria), funcoes!funcionarios_funcao_id_fkey(nome)')
     .in('status', ['ativo', 'ferias', 'afastado'])
     .order('nome')
   console.log('[buscarFuncionariosParaDeclaracao] count:', data?.length, 'error:', error)
