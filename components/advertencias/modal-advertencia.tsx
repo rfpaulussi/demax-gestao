@@ -50,9 +50,14 @@ export function ModalAdvertencia({ open, onClose, funcionarios, reincidencias }:
     const formData = new FormData(e.currentTarget)
     const form = e.currentTarget
     startTransition(async () => {
-      await criarAdvertencia(formData)
-      form.reset()
-      handleClose()
+      try {
+        await criarAdvertencia(formData)
+        form.reset()
+        handleClose()
+      } catch (err) {
+        console.error('Erro ao criar advertência:', err)
+        alert('Erro ao salvar advertência: ' + (err instanceof Error ? err.message : 'Erro desconhecido'))
+      }
     })
   }
 

@@ -74,10 +74,12 @@ export async function buscarFuncionariosAtivos(): Promise<FuncionarioOpt[]> {
 export async function criarAdvertencia(formData: FormData) {
   const supabase = createClient()
 
+  const { data: { user } } = await supabase.auth.getUser()
+
   const grau = (formData.get('grau') as string) || null
   const diasRaw = formData.get('dias_suspensao')
 
-  await supabase.from('advertencias').insert({
+  const { error } = await supabase.from('advertencias').insert({
     funcionario_id: formData.get('funcionario_id') as string,
     tipo: grau,
     grau: grau as AdvertenciaGrau | null,
@@ -92,8 +94,11 @@ export async function criarAdvertencia(formData: FormData) {
     dias_suspensao: diasRaw ? Number(diasRaw) : null,
     data_aplicacao: (formData.get('data_aplicacao') as string) || null,
     registrado_por: (formData.get('registrado_por') as string) || null,
+    criado_por: user?.id ?? null,
     status: 'pendente',
   })
+
+  if (error) throw new Error(error.message)
 
   revalidatePath('/advertencias')
 }
