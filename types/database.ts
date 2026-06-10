@@ -283,6 +283,45 @@ export type Database = {
       }
 
       // ----------------------------------------------------------
+      // historico_funcionarios
+      // ----------------------------------------------------------
+      historico_funcionarios: {
+        Row: {
+          id: string
+          funcionario_id: string
+          tipo: 'admissao' | 'desligamento' | 'mudanca_posto' | 'mudanca_funcao' | 'ferias' | 'atestado' | 'falta' | 'advertencia' | 'suspensao' | 'cobertura_insalubre' | 'transferencia' | 'reativacao'
+          data_evento: string
+          descricao: string | null
+          dados_anteriores: Json | null
+          dados_novos: Json | null
+          registrado_por: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          funcionario_id: string
+          tipo: 'admissao' | 'desligamento' | 'mudanca_posto' | 'mudanca_funcao' | 'ferias' | 'atestado' | 'falta' | 'advertencia' | 'suspensao' | 'cobertura_insalubre' | 'transferencia' | 'reativacao'
+          data_evento: string
+          descricao?: string | null
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          registrado_por?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          funcionario_id?: string
+          tipo?: 'admissao' | 'desligamento' | 'mudanca_posto' | 'mudanca_funcao' | 'ferias' | 'atestado' | 'falta' | 'advertencia' | 'suspensao' | 'cobertura_insalubre' | 'transferencia' | 'reativacao'
+          data_evento?: string
+          descricao?: string | null
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          registrado_por?: string | null
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
       // config_escalas_postos
       // ----------------------------------------------------------
       config_escalas_postos: {

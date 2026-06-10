@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { FileMinus, ArrowUpRight, ClipboardList } from 'lucide-react'
+import { FileMinus, ArrowUpRight, ClipboardList, Clock } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ModalAtestado } from './modal-atestado'
@@ -184,6 +184,15 @@ export function FuncionariosTable({
                           >
                             <ArrowUpRight className="h-3.5 w-3.5" />
                             Ver perfil
+                          </Link>
+                          <Link
+                            href={`/efetivo/${f.id}/historico`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={buttonVariants({ size: 'sm', variant: 'outline' })}
+                            title="Prontuário"
+                          >
+                            <Clock className="h-3.5 w-3.5" />
                           </Link>
                         </div>
                       </td>
