@@ -170,7 +170,10 @@ export async function criarInsalubridade(formData: FormData) {
     status: 'pendente',
   })
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    if (error.code === '23505') throw new Error('Este funcionário já possui uma cobertura registrada nesta data.')
+    throw new Error(error.message)
+  }
 
   revalidatePath('/insalubridade')
 }

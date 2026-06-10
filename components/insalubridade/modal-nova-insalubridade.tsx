@@ -38,6 +38,7 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos,
   const [dropdownOpen,       setDropdownOpen]       = useState(false)
   const [ausentes,           setAusentes]           = useState<FuncOpt[]>([])
   const [selectedAusente,    setSelectedAusente]    = useState<FuncOpt | null>(null)
+  const [erroSubmit,         setErroSubmit]         = useState<string | null>(null)
   const [isPending,          startTransition]       = useTransition()
 
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -74,6 +75,7 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos,
     setDropdownOpen(false)
     setAusentes([])
     setSelectedAusente(null)
+    setErroSubmit(null)
     onClose()
   }
 
@@ -87,10 +89,15 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos,
       formData.set('agente_ausente_id', selectedAusente.id)
       formData.set('agente_ausente_nome', selectedAusente.nome)
     }
+    setErroSubmit(null)
     startTransition(async () => {
-      await criarInsalubridade(formData)
-      form.reset()
-      handleClose()
+      try {
+        await criarInsalubridade(formData)
+        form.reset()
+        handleClose()
+      } catch (err) {
+        setErroSubmit(err instanceof Error ? err.message : 'Erro ao registrar declaração.')
+      }
     })
   }
 
@@ -265,6 +272,12 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos,
                 className={cn(input, 'h-auto py-2 resize-none')}
               />
             </div>
+
+            {erroSubmit && (
+              <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {erroSubmit}
+              </p>
+            )}
 
             <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
               <button type="button" onClick={handleClose} className="flex h-9 items-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-500 hover:bg-gray-50">
