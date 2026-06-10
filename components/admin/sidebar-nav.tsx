@@ -18,6 +18,7 @@ import {
   Menu,
   MapPin,
   FileCheck,
+  Upload,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
@@ -40,8 +41,9 @@ const NAV = [
 ] as const
 
 const ADMIN_NAV = [
-  { href: '/fechamento', label: 'Fechamento', icon: FileCheck },
-  { href: '/usuarios',   label: 'Usuários',   icon: UserCog       },
+  { href: '/fechamento',  label: 'Fechamento',  icon: FileCheck },
+  { href: '/importacao', label: 'Importação',  icon: Upload    },
+  { href: '/usuarios',   label: 'Usuários',    icon: UserCog   },
 ] as const
 
 // ─── shared nav content ──────────────────────────────────────────────────────
