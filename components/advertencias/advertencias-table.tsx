@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { downloadAdvertenciaPDF } from './advertencia-pdf'
-import { marcarEntregue, marcarGerada } from '@/app/(admin)/advertencias/actions'
+import { marcarEntregue } from '@/app/(admin)/advertencias/actions'
 import type { AdvertenciaCompleta } from '@/app/(admin)/advertencias/actions'
 
 const GRAU_BADGE: Record<string, { label: string; cls: string }> = {
@@ -124,17 +124,6 @@ export function AdvertenciasTable({ advertencias, reincidencias }: Props) {
                       >
                         {loadingPdf === adv.id ? '...' : 'PDF'}
                       </button>
-                      {adv.status === 'pendente' && (
-                        <form action={marcarGerada}>
-                          <input type="hidden" name="advertencia_id" value={adv.id} />
-                          <button
-                            type="submit"
-                            className="flex h-7 items-center rounded-md border border-blue-200 bg-blue-50 px-2.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
-                          >
-                            Gerar
-                          </button>
-                        </form>
-                      )}
                       {adv.status === 'gerada' && (
                         <form action={marcarEntregue}>
                           <input type="hidden" name="advertencia_id" value={adv.id} />

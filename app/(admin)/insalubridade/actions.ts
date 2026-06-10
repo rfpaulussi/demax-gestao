@@ -142,11 +142,21 @@ export async function buscarInsalubridades(
 export async function criarInsalubridade(formData: FormData) {
   const supabase = createClient()
 
+  const funcionarioId = formData.get('funcionario_id') as string
   const dataCobertura = formData.get('data_cobertura') as string
+  if (!funcionarioId || !dataCobertura) throw new Error('Campos obrigatórios ausentes: funcionario_id e data_cobertura')
+
   const [ano, mes] = dataCobertura.split('-').map(Number)
 
-  await supabase.from('insalubridade_coberturas').insert({
-    funcionario_id: formData.get('funcionario_id') as string,
+  console.log('[criarInsalubridade]', { funcionarioId, dataCobertura, mes, ano,
+    agente_ausente_id: formData.get('agente_ausente_id'),
+    agente_ausente_nome: formData.get('agente_ausente_nome'),
+    posto_id: formData.get('posto_id'),
+    observacao: formData.get('observacao'),
+  })
+
+  const { error } = await supabase.from('insalubridade_coberturas').insert({
+    funcionario_id: funcionarioId,
     mes,
     ano,
     data_cobertura: dataCobertura,
@@ -158,6 +168,8 @@ export async function criarInsalubridade(formData: FormData) {
     observacao: (formData.get('observacao') as string) || null,
     status: 'pendente',
   })
+
+  if (error) throw new Error(error.message)
 
   revalidatePath('/insalubridade')
 }
