@@ -36,6 +36,9 @@ export function AdvertenciasTable({ advertencias, reincidencias }: Props) {
     setLoadingPdf(adv.id)
     try {
       await downloadAdvertenciaPDF(adv)
+    } catch (err) {
+      console.error(err)
+      alert('Erro ao gerar PDF. Tente novamente.')
     } finally {
       setLoadingPdf(null)
     }
