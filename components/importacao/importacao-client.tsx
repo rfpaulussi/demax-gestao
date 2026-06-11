@@ -55,6 +55,17 @@ function getCol(row: Record<string, unknown>, ...keys: string[]): string {
   return ''
 }
 
+// Match by exact header name; falls back to trimmed-key comparison to handle
+// BOM characters or stray whitespace that XLSX may leave in header strings.
+function colByName(row: Record<string, unknown>, header: string): string {
+  if (header in row) return String(row[header] ?? '').trim()
+  const trimmed = header.trim()
+  for (const [k, v] of Object.entries(row)) {
+    if (k.trim() === trimmed) return String(v ?? '').trim()
+  }
+  return ''
+}
+
 function parseMesAnoKey(s: string): number {
   const [mm, yyyy] = (s ?? '').split('/')
   return parseInt((yyyy ?? '0') + (mm ?? '00').padStart(2, '0'))
@@ -87,16 +98,17 @@ interface AlocacaoRow {
 
 function extractAlocacoes(rows: Record<string, unknown>[]): AlocacaoRow[] {
   return rows.map(r => ({
-    mesAno:       getCol(r, 'Mês/Ano Referência', 'Mes/Ano Referencia', 'mes_ano_referencia', 'mes_ano'),
-    registro:     getCol(r, 'REGISTRO FUNCIONÁRIO', 'Registro Funcionario', 'registro_funcionario', 'registro', 'matricula'),
-    nome:         getCol(r, 'NOME FUNCIONÁRIO', 'Nome Funcionario', 'nome_funcionario', 'nome'),
-    cargo:        getCol(r, 'CARGO (no mês)', 'Cargo no mes', 'cargo_no_mes', 'cargo'),
-    status:       getCol(r, 'STATUS', 'status'),
-    supervisor:   getCol(r, 'SUPERVISOR', 'supervisor'),
-    posto:        getCol(r, 'POSTO DE TRABALHO (no mês)', 'Posto de Trabalho no mes', 'posto_de_trabalho_no_mes', 'posto_de_trabalho', 'posto'),
-    secretaria:   getCol(r, 'SECRETARIA (no mês)', 'Secretaria no mes', 'secretaria_no_mes', 'secretaria'),
-    dataDemissao: getCol(r, 'Data Demissão', 'Data Demissao', 'data_demissao', 'demissao'),
-    admissao:     getCol(r, 'Admissão', 'Admissao', 'data_admissao', 'admissao'),
+    mesAno:       colByName(r, 'Mês/Ano Referência'),
+    registro:     colByName(r, 'REGISTRO FUNCIONÁRIO'),
+    nome:         colByName(r, 'NOME FUNCIONÁRIO'),
+    cargo:        colByName(r, 'CARGO (no mês)'),
+    status:       colByName(r, 'STATUS'),
+    supervisor:   colByName(r, 'SUPERVISOR'),
+    posto:        colByName(r, 'POSTO DE TRABALHO (no mês)'),
+    secretaria:   colByName(r, 'SECRETARIA (no mês)'),
+    dataDemissao: colByName(r, 'Data Demissão'),
+    admissao:     colByName(r, 'Admissão'),
+    // 'Está de Férias Hoje?', 'É Insalubre?' e colunas extras são ignoradas silenciosamente
   })).filter(r => r.registro)
 }
 
