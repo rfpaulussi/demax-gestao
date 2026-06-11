@@ -102,6 +102,22 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
     data_admissao: f.data_admissao,
   }
 
+  // Se afastado sem posto atual, busca último posto conhecido no histórico
+  if (!funcionario.posto && historico && historico.length > 0) {
+    const sorted = [...historico].sort((a, b) => b.data_evento.localeCompare(a.data_evento))
+    for (const ev of sorted) {
+      const dn = ev.dados_novos as Record<string, unknown> | null
+      const da = ev.dados_anteriores as Record<string, unknown> | null
+      const posto = (dn?.posto ?? da?.posto) as string | null | undefined
+      const secretaria = (dn?.secretaria ?? da?.secretaria) as string | null | undefined
+      if (posto && !String(posto).toUpperCase().startsWith('AFASTADO')) {
+        funcionario.posto = posto
+        if (secretaria) funcionario.secretaria = secretaria
+        break
+      }
+    }
+  }
+
   // Track historico entries to avoid duplicates from individual tables
   const historicoSet = new Set(
     (historico ?? []).map(e => `${e.tipo}:${e.data_evento}`)

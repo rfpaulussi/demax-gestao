@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import {
-  ArrowLeft, FileText, UserCheck, UserX, MapPin, Briefcase,
+  FileText, UserCheck, UserX, MapPin, Briefcase,
   Umbrella, XCircle, AlertTriangle, Ban, Shield, ArrowRightLeft,
   RotateCcw, Loader2,
 } from 'lucide-react'
@@ -219,16 +218,8 @@ export function ProntuarioClient({ funcionario, eventos }: Props) {
 
   return (
     <>
-      {/* Top nav */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link
-          href={`/efetivo/${funcionario.id}`}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Voltar ao Efetivo
-        </Link>
-
+      {/* PDF export */}
+      <div className="flex justify-end">
         <button
           type="button"
           onClick={handlePDF}
