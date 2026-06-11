@@ -157,19 +157,31 @@ function SolicitacaoCard({ sol }: { sol: SolicitacaoRow }) {
 
   if (ok) {
     return (
-      <div className="transition-all duration-300 opacity-0 max-h-0 overflow-hidden" />
+      <div className={cn(
+        'flex flex-col rounded-xl border border-gray-100 border-l-4 bg-white shadow-sm opacity-50',
+        borderColor,
+      )}>
+        <div className="flex flex-1 flex-col items-center justify-center py-8 text-gray-400">
+          {fase === 'rejeitando'
+            ? <span className="text-2xl">✗</span>
+            : <span className="text-2xl">✓</span>}
+          <p className="mt-1 text-xs font-medium">
+            {fase === 'rejeitando' ? 'Rejeitada' : 'Aprovada'}
+          </p>
+        </div>
+      </div>
     )
   }
 
   return (
     <div className={cn(
-      'rounded-xl border border-gray-100 border-l-4 bg-white shadow-sm transition-opacity',
+      'flex flex-col rounded-xl border border-gray-100 border-l-4 bg-white shadow-sm transition-opacity',
       borderColor,
       isPending && 'opacity-60 pointer-events-none',
     )}>
 
       {/* HEADER */}
-      <div className="px-4 pt-3 pb-2">
+      <div className="px-3 pt-3 pb-2">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
             <span className={cn(
@@ -195,14 +207,14 @@ function SolicitacaoCard({ sol }: { sol: SolicitacaoRow }) {
       </div>
 
       {/* CORPO — duas colunas */}
-      <div className="mx-0 grid grid-cols-2 divide-x divide-gray-200 bg-gray-50/50 px-0 py-0">
-        <div className="px-4 py-2">
+      <div className="flex-1 grid grid-cols-2 divide-x divide-gray-200 bg-gray-50/50">
+        <div className="px-3 py-2">
           <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
             Situação atual
           </p>
           {renderColunaAntes(sol.dados_antes)}
         </div>
-        <div className="px-4 py-2">
+        <div className="px-3 py-2">
           <p className={cn('mb-1 text-[10px] font-bold uppercase tracking-widest', labelColor)}>
             Solicitado
           </p>
@@ -212,13 +224,13 @@ function SolicitacaoCard({ sol }: { sol: SolicitacaoRow }) {
 
       {/* Erro */}
       {erro && (
-        <div className="mx-4 mt-2 rounded border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-700">
+        <div className="mx-3 mt-2 rounded border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-700">
           {erro}
         </div>
       )}
 
       {/* RODAPÉ */}
-      <div className="border-t border-gray-100 px-4 pb-3 pt-2">
+      <div className="border-t border-gray-100 px-3 pb-3 pt-2">
         {fase === 'idle' && (
           <div className="flex gap-2">
             <button
@@ -351,7 +363,7 @@ export function AprovacoesList({ solicitacoes }: { solicitacoes: SolicitacaoRow[
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
           {filtradas.map(sol => (
             <SolicitacaoCard key={sol.id} sol={sol} />
           ))}
