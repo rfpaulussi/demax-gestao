@@ -149,13 +149,6 @@ export async function criarInsalubridade(formData: FormData) {
 
   const [ano, mes] = dataCobertura.split('-').map(Number)
 
-  console.log('[criarInsalubridade]', { funcionarioId, dataCobertura, mes, ano,
-    agente_ausente_id: formData.get('agente_ausente_id'),
-    agente_ausente_nome: formData.get('agente_ausente_nome'),
-    posto_id: formData.get('posto_id'),
-    observacao: formData.get('observacao'),
-  })
-
   const { error } = await supabase.from('insalubridade_coberturas').insert({
     funcionario_id: funcionarioId,
     mes,
@@ -275,12 +268,11 @@ export async function removerDia(id: string) {
 
 export async function buscarFuncionariosParaDeclaracao(): Promise<FuncOpt[]> {
   const supabase = createClient()
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('funcionarios')
     .select('id, nome, postos!posto_id(id, nome, secretaria), funcoes!funcionarios_funcao_id_fkey(nome)')
     .in('status', ['ativo', 'ferias', 'afastado'])
     .order('nome')
-  console.log('[buscarFuncionariosParaDeclaracao] count:', data?.length, 'error:', error)
   return (data ?? []) as unknown as FuncOpt[]
 }
 
