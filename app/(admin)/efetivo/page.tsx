@@ -50,7 +50,8 @@ export default async function EfetivoPage() {
         funcoes!funcao_id ( id, nome ),
         postos!posto_id ( id, nome, secretaria )
       `)
-      .order('nome'),
+      .order('nome')
+      .range(0, 1499),
     supabase
       .from('perfis')
       .select('id, nome')
