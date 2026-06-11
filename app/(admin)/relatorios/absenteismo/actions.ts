@@ -79,7 +79,7 @@ export async function buscarAbsenteismo(
     supabase
       .from('ferias')
       .select(`
-        id, data_inicio, data_fim, observacao,
+        id, funcionario_id, data_inicio, data_fim, observacao,
         funcionarios!funcionario_id ( nome, registro, postos!posto_id ( nome, secretaria ) )
       `)
       .lte('data_inicio', fim)
@@ -130,10 +130,28 @@ export async function buscarAbsenteismo(
     })
   }
 
+  type FeriasEntry = NonNullable<typeof ferias>[0]
+  // Deduplicar férias por funcionario_id: manter a entrada com mais dias no mês
+  const feriasSeen = new Map<string, FeriasEntry>()
   for (const v of ferias ?? []) {
+    const fid = (v as unknown as { funcionario_id: string }).funcionario_id
+    if (!fid) continue
+    const existing = feriasSeen.get(fid)
+    if (!existing) {
+      feriasSeen.set(fid, v)
+    } else {
+      const dNew = diasNoMes(v.data_inicio!, v.data_fim!, inicio, fim)
+      const dOld = diasNoMes(existing.data_inicio!, existing.data_fim!, inicio, fim)
+      if (dNew > dOld) feriasSeen.set(fid, v)
+    }
+  }
+
+  for (const v of Array.from(feriasSeen.values())) {
     const func = v.funcionarios as unknown as FuncJoin | null
     const d = diasNoMes(v.data_inicio!, v.data_fim!, inicio, fim)
     if (d <= 0) continue
+    // inicioEfetivo: primeiro dia das férias que cai dentro do mês
+    const inicioEfetivo = v.data_inicio! < inicio ? inicio : v.data_inicio!
     rows.push({
       id:               v.id,
       funcionario_nome: func?.nome ?? '—',
@@ -141,7 +159,7 @@ export async function buscarAbsenteismo(
       posto_nome:       func?.postos?.nome ?? '—',
       secretaria:       func?.postos?.secretaria ?? '—',
       tipo_ausencia:    'ferias',
-      data:             v.data_inicio!,
+      data:             inicioEfetivo,
       dias:             d,
       justificativa:    v.observacao ?? '—',
     })
