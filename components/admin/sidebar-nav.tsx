@@ -6,23 +6,21 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
   Users,
-  CheckSquare,
-  ArrowLeftRight,
-  Calendar,
-  AlertTriangle,
-  UserX,
-  Shield,
-  FileText,
-  AlertCircle,
+  Building2,
+  ClipboardCheck,
+  Repeat2,
+  Palmtree,
+  ShieldAlert,
+  UserMinus,
+  Biohazard,
+  Siren,
   UserCog,
   Menu,
-  MapPin,
-  FileCheck,
   Upload,
-  BarChart2,
+  ClipboardList,
+  BarChart3,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
-import { cn } from '@/lib/utils'
 import type { Role } from '@/types'
 
 // ─── nav definition ──────────────────────────────────────────────────────────
@@ -30,22 +28,21 @@ import type { Role } from '@/types'
 const NAV = [
   { href: '/dashboard',     label: 'Dashboard',     icon: LayoutDashboard },
   { href: '/efetivo',       label: 'Efetivo',       icon: Users           },
-  { href: '/postos',        label: 'Postos',        icon: MapPin          },
-  { href: '/aprovacoes',    label: 'Aprovações',    icon: CheckSquare, badge: true },
-  { href: '/coberturas',    label: 'Coberturas',    icon: ArrowLeftRight  },
-  { href: '/ferias',        label: 'Férias',        icon: Calendar        },
-  { href: '/advertencias',  label: 'Advertências',  icon: AlertTriangle   },
-  { href: '/faltas',        label: 'Faltas',        icon: UserX           },
-  { href: '/insalubridade', label: 'Insalubridade', icon: Shield          },
-  { href: '/medicao',       label: 'Medição',       icon: FileText        },
-  { href: '/ocorrencias',   label: 'Ocorrências',   icon: AlertCircle     },
+  { href: '/postos',        label: 'Postos',        icon: Building2       },
+  { href: '/aprovacoes',    label: 'Aprovações',    icon: ClipboardCheck, badge: true },
+  { href: '/coberturas',    label: 'Coberturas',    icon: Repeat2         },
+  { href: '/ferias',        label: 'Férias',        icon: Palmtree        },
+  { href: '/advertencias',  label: 'Advertências',  icon: ShieldAlert     },
+  { href: '/faltas',        label: 'Faltas',        icon: UserMinus       },
+  { href: '/insalubridade', label: 'Insalubridade', icon: Biohazard       },
+  { href: '/ocorrencias',   label: 'Ocorrências',   icon: Siren           },
 ] as const
 
 const ADMIN_NAV = [
-  { href: '/fechamento',  label: 'Fechamento',  icon: FileCheck  },
-  { href: '/relatorios',  label: 'Relatórios',  icon: BarChart2  },
-  { href: '/importacao',  label: 'Importação',  icon: Upload     },
-  { href: '/usuarios',    label: 'Usuários',    icon: UserCog    },
+  { href: '/fechamento',  label: 'Fechamento',  icon: ClipboardList },
+  { href: '/relatorios',  label: 'Relatórios',  icon: BarChart3     },
+  { href: '/importacao',  label: 'Importação',  icon: Upload        },
+  { href: '/usuarios',    label: 'Usuários',    icon: UserCog       },
 ] as const
 
 // ─── shared nav content ──────────────────────────────────────────────────────
@@ -60,35 +57,44 @@ function NavLinks({
   onNavigate?: () => void
 }) {
   const pathname = usePathname()
-  const items = role === 'admin' ? [...NAV, ...ADMIN_NAV] : [...NAV]
+
+  function renderItem({ href, label, icon: Icon, ...rest }: { href: string; label: string; icon: React.ElementType; badge?: boolean }) {
+    const active = pathname === href || pathname.startsWith(href + '/')
+    const showBadge = 'badge' in rest && rest.badge && pendingCount > 0
+    return (
+      <Link
+        key={href}
+        href={href}
+        onClick={onNavigate}
+        className={
+          active
+            ? 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold bg-white/10 text-white shadow-sm'
+            : 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white transition-colors'
+        }
+      >
+        <Icon className="h-4 w-4 shrink-0" />
+        <span className="flex-1">{label}</span>
+        {showBadge && (
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+            {pendingCount > 99 ? '99+' : pendingCount}
+          </span>
+        )}
+      </Link>
+    )
+  }
 
   return (
     <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-4">
-      {items.map(({ href, label, icon: Icon, ...rest }) => {
-        const active = pathname === href || pathname.startsWith(href + '/')
-        const showBadge = 'badge' in rest && rest.badge && pendingCount > 0
-        return (
-          <Link
-            key={href}
-            href={href}
-            onClick={onNavigate}
-            className={cn(
-              'flex items-center gap-3 rounded-lg px-3 py-2.5 text-xs font-semibold uppercase tracking-wide transition-colors',
-              active
-                ? 'bg-slate-700 text-white'
-                : 'text-slate-300 hover:bg-slate-800 hover:text-white',
-            )}
-          >
-            <Icon className="h-4 w-4 shrink-0" />
-            <span className="flex-1">{label}</span>
-            {showBadge && (
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
-                {pendingCount > 99 ? '99+' : pendingCount}
-              </span>
-            )}
-          </Link>
-        )
-      })}
+      {NAV.map(item => renderItem(item))}
+
+      {role === 'admin' && (
+        <>
+          <div className="px-3 pt-4 pb-1">
+            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Administração</p>
+          </div>
+          {ADMIN_NAV.map(item => renderItem(item))}
+        </>
+      )}
     </nav>
   )
 }
