@@ -5,7 +5,6 @@ import { Dialog } from '@base-ui/react/dialog'
 import { registrarFalta } from '@/app/(admin)/faltas/actions'
 import type { FuncOpt } from '@/app/(admin)/faltas/actions'
 import { FALTA_TIPO_LABELS, FALTA_TIPOS_MANUAIS } from './faltas-config'
-import type { FaltaTipo } from './faltas-config'
 
 const inputCls = 'w-full rounded-lg border border-gray-200 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600'
 const labelCls = 'mb-1.5 block text-xs font-semibold uppercase tracking-widest text-gray-500'
