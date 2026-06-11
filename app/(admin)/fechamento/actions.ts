@@ -91,6 +91,7 @@ export async function calcularFechamento(
     .lte('data_admissao', mesEndStr)
     .or(`data_desligamento.is.null,data_desligamento.gte.${mesStartStr}`)
     .order('nome')
+    .range(0, 1499)
 
   const funcionarios = funcs ?? []
   if (funcionarios.length === 0) return []

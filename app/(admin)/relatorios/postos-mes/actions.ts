@@ -32,6 +32,7 @@ export async function buscarEfetivoMes(mes: number, ano: number): Promise<Efetiv
     .lte('data_admissao', fim)
     .or(`data_desligamento.is.null,data_desligamento.gte.${inicio}`)
     .order('nome')
+    .range(0, 1499)
 
   if (!funcs || funcs.length === 0) return []
 
