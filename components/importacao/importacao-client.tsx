@@ -112,6 +112,27 @@ function extractAlocacoes(rows: Record<string, unknown>[]): AlocacaoRow[] {
   })).filter(r => r.registro)
 }
 
+const EXPECTED_ALOCACAO_COLS = [
+  'Mês/Ano Referência',
+  'REGISTRO FUNCIONÁRIO',
+  'NOME FUNCIONÁRIO',
+  'CARGO (no mês)',
+  'STATUS',
+  'SUPERVISOR',
+  'POSTO DE TRABALHO (no mês)',
+  'SECRETARIA (no mês)',
+  'Está de Férias Hoje?',
+  'É Insalubre?',
+  'Data Demissão',
+  'Admissão',
+] as const
+
+function checkAlocacaoHeaders(rows: Record<string, unknown>[]): string[] {
+  if (rows.length === 0) return []
+  const headers = Object.keys(rows[0]).map(k => k.trim())
+  return EXPECTED_ALOCACAO_COLS.filter(col => !headers.includes(col))
+}
+
 function detectarEventos(rows: AlocacaoRow[]): EventoHistoricoInput[] {
   const eventos: EventoHistoricoInput[] = []
   const byRegistro = new Map<string, AlocacaoRow[]>()
@@ -260,15 +281,21 @@ function ResultPanel({ result }: { result: ImportResult }) {
 // ─── ABA 1: Alocações Mensais ─────────────────────────────────
 
 function TabAlocacoes() {
-  const [preview, setPreview]   = useState<Record<string, unknown>[]>([])
-  const [eventos, setEventos]   = useState<EventoHistoricoInput[]>([])
-  const [processing, setProc]   = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [result, setResult]     = useState<ImportResult | null>(null)
+  const [preview, setPreview]       = useState<Record<string, unknown>[]>([])
+  const [eventos, setEventos]       = useState<EventoHistoricoInput[]>([])
+  const [processing, setProc]       = useState(false)
+  const [progress, setProgress]     = useState(0)
+  const [result, setResult]         = useState<ImportResult | null>(null)
+  const [headerErrors, setHdrErrors] = useState<string[]>([])
 
   async function handleFile(f: File) {
-    setResult(null); setEventos([])
+    setResult(null); setEventos([]); setHdrErrors([]); setPreview([])
     const rows = await parseCSV(f)
+    const missing = checkAlocacaoHeaders(rows)
+    if (missing.length > 0) {
+      setHdrErrors(missing)
+      return
+    }
     setPreview(rows.slice(0, 5))
     const alocacoes = extractAlocacoes(rows)
     const evs = detectarEventos(alocacoes)
@@ -297,6 +324,17 @@ function TabAlocacoes() {
         <input type="file" accept=".csv" className={inputFile}
           onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
       </div>
+
+      {headerErrors.length > 0 && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+          <p className="text-sm font-semibold text-red-700">Colunas obrigatórias não encontradas no CSV:</p>
+          <ul className="mt-1 space-y-0.5">
+            {headerErrors.map(col => (
+              <li key={col} className="font-mono text-xs text-red-600">{col}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {preview.length > 0 && (
         <>

@@ -64,7 +64,8 @@
       "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); deps={**p.get\\('dependencies',{}\\),**p.get\\('devDependencies',{}\\)}; [print\\(k,v\\) for k,v in deps.items\\(\\) if any\\(x in k for x in ['xlsx','pdf','sheet']\\)]\")",
       "Bash(npm install *)",
       "Bash(grep -v \"^IF$\")",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(printenv)"
     ]
   }
 }
