@@ -8,18 +8,35 @@ export interface AusenciaRow {
   registro: string | null
   posto_nome: string
   secretaria: string
-  tipo_ausencia: 'falta' | 'atestado' | 'ferias'
+  tipo_ausencia: 'falta' | 'atestado' | 'suspensao'
   data: string
   dias: number
   justificativa: string
 }
 
+export interface FeriasRow {
+  id: string
+  funcionario_nome: string
+  registro: string | null
+  posto_nome: string
+  secretaria: string
+  data_inicio: string
+  data_fim: string
+  data_efetiva: string
+  dias_no_mes: number
+}
+
 export interface AbsenteismoKpis {
-  total_ausencias: number
+  total_ocorrencias: number
   total_dias: number
   pct_absenteismo: number
   total_funcionarios: number
   dias_uteis: number
+}
+
+export interface FeriasKpis {
+  total_funcionarios: number
+  total_dias: number
 }
 
 function parseDateUTC(iso: string): number {
@@ -28,7 +45,7 @@ function parseDateUTC(iso: string): number {
   return Date.UTC(y, m - 1, d)
 }
 
-function diasNoMes(dataInicio: string, dataFim: string, mesInicio: string, mesFim: string): number {
+function clipDias(dataInicio: string, dataFim: string, mesInicio: string, mesFim: string): number {
   const start = Math.max(parseDateUTC(dataInicio), parseDateUTC(mesInicio))
   const end   = Math.min(parseDateUTC(dataFim),    parseDateUTC(mesFim))
   if (end < start) return 0
@@ -49,14 +66,20 @@ function diasUteis(mes: number, ano: number): number {
 export async function buscarAbsenteismo(
   mes: number,
   ano: number,
-): Promise<{ rows: AusenciaRow[]; kpis: AbsenteismoKpis }> {
+): Promise<{ absRows: AusenciaRow[]; feriasRows: FeriasRow[]; kpisAbs: AbsenteismoKpis; kpisFerias: FeriasKpis }> {
   const supabase = createClient()
 
   const pad = (n: number) => String(n).padStart(2, '0')
   const inicio = `${ano}-${pad(mes)}-01`
   const fim    = `${ano}-${pad(mes)}-${new Date(ano, mes, 0).getDate()}`
 
-  const [{ data: faltas }, { data: atestados }, { data: ferias }, { data: totalFuncs }] = await Promise.all([
+  const [
+    { data: faltas },
+    { data: atestados },
+    { data: suspensoes },
+    { data: ferias },
+    { data: totalFuncs },
+  ] = await Promise.all([
     supabase
       .from('faltas')
       .select(`
@@ -66,6 +89,7 @@ export async function buscarAbsenteismo(
       .gte('data_falta', inicio)
       .lte('data_falta', fim)
       .order('data_falta'),
+
     supabase
       .from('atestados')
       .select(`
@@ -76,6 +100,19 @@ export async function buscarAbsenteismo(
       .lte('data_inicio', fim)
       .gte('data_fim',    inicio)
       .order('data_inicio'),
+
+    supabase
+      .from('advertencias')
+      .select(`
+        id, data_ocorrencia, descricao, dias_suspensao,
+        funcionarios!funcionario_id ( nome, registro, posto_id, postos!posto_id ( nome, secretaria ) )
+      `)
+      .eq('grau', 'suspensao')
+      .gt('dias_suspensao', 0)
+      .gte('data_ocorrencia', inicio)
+      .lte('data_ocorrencia', fim)
+      .order('data_ocorrencia'),
+
     supabase
       .from('ferias')
       .select(`
@@ -86,20 +123,22 @@ export async function buscarAbsenteismo(
       .gte('data_fim',    inicio)
       .not('status', 'eq', 'cancelado')
       .order('data_inicio'),
+
     supabase
       .from('funcionarios')
       .select('id', { count: 'exact', head: true })
       .in('status', ['ativo', 'ferias', 'afastado']),
   ])
 
-  type FuncJoin = { nome: string; registro: string | null; postos: { nome: string; secretaria: string | null } | null }
-  type PostoJoin = { nome: string; secretaria: string | null }
+  type FuncJoin     = { nome: string; registro: string | null; postos: { nome: string; secretaria: string | null } | null }
+  type FuncJoinAdv  = { nome: string; registro: string | null; posto_id: string | null; postos: { nome: string; secretaria: string | null } | null }
+  type PostoJoin    = { nome: string; secretaria: string | null }
 
-  const rows: AusenciaRow[] = []
+  const absRows: AusenciaRow[] = []
 
   for (const f of faltas ?? []) {
     const func = f.funcionarios as unknown as FuncJoin | null
-    rows.push({
+    absRows.push({
       id:               f.id,
       funcionario_nome: func?.nome ?? '—',
       registro:         func?.registro ?? null,
@@ -115,9 +154,9 @@ export async function buscarAbsenteismo(
   for (const a of atestados ?? []) {
     const func  = a.funcionarios as unknown as FuncJoin | null
     const posto = a.postos as unknown as PostoJoin | null
-    const d = diasNoMes(a.data_inicio, a.data_fim, inicio, fim)
+    const d = clipDias(a.data_inicio, a.data_fim, inicio, fim)
     if (d <= 0) continue
-    rows.push({
+    absRows.push({
       id:               a.id,
       funcionario_nome: func?.nome ?? '—',
       registro:         func?.registro ?? null,
@@ -130,8 +169,25 @@ export async function buscarAbsenteismo(
     })
   }
 
+  for (const s of suspensoes ?? []) {
+    const func = s.funcionarios as unknown as FuncJoinAdv | null
+    absRows.push({
+      id:               s.id,
+      funcionario_nome: func?.nome ?? '—',
+      registro:         func?.registro ?? null,
+      posto_nome:       func?.postos?.nome ?? '—',
+      secretaria:       func?.postos?.secretaria ?? '—',
+      tipo_ausencia:    'suspensao',
+      data:             s.data_ocorrencia ?? '',
+      dias:             s.dias_suspensao ?? 0,
+      justificativa:    s.descricao ?? '—',
+    })
+  }
+
+  absRows.sort((a, b) => a.tipo_ausencia.localeCompare(b.tipo_ausencia) || a.data.localeCompare(b.data))
+
+  // Férias: deduplicar por funcionario_id (manter a com mais dias no mês)
   type FeriasEntry = NonNullable<typeof ferias>[0]
-  // Deduplicar férias por funcionario_id: manter a entrada com mais dias no mês
   const feriasSeen = new Map<string, FeriasEntry>()
   for (const v of ferias ?? []) {
     const fid = (v as unknown as { funcionario_id: string }).funcionario_id
@@ -140,47 +196,51 @@ export async function buscarAbsenteismo(
     if (!existing) {
       feriasSeen.set(fid, v)
     } else {
-      const dNew = diasNoMes(v.data_inicio!, v.data_fim!, inicio, fim)
-      const dOld = diasNoMes(existing.data_inicio!, existing.data_fim!, inicio, fim)
+      const dNew = clipDias(v.data_inicio!, v.data_fim!, inicio, fim)
+      const dOld = clipDias(existing.data_inicio!, existing.data_fim!, inicio, fim)
       if (dNew > dOld) feriasSeen.set(fid, v)
     }
   }
 
+  const feriasRows: FeriasRow[] = []
   for (const v of Array.from(feriasSeen.values())) {
     const func = v.funcionarios as unknown as FuncJoin | null
-    const d = diasNoMes(v.data_inicio!, v.data_fim!, inicio, fim)
+    const d = clipDias(v.data_inicio!, v.data_fim!, inicio, fim)
     if (d <= 0) continue
-    // inicioEfetivo: primeiro dia das férias que cai dentro do mês
-    const inicioEfetivo = v.data_inicio! < inicio ? inicio : v.data_inicio!
-    rows.push({
+    const dataEfetiva = v.data_inicio! < inicio ? inicio : v.data_inicio!
+    feriasRows.push({
       id:               v.id,
       funcionario_nome: func?.nome ?? '—',
       registro:         func?.registro ?? null,
       posto_nome:       func?.postos?.nome ?? '—',
       secretaria:       func?.postos?.secretaria ?? '—',
-      tipo_ausencia:    'ferias',
-      data:             inicioEfetivo,
-      dias:             d,
-      justificativa:    v.observacao ?? '—',
+      data_inicio:      v.data_inicio!,
+      data_fim:         v.data_fim!,
+      data_efetiva:     dataEfetiva,
+      dias_no_mes:      d,
     })
   }
+  feriasRows.sort((a, b) => a.funcionario_nome.localeCompare(b.funcionario_nome))
 
-  rows.sort((a, b) => a.tipo_ausencia.localeCompare(b.tipo_ausencia) || a.data.localeCompare(b.data))
-
-  const totalDias         = rows.reduce((s, r) => s + r.dias, 0)
   const totalFuncionarios = (totalFuncs as { count: number } | null)?.count ?? 0
-  const du                = diasUteis(mes, ano)
-  const base              = totalFuncionarios * du
-  const pct               = base > 0 ? (totalDias / base) * 100 : 0
+  const du   = diasUteis(mes, ano)
+  const tDias = absRows.reduce((s, r) => s + r.dias, 0)
+  const base  = totalFuncionarios * du
+  const pct   = base > 0 ? (tDias / base) * 100 : 0
 
   return {
-    rows,
-    kpis: {
-      total_ausencias:    rows.length,
-      total_dias:         totalDias,
+    absRows,
+    feriasRows,
+    kpisAbs: {
+      total_ocorrencias:  absRows.length,
+      total_dias:         tDias,
       pct_absenteismo:    Math.round(pct * 10) / 10,
       total_funcionarios: totalFuncionarios,
       dias_uteis:         du,
+    },
+    kpisFerias: {
+      total_funcionarios: feriasRows.length,
+      total_dias:         feriasRows.reduce((s, r) => s + r.dias_no_mes, 0),
     },
   }
 }
