@@ -234,7 +234,7 @@ export async function buscarAbsenteismo(
     kpisAbs: {
       total_ocorrencias:  absRows.length,
       total_dias:         tDias,
-      pct_absenteismo:    Math.round(pct * 10) / 10,
+      pct_absenteismo:    Math.round(pct * 100) / 100,
       total_funcionarios: totalFuncionarios,
       dias_uteis:         du,
     },

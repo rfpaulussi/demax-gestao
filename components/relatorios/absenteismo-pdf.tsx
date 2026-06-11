@@ -48,15 +48,20 @@ const s = StyleSheet.create({
   fDias:  { width: 40 },
 })
 
+function fmtTaxa(v: number): string {
+  return v > 0 && v < 1 ? v.toFixed(2) + '%' : v.toFixed(1) + '%'
+}
+
 interface Props {
   absRows: AusenciaRow[]
   feriasRows: FeriasRow[]
+  taxa: number
   mes: number
   ano: number
   MESES: string[]
 }
 
-export function AbsenteismoDoc({ absRows, feriasRows, mes, ano, MESES }: Props) {
+export function AbsenteismoDoc({ absRows, feriasRows, taxa, mes, ano, MESES }: Props) {
   const TIPOS = ['falta', 'atestado', 'suspensao'] as const
   const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
   const totalDiasFerias = feriasRows.reduce((s, r) => s + r.dias_no_mes, 0)
@@ -69,7 +74,7 @@ export function AbsenteismoDoc({ absRows, feriasRows, mes, ano, MESES }: Props) 
 
         {/* Seção 1: Absenteísmo */}
         <Text style={s.sectionHeader}>
-          ABSENTEÍSMO (NÃO PROGRAMADO) — {absRows.length} OCORRÊNCIA{absRows.length !== 1 ? 'S' : ''} · {absRows.reduce((s, r) => s + r.dias, 0)} DIAS
+          ABSENTEÍSMO (NÃO PROGRAMADO) — {absRows.length} OCORRÊNCIA{absRows.length !== 1 ? 'S' : ''} · {absRows.reduce((s, r) => s + r.dias, 0)} DIAS · TAXA {fmtTaxa(taxa)}
         </Text>
 
         {absRows.length === 0 ? (

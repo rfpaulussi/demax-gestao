@@ -3,6 +3,10 @@ import { AbsenteismoClient } from '@/components/relatorios/absenteismo-client'
 
 const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
+function fmtTaxa(v: number): string {
+  return v > 0 && v < 1 ? v.toFixed(2) + '%' : v.toFixed(1) + '%'
+}
+
 export default async function AbsenteismoPage({
   searchParams,
 }: {
@@ -35,7 +39,7 @@ export default async function AbsenteismoPage({
             <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Dias Perdidos</p>
           </div>
           <div className="rounded-xl border border-gray-100 border-t-4 border-t-orange-500 bg-white p-5 shadow-sm">
-            <p className="text-3xl font-black tracking-tight text-gray-900">{kpisAbs.pct_absenteismo}%</p>
+            <p className="text-3xl font-black tracking-tight text-gray-900">{fmtTaxa(kpisAbs.pct_absenteismo)}</p>
             <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Taxa Absenteísmo</p>
             <p className="text-xs text-gray-300">{kpisAbs.total_funcionarios} func · {kpisAbs.dias_uteis} d.úteis</p>
           </div>
@@ -64,6 +68,7 @@ export default async function AbsenteismoPage({
       <AbsenteismoClient
         absRows={absRows}
         feriasRows={feriasRows}
+        taxa={kpisAbs.pct_absenteismo}
         mes={mes}
         ano={ano}
         MESES={MESES}

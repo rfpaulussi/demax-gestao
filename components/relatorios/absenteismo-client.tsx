@@ -93,10 +93,10 @@ function exportExcel(absRows: AusenciaRow[], feriasRows: FeriasRow[], mes: numbe
   XLSX.writeFile(wb, `absenteismo-${pad2(mes)}-${ano}.xlsx`)
 }
 
-async function exportPDF(absRows: AusenciaRow[], feriasRows: FeriasRow[], mes: number, ano: number, MESES: string[]) {
+async function exportPDF(absRows: AusenciaRow[], feriasRows: FeriasRow[], taxa: number, mes: number, ano: number, MESES: string[]) {
   const { pdf } = await import('@react-pdf/renderer')
   const { AbsenteismoDoc } = await import('./absenteismo-pdf')
-  const blob = await pdf(<AbsenteismoDoc absRows={absRows} feriasRows={feriasRows} mes={mes} ano={ano} MESES={MESES} />).toBlob()
+  const blob = await pdf(<AbsenteismoDoc absRows={absRows} feriasRows={feriasRows} taxa={taxa} mes={mes} ano={ano} MESES={MESES} />).toBlob()
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -108,13 +108,14 @@ async function exportPDF(absRows: AusenciaRow[], feriasRows: FeriasRow[], mes: n
 interface Props {
   absRows: AusenciaRow[]
   feriasRows: FeriasRow[]
+  taxa: number
   mes: number
   ano: number
   MESES: string[]
   anos: number[]
 }
 
-export function AbsenteismoClient({ absRows, feriasRows, mes, ano, MESES, anos }: Props) {
+export function AbsenteismoClient({ absRows, feriasRows, taxa, mes, ano, MESES, anos }: Props) {
   const [loadingXlsx, setLoadingXlsx] = useState(false)
   const [loadingPdf,  setLoadingPdf]  = useState(false)
 
@@ -154,7 +155,7 @@ export function AbsenteismoClient({ absRows, feriasRows, mes, ano, MESES, anos }
           </button>
           <button
             type="button"
-            onClick={async () => { setLoadingPdf(true); try { await exportPDF(absRows, feriasRows, mes, ano, MESES) } finally { setLoadingPdf(false) } }}
+            onClick={async () => { setLoadingPdf(true); try { await exportPDF(absRows, feriasRows, taxa, mes, ano, MESES) } finally { setLoadingPdf(false) } }}
             disabled={loadingPdf || !hasData}
             className="flex h-9 items-center gap-1.5 rounded-lg bg-amber-500 px-3 text-sm font-medium text-slate-900 hover:bg-amber-400 disabled:opacity-40"
           >
