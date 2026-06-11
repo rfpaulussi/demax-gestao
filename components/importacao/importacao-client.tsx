@@ -43,6 +43,43 @@ function parseCSV(file: File): Promise<Record<string, unknown>[]> {
   })
 }
 
+function parseCSVFindHeader(
+  file: File,
+  headerKey: string
+): Promise<{ rows: Record<string, unknown>[]; error?: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string
+        const wb = XLSX.read(text, { type: 'string', raw: false })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as unknown[][]
+        const headerIdx = raw.findIndex(row =>
+          row.some(cell => String(cell ?? '').trim() === headerKey)
+        )
+        if (headerIdx === -1) {
+          resolve({ rows: [], error: 'Cabeçalho não encontrado. Verifique se o arquivo é o Log de Alocações Mensais.' })
+          return
+        }
+        const headers = raw[headerIdx].map(h => String(h ?? '').trim())
+        const rows = raw.slice(headerIdx + 1)
+          .filter(row => row.some(cell => String(cell ?? '').trim() !== ''))
+          .map(row => {
+            const obj: Record<string, unknown> = {}
+            headers.forEach((h, i) => { obj[h] = row[i] ?? '' })
+            return obj
+          })
+        resolve({ rows })
+      } catch (err) {
+        reject(err)
+      }
+    }
+    reader.onerror = reject
+    reader.readAsText(file, 'UTF-8')
+  })
+}
+
 function getCol(row: Record<string, unknown>, ...keys: string[]): string {
   const normalized: Record<string, string> = {}
   for (const [k, v] of Object.entries(row)) {
@@ -281,21 +318,20 @@ function ResultPanel({ result }: { result: ImportResult }) {
 // ─── ABA 1: Alocações Mensais ─────────────────────────────────
 
 function TabAlocacoes() {
-  const [preview, setPreview]       = useState<Record<string, unknown>[]>([])
-  const [eventos, setEventos]       = useState<EventoHistoricoInput[]>([])
-  const [processing, setProc]       = useState(false)
-  const [progress, setProgress]     = useState(0)
-  const [result, setResult]         = useState<ImportResult | null>(null)
+  const [preview, setPreview]        = useState<Record<string, unknown>[]>([])
+  const [eventos, setEventos]        = useState<EventoHistoricoInput[]>([])
+  const [processing, setProc]        = useState(false)
+  const [progress, setProgress]      = useState(0)
+  const [result, setResult]          = useState<ImportResult | null>(null)
+  const [csvError, setCsvError]      = useState<string | null>(null)
   const [headerErrors, setHdrErrors] = useState<string[]>([])
 
   async function handleFile(f: File) {
-    setResult(null); setEventos([]); setHdrErrors([]); setPreview([])
-    const rows = await parseCSV(f)
+    setResult(null); setEventos([]); setCsvError(null); setHdrErrors([]); setPreview([])
+    const { rows, error: csvErr } = await parseCSVFindHeader(f, 'REGISTRO FUNCIONÁRIO')
+    if (csvErr) { setCsvError(csvErr); return }
     const missing = checkAlocacaoHeaders(rows)
-    if (missing.length > 0) {
-      setHdrErrors(missing)
-      return
-    }
+    if (missing.length > 0) { setHdrErrors(missing); return }
     setPreview(rows.slice(0, 5))
     const alocacoes = extractAlocacoes(rows)
     const evs = detectarEventos(alocacoes)
@@ -324,6 +360,12 @@ function TabAlocacoes() {
         <input type="file" accept=".csv" className={inputFile}
           onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
       </div>
+
+      {csvError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+          <p className="text-sm font-semibold text-red-700">{csvError}</p>
+        </div>
+      )}
 
       {headerErrors.length > 0 && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4">
