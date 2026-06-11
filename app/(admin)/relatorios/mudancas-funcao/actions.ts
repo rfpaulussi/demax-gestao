@@ -6,7 +6,7 @@ export interface MudancaFuncaoRow {
   id: string
   data_evento: string
   funcionario_nome: string
-  cpf: string | null
+  registro: string | null
   funcao_anterior: string
   funcao_nova: string
   posto_nome: string
@@ -26,7 +26,7 @@ export async function buscarMudancasFuncao(mes: number, ano: number): Promise<Mu
       .from('historico_funcionarios')
       .select(`
         id, funcionario_id, data_evento, dados_anteriores, dados_novos,
-        funcionarios!funcionario_id ( nome, cpf, posto_id, postos!posto_id ( nome, secretaria ) )
+        funcionarios!funcionario_id ( nome, registro, posto_id, postos!posto_id ( nome, secretaria ) )
       `)
       .eq('tipo', 'mudanca_funcao')
       .gte('data_evento', inicio)
@@ -50,7 +50,7 @@ export async function buscarMudancasFuncao(mes: number, ano: number): Promise<Mu
 
   type FuncJoin = {
     nome: string
-    cpf: string | null
+    registro: string | null
     posto_id: string | null
     postos: { nome: string; secretaria: string | null } | null
   }
@@ -69,7 +69,7 @@ export async function buscarMudancasFuncao(mes: number, ano: number): Promise<Mu
       id:              h.id,
       data_evento:     h.data_evento,
       funcionario_nome: func?.nome ?? '—',
-      cpf:             func?.cpf ?? null,
+      registro:        func?.registro ?? null,
       funcao_anterior: funcaoById.get(funcaoAnteriorId) ?? '—',
       funcao_nova:     funcaoById.get(funcaoNovaId)     ?? '—',
       posto_nome:      postoNome,

@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 export interface AusenciaRow {
   id: string
   funcionario_nome: string
-  cpf: string | null
+  registro: string | null
   posto_nome: string
   secretaria: string
   tipo_ausencia: 'falta' | 'atestado' | 'ferias'
@@ -22,20 +22,26 @@ export interface AbsenteismoKpis {
   dias_uteis: number
 }
 
+function parseDateUTC(iso: string): number {
+  const s = iso.slice(0, 10)
+  const [y, m, d] = s.split('-').map(Number)
+  return Date.UTC(y, m - 1, d)
+}
+
 function diasNoMes(dataInicio: string, dataFim: string, mesInicio: string, mesFim: string): number {
-  const a = new Date(Math.max(new Date(dataInicio).getTime(), new Date(mesInicio).getTime()))
-  const b = new Date(Math.min(new Date(dataFim).getTime(), new Date(mesFim).getTime()))
-  if (b < a) return 0
-  return Math.floor((b.getTime() - a.getTime()) / 86400000) + 1
+  const start = Math.max(parseDateUTC(dataInicio), parseDateUTC(mesInicio))
+  const end   = Math.min(parseDateUTC(dataFim),    parseDateUTC(mesFim))
+  if (end < start) return 0
+  return Math.round((end - start) / 86400000) + 1
 }
 
 function diasUteis(mes: number, ano: number): number {
   let count = 0
-  const d = new Date(ano, mes - 1, 1)
-  while (d.getMonth() === mes - 1) {
-    const dow = d.getDay()
+  const d = new Date(Date.UTC(ano, mes - 1, 1))
+  while (d.getUTCMonth() === mes - 1) {
+    const dow = d.getUTCDay()
     if (dow !== 0 && dow !== 6) count++
-    d.setDate(d.getDate() + 1)
+    d.setUTCDate(d.getUTCDate() + 1)
   }
   return count
 }
@@ -55,7 +61,7 @@ export async function buscarAbsenteismo(
       .from('faltas')
       .select(`
         id, data_falta, tipo, dias, justificativa, observacao,
-        funcionarios!funcionario_id ( nome, cpf, postos!posto_id ( nome, secretaria ) )
+        funcionarios!funcionario_id ( nome, registro, postos!posto_id ( nome, secretaria ) )
       `)
       .gte('data_falta', inicio)
       .lte('data_falta', fim)
@@ -64,7 +70,7 @@ export async function buscarAbsenteismo(
       .from('atestados')
       .select(`
         id, data_inicio, data_fim, motivo,
-        funcionarios!funcionario_id ( nome, cpf ),
+        funcionarios!funcionario_id ( nome, registro ),
         postos!posto_id ( nome, secretaria )
       `)
       .lte('data_inicio', fim)
@@ -74,7 +80,7 @@ export async function buscarAbsenteismo(
       .from('ferias')
       .select(`
         id, data_inicio, data_fim, observacao,
-        funcionarios!funcionario_id ( nome, cpf, postos!posto_id ( nome, secretaria ) )
+        funcionarios!funcionario_id ( nome, registro, postos!posto_id ( nome, secretaria ) )
       `)
       .lte('data_inicio', fim)
       .gte('data_fim',    inicio)
@@ -86,7 +92,7 @@ export async function buscarAbsenteismo(
       .in('status', ['ativo', 'ferias', 'afastado']),
   ])
 
-  type FuncJoin = { nome: string; cpf: string | null; postos: { nome: string; secretaria: string | null } | null }
+  type FuncJoin = { nome: string; registro: string | null; postos: { nome: string; secretaria: string | null } | null }
   type PostoJoin = { nome: string; secretaria: string | null }
 
   const rows: AusenciaRow[] = []
@@ -94,15 +100,15 @@ export async function buscarAbsenteismo(
   for (const f of faltas ?? []) {
     const func = f.funcionarios as unknown as FuncJoin | null
     rows.push({
-      id: f.id,
+      id:               f.id,
       funcionario_nome: func?.nome ?? '—',
-      cpf: func?.cpf ?? null,
-      posto_nome:  func?.postos?.nome ?? '—',
-      secretaria:  func?.postos?.secretaria ?? '—',
-      tipo_ausencia: 'falta',
-      data: f.data_falta,
-      dias: f.dias,
-      justificativa: f.justificativa ?? f.observacao ?? '—',
+      registro:         func?.registro ?? null,
+      posto_nome:       func?.postos?.nome ?? '—',
+      secretaria:       func?.postos?.secretaria ?? '—',
+      tipo_ausencia:    'falta',
+      data:             f.data_falta,
+      dias:             f.dias,
+      justificativa:    f.justificativa ?? f.observacao ?? '—',
     })
   }
 
@@ -112,15 +118,15 @@ export async function buscarAbsenteismo(
     const d = diasNoMes(a.data_inicio, a.data_fim, inicio, fim)
     if (d <= 0) continue
     rows.push({
-      id: a.id,
+      id:               a.id,
       funcionario_nome: func?.nome ?? '—',
-      cpf: func?.cpf ?? null,
-      posto_nome:  posto?.nome ?? '—',
-      secretaria:  posto?.secretaria ?? '—',
-      tipo_ausencia: 'atestado',
-      data: a.data_inicio,
-      dias: d,
-      justificativa: a.motivo ?? '—',
+      registro:         func?.registro ?? null,
+      posto_nome:       posto?.nome ?? '—',
+      secretaria:       posto?.secretaria ?? '—',
+      tipo_ausencia:    'atestado',
+      data:             a.data_inicio,
+      dias:             d,
+      justificativa:    a.motivo ?? '—',
     })
   }
 
@@ -129,25 +135,25 @@ export async function buscarAbsenteismo(
     const d = diasNoMes(v.data_inicio!, v.data_fim!, inicio, fim)
     if (d <= 0) continue
     rows.push({
-      id: v.id,
+      id:               v.id,
       funcionario_nome: func?.nome ?? '—',
-      cpf: func?.cpf ?? null,
-      posto_nome:  func?.postos?.nome ?? '—',
-      secretaria:  func?.postos?.secretaria ?? '—',
-      tipo_ausencia: 'ferias',
-      data: v.data_inicio!,
-      dias: d,
-      justificativa: v.observacao ?? '—',
+      registro:         func?.registro ?? null,
+      posto_nome:       func?.postos?.nome ?? '—',
+      secretaria:       func?.postos?.secretaria ?? '—',
+      tipo_ausencia:    'ferias',
+      data:             v.data_inicio!,
+      dias:             d,
+      justificativa:    v.observacao ?? '—',
     })
   }
 
   rows.sort((a, b) => a.tipo_ausencia.localeCompare(b.tipo_ausencia) || a.data.localeCompare(b.data))
 
-  const totalDias        = rows.reduce((s, r) => s + r.dias, 0)
+  const totalDias         = rows.reduce((s, r) => s + r.dias, 0)
   const totalFuncionarios = (totalFuncs as { count: number } | null)?.count ?? 0
-  const du               = diasUteis(mes, ano)
-  const base             = totalFuncionarios * du
-  const pct              = base > 0 ? (totalDias / base) * 100 : 0
+  const du                = diasUteis(mes, ano)
+  const base              = totalFuncionarios * du
+  const pct               = base > 0 ? (totalDias / base) * 100 : 0
 
   return {
     rows,

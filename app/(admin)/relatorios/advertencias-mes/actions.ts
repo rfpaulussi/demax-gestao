@@ -6,7 +6,7 @@ export interface AdvertenciaMesRow {
   id: string
   data_ocorrencia: string
   funcionario_nome: string
-  cpf: string | null
+  registro: string | null
   posto_nome: string
   secretaria: string
   supervisor: string
@@ -37,7 +37,7 @@ export async function buscarAdvertenciasMes(
       .from('advertencias')
       .select(`
         id, data_ocorrencia, grau, tipo, descricao, dias_suspensao, status,
-        funcionarios!funcionario_id ( nome, cpf, posto_id, postos!posto_id ( nome, secretaria ) )
+        funcionarios!funcionario_id ( nome, registro, posto_id, postos!posto_id ( nome, secretaria ) )
       `)
       .gte('data_ocorrencia', inicio)
       .lte('data_ocorrencia', fim)
@@ -57,7 +57,7 @@ export async function buscarAdvertenciasMes(
 
   type FuncJoin = {
     nome: string
-    cpf: string | null
+    registro: string | null
     posto_id: string | null
     postos: { nome: string; secretaria: string | null } | null
   }
@@ -69,7 +69,7 @@ export async function buscarAdvertenciasMes(
       id:               a.id,
       data_ocorrencia:  a.data_ocorrencia ?? '',
       funcionario_nome: func?.nome ?? '—',
-      cpf:              func?.cpf ?? null,
+      registro:         func?.registro ?? null,
       posto_nome:       func?.postos?.nome ?? '—',
       secretaria:       func?.postos?.secretaria ?? '—',
       supervisor:       supByPosto.get(postoId) ?? '—',

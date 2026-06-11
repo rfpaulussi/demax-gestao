@@ -58,7 +58,13 @@
       "Bash(find lib *)",
       "Bash(dir lib *)",
       "Bash(xargs ls -la)",
-      "Bash(npx supabase *)"
+      "Bash(npx supabase *)",
+      "Bash(supabase --version)",
+      "Bash(env)",
+      "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); deps={**p.get\\('dependencies',{}\\),**p.get\\('devDependencies',{}\\)}; [print\\(k,v\\) for k,v in deps.items\\(\\) if any\\(x in k for x in ['xlsx','pdf','sheet']\\)]\")",
+      "Bash(npm install *)",
+      "Bash(grep -v \"^IF$\")",
+      "Bash(node *)"
     ]
   }
 }

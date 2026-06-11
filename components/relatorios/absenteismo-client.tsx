@@ -14,13 +14,6 @@ function fmt(iso: string): string {
   return `${d}/${m}/${y}`
 }
 
-function maskCpf(cpf: string | null): string {
-  if (!cpf) return '—'
-  const d = cpf.replace(/\D/g, '')
-  if (d.length !== 11) return cpf
-  return `***.***.${ d.slice(6, 9) }-${ d.slice(9) }`
-}
-
 function pad2(n: number) { return String(n).padStart(2, '0') }
 
 const TIPO_LABELS: Record<string, string> = { falta: 'Falta', atestado: 'Atestado', ferias: 'Férias' }
@@ -49,7 +42,7 @@ function exportExcel(rows: AusenciaRow[], mes: number, ano: number, MESES: strin
     allRows.push({ data: [`${TIPO_LABELS[tipo].toUpperCase()} (${grupo.length} · ${totalDias} dias)`, ...Array(NC - 1).fill('')], style: 'groupHeader' })
     allRows.push({ data: HEADERS, style: 'colHeader' })
     for (const r of grupo) {
-      allRows.push({ data: [r.funcionario_nome, maskCpf(r.cpf), r.posto_nome, r.secretaria, TIPO_LABELS[r.tipo_ausencia], fmt(r.data), r.dias, r.justificativa] })
+      allRows.push({ data: [r.funcionario_nome, r.registro ?? '—', r.posto_nome, r.secretaria, TIPO_LABELS[r.tipo_ausencia], fmt(r.data), r.dias, r.justificativa] })
     }
     allRows.push({ data: ['TOTAL', '', '', '', '', '', totalDias, ''], style: 'totals' })
     allRows.push({ data: [] })
@@ -172,7 +165,7 @@ export function AbsenteismoClient({ rows, mes, ano, MESES, anos }: Props) {
                       {grupo.map(r => (
                         <tr key={r.id} className="hover:bg-gray-50/80">
                           <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap">{r.funcionario_nome}</td>
-                          <td className="px-3 py-2.5 font-mono text-xs text-gray-400 whitespace-nowrap">{maskCpf(r.cpf)}</td>
+                          <td className="px-3 py-2.5 font-mono text-xs text-gray-400 whitespace-nowrap">{r.registro ?? '—'}</td>
                           <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.posto_nome}</td>
                           <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.secretaria}</td>
                           <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmt(r.data)}</td>

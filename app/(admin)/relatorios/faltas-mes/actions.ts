@@ -6,7 +6,7 @@ export interface FaltaMesRow {
   id: string
   data_falta: string
   funcionario_nome: string
-  cpf: string | null
+  registro: string | null
   posto_nome: string
   secretaria: string
   supervisor: string
@@ -38,7 +38,7 @@ export async function buscarFaltasMes(
       .from('faltas')
       .select(`
         id, data_falta, tipo, dias, tem_documento, justificativa, observacao,
-        funcionarios!funcionario_id ( nome, cpf, posto_id, postos!posto_id ( nome, secretaria ) )
+        funcionarios!funcionario_id ( nome, registro, posto_id, postos!posto_id ( nome, secretaria ) )
       `)
       .gte('data_falta', inicio)
       .lte('data_falta', fim)
@@ -58,7 +58,7 @@ export async function buscarFaltasMes(
 
   type FuncJoin = {
     nome: string
-    cpf: string | null
+    registro: string | null
     posto_id: string | null
     postos: { nome: string; secretaria: string | null } | null
   }
@@ -70,7 +70,7 @@ export async function buscarFaltasMes(
       id:               f.id,
       data_falta:       f.data_falta,
       funcionario_nome: func?.nome ?? '—',
-      cpf:              func?.cpf ?? null,
+      registro:         func?.registro ?? null,
       posto_nome:       func?.postos?.nome ?? '—',
       secretaria:       func?.postos?.secretaria ?? '—',
       supervisor:       supByPosto.get(postoId) ?? '—',

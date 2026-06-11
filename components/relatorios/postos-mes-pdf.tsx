@@ -6,22 +6,22 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 const s = StyleSheet.create({
-  page:        { padding: 28, fontSize: 8, fontFamily: 'Helvetica', backgroundColor: '#ffffff' },
-  title:       { fontSize: 11, fontWeight: 'bold', marginBottom: 2 },
-  subtitle:    { fontSize: 8, color: '#6b7280', marginBottom: 14 },
+  page:        { padding: 28, fontSize: 7, fontFamily: 'Helvetica', backgroundColor: '#ffffff' },
+  title:       { fontSize: 10, fontWeight: 'bold', marginBottom: 2 },
+  subtitle:    { fontSize: 7, color: '#6b7280', marginBottom: 12 },
   groupHeader: { backgroundColor: '#1e293b', color: '#ffffff', fontSize: 7, fontWeight: 'bold',
                  paddingVertical: 3, paddingHorizontal: 6, marginTop: 8 },
   subHeader:   { backgroundColor: '#475569', color: '#ffffff', fontSize: 7, fontWeight: 'bold',
                  paddingVertical: 2, paddingHorizontal: 6 },
   thead:       { flexDirection: 'row', backgroundColor: '#f8fafc', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-  th:          { fontSize: 7, fontWeight: 'bold', color: '#94a3b8', paddingVertical: 3, paddingHorizontal: 3, textTransform: 'uppercase' },
+  th:          { fontSize: 6, fontWeight: 'bold', color: '#94a3b8', paddingVertical: 3, paddingHorizontal: 4, textTransform: 'uppercase' },
   row:         { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   rowAlt:      { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#f1f5f9', backgroundColor: '#fafafa' },
-  td:          { fontSize: 8, color: '#374151', paddingVertical: 3, paddingHorizontal: 3 },
-  tdBold:      { fontSize: 8, fontWeight: 'bold', color: '#374151', paddingVertical: 3, paddingHorizontal: 3 },
-  cNome:       { width: 140 },
-  cFuncao:     { width: 100 },
-  cStatus:     { width: 55 },
+  td:          { fontSize: 7, color: '#374151', paddingVertical: 3, paddingHorizontal: 4 },
+  tdBold:      { fontSize: 7, fontWeight: 'bold', color: '#374151', paddingVertical: 3, paddingHorizontal: 4 },
+  cNome:       { width: 155 },
+  cFuncao:     { width: 110 },
+  cStatus:     { width: 58 },
 })
 
 interface Props { dados: EfetivoMesRow[]; mes: number; ano: number; MESES: string[] }

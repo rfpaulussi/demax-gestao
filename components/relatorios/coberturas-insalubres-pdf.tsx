@@ -8,43 +8,34 @@ function fmt(iso: string): string {
 }
 
 const s = StyleSheet.create({
-  page:        { padding: 28, fontSize: 8, fontFamily: 'Helvetica', backgroundColor: '#ffffff' },
-  title:       { fontSize: 11, fontWeight: 'bold', marginBottom: 2 },
-  subtitle:    { fontSize: 8, color: '#6b7280', marginBottom: 14 },
+  page:        { padding: 28, fontSize: 7, fontFamily: 'Helvetica', backgroundColor: '#ffffff' },
+  title:       { fontSize: 10, fontWeight: 'bold', marginBottom: 2 },
+  subtitle:    { fontSize: 7, color: '#6b7280', marginBottom: 12 },
   groupHeader: { backgroundColor: '#1e293b', color: '#ffffff', fontSize: 7, fontWeight: 'bold',
                  paddingVertical: 3, paddingHorizontal: 6, marginTop: 8 },
-  totalsRow:   { flexDirection: 'row', backgroundColor: '#f1f5f9', borderBottomWidth: 1,
-                 borderBottomColor: '#e2e8f0' },
   thead:       { flexDirection: 'row', backgroundColor: '#f8fafc', borderBottomWidth: 1,
                  borderBottomColor: '#e2e8f0' },
-  th:          { fontSize: 7, fontWeight: 'bold', color: '#94a3b8', paddingVertical: 3,
-                 paddingHorizontal: 3, textTransform: 'uppercase' },
+  th:          { fontSize: 6, fontWeight: 'bold', color: '#94a3b8', paddingVertical: 3,
+                 paddingHorizontal: 4, textTransform: 'uppercase' },
   row:         { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   rowAlt:      { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
                  backgroundColor: '#fafafa' },
-  td:          { fontSize: 8, color: '#374151', paddingVertical: 3, paddingHorizontal: 3 },
-  tdNum:       { fontSize: 8, color: '#374151', paddingVertical: 3, paddingHorizontal: 3, textAlign: 'center' },
-  tdBold:      { fontSize: 8, fontWeight: 'bold', color: '#374151', paddingVertical: 3, paddingHorizontal: 3 },
-  cPosto:      { width: 90 },
-  cSec:        { width: 70 },
-  cColab:      { width: 100 },
-  cFuncao:     { width: 80 },
-  cAusente:    { width: 90 },
+  totalsRow:   { flexDirection: 'row', backgroundColor: '#f1f5f9',
+                 borderTopWidth: 2, borderTopColor: '#94a3b8', borderBottomWidth: 1,
+                 borderBottomColor: '#e2e8f0', marginBottom: 6 },
+  td:          { fontSize: 7, color: '#374151', paddingVertical: 3, paddingHorizontal: 4 },
+  tdBold:      { fontSize: 7, fontWeight: 'bold', color: '#111827', paddingVertical: 3, paddingHorizontal: 4 },
+  tdNum:       { fontSize: 7, color: '#374151', paddingVertical: 3, paddingHorizontal: 4, textAlign: 'center' },
+  tdNumBold:   { fontSize: 7, fontWeight: 'bold', color: '#374151', paddingVertical: 3, paddingHorizontal: 4, textAlign: 'center' },
+  cPosto:      { width: 95 },
+  cSec:        { width: 72 },
+  cColab:      { width: 132 },
+  cFuncao:     { width: 105 },
+  cAusente:    { width: 105 },
   cData:       { width: 55 },
-  cDias:       { width: 30 },
-  cMotivo:     { width: 80 },
+  cDias:       { width: 32 },
+  cMotivo:     { width: 90 },
 })
-
-const COLS = [
-  { label: 'Posto',        style: s.cPosto,   num: false },
-  { label: 'Secretaria',   style: s.cSec,     num: false },
-  { label: 'Colaborador',  style: s.cColab,   num: false },
-  { label: 'Função',       style: s.cFuncao,  num: false },
-  { label: 'Ag. Ausente',  style: s.cAusente, num: false },
-  { label: 'Data Início',  style: s.cData,    num: true  },
-  { label: 'Dias',         style: s.cDias,    num: true  },
-  { label: 'Motivo',       style: s.cMotivo,  num: false },
-]
 
 interface Props {
   dados: CoberturaInsalubreRow[]
@@ -70,28 +61,35 @@ export function CoberturasInsalubresDoc({ dados, mes, ano, MESES }: Props) {
             <View key={sup}>
               <Text style={s.groupHeader}>{sup.toUpperCase()} ({grupo.length} coberturas · {totalDias} dias)</Text>
               <View style={s.thead}>
-                {COLS.map(c => <Text key={c.label} style={[s.th, c.style]}>{c.label}</Text>)}
+                <Text style={[s.th, s.cPosto  ]}>Posto</Text>
+                <Text style={[s.th, s.cSec    ]}>Secretaria</Text>
+                <Text style={[s.th, s.cColab  ]}>Colaborador</Text>
+                <Text style={[s.th, s.cFuncao ]}>Função</Text>
+                <Text style={[s.th, s.cAusente]}>Ag. Ausente</Text>
+                <Text style={[s.th, s.cData   ]}>Data Início</Text>
+                <Text style={[s.th, s.cDias   ]}>Dias</Text>
+                <Text style={[s.th, s.cMotivo ]}>Motivo</Text>
               </View>
               {grupo.map((r, i) => (
                 <View key={r.id} style={i % 2 === 0 ? s.row : s.rowAlt}>
-                  <Text style={[s.td,    s.cPosto  ]}>{r.posto_nome}</Text>
-                  <Text style={[s.td,    s.cSec    ]}>{r.secretaria}</Text>
-                  <Text style={[s.tdBold,s.cColab  ]}>{r.colaborador_nome}</Text>
-                  <Text style={[s.td,    s.cFuncao ]}>{r.colaborador_funcao}</Text>
-                  <Text style={[s.td,    s.cAusente]}>{r.agente_ausente}</Text>
-                  <Text style={[s.tdNum, s.cData   ]}>{fmt(r.data_inicio)}</Text>
-                  <Text style={[s.tdNum, s.cDias   ]}>{r.dias}</Text>
-                  <Text style={[s.td,    s.cMotivo ]}>{r.motivo}</Text>
+                  <Text style={[s.td,      s.cPosto  ]}>{r.posto_nome}</Text>
+                  <Text style={[s.td,      s.cSec    ]}>{r.secretaria}</Text>
+                  <Text style={[s.tdBold,  s.cColab  ]}>{r.colaborador_nome}</Text>
+                  <Text style={[s.td,      s.cFuncao ]}>{r.colaborador_funcao}</Text>
+                  <Text style={[s.td,      s.cAusente]}>{r.agente_ausente}</Text>
+                  <Text style={[s.tdNum,   s.cData   ]}>{fmt(r.data_inicio)}</Text>
+                  <Text style={[s.tdNum,   s.cDias   ]}>{r.dias}</Text>
+                  <Text style={[s.td,      s.cMotivo ]}>{r.motivo}</Text>
                 </View>
               ))}
               <View style={s.totalsRow}>
-                <Text style={[s.tdBold, { width: 160 }]}>TOTAL</Text>
-                <Text style={[s.td,     s.cColab  ]} />
-                <Text style={[s.td,     s.cFuncao ]} />
-                <Text style={[s.td,     s.cAusente]} />
-                <Text style={[s.tdNum,  s.cData   ]} />
-                <Text style={[s.tdBold, s.cDias   ]}>{totalDias}</Text>
-                <Text style={[s.td,     s.cMotivo ]} />
+                <Text style={[s.tdBold,   { width: 167 }]}>TOTAL</Text>
+                <Text style={[s.td,       s.cColab  ]} />
+                <Text style={[s.td,       s.cFuncao ]} />
+                <Text style={[s.td,       s.cAusente]} />
+                <Text style={[s.tdNum,    s.cData   ]} />
+                <Text style={[s.tdNumBold,s.cDias   ]}>{totalDias}</Text>
+                <Text style={[s.td,       s.cMotivo ]} />
               </View>
             </View>
           )

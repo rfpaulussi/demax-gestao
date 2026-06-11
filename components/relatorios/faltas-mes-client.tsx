@@ -14,13 +14,6 @@ function fmt(iso: string): string {
   return `${d}/${m}/${y}`
 }
 
-function maskCpf(cpf: string | null): string {
-  if (!cpf) return '—'
-  const d = cpf.replace(/\D/g, '')
-  if (d.length !== 11) return cpf
-  return `***.***.${ d.slice(6, 9) }-${ d.slice(9) }`
-}
-
 function pad2(n: number) { return String(n).padStart(2, '0') }
 
 const TIPO_LABELS: Record<string, string> = {
@@ -45,7 +38,7 @@ function exportExcel(rows: FaltaMesRow[], mes: number, ano: number, MESES: strin
 
   for (const r of rows) {
     allRows.push({ data: [
-      fmt(r.data_falta), r.funcionario_nome, maskCpf(r.cpf), r.posto_nome, r.secretaria,
+      fmt(r.data_falta), r.funcionario_nome, r.registro ?? '—', r.posto_nome, r.secretaria,
       r.supervisor, TIPO_LABELS[r.tipo] ?? r.tipo, r.dias, r.tem_documento ? 'Sim' : 'Não', r.justificativa,
     ]})
   }
@@ -149,7 +142,7 @@ export function FaltasMesClient({ rows, mes, ano, MESES, anos }: Props) {
                   <tr key={r.id} className="hover:bg-gray-50/80">
                     <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{fmt(r.data_falta)}</td>
                     <td className="px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap">{r.funcionario_nome}</td>
-                    <td className="px-3 py-2.5 font-mono text-xs text-gray-400 whitespace-nowrap">{maskCpf(r.cpf)}</td>
+                    <td className="px-3 py-2.5 font-mono text-xs text-gray-400 whitespace-nowrap">{r.registro ?? '—'}</td>
                     <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{r.posto_nome}</td>
                     <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.secretaria}</td>
                     <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{r.supervisor}</td>
