@@ -6,8 +6,6 @@ import {
   solicitarDesligamento,
   solicitarTransferencia,
   solicitarMudancaFuncao,
-  solicitarPromocao,
-  solicitarAlteracaoSalario,
 } from '@/app/(admin)/efetivo/actions'
 import type { FuncionarioRow } from './funcionarios-table'
 
@@ -15,8 +13,6 @@ type TipoSolicitacao =
   | 'desligamento'
   | 'transferencia'
   | 'mudanca_funcao'
-  | 'promocao'
-  | 'alteracao_salario'
 
 interface Props {
   funcionario: FuncionarioRow
@@ -27,11 +23,9 @@ interface Props {
 }
 
 const TIPO_LABELS: Record<TipoSolicitacao, string> = {
-  desligamento:      'Desligamento',
-  transferencia:     'Transferência',
-  mudanca_funcao:    'Mudança de Função',
-  promocao:          'Promoção',
-  alteracao_salario: 'Alteração de Salário',
+  desligamento:   'Desligamento',
+  transferencia:  'Transferência',
+  mudanca_funcao: 'Mudança de Função',
 }
 
 const MOTIVOS_DESLIGAMENTO = [
@@ -65,11 +59,10 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
 
     start(async () => {
       let result
-      if (tipo === 'desligamento')       result = await solicitarDesligamento(fd)
-      else if (tipo === 'transferencia') result = await solicitarTransferencia(fd)
+      if (tipo === 'desligamento')        result = await solicitarDesligamento(fd)
+      else if (tipo === 'transferencia')  result = await solicitarTransferencia(fd)
       else if (tipo === 'mudanca_funcao') result = await solicitarMudancaFuncao(fd)
-      else if (tipo === 'promocao')      result = await solicitarPromocao(fd)
-      else                               result = await solicitarAlteracaoSalario(fd)
+      else return
 
       if (!result.success) {
         setErro(result.error)
@@ -141,46 +134,17 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
               </div>
             )}
 
-            {/* mudanca_funcao ou promocao */}
-            {(tipo === 'mudanca_funcao' || tipo === 'promocao') && (
+            {/* mudanca_funcao */}
+            {tipo === 'mudanca_funcao' && (
               <>
                 <div>
-                  <label className={labelClass}>
-                    {tipo === 'promocao' ? 'Nova Função (promoção)' : 'Nova Função'}
-                  </label>
+                  <label className={labelClass}>Nova Função</label>
                   <select name="funcao_destino_id" required className={inputClass}>
                     <option value="">Selecione...</option>
                     {funcoes
                       .filter(f => f.id !== funcionario.funcoes?.id)
                       .map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
                   </select>
-                </div>
-                <div>
-                  <label className={labelClass}>Motivo</label>
-                  <input
-                    type="text"
-                    name="motivo"
-                    placeholder="Justificativa..."
-                    className={inputClass}
-                  />
-                </div>
-              </>
-            )}
-
-            {/* alteracao_salario */}
-            {tipo === 'alteracao_salario' && (
-              <>
-                <div>
-                  <label className={labelClass}>Novo Salário (R$)</label>
-                  <input
-                    type="number"
-                    name="novo_salario"
-                    step="0.01"
-                    min="0.01"
-                    required
-                    placeholder="0,00"
-                    className={inputClass}
-                  />
                 </div>
                 <div>
                   <label className={labelClass}>Motivo</label>
