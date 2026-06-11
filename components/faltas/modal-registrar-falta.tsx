@@ -4,7 +4,7 @@ import { useState, useTransition, useRef, useEffect } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { registrarFalta } from '@/app/(admin)/faltas/actions'
 import type { FuncOpt } from '@/app/(admin)/faltas/actions'
-import { FALTA_TIPO_LABELS } from './faltas-config'
+import { FALTA_TIPO_LABELS, FALTA_TIPOS_MANUAIS } from './faltas-config'
 import type { FaltaTipo } from './faltas-config'
 
 const inputCls = 'w-full rounded-lg border border-gray-200 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600'
@@ -159,8 +159,8 @@ export function ModalRegistrarFalta({ open, onClose, funcionariosOpt }: Props) {
               <label className={labelCls}>Tipo *</label>
               <select name="tipo" required className={inputCls}>
                 <option value="">Selecione...</option>
-                {(Object.entries(FALTA_TIPO_LABELS) as [FaltaTipo, string][]).map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
+                {FALTA_TIPOS_MANUAIS.map(v => (
+                  <option key={v} value={v}>{FALTA_TIPO_LABELS[v]}</option>
                 ))}
               </select>
             </div>

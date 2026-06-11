@@ -100,7 +100,27 @@ export async function criarAdvertencia(formData: FormData) {
 
   if (error) throw new Error(error.message)
 
+  if (grau === 'suspensao' && diasRaw && Number(diasRaw) > 0) {
+    const dataFalta =
+      (formData.get('data_aplicacao') as string) ||
+      (formData.get('data_ocorrencia') as string) ||
+      null
+    if (dataFalta) {
+      const { error: faltaError } = await supabase.from('faltas').insert({
+        funcionario_id: formData.get('funcionario_id') as string,
+        data_falta:     dataFalta,
+        data_fim:       null,
+        tipo:           'suspensao',
+        dias:           Number(diasRaw),
+        observacao:     'Suspensão gerada automaticamente via advertência',
+        registrado_por: user?.id ?? null,
+      } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (faltaError) console.error('[advertencias] falha ao registrar falta de suspensão:', faltaError.message)
+    }
+  }
+
   revalidatePath('/advertencias')
+  revalidatePath('/faltas')
 }
 
 export async function marcarEntregue(formData: FormData) {

@@ -1,5 +1,6 @@
 export type FaltaTipo = 'sem_justificativa' | 'declaracao' | 'justificada' | 'atraso' | 'suspensao'
 
+// 'suspensao' mantido no tipo mas não exibido como opção manual — gerado automaticamente via advertência
 export const FALTA_TIPO_LABELS: Record<FaltaTipo, string> = {
   sem_justificativa: 'Sem Justificativa',
   declaracao:        'Declaração',
@@ -15,3 +16,7 @@ export const FALTA_TIPO_COLORS: Record<FaltaTipo, string> = {
   atraso:            'bg-orange-100 text-orange-700',
   suspensao:         'bg-purple-100 text-purple-700',
 }
+
+export const FALTA_TIPOS_MANUAIS: FaltaTipo[] = [
+  'sem_justificativa', 'declaracao', 'justificada', 'atraso',
+]
