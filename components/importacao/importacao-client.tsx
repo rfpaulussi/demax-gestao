@@ -52,7 +52,10 @@ function parseCSVFindHeader(
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string
-        const wb = XLSX.read(text, { type: 'string', raw: false })
+        // Detect separator from the header line so TSV files (names with commas) work correctly
+        const headerLine = text.split(/\r?\n/).find(l => l.includes(headerKey))
+        const sep = headerLine?.includes('\t') ? '\t' : ','
+        const wb = XLSX.read(text, { type: 'string', raw: false, FS: sep })
         const ws = wb.Sheets[wb.SheetNames[0]]
         const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as unknown[][]
         const headerIdx = raw.findIndex(row =>
@@ -357,7 +360,7 @@ function TabAlocacoes() {
         <p className="text-xs text-gray-400">
           Colunas esperadas: <span className="font-mono text-gray-600">Mês/Ano Referência · REGISTRO FUNCIONÁRIO · CARGO (no mês) · STATUS · SUPERVISOR · POSTO DE TRABALHO (no mês) · SECRETARIA (no mês) · Está de Férias Hoje? · É Insalubre? · Data Demissão · Admissão</span>
         </p>
-        <input type="file" accept=".csv" className={inputFile}
+        <input type="file" accept=".csv,.tsv,.txt" className={inputFile}
           onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
       </div>
 
