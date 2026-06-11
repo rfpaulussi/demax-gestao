@@ -37,6 +37,12 @@ const TIPO_LABELS: Record<TipoSolicitacao, string> = {
   rescisao_indireta:   'Rescisão Indireta',
 }
 
+const TIPOS_POR_STATUS: Partial<Record<string, TipoSolicitacao[]>> = {
+  ativo:    ['afastamento', 'transferencia', 'mudanca_funcao', 'desligamento', 'rescisao_indireta'],
+  afastado: ['retorno_afastamento', 'desligamento'],
+  default:  ['desligamento'],
+}
+
 const MOTIVOS_DESLIGAMENTO = [
   'PESSOAL', 'RESCISÃO INDIRETA', 'ADAPTAÇÃO', 'COMPORTAMENTAL',
   'FALTAS EXCESSIVAS', 'ABANDONO', 'CORTE DE CUSTO', 'DEFICIÊNCIA TÉCNICA',
@@ -48,6 +54,7 @@ const inputClass =
   'w-full rounded border border-gray-200 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600'
 
 export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClose }: Props) {
+  const tiposDisponiveis = TIPOS_POR_STATUS[funcionario.status ?? ''] ?? TIPOS_POR_STATUS.default!
   const [tipo, setTipo]   = useState<TipoSolicitacao | ''>('')
   const [erro, setErro]   = useState<string | null>(null)
   const [pending, start]  = useTransition()
@@ -130,8 +137,8 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
                 className={inputClass}
               >
                 <option value="">Selecione...</option>
-                {(Object.entries(TIPO_LABELS) as [TipoSolicitacao, string][]).map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
+                {tiposDisponiveis.map(v => (
+                  <option key={v} value={v}>{TIPO_LABELS[v]}</option>
                 ))}
               </select>
             </div>
