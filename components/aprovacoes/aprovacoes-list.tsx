@@ -14,21 +14,27 @@ export type { SolicitacaoRow as SolicitacaoPendente }
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const TIPO_BADGE: Record<TipoSolicitacao, { label: string; className: string }> = {
-  desligamento:      { label: 'Desligamento',       className: 'bg-red-50 text-red-700 ring-red-200'         },
-  transferencia:     { label: 'Transferência',       className: 'bg-blue-50 text-blue-700 ring-blue-200'      },
-  mudanca_funcao:    { label: 'Mudança de Função',   className: 'bg-indigo-50 text-indigo-700 ring-indigo-200'},
-  promocao:          { label: 'Promoção',            className: 'bg-green-50 text-green-700 ring-green-200'   },
-  mudanca_supervisor:{ label: 'Mudança Supervisor',  className: 'bg-purple-50 text-purple-700 ring-purple-200'},
-  alteracao_salario: { label: 'Alteração Salarial',  className: 'bg-amber-50 text-amber-700 ring-amber-200'  },
+  desligamento:        { label: 'Desligamento',          className: 'bg-red-50 text-red-700 ring-red-200'          },
+  transferencia:       { label: 'Transferência',         className: 'bg-blue-50 text-blue-700 ring-blue-200'       },
+  mudanca_funcao:      { label: 'Mudança de Função',     className: 'bg-indigo-50 text-indigo-700 ring-indigo-200' },
+  promocao:            { label: 'Promoção',              className: 'bg-green-50 text-green-700 ring-green-200'    },
+  mudanca_supervisor:  { label: 'Mudança Supervisor',    className: 'bg-purple-50 text-purple-700 ring-purple-200' },
+  alteracao_salario:   { label: 'Alteração Salarial',   className: 'bg-amber-50 text-amber-700 ring-amber-200'    },
+  afastamento:         { label: 'Afastamento',           className: 'bg-orange-50 text-orange-700 ring-orange-200' },
+  retorno_afastamento: { label: 'Retorno Afastamento',  className: 'bg-teal-50 text-teal-700 ring-teal-200'       },
+  rescisao_indireta:   { label: 'Rescisão Indireta',    className: 'bg-rose-50 text-rose-700 ring-rose-200'       },
 }
 
 const TIPO_LABEL_FILTRO: Record<TipoSolicitacao, string> = {
-  desligamento:      'Desligamento',
-  transferencia:     'Transferência',
-  mudanca_funcao:    'Mudança de Função',
-  promocao:          'Promoção',
-  mudanca_supervisor:'Mudança Supervisor',
-  alteracao_salario: 'Alteração Salarial',
+  desligamento:        'Desligamento',
+  transferencia:       'Transferência',
+  mudanca_funcao:      'Mudança de Função',
+  promocao:            'Promoção',
+  mudanca_supervisor:  'Mudança Supervisor',
+  alteracao_salario:   'Alteração Salarial',
+  afastamento:         'Afastamento',
+  retorno_afastamento: 'Retorno Afastamento',
+  rescisao_indireta:   'Rescisão Indireta',
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -39,14 +45,18 @@ function fmt(iso: string) {
 }
 
 const CAMPO_LABELS: Record<string, string> = {
-  nome:              'Nome',
-  status:            'Status',
-  posto:             'Posto',
-  funcao:            'Função',
-  salario:           'Salário',
-  novo_salario:      'Novo salário',
-  data_desligamento: 'Data desligamento',
-  motivo:            'Motivo',
+  nome:                  'Nome',
+  status:                'Status',
+  posto:                 'Posto',
+  funcao:                'Função',
+  salario:               'Salário',
+  novo_salario:          'Novo salário',
+  data_desligamento:     'Data desligamento',
+  motivo:                'Motivo',
+  data_inicio:           'Data início',
+  data_retorno_prevista: 'Retorno previsto',
+  data_retorno:          'Data retorno',
+  data_rescisao:         'Data rescisão',
 }
 
 function renderDados(

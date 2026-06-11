@@ -26,12 +26,15 @@ function KpiCard({
 // ─── Labels de tipo ───────────────────────────────────────────────────────────
 
 const TIPO_LABELS: Record<TipoSolicitacao, string> = {
-  desligamento:      'Desligamento',
-  transferencia:     'Transferência',
-  mudanca_funcao:    'Mudança de Função',
-  promocao:          'Promoção',
-  mudanca_supervisor:'Mudança de Supervisor',
-  alteracao_salario: 'Alteração Salarial',
+  desligamento:        'Desligamento',
+  transferencia:       'Transferência',
+  mudanca_funcao:      'Mudança de Função',
+  promocao:            'Promoção',
+  mudanca_supervisor:  'Mudança de Supervisor',
+  alteracao_salario:   'Alteração Salarial',
+  afastamento:         'Afastamento',
+  retorno_afastamento: 'Retorno de Afastamento',
+  rescisao_indireta:   'Rescisão Indireta',
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────

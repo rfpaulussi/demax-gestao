@@ -6,6 +6,9 @@ import {
   solicitarDesligamento,
   solicitarTransferencia,
   solicitarMudancaFuncao,
+  solicitarAfastamento,
+  solicitarRetornoAfastamento,
+  solicitarRescisaoIndireta,
 } from '@/app/(admin)/efetivo/actions'
 import type { FuncionarioRow } from './funcionarios-table'
 
@@ -13,6 +16,9 @@ type TipoSolicitacao =
   | 'desligamento'
   | 'transferencia'
   | 'mudanca_funcao'
+  | 'afastamento'
+  | 'retorno_afastamento'
+  | 'rescisao_indireta'
 
 interface Props {
   funcionario: FuncionarioRow
@@ -23,9 +29,12 @@ interface Props {
 }
 
 const TIPO_LABELS: Record<TipoSolicitacao, string> = {
-  desligamento:   'Desligamento',
-  transferencia:  'Transferência',
-  mudanca_funcao: 'Mudança de Função',
+  desligamento:        'Desligamento',
+  transferencia:       'Transferência',
+  mudanca_funcao:      'Mudança de Função',
+  afastamento:         'Afastamento',
+  retorno_afastamento: 'Retorno de Afastamento',
+  rescisao_indireta:   'Rescisão Indireta',
 }
 
 const MOTIVOS_DESLIGAMENTO = [
@@ -43,14 +52,21 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
   const [erro, setErro]   = useState<string | null>(null)
   const [pending, start]  = useTransition()
 
-  const [postoSearch, setPostoSearch]         = useState('')
-  const [postoOpen, setPostoOpen]             = useState(false)
+  // Combobox posto destino (transferência)
+  const [postoSearch, setPostoSearch]           = useState('')
+  const [postoOpen, setPostoOpen]               = useState(false)
   const [postoSelecionado, setPostoSelecionado] = useState<{ id: string; nome: string; secretaria: string | null } | null>(null)
+
+  // Combobox posto retorno (retorno_afastamento)
+  const [postoRetornoSearch, setPostoRetornoSearch]           = useState('')
+  const [postoRetornoOpen, setPostoRetornoOpen]               = useState(false)
+  const [postoRetornoSelecionado, setPostoRetornoSelecionado] = useState<{ id: string; nome: string; secretaria: string | null } | null>(null)
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as HTMLElement
-      if (!target.closest('[data-posto-combobox]')) setPostoOpen(false)
+      if (!target.closest('[data-posto-combobox]'))        setPostoOpen(false)
+      if (!target.closest('[data-posto-retorno-combobox]')) setPostoRetornoOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -60,9 +76,8 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
     if (pending) return
     setTipo('')
     setErro(null)
-    setPostoSearch('')
-    setPostoOpen(false)
-    setPostoSelecionado(null)
+    setPostoSearch(''); setPostoOpen(false); setPostoSelecionado(null)
+    setPostoRetornoSearch(''); setPostoRetornoOpen(false); setPostoRetornoSelecionado(null)
     onClose()
   }
 
@@ -75,9 +90,12 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
 
     start(async () => {
       let result
-      if (tipo === 'desligamento')        result = await solicitarDesligamento(fd)
-      else if (tipo === 'transferencia')  result = await solicitarTransferencia(fd)
-      else if (tipo === 'mudanca_funcao') result = await solicitarMudancaFuncao(fd)
+      if (tipo === 'desligamento')          result = await solicitarDesligamento(fd)
+      else if (tipo === 'transferencia')    result = await solicitarTransferencia(fd)
+      else if (tipo === 'mudanca_funcao')   result = await solicitarMudancaFuncao(fd)
+      else if (tipo === 'afastamento')      result = await solicitarAfastamento(fd)
+      else if (tipo === 'retorno_afastamento') result = await solicitarRetornoAfastamento(fd)
+      else if (tipo === 'rescisao_indireta')   result = await solicitarRescisaoIndireta(fd)
       else return
 
       if (!result.success) {
@@ -92,7 +110,7 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
     <Dialog.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose() }}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/50 z-40" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-xl">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
           <Dialog.Title className="mb-1 text-lg font-semibold">Nova Solicitação</Dialog.Title>
           <p className="mb-4 text-sm text-gray-400">{funcionario.nome}</p>
 
@@ -158,35 +176,21 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
                         .filter(p => p.id !== funcionario.posto_id)
                         .filter(p => {
                           const q = postoSearch.toLowerCase()
-                          return (
-                            p.nome.toLowerCase().includes(q) ||
-                            (p.secretaria ?? '').toLowerCase().includes(q)
-                          )
+                          return p.nome.toLowerCase().includes(q) || (p.secretaria ?? '').toLowerCase().includes(q)
                         })
                         .slice(0, 30)
                         .map(p => (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => {
-                              setPostoSelecionado(p)
-                              setPostoSearch(p.nome)
-                              setPostoOpen(false)
-                            }}
+                          <button key={p.id} type="button"
+                            onClick={() => { setPostoSelecionado(p); setPostoSearch(p.nome); setPostoOpen(false) }}
                             className="flex w-full flex-col px-3 py-2 text-left hover:bg-slate-50"
                           >
                             <span className="text-sm font-medium">{p.nome}</span>
-                            {p.secretaria && (
-                              <span className="text-xs text-gray-400">{p.secretaria}</span>
-                            )}
+                            {p.secretaria && <span className="text-xs text-gray-400">{p.secretaria}</span>}
                           </button>
                         ))}
                       {postos.filter(p => {
                         const q = postoSearch.toLowerCase()
-                        return p.id !== funcionario.posto_id && (
-                          p.nome.toLowerCase().includes(q) ||
-                          (p.secretaria ?? '').toLowerCase().includes(q)
-                        )
+                        return p.id !== funcionario.posto_id && (p.nome.toLowerCase().includes(q) || (p.secretaria ?? '').toLowerCase().includes(q))
                       }).length === 0 && (
                         <p className="px-3 py-2 text-sm text-gray-400">Nenhum posto encontrado.</p>
                       )}
@@ -216,12 +220,111 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
                 </div>
                 <div>
                   <label className={labelClass}>Motivo</label>
-                  <input
-                    type="text"
-                    name="motivo"
-                    placeholder="Justificativa..."
-                    className={inputClass}
-                  />
+                  <input type="text" name="motivo" placeholder="Justificativa..." className={inputClass} />
+                </div>
+              </>
+            )}
+
+            {/* afastamento */}
+            {tipo === 'afastamento' && (
+              <>
+                <div>
+                  <label className={labelClass}>Motivo do Afastamento</label>
+                  <select name="motivo" required className={inputClass}>
+                    <option value="">Selecione...</option>
+                    <option value="INSS - Doença">INSS — Doença</option>
+                    <option value="INSS - Acidente de Trabalho">INSS — Acidente de Trabalho</option>
+                    <option value="Licença Maternidade">Licença Maternidade</option>
+                    <option value="Licença Paternidade">Licença Paternidade</option>
+                    <option value="Afastamento Judicial">Afastamento Judicial</option>
+                    <option value="Outros">Outros</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Data de Início</label>
+                  <input type="date" name="data_inicio" required className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Data Prevista de Retorno</label>
+                  <input type="date" name="data_retorno_prevista" className={inputClass} />
+                </div>
+              </>
+            )}
+
+            {/* retorno_afastamento */}
+            {tipo === 'retorno_afastamento' && (
+              <>
+                <div>
+                  <label className={labelClass}>Data de Retorno</label>
+                  <input type="date" name="data_retorno" required className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Posto de Retorno</label>
+                  <input type="hidden" name="posto_retorno_id" value={postoRetornoSelecionado?.id ?? ''} />
+                  <div className="relative" data-posto-retorno-combobox>
+                    <input
+                      type="text"
+                      placeholder="Buscar posto..."
+                      value={postoRetornoSearch}
+                      onChange={e => { setPostoRetornoSearch(e.target.value); setPostoRetornoOpen(true); setPostoRetornoSelecionado(null) }}
+                      onFocus={() => setPostoRetornoOpen(true)}
+                      className={inputClass}
+                      autoComplete="off"
+                    />
+                    {postoRetornoOpen && postoRetornoSearch.length > 0 && (
+                      <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded border border-gray-200 bg-white shadow-lg">
+                        {postos
+                          .filter(p => {
+                            const q = postoRetornoSearch.toLowerCase()
+                            return p.nome.toLowerCase().includes(q) || (p.secretaria ?? '').toLowerCase().includes(q)
+                          })
+                          .slice(0, 30)
+                          .map(p => (
+                            <button key={p.id} type="button"
+                              onClick={() => { setPostoRetornoSelecionado(p); setPostoRetornoSearch(p.nome); setPostoRetornoOpen(false) }}
+                              className="flex w-full flex-col px-3 py-2 text-left hover:bg-slate-50"
+                            >
+                              <span className="text-sm font-medium">{p.nome}</span>
+                              {p.secretaria && <span className="text-xs text-gray-400">{p.secretaria}</span>}
+                            </button>
+                          ))}
+                        {postos.filter(p => {
+                          const q = postoRetornoSearch.toLowerCase()
+                          return p.nome.toLowerCase().includes(q) || (p.secretaria ?? '').toLowerCase().includes(q)
+                        }).length === 0 && (
+                          <p className="px-3 py-2 text-sm text-gray-400">Nenhum posto encontrado.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {postoRetornoSelecionado && (
+                    <p className="mt-1 text-xs text-gray-400">
+                      Selecionado: <span className="font-medium text-slate-700">{postoRetornoSelecionado.nome}</span>
+                      {postoRetornoSelecionado.secretaria && ` — ${postoRetornoSelecionado.secretaria}`}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* rescisao_indireta */}
+            {tipo === 'rescisao_indireta' && (
+              <>
+                <div>
+                  <label className={labelClass}>Data da Rescisão</label>
+                  <input type="date" name="data_rescisao" required className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Motivo</label>
+                  <select name="motivo" required className={inputClass}>
+                    <option value="">Selecione...</option>
+                    <option value="Falta de Pagamento">Falta de Pagamento</option>
+                    <option value="Desvio de Função">Desvio de Função</option>
+                    <option value="Assédio Moral">Assédio Moral</option>
+                    <option value="Condições de Trabalho Inadequadas">Condições de Trabalho Inadequadas</option>
+                    <option value="Alteração Contratual Ilícita">Alteração Contratual Ilícita</option>
+                    <option value="Outros">Outros</option>
+                  </select>
                 </div>
               </>
             )}

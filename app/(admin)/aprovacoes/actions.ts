@@ -60,7 +60,7 @@ export async function buscarSolicitacoes(
     .select(SOL_SELECT)
     .order('created_at', { ascending: false })
 
-  if (filtros.tipo)          query = query.eq('tipo', filtros.tipo)
+  if (filtros.tipo)          query = query.eq('tipo', filtros.tipo as unknown as 'desligamento')
   if (filtros.status)        query = query.eq('status', filtros.status)
   if (filtros.supervisor_id) query = query.eq('supervisor_id', filtros.supervisor_id)
 
@@ -96,7 +96,7 @@ export async function aprovarSolicitacao(
 
   const dadosDepois = (sol.dados_depois ?? {}) as Record<string, unknown>
 
-  switch (sol.tipo) {
+  switch (sol.tipo as TipoSolicitacao) {
     case 'desligamento': {
       const dataDesligamento = dadosDepois.data_desligamento as string | undefined
       await supabase
@@ -130,6 +130,36 @@ export async function aprovarSolicitacao(
         .eq('id', sol.funcionario_id)
       break
     }
+
+    case 'afastamento': {
+      await supabase
+        .from('funcionarios')
+        .update({ status: 'afastado' })
+        .eq('id', sol.funcionario_id)
+      break
+    }
+
+    case 'retorno_afastamento': {
+      await supabase
+        .from('funcionarios')
+        .update({
+          status:   'ativo',
+          posto_id: (dadosDepois.posto_retorno_id as string | undefined) ?? func?.posto_id ?? null,
+        })
+        .eq('id', sol.funcionario_id)
+      break
+    }
+
+    case 'rescisao_indireta': {
+      await supabase
+        .from('funcionarios')
+        .update({
+          status:             'desligado',
+          data_desligamento:  (dadosDepois.data_rescisao as string) ?? null,
+        })
+        .eq('id', sol.funcionario_id)
+      break
+    }
   }
 
   const campoMap: Partial<Record<TipoSolicitacao, { campo: string; antes: string | null; depois: string | null }>> = {
@@ -137,7 +167,10 @@ export async function aprovarSolicitacao(
     transferencia:    { campo: 'posto_id',     antes: func?.posto_id ?? null,            depois: (dadosDepois.posto_destino_id as string) ?? null },
     mudanca_funcao:   { campo: 'funcao_id',    antes: func?.funcao_id ?? null,           depois: (dadosDepois.funcao_destino_id as string) ?? null },
     promocao:         { campo: 'funcao_id',    antes: func?.funcao_id ?? null,           depois: (dadosDepois.funcao_destino_id as string) ?? null },
-    alteracao_salario:{ campo: 'salario_base', antes: String(func?.salario_base ?? ''), depois: String(dadosDepois.novo_salario ?? '') },
+    alteracao_salario:   { campo: 'salario_base', antes: String(func?.salario_base ?? ''), depois: String(dadosDepois.novo_salario ?? '') },
+    afastamento:         { campo: 'status',       antes: func?.status ?? null,            depois: 'afastado'   },
+    retorno_afastamento: { campo: 'status',       antes: func?.status ?? null,            depois: 'ativo'      },
+    rescisao_indireta:   { campo: 'status',       antes: func?.status ?? null,            depois: 'desligado'  },
   }
   const mov = campoMap[sol.tipo]
 

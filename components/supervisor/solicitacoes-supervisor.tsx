@@ -13,7 +13,10 @@ const TIPO_BADGE: Record<TipoSolicitacao, { label: string; className: string }> 
   mudanca_funcao:     { label: 'Mudança de Função',  className: 'bg-indigo-50 text-indigo-700 ring-indigo-200'  },
   promocao:           { label: 'Promoção',           className: 'bg-green-50 text-green-700 ring-green-200'     },
   mudanca_supervisor: { label: 'Mudança Supervisor', className: 'bg-purple-50 text-purple-700 ring-purple-200'  },
-  alteracao_salario:  { label: 'Alteração Salarial', className: 'bg-amber-50 text-amber-700 ring-amber-200'    },
+  alteracao_salario:   { label: 'Alteração Salarial',   className: 'bg-amber-50 text-amber-700 ring-amber-200'    },
+  afastamento:         { label: 'Afastamento',          className: 'bg-orange-50 text-orange-700 ring-orange-200' },
+  retorno_afastamento: { label: 'Retorno Afastamento',  className: 'bg-teal-50 text-teal-700 ring-teal-200'       },
+  rescisao_indireta:   { label: 'Rescisão Indireta',    className: 'bg-rose-50 text-rose-700 ring-rose-200'       },
 }
 
 const STATUS_BADGE = {

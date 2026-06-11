@@ -164,6 +164,9 @@ export type TipoSolicitacao =
   | 'promocao'
   | 'mudanca_supervisor'
   | 'alteracao_salario'
+  | 'afastamento'
+  | 'retorno_afastamento'
+  | 'rescisao_indireta'
 
 /** Status de solicitação */
 export type StatusSolicitacao = 'pendente' | 'aprovada' | 'rejeitada'
