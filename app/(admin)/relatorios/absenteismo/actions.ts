@@ -78,7 +78,7 @@ export async function buscarAbsenteismo(
     { data: atestados },
     { data: suspensoes },
     { data: ferias },
-    { data: totalFuncs },
+    { count: countAtivos },
   ] = await Promise.all([
     supabase
       .from('faltas')
@@ -126,8 +126,8 @@ export async function buscarAbsenteismo(
 
     supabase
       .from('funcionarios')
-      .select('id', { count: 'exact', head: true })
-      .in('status', ['ativo', 'ferias', 'afastado']),
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'ativo'),
   ])
 
   type FuncJoin     = { nome: string; registro: string | null; postos: { nome: string; secretaria: string | null } | null }
@@ -222,7 +222,7 @@ export async function buscarAbsenteismo(
   }
   feriasRows.sort((a, b) => a.funcionario_nome.localeCompare(b.funcionario_nome))
 
-  const totalFuncionarios = (totalFuncs as { count: number } | null)?.count ?? 0
+  const totalFuncionarios = countAtivos ?? 0
   const du   = diasUteis(mes, ano)
   const tDias = absRows.reduce((s, r) => s + r.dias, 0)
   const base  = totalFuncionarios * du
