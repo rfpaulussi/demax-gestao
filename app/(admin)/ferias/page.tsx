@@ -374,6 +374,7 @@ export default function FeriasPage() {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <Th label="Funcionário" k="funcionario_nome" />
+                <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-slate-500 whitespace-nowrap">Situação</th>
                 <Th label="Posto" k="posto_nome" />
                 <Th label="Secretaria" k="secretaria" />
                 <Th label="Supervisor" k="supervisor_nome" />
@@ -391,7 +392,7 @@ export default function FeriasPage() {
             <tbody className="divide-y divide-slate-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-10 text-center text-slate-400">
+                  <td colSpan={12} className="px-4 py-10 text-center text-slate-400">
                     Nenhum registro encontrado
                   </td>
                 </tr>
@@ -401,6 +402,11 @@ export default function FeriasPage() {
                     <td className="px-3 py-3">
                       <div className="font-medium text-slate-800">{item.funcionario_nome}</div>
                       <div className="text-xs text-slate-400">{item.funcionario_registro}</div>
+                    </td>
+                    <td className="px-3 py-3">
+                      {item.funcionario_status === 'ativo'    && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Ativo</span>}
+                      {item.funcionario_status === 'afastado' && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Afastado</span>}
+                      {item.funcionario_status === 'inativo'  && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">Inativo</span>}
                     </td>
                     <td className="px-3 py-3 text-slate-600">{item.posto_nome}</td>
                     <td className="px-3 py-3 text-slate-600">{item.secretaria}</td>

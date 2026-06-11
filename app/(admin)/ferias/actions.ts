@@ -10,6 +10,7 @@ export type FeriasListaItem = {
   funcionario_id: string
   funcionario_nome: string
   funcionario_registro: string
+  funcionario_status: string | null
   posto_nome: string
   secretaria: string
   supervisor_nome: string
@@ -193,6 +194,7 @@ export async function buscarFeriasLista(): Promise<FeriasListaItem[]> {
         id,
         nome,
         registro,
+        status,
         posto_id,
         postos ( id, nome, secretaria )
       )
@@ -248,6 +250,7 @@ export async function buscarFeriasLista(): Promise<FeriasListaItem[]> {
       funcionario_id: r.funcionario_id,
       funcionario_nome: func?.nome ?? '—',
       funcionario_registro: func?.registro ?? '—',
+      funcionario_status: func?.status ?? null,
       posto_nome: posto?.nome ?? '—',
       secretaria: posto?.secretaria ?? '—',
       supervisor_nome: supervisorNome,
