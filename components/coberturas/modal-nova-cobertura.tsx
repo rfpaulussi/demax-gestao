@@ -35,6 +35,9 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
   const [supervisorId, setSupervisorId] = useState('')
   const [postos, setPostos] = useState<Posto[]>([])
   const [postoId, setPostoId] = useState('')
+  const [postoSearch, setPostoSearch] = useState('')
+  const [postoDropdownOpen, setPostoDropdownOpen] = useState(false)
+  const [postoSelecionado, setPostoSelecionado] = useState<{ id: string; nome: string; secretaria: string | null } | null>(null)
   const [secretaria, setSecretaria] = useState('')
   const [motivo, setMotivo] = useState('')
 
@@ -52,7 +55,7 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    if (!supervisorId) { setPostos([]); setPostoId(''); setSecretaria(''); return }
+    if (!supervisorId) { setPostos([]); setPostoId(''); setPostoSearch(''); setPostoSelecionado(null); setSecretaria(''); return }
     const supabase = createClient()
     supabase
       .from('config_supervisores_postos')
@@ -69,6 +72,8 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
           }))
         setPostos(lista)
         setPostoId('')
+        setPostoSearch('')
+        setPostoSelecionado(null)
         setSecretaria('')
       })
   }, [supervisorId])
@@ -104,9 +109,19 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [busca, open])
 
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as HTMLElement
+      if (!target.closest('[data-posto-combobox]')) setPostoDropdownOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   function handleClose() {
     setBusca(''); setResultadosBusca([]); setSubstituto(null)
     setSupervisorId(''); setPostos([]); setPostoId(''); setSecretaria('')
+    setPostoSearch(''); setPostoDropdownOpen(false); setPostoSelecionado(null)
     setMotivo(''); setApenasUmDia(false); setDataInicio(''); setDataFim('')
     setTipoCobertura('reforco'); setFuncionariosPostoDestino([])
     setFuncionarioAusenteId(''); setDataInicioAusencia(''); setDataFimAusencia('')
@@ -225,18 +240,62 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
                   <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600">
                     Posto Destino
                   </label>
-                  <select
-                    value={postoId}
-                    onChange={(e) => setPostoId(e.target.value)}
-                    required
-                    disabled={!supervisorId}
-                    className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50 disabled:text-gray-400"
-                  >
-                    <option value="">Selecione...</option>
-                    {postos.map((p) => (
-                      <option key={p.id} value={p.id}>{p.nome}</option>
-                    ))}
-                  </select>
+                  <input type="hidden" value={postoId} />
+                  <div className="relative" data-posto-combobox>
+                    <input
+                      type="text"
+                      placeholder={!supervisorId ? 'Selecione um supervisor primeiro...' : 'Buscar posto...'}
+                      value={postoSearch}
+                      disabled={!supervisorId}
+                      onChange={e => { setPostoSearch(e.target.value); setPostoDropdownOpen(true); setPostoSelecionado(null); setPostoId('') }}
+                      onFocus={() => { if (supervisorId) setPostoDropdownOpen(true) }}
+                      className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:bg-gray-50 disabled:text-gray-400"
+                      autoComplete="off"
+                    />
+                    {postoDropdownOpen && supervisorId && postoSearch.length > 0 && (
+                      <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded border border-gray-200 bg-white shadow-lg">
+                        {postos
+                          .filter(p => {
+                            const q = postoSearch.toLowerCase()
+                            return (
+                              p.nome.toLowerCase().includes(q) ||
+                              (p.secretaria ?? '').toLowerCase().includes(q)
+                            )
+                          })
+                          .slice(0, 30)
+                          .map(p => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => {
+                                setPostoSelecionado(p)
+                                setPostoSearch(p.nome)
+                                setPostoId(p.id)
+                                setPostoDropdownOpen(false)
+                              }}
+                              className="flex w-full flex-col px-3 py-2 text-left hover:bg-slate-50"
+                            >
+                              <span className="text-sm font-medium">{p.nome}</span>
+                              {p.secretaria && (
+                                <span className="text-xs text-gray-400">{p.secretaria}</span>
+                              )}
+                            </button>
+                          ))}
+                        {postos.filter(p => {
+                          const q = postoSearch.toLowerCase()
+                          return p.nome.toLowerCase().includes(q) || (p.secretaria ?? '').toLowerCase().includes(q)
+                        }).length === 0 && (
+                          <p className="px-3 py-2 text-sm text-gray-400">Nenhum posto encontrado.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {postoSelecionado && (
+                    <p className="mt-1 text-xs text-gray-400">
+                      Selecionado: <span className="font-medium text-slate-700">{postoSelecionado.nome}</span>
+                      {postoSelecionado.secretaria && ` — ${postoSelecionado.secretaria}`}
+                    </p>
+                  )}
                 </div>
 
                 <div>
