@@ -6,23 +6,32 @@ import { aprovarSolicitacao, rejeitarSolicitacao } from '@/app/(admin)/aprovacoe
 import type { SolicitacaoRow } from '@/app/(admin)/aprovacoes/actions'
 import type { TipoSolicitacao } from '@/types'
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
-
-// Re-export para compatibilidade com page.tsx legado
 export type { SolicitacaoRow as SolicitacaoPendente }
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const TIPO_BADGE: Record<TipoSolicitacao, { label: string; className: string }> = {
-  desligamento:        { label: 'Desligamento',          className: 'bg-red-50 text-red-700 ring-red-200'          },
+  desligamento:        { label: 'Desligamento',         className: 'bg-red-50 text-red-700 ring-red-200'          },
   transferencia:       { label: 'Transferência',         className: 'bg-blue-50 text-blue-700 ring-blue-200'       },
   mudanca_funcao:      { label: 'Mudança de Função',     className: 'bg-indigo-50 text-indigo-700 ring-indigo-200' },
   promocao:            { label: 'Promoção',              className: 'bg-green-50 text-green-700 ring-green-200'    },
   mudanca_supervisor:  { label: 'Mudança Supervisor',    className: 'bg-purple-50 text-purple-700 ring-purple-200' },
-  alteracao_salario:   { label: 'Alteração Salarial',   className: 'bg-amber-50 text-amber-700 ring-amber-200'    },
+  alteracao_salario:   { label: 'Alteração Salarial',    className: 'bg-amber-50 text-amber-700 ring-amber-200'   },
   afastamento:         { label: 'Afastamento',           className: 'bg-orange-50 text-orange-700 ring-orange-200' },
-  retorno_afastamento: { label: 'Retorno Afastamento',  className: 'bg-teal-50 text-teal-700 ring-teal-200'       },
-  rescisao_indireta:   { label: 'Rescisão Indireta',    className: 'bg-rose-50 text-rose-700 ring-rose-200'       },
+  retorno_afastamento: { label: 'Retorno Afastamento',   className: 'bg-teal-50 text-teal-700 ring-teal-200'      },
+  rescisao_indireta:   { label: 'Rescisão Indireta',     className: 'bg-rose-50 text-rose-700 ring-rose-200'      },
+}
+
+const BORDER_COLOR: Record<TipoSolicitacao, string> = {
+  desligamento:        'border-l-red-500',
+  transferencia:       'border-l-blue-500',
+  mudanca_funcao:      'border-l-indigo-500',
+  promocao:            'border-l-green-500',
+  mudanca_supervisor:  'border-l-purple-500',
+  alteracao_salario:   'border-l-amber-500',
+  afastamento:         'border-l-orange-500',
+  retorno_afastamento: 'border-l-teal-500',
+  rescisao_indireta:   'border-l-rose-500',
 }
 
 const TIPO_LABEL_FILTRO: Record<TipoSolicitacao, string> = {
@@ -37,13 +46,6 @@ const TIPO_LABEL_FILTRO: Record<TipoSolicitacao, string> = {
   rescisao_indireta:   'Rescisão Indireta',
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmt(iso: string) {
-  const [y, m, d] = iso.split('T')[0].split('-')
-  return `${d}/${m}/${y}`
-}
-
 const CAMPO_LABELS: Record<string, string> = {
   nome:                  'Nome',
   status:                'Status',
@@ -53,42 +55,44 @@ const CAMPO_LABELS: Record<string, string> = {
   novo_salario:          'Novo salário',
   data_desligamento:     'Data desligamento',
   motivo:                'Motivo',
-  data_inicio:           'Data início',
+  data_inicio:           'Início',
   data_retorno_prevista: 'Retorno previsto',
   data_retorno:          'Data retorno',
   data_rescisao:         'Data rescisão',
+  posto_destino_nome:    'Posto destino',
+  funcao_destino_nome:   'Função destino',
+  novo_supervisor_nome:  'Novo supervisor',
 }
 
-function renderDados(
-  dados: Record<string, unknown> | null,
-  label: string,
-  side: 'antes' | 'depois',
-) {
-  if (!dados) return <p className="text-xs italic text-gray-400">—</p>
-  const bg   = side === 'antes' ? 'bg-gray-50'  : 'bg-green-50'
-  const text = side === 'antes' ? 'text-gray-400' : 'text-green-600'
-  const entries = Object.entries(dados).filter(([k]) => !k.endsWith('_id'))
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmt(iso: string) {
+  const [y, m, d] = iso.split('T')[0].split('-')
+  return `${d}/${m}/${y}`
+}
+
+function renderDadosSolicitado(dados: Record<string, unknown> | null) {
+  if (!dados) return <span className="text-gray-400 italic">—</span>
+  const entries = Object.entries(dados).filter(
+    ([k]) => !k.endsWith('_id') && !k.endsWith('_nome') === false
+      ? !k.endsWith('_id')
+      : true,
+  ).filter(([k]) => !k.endsWith('_id'))
+
+  if (entries.length === 0) return <span className="text-gray-400 italic">sem dados</span>
 
   return (
-    <div className={cn('rounded-lg border border-gray-100 p-3 text-xs', bg)}>
-      <p className={cn('mb-2 font-semibold uppercase tracking-widest text-xs', text)}>
-        {label}
-      </p>
-      {entries.length === 0 ? (
-        <p className="italic text-gray-400">sem dados</p>
-      ) : (
-        <dl className="space-y-1">
-          {entries.map(([k, v]) => (
-            <div key={k} className="flex gap-1">
-              <dt className="font-medium text-gray-500 shrink-0">
-                {CAMPO_LABELS[k] ?? k.replace(/_/g, ' ')}:
-              </dt>
-              <dd className="text-gray-800 break-words">{String(v ?? '—')}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-    </div>
+    <span>
+      {entries.map(([k, v], i) => (
+        <span key={k}>
+          {i > 0 && <span className="mx-1.5 text-green-300">·</span>}
+          <span className="text-green-700 font-medium">
+            {CAMPO_LABELS[k] ?? k.replace(/_/g, ' ')}:
+          </span>{' '}
+          <span className="text-green-900">{String(v ?? '—')}</span>
+        </span>
+      ))}
+    </span>
   )
 }
 
@@ -102,7 +106,8 @@ function SolicitacaoCard({ sol }: { sol: SolicitacaoRow }) {
   const [erro, setErro]               = useState<string | null>(null)
   const [ok, setOk]                   = useState(false)
 
-  const badge = TIPO_BADGE[sol.tipo]
+  const badge       = TIPO_BADGE[sol.tipo]
+  const borderColor = BORDER_COLOR[sol.tipo]
 
   function handleAprovar() {
     setErro(null)
@@ -125,108 +130,102 @@ function SolicitacaoCard({ sol }: { sol: SolicitacaoRow }) {
 
   if (ok) {
     return (
-      <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm opacity-60">
-        <p className="text-sm font-medium text-gray-400">
-          {fase === 'rejeitando' ? 'Solicitação rejeitada.' : 'Solicitação aprovada.'}
-        </p>
+      <div className="rounded-lg border border-gray-100 bg-white p-3 shadow-sm opacity-0 transition-opacity duration-500">
+        <p className="text-xs text-gray-400">Processado.</p>
       </div>
     )
   }
 
   return (
     <div className={cn(
-      'rounded-xl border border-gray-100 bg-white shadow-sm transition-opacity',
+      'rounded-lg border border-gray-100 border-l-4 bg-white shadow-sm transition-opacity',
+      borderColor,
       isPending && 'opacity-60 pointer-events-none',
     )}>
-      {/* Header do card */}
-      <div className="border-b border-gray-50 p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
+      {/* Header compacto */}
+      <div className="px-4 pt-3 pb-2">
+        {/* Linha 1: badge + nome + data */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
             <span className={cn(
-              'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
+              'shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset',
               badge.className,
             )}>
               {badge.label}
             </span>
-            <p className="text-sm font-semibold text-gray-900">
+            <span className="text-sm font-semibold text-gray-900 truncate">
               {sol.funcionarios?.nome ?? '—'}
-              {sol.funcionarios?.cpf && (
-                <span className="ml-2 font-normal text-gray-400">***.***.***-**</span>
-              )}
-            </p>
-            <p className="text-xs text-gray-400">
-              Por{' '}
-              <span className="font-medium text-gray-600">
-                {sol.perfis?.nome ?? sol.perfis?.email ?? 'supervisor'}
-              </span>
-              {sol.created_at && (
-                <span className="ml-1.5 text-gray-300">· {fmt(sol.created_at)}</span>
-              )}
-            </p>
-            {sol.motivo && (
-              <p className="text-xs text-gray-500 italic">&ldquo;{sol.motivo}&rdquo;</p>
-            )}
+            </span>
           </div>
+          {sol.created_at && (
+            <span className="shrink-0 text-xs text-gray-400">{fmt(sol.created_at)}</span>
+          )}
         </div>
+
+        {/* Linha 2: supervisor */}
+        <p className="mt-0.5 text-xs text-gray-400">
+          Por{' '}
+          <span className="font-medium text-gray-500">
+            {sol.perfis?.nome ?? sol.perfis?.email ?? 'supervisor'}
+          </span>
+        </p>
       </div>
 
-      {/* Dados antes / depois */}
-      <div className="grid grid-cols-2 gap-3 p-5">
-        {renderDados(sol.dados_antes,  'Situação atual', 'antes')}
-        {renderDados(sol.dados_depois, 'Solicitado',     'depois')}
-      </div>
+      {/* Dados solicitados — faixa verde compacta */}
+      {sol.dados_depois && Object.keys(sol.dados_depois).filter(k => !k.endsWith('_id')).length > 0 && (
+        <div className="mx-4 mb-2 rounded bg-green-50 px-3 py-1.5 text-xs leading-relaxed">
+          {renderDadosSolicitado(sol.dados_depois)}
+        </div>
+      )}
 
       {/* Erro */}
       {erro && (
-        <div className="mx-5 mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+        <div className="mx-4 mb-2 rounded border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-700">
           {erro}
         </div>
       )}
 
       {/* Ações */}
-      <div className="border-t border-gray-50 p-5">
+      <div className="border-t border-gray-50 px-4 py-2">
         {fase === 'idle' && (
           <div className="flex items-center gap-2">
             <button
               onClick={() => setFase('aprovando')}
               disabled={isPending}
-              className="rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition-colors hover:bg-green-700 disabled:opacity-50"
+              className="rounded px-3 py-1 text-xs font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
             >
-              Aprovar
+              ✓ Aprovar
             </button>
             <button
               onClick={() => setFase('rejeitando')}
               disabled={isPending}
-              className="rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+              className="rounded px-3 py-1 text-xs font-semibold border border-red-400 text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
             >
-              Rejeitar
+              ✗ Rejeitar
             </button>
           </div>
         )}
 
         {fase === 'aprovando' && (
-          <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-              Observação (opcional)
-            </p>
+          <div className="space-y-2">
             <textarea
               value={observacao}
               onChange={e => setObservacao(e.target.value)}
               rows={2}
-              placeholder="Adicione uma observação ao aprovar..."
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600"
+              placeholder="Observação (opcional)..."
+              className="w-full rounded border border-gray-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-slate-400"
             />
             <div className="flex gap-2">
               <button
                 onClick={() => { setFase('idle'); setObservacao('') }}
-                className="rounded-lg px-4 py-2 text-xs font-semibold uppercase tracking-widest text-gray-600 hover:bg-gray-100"
+                className="rounded px-3 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100"
               >
-                Voltar
+                Cancelar
               </button>
               <button
                 onClick={handleAprovar}
                 disabled={isPending}
-                className="rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white hover:bg-green-700 disabled:opacity-50"
+                className="rounded px-3 py-1 text-xs font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
               >
                 {isPending ? 'Processando...' : 'Confirmar Aprovação'}
               </button>
@@ -235,28 +234,25 @@ function SolicitacaoCard({ sol }: { sol: SolicitacaoRow }) {
         )}
 
         {fase === 'rejeitando' && (
-          <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-              Motivo da rejeição <span className="normal-case font-normal text-red-500">(obrigatório)</span>
-            </p>
+          <div className="space-y-2">
             <textarea
               value={motivo}
               onChange={e => setMotivo(e.target.value)}
               rows={2}
-              placeholder="Informe o motivo..."
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600"
+              placeholder="Motivo da rejeição (obrigatório)..."
+              className="w-full rounded border border-gray-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-red-400"
             />
             <div className="flex gap-2">
               <button
                 onClick={() => { setFase('idle'); setMotivo('') }}
-                className="rounded-lg px-4 py-2 text-xs font-semibold uppercase tracking-widest text-gray-600 hover:bg-gray-100"
+                className="rounded px-3 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100"
               >
-                Voltar
+                Cancelar
               </button>
               <button
                 onClick={handleRejeitar}
                 disabled={!motivo.trim() || isPending}
-                className="rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white hover:bg-red-700 disabled:opacity-50"
+                className="rounded px-3 py-1 text-xs font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {isPending ? 'Processando...' : 'Confirmar Rejeição'}
               </button>
@@ -273,7 +269,6 @@ function SolicitacaoCard({ sol }: { sol: SolicitacaoRow }) {
 export function AprovacoesList({ solicitacoes }: { solicitacoes: SolicitacaoRow[] }) {
   const [filtroTipo, setFiltroTipo] = useState<TipoSolicitacao | null>(null)
 
-  // Tipos presentes no dataset
   const tiposPresentes = Array.from(new Set(solicitacoes.map(s => s.tipo))) as TipoSolicitacao[]
 
   const filtradas = filtroTipo
@@ -324,7 +319,7 @@ export function AprovacoesList({ solicitacoes }: { solicitacoes: SolicitacaoRow[
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-3">
           {filtradas.map(sol => (
             <SolicitacaoCard key={sol.id} sol={sol} />
           ))}
