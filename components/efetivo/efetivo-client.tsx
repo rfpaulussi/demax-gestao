@@ -9,7 +9,7 @@ import type { FuncionarioRow } from './funcionarios-table'
 interface Props {
   funcionarios: FuncionarioRow[]
   supervisores: { id: string; nome: string | null }[]
-  postos: { id: string; nome: string }[]
+  postos: { id: string; nome: string; secretaria: string | null }[]
   funcoes: { id: string; nome: string }[]
 }
 

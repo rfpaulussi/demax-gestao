@@ -67,7 +67,7 @@ export function FuncionariosTable({
   onSort,
 }: {
   funcionarios: FuncionarioRow[]
-  postos: { id: string; nome: string }[]
+  postos: { id: string; nome: string; secretaria: string | null }[]
   funcoes: { id: string; nome: string }[]
   sortCol?: string
   sortDir?: 'asc' | 'desc'

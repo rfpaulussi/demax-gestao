@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { buscarTodosSupervisores } from './actions'
+import { buscarTodosSupervisores, encerrarCoberturasVencidas } from './actions'
 import { CoberturasList } from '@/components/coberturas/coberturas-list'
 import type { CoberturaRow } from '@/components/coberturas/coberturas-list'
 
@@ -46,6 +46,8 @@ const COB_SELECT = `
 `
 
 export default async function CoberturasPage() {
+  await encerrarCoberturasVencidas()
+
   const supabase = createClient()
 
   const [{ data: ativasRaw }, { data: encerradasRaw }, supervisores] = await Promise.all([

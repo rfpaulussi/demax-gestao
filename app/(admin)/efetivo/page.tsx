@@ -61,7 +61,7 @@ export default async function EfetivoPage() {
       .from('config_supervisores_postos')
       .select('supervisor_id, posto_id, perfis!supervisor_id(id, nome)')
       .eq('ativo', true),
-    supabase.from('postos').select('id, nome').order('nome'),
+    supabase.from('postos').select('id, nome, secretaria').order('nome'),
     supabase.from('funcoes').select('id, nome').order('nome'),
   ])
 
@@ -91,7 +91,7 @@ export default async function EfetivoPage() {
   const emFerias  = funcionarios.filter(f => f.status === 'ferias').length
 
   const supervisores = (supervisoresRaw ?? []) as { id: string; nome: string | null }[]
-  const postos       = (postosRaw ?? []) as { id: string; nome: string }[]
+  const postos       = (postosRaw ?? []) as { id: string; nome: string; secretaria: string | null }[]
   const funcoes      = (funcoesRaw ?? []) as { id: string; nome: string }[]
 
   return (

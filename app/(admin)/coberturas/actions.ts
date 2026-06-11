@@ -126,6 +126,45 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
   return { success: true }
 }
 
+export async function encerrarCoberturasVencidas(): Promise<{ encerradas: number }> {
+  const supabase = createClient()
+  const hoje = new Date().toISOString().split('T')[0]
+
+  const { data: vencidas } = await supabase
+    .from('coberturas_temporarias')
+    .select('id, funcionario_id, posto_origem_id, posto_destino_id')
+    .eq('status', 'ativa')
+    .lt('data_prev_retorno', hoje)
+
+  if (!vencidas || vencidas.length === 0) return { encerradas: 0 }
+
+  for (const cob of vencidas) {
+    await supabase
+      .from('coberturas_temporarias')
+      .update({ status: 'encerrada', data_retorno_real: hoje })
+      .eq('id', cob.id)
+
+    if (cob.posto_origem_id && cob.funcionario_id) {
+      await supabase
+        .from('funcionarios')
+        .update({ posto_id: cob.posto_origem_id })
+        .eq('id', cob.funcionario_id)
+
+      await supabase.from('historico_funcionarios').insert({
+        funcionario_id:   cob.funcionario_id,
+        tipo:             'cobertura_encerrada_automatico',
+        dados_anteriores: { posto_id: cob.posto_destino_id },
+        dados_novos:      { posto_id: cob.posto_origem_id },
+      } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    }
+  }
+
+  revalidatePath('/coberturas')
+  revalidatePath('/efetivo')
+  revalidatePath('/dashboard')
+  return { encerradas: vencidas.length }
+}
+
 export async function buscarTodosSupervisores(): Promise<{ id: string; nome: string }[]> {
   const supabase = createClient()
   const { data } = await supabase

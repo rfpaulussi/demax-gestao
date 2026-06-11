@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import {
   solicitarDesligamento,
@@ -16,7 +16,7 @@ type TipoSolicitacao =
 
 interface Props {
   funcionario: FuncionarioRow
-  postos: { id: string; nome: string }[]
+  postos: { id: string; nome: string; secretaria: string | null }[]
   funcoes: { id: string; nome: string }[]
   open: boolean
   onClose: () => void
@@ -43,10 +43,26 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
   const [erro, setErro]   = useState<string | null>(null)
   const [pending, start]  = useTransition()
 
+  const [postoSearch, setPostoSearch]         = useState('')
+  const [postoOpen, setPostoOpen]             = useState(false)
+  const [postoSelecionado, setPostoSelecionado] = useState<{ id: string; nome: string; secretaria: string | null } | null>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as HTMLElement
+      if (!target.closest('[data-posto-combobox]')) setPostoOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   function handleClose() {
     if (pending) return
     setTipo('')
     setErro(null)
+    setPostoSearch('')
+    setPostoOpen(false)
+    setPostoSelecionado(null)
     onClose()
   }
 
@@ -125,12 +141,64 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
             {tipo === 'transferencia' && (
               <div>
                 <label className={labelClass}>Posto Destino</label>
-                <select name="posto_destino_id" required className={inputClass}>
-                  <option value="">Selecione...</option>
-                  {postos
-                    .filter(p => p.id !== funcionario.posto_id)
-                    .map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
-                </select>
+                <input type="hidden" name="posto_destino_id" value={postoSelecionado?.id ?? ''} required />
+                <div className="relative" data-posto-combobox>
+                  <input
+                    type="text"
+                    placeholder="Buscar posto..."
+                    value={postoSearch}
+                    onChange={e => { setPostoSearch(e.target.value); setPostoOpen(true); setPostoSelecionado(null) }}
+                    onFocus={() => setPostoOpen(true)}
+                    className={inputClass}
+                    autoComplete="off"
+                  />
+                  {postoOpen && postoSearch.length > 0 && (
+                    <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded border border-gray-200 bg-white shadow-lg">
+                      {postos
+                        .filter(p => p.id !== funcionario.posto_id)
+                        .filter(p => {
+                          const q = postoSearch.toLowerCase()
+                          return (
+                            p.nome.toLowerCase().includes(q) ||
+                            (p.secretaria ?? '').toLowerCase().includes(q)
+                          )
+                        })
+                        .slice(0, 30)
+                        .map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setPostoSelecionado(p)
+                              setPostoSearch(p.nome)
+                              setPostoOpen(false)
+                            }}
+                            className="flex w-full flex-col px-3 py-2 text-left hover:bg-slate-50"
+                          >
+                            <span className="text-sm font-medium">{p.nome}</span>
+                            {p.secretaria && (
+                              <span className="text-xs text-gray-400">{p.secretaria}</span>
+                            )}
+                          </button>
+                        ))}
+                      {postos.filter(p => {
+                        const q = postoSearch.toLowerCase()
+                        return p.id !== funcionario.posto_id && (
+                          p.nome.toLowerCase().includes(q) ||
+                          (p.secretaria ?? '').toLowerCase().includes(q)
+                        )
+                      }).length === 0 && (
+                        <p className="px-3 py-2 text-sm text-gray-400">Nenhum posto encontrado.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {postoSelecionado && (
+                  <p className="mt-1 text-xs text-gray-400">
+                    Selecionado: <span className="font-medium text-slate-700">{postoSelecionado.nome}</span>
+                    {postoSelecionado.secretaria && ` — ${postoSelecionado.secretaria}`}
+                  </p>
+                )}
               </div>
             )}
 
