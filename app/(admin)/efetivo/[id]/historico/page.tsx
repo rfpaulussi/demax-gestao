@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { BackButton } from '@/components/ui/back-button'
 import { createClient } from '@/lib/supabase/server'
 import { ProntuarioClient } from '@/components/efetivo/prontuario-client'
 
@@ -178,6 +179,7 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
 
   return (
     <div className="space-y-6">
+      <BackButton href="/efetivo" label="Voltar ao Efetivo" />
       <div>
         <h1 className="text-lg font-bold text-gray-900">Prontuário</h1>
         <p className="text-sm text-gray-400">Histórico completo do funcionário</p>

@@ -1,4 +1,5 @@
 import { buscarMudancasFuncao } from './actions'
+import { BackButton } from '@/components/ui/back-button'
 import { MudancasFuncaoClient } from '@/components/relatorios/mudancas-funcao-client'
 
 const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
@@ -17,6 +18,7 @@ export default async function MudancasFuncaoPage({
 
   return (
     <div className="space-y-6">
+      <BackButton href="/relatorios" label="Voltar aos Relatórios" />
       <div>
         <h1 className="text-lg font-bold text-gray-900">Mudanças de Função</h1>
         <p className="text-sm text-gray-400">Alterações de função registradas — {MESES[mes]} {ano}</p>

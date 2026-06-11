@@ -1,4 +1,5 @@
 import { buscarEfetivoMes } from './actions'
+import { BackButton } from '@/components/ui/back-button'
 import { PostosMesClient } from '@/components/relatorios/postos-mes-client'
 
 const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
@@ -21,6 +22,7 @@ export default async function PostosMesPage({
 
   return (
     <div className="space-y-6">
+      <BackButton href="/relatorios" label="Voltar aos Relatórios" />
       <div>
         <h1 className="text-lg font-bold text-gray-900">Efetivo por Posto / Mês</h1>
         <p className="text-sm text-gray-400">Snapshot do efetivo nos postos — {MESES[mes]} {ano}</p>

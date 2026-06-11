@@ -1,4 +1,5 @@
 import { buscarAdvertenciasMes } from './actions'
+import { BackButton } from '@/components/ui/back-button'
 import { AdvertenciasMesClient } from '@/components/relatorios/advertencias-mes-client'
 
 const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
@@ -17,6 +18,7 @@ export default async function AdvertenciasMesPage({
 
   return (
     <div className="space-y-6">
+      <BackButton href="/relatorios" label="Voltar aos Relatórios" />
       <div>
         <h1 className="text-lg font-bold text-gray-900">Advertências do Mês</h1>
         <p className="text-sm text-gray-400">Advertências e suspensões registradas — {MESES[mes]} {ano}</p>

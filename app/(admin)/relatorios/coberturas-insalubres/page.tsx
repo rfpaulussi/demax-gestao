@@ -1,4 +1,5 @@
 import { buscarCoberturasInsalubresRelatorio } from './actions'
+import { BackButton } from '@/components/ui/back-button'
 import { CoberturasInsalubresClient } from '@/components/relatorios/coberturas-insalubres-client'
 
 const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
@@ -20,6 +21,7 @@ export default async function CoberturasInsalubresPage({
 
   return (
     <div className="space-y-6">
+      <BackButton href="/relatorios" label="Voltar aos Relatórios" />
       <div>
         <h1 className="text-lg font-bold text-gray-900">Coberturas Insalubres</h1>
         <p className="text-sm text-gray-400">Registros de cobertura de insalubridade — {MESES[mes]} {ano}</p>
