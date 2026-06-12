@@ -28,6 +28,7 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           PGSSLMODE: require
         run: |
+          echo "::add-mask::$SUPABASE_DB_URL"
           FILENAME="backup-$(date +%Y%m%d).sql.gz"
           pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges 2>pg_dump_error.log | gzip > "$FILENAME"
           echo "BACKUP_FILE=$FILENAME" >> "$GITHUB_ENV"
