@@ -269,11 +269,19 @@ export async function solicitarAfastamento(fd: FormData): Promise<ActionResult> 
   const motivo               = fd.get('motivo') as string
   const data_inicio          = fd.get('data_inicio') as string
   const data_retorno_prevista = (fd.get('data_retorno_prevista') as string) || null
+
+  const { data: func } = await supabase
+    .from('funcionarios')
+    .select('status, posto_id')
+    .eq('id', funcionario_id)
+    .single()
+
   const { error } = await supabase.from('solicitacoes').insert({
     funcionario_id,
     tipo:         'afastamento' as unknown as 'desligamento',
     status:       'pendente',
     supervisor_id: auth.user.id,
+    dados_antes:  { status: func?.status ?? null, posto_id: func?.posto_id ?? null },
     dados_depois: { motivo, data_inicio, data_retorno_prevista },
     motivo,
   })
@@ -290,11 +298,19 @@ export async function solicitarRetornoAfastamento(fd: FormData): Promise<ActionR
   const funcionario_id  = fd.get('funcionario_id') as string
   const data_retorno    = fd.get('data_retorno') as string
   const posto_retorno_id = (fd.get('posto_retorno_id') as string) || null
+
+  const { data: func } = await supabase
+    .from('funcionarios')
+    .select('status, posto_id')
+    .eq('id', funcionario_id)
+    .single()
+
   const { error } = await supabase.from('solicitacoes').insert({
     funcionario_id,
     tipo:         'retorno_afastamento' as unknown as 'desligamento',
     status:       'pendente',
     supervisor_id: auth.user.id,
+    dados_antes:  { status: func?.status ?? null, posto_id: func?.posto_id ?? null },
     dados_depois: { data_retorno, posto_retorno_id },
   })
   if (error) return { success: false, error: error.message }
@@ -310,11 +326,19 @@ export async function solicitarRescisaoIndireta(fd: FormData): Promise<ActionRes
   const funcionario_id = fd.get('funcionario_id') as string
   const motivo         = fd.get('motivo') as string
   const data_rescisao  = fd.get('data_rescisao') as string
+
+  const { data: func } = await supabase
+    .from('funcionarios')
+    .select('status, posto_id, funcao_id')
+    .eq('id', funcionario_id)
+    .single()
+
   const { error } = await supabase.from('solicitacoes').insert({
     funcionario_id,
     tipo:         'rescisao_indireta' as unknown as 'desligamento',
     status:       'pendente',
     supervisor_id: auth.user.id,
+    dados_antes:  { status: func?.status ?? null, posto_id: func?.posto_id ?? null, funcao_id: func?.funcao_id ?? null },
     dados_depois: { motivo, data_rescisao },
     motivo,
   })
