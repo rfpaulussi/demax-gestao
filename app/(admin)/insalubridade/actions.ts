@@ -235,10 +235,11 @@ export async function importarDasCoberturas(
 
   if (toInsert.length === 0) return { importados: 0 }
 
-  const { data: inserted } = await supabase
+  const { data: inserted, error: errUpsert } = await supabase
     .from('insalubridade_coberturas')
     .upsert(toInsert, { onConflict: 'funcionario_id,data_cobertura', ignoreDuplicates: true })
     .select('id')
+  if (errUpsert) console.error('[insalubridade] importarDasCoberturas: upsert falhou (importados=0 por ERRO, não por ausência de dados):', errUpsert.message)
 
   revalidatePath('/insalubridade')
   return { importados: (inserted ?? []).length }
@@ -250,19 +251,21 @@ export async function marcarEnviado(
   ano: number
 ) {
   const supabase = createClient()
-  await supabase
+  const { error } = await supabase
     .from('insalubridade_coberturas')
     .update({ status: 'enviado' })
     .eq('funcionario_id', funcionarioId)
     .eq('mes', mes)
     .eq('ano', ano)
     .eq('status', 'pendente')
+  if (error) console.error('[insalubridade] marcarEnviado:', error.message)
   revalidatePath('/insalubridade')
 }
 
 export async function removerDia(id: string) {
   const supabase = createClient()
-  await supabase.from('insalubridade_coberturas').delete().eq('id', id)
+  const { error } = await supabase.from('insalubridade_coberturas').delete().eq('id', id)
+  if (error) console.error('[insalubridade] removerDia:', error.message)
   revalidatePath('/insalubridade')
 }
 
