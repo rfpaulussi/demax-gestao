@@ -1,0 +1,51 @@
+name: Daily Database Backup
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 06:00 UTC todos os dias
+  workflow_dispatch:        # permite disparo manual
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ubuntu-latest vem com pg_dump 14; Supabase roda Postgres 15+.
+      # pg_dump deve ser >= versão do servidor — instalamos o client 16
+      # via repositório oficial PGDG para garantir compatibilidade.
+      - name: Install postgresql-client-16
+        run: |
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+          echo "deb [signed-by=/etc/apt/trusted.gpg.d/postgresql.gpg] \
+            http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-16
+
+      - name: Run pg_dump
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PGSSLMODE: require
+        run: |
+          FILENAME="backup-$(date +%Y%m%d).sql.gz"
+          pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges | gzip > "$FILENAME"
+          echo "BACKUP_FILE=$FILENAME" >> "$GITHUB_ENV"
+
+      - name: Validate backup size
+        run: |
+          SIZE=$(stat -c%s "$BACKUP_FILE")
+          echo "Arquivo: $BACKUP_FILE"
+          echo "Tamanho: $SIZE bytes"
+          if [ "$SIZE" -lt 1024 ]; then
+            echo "ERRO: backup menor que 1 KB ($SIZE bytes) — pg_dump provavelmente falhou silenciosamente"
+            exit 1
+          fi
+          echo "OK: backup válido ($SIZE bytes)"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: backup-*.sql.gz
+          retention-days: 30
