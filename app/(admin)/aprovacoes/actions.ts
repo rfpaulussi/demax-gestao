@@ -174,7 +174,7 @@ export async function aprovarSolicitacao(
   }
   const mov = campoMap[sol.tipo]
 
-  await supabase.from('movimentacoes').insert({
+  const { error: errMovAprov } = await supabase.from('movimentacoes').insert({
     funcionario_id:  sol.funcionario_id,
     tipo:            sol.tipo,
     campo_alterado:  mov?.campo ?? null,
@@ -183,6 +183,7 @@ export async function aprovarSolicitacao(
     executado_por:   guard.userId,
     solicitacao_id:  id,
   })
+  if (errMovAprov) console.error('[movimentacoes] aprovarSolicitacao:', errMovAprov.message)
 
   await supabase
     .from('solicitacoes')

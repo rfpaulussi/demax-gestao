@@ -47,7 +47,7 @@ export async function registrarAtestadoSupervisor(
 
   if (error) return { success: false, error: error.message }
 
-  await Promise.all([
+  const [, { error: errMovAtestado }] = await Promise.all([
     supabase
       .from('funcionarios')
       .update({ status: 'afastado' })
@@ -61,6 +61,7 @@ export async function registrarAtestadoSupervisor(
       executado_por:  guard.userId,
     }),
   ])
+  if (errMovAtestado) console.error('[movimentacoes] registrarAtestadoSupervisor:', errMovAtestado.message)
 
   revalidatePath('/supervisor/meu-posto')
   revalidatePath('/dashboard')

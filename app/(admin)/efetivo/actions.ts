@@ -73,7 +73,7 @@ export async function registrarFerias(formData: FormData) {
     .eq('id', funcionarioId)
     .single()
 
-  await Promise.all([
+  const [, , { error: errMovFerias }] = await Promise.all([
     supabase.from('ferias').insert({
       funcionario_id: funcionarioId,
       data_inicio: dataInicio,
@@ -94,6 +94,7 @@ export async function registrarFerias(formData: FormData) {
       executado_por: auth.user.id,
     }),
   ])
+  if (errMovFerias) console.error('[movimentacoes] registrarFerias:', errMovFerias.message)
 
   revalidatePath('/efetivo')
   revalidatePath('/dashboard')
@@ -112,7 +113,7 @@ export async function afastarFuncionario(formData: FormData) {
     .eq('id', funcionarioId)
     .single()
 
-  await Promise.all([
+  const [, { error: errMovAfastar }] = await Promise.all([
     supabase
       .from('funcionarios')
       .update({ status: 'afastado' })
@@ -126,6 +127,7 @@ export async function afastarFuncionario(formData: FormData) {
       executado_por: auth.user.id,
     }),
   ])
+  if (errMovAfastar) console.error('[movimentacoes] afastarFuncionario:', errMovAfastar.message)
 
   revalidatePath('/efetivo')
   revalidatePath('/dashboard')

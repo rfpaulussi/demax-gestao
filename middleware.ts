@@ -58,8 +58,8 @@ export async function middleware(request: NextRequest) {
     return redirectTo('/login', request, supabaseResponse)
   }
 
-  // Bloqueia /admin/usuarios para roles diferentes de admin
-  if (user && pathname.startsWith('/admin/usuarios')) {
+  // Bloqueia /usuarios para roles diferentes de admin
+  if (user && pathname.startsWith('/usuarios')) {
     const { data: perfil } = await supabase
       .from('perfis')
       .select('role')
