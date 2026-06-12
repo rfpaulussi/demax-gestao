@@ -30,7 +30,7 @@ jobs:
         run: |
           echo "::add-mask::$SUPABASE_DB_URL"
           FILENAME="backup-$(date +%Y%m%d).sql.gz"
-          pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges 2>pg_dump_error.log | gzip > "$FILENAME"
+          /usr/lib/postgresql/17/bin/pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges 2>pg_dump_error.log | gzip > "$FILENAME"
           echo "BACKUP_FILE=$FILENAME" >> "$GITHUB_ENV"
 
       - name: Show pg_dump stderr
