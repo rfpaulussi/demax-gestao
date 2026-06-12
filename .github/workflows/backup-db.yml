@@ -29,8 +29,14 @@ jobs:
           PGSSLMODE: require
         run: |
           FILENAME="backup-$(date +%Y%m%d).sql.gz"
-          pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges | gzip > "$FILENAME"
+          pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges 2>pg_dump_error.log | gzip > "$FILENAME"
           echo "BACKUP_FILE=$FILENAME" >> "$GITHUB_ENV"
+
+      - name: Show pg_dump stderr
+        if: always()
+        run: |
+          echo "=== pg_dump stderr ==="
+          cat pg_dump_error.log || echo "(arquivo não encontrado)"
 
       - name: Validate backup size
         run: |
