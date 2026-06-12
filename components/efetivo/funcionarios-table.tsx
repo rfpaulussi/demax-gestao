@@ -160,16 +160,18 @@ export function FuncionariosTable({
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-1.5">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setAtestadoFuncionario(f)}
-                            disabled={!f.posto_id}
-                            title={!f.posto_id ? 'Sem posto vinculado' : undefined}
-                          >
-                            <FileMinus className="h-3.5 w-3.5" />
-                            Atestado
-                          </Button>
+                          {f.status === 'ativo' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setAtestadoFuncionario(f)}
+                              disabled={!f.posto_id}
+                              title={!f.posto_id ? 'Sem posto vinculado' : undefined}
+                            >
+                              <FileMinus className="h-3.5 w-3.5" />
+                              Atestado
+                            </Button>
+                          )}
                           {f.status !== 'desligado' && (
                             <Button
                               size="sm"
