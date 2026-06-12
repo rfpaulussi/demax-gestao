@@ -11,9 +11,10 @@ interface Props {
   supervisores: { id: string; nome: string | null }[]
   postos: { id: string; nome: string; secretaria: string | null }[]
   funcoes: { id: string; nome: string }[]
+  cids: { codigo: string; descricao: string }[]
 }
 
-export function EfetivoClient({ funcionarios, supervisores, postos, funcoes }: Props) {
+export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cids }: Props) {
   const [values, setValues] = useState<FiltrosValues>({
     busca: '', status: '', secretaria: '', supervisor: '',
   })
@@ -105,6 +106,7 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes }: P
         funcionarios={sorted}
         postos={postos}
         funcoes={funcoes}
+        cids={cids}
         sortCol={sortCol}
         sortDir={sortDir}
         onSort={toggleSort}

@@ -16,8 +16,7 @@ export async function registrarAtestado(formData: FormData) {
   const dataInicio    = formData.get('data_inicio') as string
   const dataFim       = formData.get('data_fim') as string
   const motivo        = (formData.get('motivo') as string) || null
-
-  const cid = (formData.get('cid') as string) || null
+  const cidCodigo     = (formData.get('cid_codigo') as string) || null
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -31,7 +30,7 @@ export async function registrarAtestado(formData: FormData) {
     data_inicio: dataInicio,
     data_fim: dataFim,
     motivo,
-    cid,
+    cid_codigo: cidCodigo,
     registrado_por: auth.user.id,
   })
   if (errAtestado) throw new Error(errAtestado.message)

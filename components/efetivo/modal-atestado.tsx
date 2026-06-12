@@ -1,18 +1,48 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { registrarAtestado } from '@/app/(admin)/efetivo/actions'
 import type { FuncionarioRow } from './funcionarios-table'
+
+type CidOpt = { codigo: string; descricao: string }
 
 interface Props {
   funcionario: FuncionarioRow
   open: boolean
   onClose: () => void
+  cids: CidOpt[]
 }
 
-export function ModalAtestado({ funcionario, open, onClose }: Props) {
+export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
   const [pending, setPending] = useState(false)
+  const [cidBusca, setCidBusca]       = useState('')
+  const [cidCodigo, setCidCodigo]     = useState('')
+  const [cidAberto, setCidAberto]     = useState(false)
+  const cidRef = useRef<HTMLDivElement>(null)
+
+  const cidsFiltrados = cids.filter(c =>
+    !cidBusca ||
+    c.codigo.toLowerCase().includes(cidBusca.toLowerCase()) ||
+    c.descricao.toLowerCase().includes(cidBusca.toLowerCase()),
+  )
+
+  function selecionarCid(c: CidOpt) {
+    setCidCodigo(c.codigo)
+    setCidBusca(`${c.codigo} — ${c.descricao}`)
+    setCidAberto(false)
+  }
+
+  function limparCid() {
+    setCidCodigo('')
+    setCidBusca('')
+  }
+
+  function resetCidState() {
+    setCidCodigo('')
+    setCidBusca('')
+    setCidAberto(false)
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -24,6 +54,7 @@ export function ModalAtestado({ funcionario, open, onClose }: Props) {
     try {
       await registrarAtestado(data)
       form.reset()
+      resetCidState()
       onClose()
     } finally {
       setPending(false)
@@ -31,7 +62,7 @@ export function ModalAtestado({ funcionario, open, onClose }: Props) {
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
+    <Dialog.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) { resetCidState(); onClose() } }}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/50 z-40" />
         <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-xl">
@@ -74,22 +105,59 @@ export function ModalAtestado({ funcionario, open, onClose }: Props) {
               />
             </div>
 
+            {/* CID — combobox com busca */}
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600">
-                CID (opcional)
+                CID <span className="font-normal normal-case tracking-normal text-gray-400">(opcional)</span>
               </label>
-              <input
-                type="text"
-                name="cid"
-                placeholder="ex: J11, M54"
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-              />
+              <div ref={cidRef} className="relative">
+                <input
+                  type="text"
+                  value={cidBusca}
+                  onChange={e => {
+                    setCidBusca(e.target.value)
+                    setCidCodigo('')
+                    setCidAberto(true)
+                  }}
+                  onFocus={() => setCidAberto(true)}
+                  onBlur={() => setTimeout(() => setCidAberto(false), 150)}
+                  placeholder="Buscar por código ou descrição..."
+                  autoComplete="off"
+                  className="w-full rounded border border-gray-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                />
+                {cidCodigo && (
+                  <button
+                    type="button"
+                    onClick={limparCid}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    aria-label="Limpar CID"
+                  >
+                    ×
+                  </button>
+                )}
+                {cidAberto && cidsFiltrados.length > 0 && (
+                  <div className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded border border-gray-200 bg-white shadow-lg">
+                    {cidsFiltrados.map(c => (
+                      <button
+                        key={c.codigo}
+                        type="button"
+                        onMouseDown={() => selecionarCid(c)}
+                        className="flex w-full items-baseline gap-2 px-3 py-2 text-left text-sm hover:bg-blue-50"
+                      >
+                        <span className="shrink-0 font-mono font-semibold text-blue-700">{c.codigo}</span>
+                        <span className="text-gray-600">{c.descricao}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <input type="hidden" name="cid_codigo" value={cidCodigo} />
+              </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={() => { resetCidState(); onClose() }}
                 className="rounded px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
               >
                 Cancelar

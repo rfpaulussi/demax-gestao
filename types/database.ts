@@ -508,6 +508,7 @@ export type Database = {
           data_fim: string
           motivo: string | null
           cid: string | null
+          cid_codigo: string | null
           registrado_por: string
           created_at: string
         }
@@ -519,6 +520,7 @@ export type Database = {
           data_fim: string
           motivo?: string | null
           cid?: string | null
+          cid_codigo?: string | null
           registrado_por: string
           created_at?: string
         }
@@ -530,7 +532,27 @@ export type Database = {
           data_fim?: string
           motivo?: string | null
           cid?: string | null
+          cid_codigo?: string | null
           registrado_por?: string
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
+      // cid_referencia
+      // ----------------------------------------------------------
+      cid_referencia: {
+        Row: {
+          codigo: string
+          descricao: string
+        }
+        Insert: {
+          codigo: string
+          descricao: string
+        }
+        Update: {
+          codigo?: string
+          descricao?: string
         }
         Relationships: []
       }

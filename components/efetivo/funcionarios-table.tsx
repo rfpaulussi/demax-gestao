@@ -62,6 +62,7 @@ export function FuncionariosTable({
   funcionarios,
   postos,
   funcoes,
+  cids,
   sortCol,
   sortDir,
   onSort,
@@ -69,6 +70,7 @@ export function FuncionariosTable({
   funcionarios: FuncionarioRow[]
   postos: { id: string; nome: string; secretaria: string | null }[]
   funcoes: { id: string; nome: string }[]
+  cids: { codigo: string; descricao: string }[]
   sortCol?: string
   sortDir?: 'asc' | 'desc'
   onSort?: (col: string) => void
@@ -210,6 +212,7 @@ export function FuncionariosTable({
           open
           onClose={() => setAtestadoFuncionario(null)}
           funcionario={atestadoFuncionario}
+          cids={cids}
         />
       )}
 

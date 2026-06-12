@@ -42,6 +42,7 @@ export default async function EfetivoPage() {
     { data: configRaw },
     { data: postosRaw },
     { data: funcoesRaw },
+    { data: cidsRaw },
   ] = await Promise.all([
     supabase
       .from('funcionarios')
@@ -64,6 +65,7 @@ export default async function EfetivoPage() {
       .eq('ativo', true),
     supabase.from('postos').select('id, nome, secretaria').order('nome'),
     supabase.from('funcoes').select('id, nome').order('nome'),
+    supabase.from('cid_referencia').select('codigo, descricao').order('codigo'),
   ])
 
   // posto_id → { supervisor_id, nomeCompleto }
@@ -94,6 +96,7 @@ export default async function EfetivoPage() {
   const supervisores = (supervisoresRaw ?? []) as { id: string; nome: string | null }[]
   const postos       = (postosRaw ?? []) as { id: string; nome: string; secretaria: string | null }[]
   const funcoes      = (funcoesRaw ?? []) as { id: string; nome: string }[]
+  const cids         = (cidsRaw ?? []) as { codigo: string; descricao: string }[]
 
   return (
     <div className="space-y-6">
@@ -116,6 +119,7 @@ export default async function EfetivoPage() {
         supervisores={supervisores}
         postos={postos}
         funcoes={funcoes}
+        cids={cids}
       />
     </div>
   )
