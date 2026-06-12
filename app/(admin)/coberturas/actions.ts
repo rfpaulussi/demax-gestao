@@ -73,16 +73,18 @@ export async function registrarCobertura(formData: FormData): Promise<ActionResu
 
   if (error) return { success: false, error: error.message }
 
-  await supabase
+  const { error: errSubstituto } = await supabase
     .from('funcionarios')
     .update({ posto_id: postoDestinoId })
     .eq('id', substitutoId)
+  if (errSubstituto) console.error('[coberturas] registrarCobertura: atualizar posto do substituto:', errSubstituto.message)
 
   if (ausenteId) {
-    await supabase
+    const { error: errAusente } = await supabase
       .from('funcionarios')
       .update({ status: 'afastado' })
       .eq('id', ausenteId)
+    if (errAusente) console.error('[coberturas] registrarCobertura: marcar ausente como afastado:', errAusente.message)
   }
 
   revalidatePath('/coberturas')
@@ -114,10 +116,11 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
   if (error) return { success: false, error: error.message }
 
   if (cob.posto_origem_id && cob.funcionario_id) {
-    await supabase
+    const { error: errRestore } = await supabase
       .from('funcionarios')
       .update({ posto_id: cob.posto_origem_id })
       .eq('id', cob.funcionario_id)
+    if (errRestore) console.error('[coberturas] encerrarCobertura: restaurar posto do substituto:', errRestore.message)
   }
 
   revalidatePath('/coberturas')
@@ -139,23 +142,29 @@ export async function encerrarCoberturasVencidas(): Promise<{ encerradas: number
   if (!vencidas || vencidas.length === 0) return { encerradas: 0 }
 
   for (const cob of vencidas) {
-    await supabase
+    const { error: errEnc } = await supabase
       .from('coberturas_temporarias')
       .update({ status: 'encerrada', data_retorno_real: hoje })
       .eq('id', cob.id)
+    if (errEnc) {
+      console.error('[coberturas] encerrarCoberturasVencidas: encerrar cobertura', cob.id, ':', errEnc.message)
+      continue
+    }
 
     if (cob.posto_origem_id && cob.funcionario_id) {
-      await supabase
+      const { error: errPosto } = await supabase
         .from('funcionarios')
         .update({ posto_id: cob.posto_origem_id })
         .eq('id', cob.funcionario_id)
+      if (errPosto) console.error('[coberturas] encerrarCoberturasVencidas: restaurar posto', cob.funcionario_id, ':', errPosto.message)
 
-      await supabase.from('historico_funcionarios').insert({
+      const { error: errHist } = await supabase.from('historico_funcionarios').insert({
         funcionario_id:   cob.funcionario_id,
         tipo:             'cobertura_encerrada_automatico',
         dados_anteriores: { posto_id: cob.posto_destino_id },
         dados_novos:      { posto_id: cob.posto_origem_id },
       } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (errHist) console.error('[coberturas] encerrarCoberturasVencidas: registrar historico', cob.funcionario_id, ':', errHist.message)
     }
   }
 
