@@ -63,10 +63,11 @@ export async function registrarCobertura(formData: FormData): Promise<ActionResu
 
   if (error) return { success: false, error: error.message }
 
-  await supabase
+  const { error: errPosto } = await supabase
     .from('funcionarios')
     .update({ posto_id: posto_destino_id })
     .eq('id', funcionario_id)
+  if (errPosto) console.error('[supervisor/coberturas] registrarCobertura: atualizar posto do substituto:', errPosto.message)
 
   revalidatePath('/supervisor/coberturas')
   return { success: true }
@@ -96,10 +97,11 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
 
   // Restaura o substituto ao posto de origem
   if (cob.posto_origem_id && cob.funcionario_id) {
-    await supabase
+    const { error: errRestore } = await supabase
       .from('funcionarios')
       .update({ posto_id: cob.posto_origem_id })
       .eq('id', cob.funcionario_id)
+    if (errRestore) console.error('[supervisor/coberturas] encerrarCobertura: restaurar posto do substituto:', errRestore.message)
   }
 
   revalidatePath('/supervisor/coberturas')
