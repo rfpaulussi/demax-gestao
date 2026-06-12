@@ -40,18 +40,16 @@ export function ModalAfastar({ funcionario, open, onClose }: Props) {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600">
-                Motivo
+                Tipo de Afastamento
               </label>
               <select
-                name="motivo"
+                name="motivo_afastamento"
                 required
                 className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600"
               >
                 <option value="">Selecione...</option>
-                <option value="atestado">Atestado</option>
-                <option value="suspensao">Suspensão</option>
-                <option value="afastamento_inss">Afastamento INSS</option>
-                <option value="outro">Outro</option>
+                <option value="ausencia_temporaria">Ausência temporária (1–15 dias)</option>
+                <option value="inss">INSS / Auxílio-doença</option>
               </select>
             </div>
 

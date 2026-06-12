@@ -12,6 +12,7 @@ import {
   Palmtree,
   ShieldAlert,
   UserMinus,
+  Stethoscope,
   Biohazard,
   Siren,
   UserCog,
@@ -34,6 +35,7 @@ const NAV = [
   { href: '/ferias',        label: 'Férias',        icon: Palmtree        },
   { href: '/advertencias',  label: 'Advertências',  icon: ShieldAlert     },
   { href: '/faltas',        label: 'Faltas',        icon: UserMinus       },
+  { href: '/atestados',    label: 'Atestados',     icon: Stethoscope     },
   { href: '/insalubridade', label: 'Insalubridade', icon: Biohazard       },
   { href: '/ocorrencias',   label: 'Ocorrências',   icon: Siren           },
 ] as const

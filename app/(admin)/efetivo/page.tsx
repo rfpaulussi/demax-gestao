@@ -47,7 +47,7 @@ export default async function EfetivoPage() {
     supabase
       .from('funcionarios')
       .select(`
-        id, nome, cpf, status, data_admissao, posto_id,
+        id, nome, cpf, status, motivo_afastamento, data_admissao, posto_id,
         funcoes!funcao_id ( id, nome ),
         postos!posto_id ( id, nome, secretaria )
       `)

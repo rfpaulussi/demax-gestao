@@ -13,6 +13,7 @@ export type FuncionarioRow = {
   nome: string
   cpf: string | null
   status: 'ativo' | 'afastado' | 'ferias' | 'desligado' | null
+  motivo_afastamento: 'ausencia_temporaria' | 'inss' | null
   data_admissao: string | null
   posto_id: string | null
   funcoes: { id: string; nome: string } | null
@@ -153,9 +154,16 @@ export function FuncionariosTable({
                       </td>
                       <td className="px-5 py-3.5">
                         {badge ? (
-                          <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset', badge.className)}>
-                            {badge.label}
-                          </span>
+                          <div className="flex flex-col gap-0.5">
+                            <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset', badge.className)}>
+                              {badge.label}
+                            </span>
+                            {f.status === 'afastado' && f.motivo_afastamento && (
+                              <span className="text-[10px] text-gray-400 pl-0.5">
+                                {f.motivo_afastamento === 'inss' ? 'INSS' : 'Temporário'}
+                              </span>
+                            )}
+                          </div>
                         ) : '—'}
                       </td>
                       <td className="px-5 py-3.5">
