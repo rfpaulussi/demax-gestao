@@ -1,4 +1,6 @@
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getUser } from '@/lib/auth/get-user'
 import { cn } from '@/lib/utils'
 import { AdvertenciasTable } from '@/components/advertencias/advertencias-table'
 import { NovaAdvertenciaBtn } from '@/components/advertencias/nova-advertencia-btn'
@@ -40,6 +42,12 @@ export default async function AdvertenciasPage({
 }: {
   searchParams: { busca?: string; status?: string; grau?: string }
 }) {
+  const auth = await getUser()
+  if (!auth) redirect('/login')
+  if (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador') {
+    redirect(auth.perfil.role === 'supervisor' ? '/supervisor/meu-posto' : '/dashboard')
+  }
+
   const supabase = createClient()
 
   const [{ data: rawAdv }, { data: rawFunc }] = await Promise.all([
