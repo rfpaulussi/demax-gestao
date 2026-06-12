@@ -126,20 +126,22 @@ export async function criarAdvertencia(formData: FormData) {
 export async function marcarEntregue(formData: FormData) {
   const supabase = createClient()
   const advertencia_id = formData.get('advertencia_id') as string
-  await supabase
+  const { error } = await supabase
     .from('advertencias')
     .update({ status: 'entregue' })
     .eq('id', advertencia_id)
+  if (error) console.error('[advertencias] marcarEntregue:', error.message)
   revalidatePath('/advertencias')
 }
 
 export async function marcarGerada(formData: FormData) {
   const supabase = createClient()
   const advertencia_id = formData.get('advertencia_id') as string
-  await supabase
+  const { error } = await supabase
     .from('advertencias')
     .update({ status: 'gerada' })
     .eq('id', advertencia_id)
+  if (error) console.error('[advertencias] marcarGerada:', error.message)
   revalidatePath('/advertencias')
 }
 
