@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { UserPlus } from 'lucide-react'
 import type { PostoRow } from '@/app/(admin)/postos/actions'
+import { ModalNovaAdmissao } from '@/components/supervisor/modal-nova-admissao'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -79,12 +81,27 @@ const selectClass =
 
 // ─── component ────────────────────────────────────────────────────────────────
 
-export function PostosClient({ postos }: { postos: PostoRow[] }) {
-  const [secretaria, setSecretaria] = useState('')
-  const [supervisor, setSupervisor] = useState('')
-  const [status, setStatus]         = useState('')
-  const [sortCol, setSortCol]       = useState<SortCol>('secretaria')
-  const [sortDir, setSortDir]       = useState<SortDir>('asc')
+interface PostosClientProps {
+  postos: PostoRow[]
+  role?: string
+  funcoes?: { id: string; nome: string }[]
+  supervisorPostos?: { id: string; nome: string; secretaria: string | null }[]
+}
+
+export function PostosClient({ postos, role, funcoes = [], supervisorPostos = [] }: PostosClientProps) {
+  const [secretaria, setSecretaria]         = useState('')
+  const [supervisor, setSupervisor]         = useState('')
+  const [status, setStatus]                 = useState('')
+  const [sortCol, setSortCol]               = useState<SortCol>('secretaria')
+  const [sortDir, setSortDir]               = useState<SortDir>('asc')
+  const [novaAdmissaoOpen, setNovaAdmissaoOpen] = useState(false)
+  const [toast, setToast]                   = useState(false)
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(false), 3500)
+    return () => clearTimeout(t)
+  }, [toast])
 
   // ── filter options ─────────────────────────────────────────────────────────
 
@@ -190,7 +207,7 @@ export function PostosClient({ postos }: { postos: PostoRow[] }) {
         <CounterCard label="Sem Supervisor" value={kpis.semSupervisor} topColor="border-t-amber-500"  />
       </div>
 
-      {/* Filtros */}
+      {/* Filtros + botão Nova Admissão (supervisor) */}
       <div className="flex flex-wrap items-center gap-3">
         <select value={secretaria} onChange={e => setSecretaria(e.target.value)} className={selectClass}>
           <option value="">Todas as secretarias</option>
@@ -210,7 +227,26 @@ export function PostosClient({ postos }: { postos: PostoRow[] }) {
           <option value="excesso">Excesso</option>
           <option value="vago">Vago</option>
         </select>
+
+        {role === 'supervisor' && (
+          <button
+            type="button"
+            onClick={() => setNovaAdmissaoOpen(true)}
+            className="ml-auto flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors"
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            Nova Admissão
+          </button>
+        )}
       </div>
+
+      {/* Toast confirmação */}
+      {toast && (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 shadow-sm">
+          <span>✓</span>
+          <span>Admissão enviada para aprovação.</span>
+        </div>
+      )}
 
       {/* Tabela */}
       <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
@@ -277,6 +313,16 @@ export function PostosClient({ postos }: { postos: PostoRow[] }) {
           </tbody>
         </table>
       </div>
+
+      {role === 'supervisor' && (
+        <ModalNovaAdmissao
+          open={novaAdmissaoOpen}
+          onClose={() => setNovaAdmissaoOpen(false)}
+          onSuccess={() => setToast(true)}
+          postos={supervisorPostos}
+          funcoes={funcoes}
+        />
+      )}
     </div>
   )
 }
