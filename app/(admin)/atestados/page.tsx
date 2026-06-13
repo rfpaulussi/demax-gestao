@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getUser } from '@/lib/auth/get-user'
 import { createClient } from '@/lib/supabase/server'
 import { cn } from '@/lib/utils'
+import { AtestadosClient, type AtestadoRow } from '@/components/atestados/atestados-client'
 
 type AtestadoRaw = {
   id: string
@@ -9,9 +10,8 @@ type AtestadoRaw = {
   posto_id: string | null
   data_inicio: string
   data_fim: string
-  cid: string | null
+  motivo: string | null
   cid_codigo: string | null
-  created_at: string
   funcionarios: { id: string; nome: string } | null
   postos: { nome: string; secretaria: string | null } | null
 }
@@ -34,7 +34,7 @@ const inputClass =
 export default async function AtestadosPage({
   searchParams,
 }: {
-  searchParams: { busca?: string; secretaria?: string }
+  searchParams: { busca?: string; secretaria?: string; posto?: string; data_de?: string; data_ate?: string }
 }) {
   const auth = await getUser()
   if (!auth) redirect('/login')
@@ -48,7 +48,7 @@ export default async function AtestadosPage({
     supabase
       .from('atestados')
       .select(`
-        id, funcionario_id, posto_id, data_inicio, data_fim, cid, cid_codigo, created_at,
+        id, funcionario_id, posto_id, data_inicio, data_fim, motivo, cid_codigo,
         funcionarios!funcionario_id ( id, nome ),
         postos!posto_id ( nome, secretaria )
       `)
@@ -60,40 +60,69 @@ export default async function AtestadosPage({
   const cidMap = new Map(
     (rawCids ?? []).map(c => [c.codigo, c.descricao] as [string, string]),
   )
+  const cids = (rawCids ?? []).map(c => ({ codigo: c.codigo, descricao: c.descricao }))
 
   const all = (rawAtestados ?? []) as unknown as AtestadoRaw[]
 
-  // Calcular acumulado 30 dias por funcionário (sobre todos os registros, antes do filtro)
+  // Acumulado 30 dias por funcionário (calculado sobre todos os registros, antes de filtrar)
   const hoje = new Date()
   const limite = new Date(hoje)
   limite.setDate(hoje.getDate() - 30)
   const limiteStr = toDateStr(limite)
 
-  const acumulado = new Map<string, number>()
+  const acumuladoMap = new Map<string, number>()
   for (const a of all) {
     if (!a.data_fim || a.data_fim < limiteStr) continue
     const dias = calcDias(a.data_inicio, a.data_fim)
-    acumulado.set(a.funcionario_id, (acumulado.get(a.funcionario_id) ?? 0) + dias)
+    acumuladoMap.set(a.funcionario_id, (acumuladoMap.get(a.funcionario_id) ?? 0) + dias)
   }
 
-  // Filtros
-  const buscaLower    = searchParams.busca?.toLowerCase() ?? ''
-  const secFilter     = searchParams.secretaria ?? ''
-
-  let filtered = all
-  if (buscaLower) filtered = filtered.filter(a =>
-    (a.funcionarios?.nome ?? '').toLowerCase().includes(buscaLower),
-  )
-  if (secFilter) filtered = filtered.filter(a =>
-    (a.postos?.secretaria ?? '') === secFilter,
-  )
-
-  // Secretarias disponíveis para o select
+  // Opções de filtro derivadas de todos os registros
   const secretarias = Array.from(
     new Set(all.map(a => a.postos?.secretaria).filter((s): s is string => Boolean(s))),
   ).sort()
+  const postos = Array.from(
+    new Set(all.map(a => a.postos?.nome).filter((s): s is string => Boolean(s))),
+  ).sort()
 
-  const totalAlerta = Array.from(acumulado.values()).filter(v => v > 15).length
+  // Aplicar filtros
+  const buscaLower = searchParams.busca?.toLowerCase() ?? ''
+  const secFilter  = searchParams.secretaria ?? ''
+  const postoFilter = searchParams.posto ?? ''
+  const dataDe     = searchParams.data_de ?? ''
+  const dataAte    = searchParams.data_ate ?? ''
+
+  let filtered = all
+  if (buscaLower)   filtered = filtered.filter(a => (a.funcionarios?.nome ?? '').toLowerCase().includes(buscaLower))
+  if (secFilter)    filtered = filtered.filter(a => (a.postos?.secretaria ?? '') === secFilter)
+  if (postoFilter)  filtered = filtered.filter(a => (a.postos?.nome ?? '') === postoFilter)
+  if (dataDe)       filtered = filtered.filter(a => a.data_inicio >= dataDe)
+  if (dataAte)      filtered = filtered.filter(a => a.data_inicio <= dataAte)
+
+  // Mapear para AtestadoRow com campos computados
+  const rows: AtestadoRow[] = filtered.map(a => {
+    const dias     = calcDias(a.data_inicio, a.data_fim)
+    const acumulado = acumuladoMap.get(a.funcionario_id) ?? 0
+    const cidDesc  = a.cid_codigo ? (cidMap.get(a.cid_codigo) ?? a.cid_codigo) : ''
+    return {
+      id: a.id,
+      funcionario_id: a.funcionario_id,
+      posto_id: a.posto_id,
+      data_inicio: a.data_inicio,
+      data_fim: a.data_fim,
+      motivo: a.motivo,
+      cid_codigo: a.cid_codigo,
+      funcionario_nome: a.funcionarios?.nome ?? '—',
+      posto_nome: a.postos?.nome ?? '—',
+      secretaria: a.postos?.secretaria ?? '—',
+      dias,
+      acumulado,
+      alerta: acumulado > 15,
+      cid_desc: cidDesc,
+    }
+  })
+
+  const totalAlerta = Array.from(acumuladoMap.values()).filter(v => v > 15).length
 
   return (
     <div className="space-y-6">
@@ -112,7 +141,7 @@ export default async function AtestadosPage({
         )}
       </div>
 
-      {/* KPI */}
+      {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-t-4 border-gray-100 border-t-blue-500 bg-white p-5 shadow-sm">
           <p className="text-3xl font-black tracking-tight text-gray-900">{all.length}</p>
@@ -120,7 +149,7 @@ export default async function AtestadosPage({
         </div>
         <div className="rounded-xl border border-t-4 border-gray-100 border-t-amber-500 bg-white p-5 shadow-sm">
           <p className="text-3xl font-black tracking-tight text-gray-900">
-            {all.filter(a => a.data_fim >= toDateStr(limite)).length}
+            {all.filter(a => a.data_fim >= limiteStr).length}
           </p>
           <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Últimos 30 dias</p>
         </div>
@@ -137,7 +166,7 @@ export default async function AtestadosPage({
           name="busca"
           defaultValue={searchParams.busca}
           placeholder="Buscar funcionário..."
-          className={cn(inputClass, 'w-56')}
+          className={cn(inputClass, 'w-52')}
         />
         <select
           name="secretaria"
@@ -149,6 +178,33 @@ export default async function AtestadosPage({
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
+        <select
+          name="posto"
+          defaultValue={searchParams.posto}
+          className={cn(inputClass, 'w-44')}
+        >
+          <option value="">Todos os postos</option>
+          {postos.map(p => (
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </select>
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            name="data_de"
+            defaultValue={searchParams.data_de}
+            className={cn(inputClass, 'w-36')}
+            title="Início a partir de"
+          />
+          <span className="text-sm text-gray-400">até</span>
+          <input
+            type="date"
+            name="data_ate"
+            defaultValue={searchParams.data_ate}
+            className={cn(inputClass, 'w-36')}
+            title="Início até"
+          />
+        </div>
         <button
           type="submit"
           className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition-colors hover:bg-slate-700"
@@ -165,83 +221,7 @@ export default async function AtestadosPage({
 
       {/* Tabela */}
       <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-        {filtered.length === 0 ? (
-          <p className="px-6 py-10 text-center text-sm text-gray-400">Nenhum atestado encontrado.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-gray-100 bg-slate-50">
-                <tr>
-                  {['Funcionário', 'Posto', 'Secretaria', 'Início', 'Fim', 'Dias', 'CID', 'Acum. 30d'].map(col => (
-                    <th
-                      key={col}
-                      className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400"
-                    >
-                      {col}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {filtered.map(a => {
-                  const dias  = calcDias(a.data_inicio, a.data_fim)
-                  const acum  = acumulado.get(a.funcionario_id) ?? 0
-                  const alerta = acum > 15
-                  const cidDesc = a.cid_codigo
-                    ? cidMap.get(a.cid_codigo) ?? a.cid_codigo
-                    : (a.cid ?? '—')
-
-                  return (
-                    <tr
-                      key={a.id}
-                      className={cn(
-                        'transition-colors',
-                        alerta ? 'bg-red-50 hover:bg-red-100' : 'bg-white hover:bg-gray-50',
-                      )}
-                    >
-                      <td className="px-5 py-3.5 font-medium text-gray-900">
-                        {a.funcionarios?.nome ?? '—'}
-                      </td>
-                      <td className="px-5 py-3.5 text-gray-500">{a.postos?.nome ?? '—'}</td>
-                      <td className="px-5 py-3.5 text-gray-500">{a.postos?.secretaria ?? '—'}</td>
-                      <td className="px-5 py-3.5 text-gray-500 tabular-nums">
-                        {a.data_inicio.split('-').reverse().join('/')}
-                      </td>
-                      <td className="px-5 py-3.5 text-gray-500 tabular-nums">
-                        {a.data_fim.split('-').reverse().join('/')}
-                      </td>
-                      <td className="px-5 py-3.5 tabular-nums text-gray-700">{dias}</td>
-                      <td className="px-5 py-3.5 text-gray-500">
-                        {a.cid_codigo ? (
-                          <span title={cidMap.get(a.cid_codigo)}>
-                            <span className="font-mono font-semibold text-blue-700">{a.cid_codigo}</span>
-                            {cidMap.get(a.cid_codigo) && (
-                              <span className="ml-1 text-gray-400">— {cidMap.get(a.cid_codigo)}</span>
-                            )}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">{cidDesc}</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <span className={cn('tabular-nums font-semibold', alerta ? 'text-red-700' : 'text-gray-700')}>
-                            {acum}d
-                          </span>
-                          {alerta && (
-                            <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-red-700 ring-1 ring-inset ring-red-200">
-                              ⚠️ Avaliar INSS
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <AtestadosClient atestados={rows} cids={cids} />
       </div>
     </div>
   )
