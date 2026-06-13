@@ -54,13 +54,15 @@ export default async function AtestadosPage({
       `)
       .order('data_inicio', { ascending: false })
       .range(0, 1499),
-    supabase.from('cid_referencia').select('codigo, descricao'),
+    supabase.from('cid_referencia').select('codigo, descricao, nexo_ocupacional_limpeza'),
   ])
 
-  const cidMap = new Map(
-    (rawCids ?? []).map(c => [c.codigo, c.descricao] as [string, string]),
-  )
-  const cids = (rawCids ?? []).map(c => ({ codigo: c.codigo, descricao: c.descricao }))
+  type CidRef = { codigo: string; descricao: string; nexo_ocupacional_limpeza: boolean }
+  const cidsRaw = (rawCids ?? []) as unknown as CidRef[]
+
+  const cidMap = new Map(cidsRaw.map(c => [c.codigo, c.descricao] as [string, string]))
+  const nexoMap = new Map(cidsRaw.map(c => [c.codigo, c.nexo_ocupacional_limpeza ?? false] as [string, boolean]))
+  const cids = cidsRaw.map(c => ({ codigo: c.codigo, descricao: c.descricao }))
 
   const all = (rawAtestados ?? []) as unknown as AtestadoRaw[]
 
@@ -119,6 +121,7 @@ export default async function AtestadosPage({
       acumulado,
       alerta: acumulado > 15,
       cid_desc: cidDesc,
+      nexo_ocupacional: a.cid_codigo ? (nexoMap.get(a.cid_codigo) ?? false) : false,
     }
   })
 

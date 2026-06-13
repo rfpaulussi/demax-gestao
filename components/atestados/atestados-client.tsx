@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { deleteAtestado } from '@/app/(admin)/atestados/actions'
 import { ModalEditarAtestado } from './modal-editar-atestado'
@@ -20,9 +20,31 @@ export type AtestadoRow = {
   acumulado: number
   alerta: boolean
   cid_desc: string
+  nexo_ocupacional: boolean
 }
 
 type CidOpt = { codigo: string; descricao: string }
+
+type SortCol =
+  | 'funcionario_nome'
+  | 'posto_nome'
+  | 'secretaria'
+  | 'data_inicio'
+  | 'data_fim'
+  | 'dias'
+  | 'acumulado'
+
+const COLS: { label: string; sortKey?: SortCol }[] = [
+  { label: 'Funcionário', sortKey: 'funcionario_nome' },
+  { label: 'Posto',       sortKey: 'posto_nome'       },
+  { label: 'Secretaria',  sortKey: 'secretaria'       },
+  { label: 'Início',      sortKey: 'data_inicio'      },
+  { label: 'Fim',         sortKey: 'data_fim'         },
+  { label: 'Dias',        sortKey: 'dias'             },
+  { label: 'CID'                                       },
+  { label: 'Acum. 30d',   sortKey: 'acumulado'        },
+  { label: 'Ações'                                     },
+]
 
 interface Props {
   atestados: AtestadoRow[]
@@ -34,6 +56,33 @@ export function AtestadosClient({ atestados, cids }: Props) {
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
   const [erroExcluir, setErroExcluir] = useState('')
   const [pendingDelete, setPendingDelete] = useState(false)
+  const [sortCol, setSortCol] = useState<SortCol>('data_inicio')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  function handleSort(col: SortCol) {
+    if (col === sortCol) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortCol(col); setSortDir('asc') }
+  }
+
+  const sorted = useMemo(() => {
+    const dir = sortDir === 'asc' ? 1 : -1
+    return [...atestados].sort((a, b) => {
+      switch (sortCol) {
+        case 'funcionario_nome':
+        case 'posto_nome':
+        case 'secretaria':
+          return dir * (a[sortCol] ?? '').localeCompare(b[sortCol] ?? '', 'pt-BR', { sensitivity: 'base' })
+        case 'data_inicio':
+        case 'data_fim':
+          return dir * a[sortCol].localeCompare(b[sortCol])
+        case 'dias':
+        case 'acumulado':
+          return dir * (a[sortCol] - b[sortCol])
+        default:
+          return 0
+      }
+    })
+  }, [atestados, sortCol, sortDir])
 
   async function confirmarExclusao() {
     if (!excluindoId) return
@@ -55,18 +104,26 @@ export function AtestadosClient({ atestados, cids }: Props) {
         <table className="w-full text-sm">
           <thead className="border-b border-gray-100 bg-slate-50">
             <tr>
-              {['Funcionário', 'Posto', 'Secretaria', 'Início', 'Fim', 'Dias', 'CID', 'Acum. 30d', 'Ações'].map(col => (
+              {COLS.map(col => (
                 <th
-                  key={col}
-                  className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400"
+                  key={col.label}
+                  onClick={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
+                  className={cn(
+                    'px-5 py-3 text-left text-xs font-semibold uppercase tracking-widest',
+                    col.sortKey === sortCol ? 'text-gray-700' : 'text-gray-400',
+                    col.sortKey && 'cursor-pointer select-none hover:text-gray-600',
+                  )}
                 >
-                  {col}
+                  {col.label}
+                  {col.sortKey === sortCol && (
+                    <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                  )}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {atestados.map(a => (
+            {sorted.map(a => (
               <tr
                 key={a.id}
                 className={cn(
@@ -85,16 +142,23 @@ export function AtestadosClient({ atestados, cids }: Props) {
                 </td>
                 <td className="px-5 py-3.5 tabular-nums text-gray-700">{a.dias}</td>
                 <td className="px-5 py-3.5 text-gray-500">
-                  {a.cid_codigo ? (
-                    <span>
-                      <span className="font-mono font-semibold text-blue-700">{a.cid_codigo}</span>
-                      {a.cid_desc && a.cid_desc !== a.cid_codigo && (
-                        <span className="ml-1 text-gray-400">— {a.cid_desc}</span>
-                      )}
-                    </span>
-                  ) : (
-                    <span className="text-gray-400">{a.cid_desc || '—'}</span>
-                  )}
+                  <div className="flex flex-col gap-1">
+                    {a.cid_codigo ? (
+                      <span>
+                        <span className="font-mono font-semibold text-blue-700">{a.cid_codigo}</span>
+                        {a.cid_desc && a.cid_desc !== a.cid_codigo && (
+                          <span className="ml-1 text-gray-400">— {a.cid_desc}</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">{a.cid_desc || '—'}</span>
+                    )}
+                    {a.nexo_ocupacional && (
+                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-amber-800 ring-1 ring-inset ring-amber-200">
+                        ⚠️ Possível nexo ocupacional — avaliar CAT/insalubridade
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-5 py-3.5">
                   <div className="flex items-center gap-2">
