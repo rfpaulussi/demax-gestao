@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { deleteAtestado } from '@/app/(admin)/atestados/actions'
 import { ModalEditarAtestado } from './modal-editar-atestado'
@@ -142,23 +143,21 @@ export function AtestadosClient({ atestados, cids }: Props) {
                 </td>
                 <td className="px-5 py-3.5 tabular-nums text-gray-700">{a.dias}</td>
                 <td className="px-5 py-3.5 text-gray-500">
-                  <div className="flex flex-col gap-1">
-                    {a.cid_codigo ? (
-                      <span>
-                        <span className="font-mono font-semibold text-blue-700">{a.cid_codigo}</span>
-                        {a.cid_desc && a.cid_desc !== a.cid_codigo && (
-                          <span className="ml-1 text-gray-400">— {a.cid_desc}</span>
-                        )}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400">{a.cid_desc || '—'}</span>
-                    )}
-                    {a.nexo_ocupacional && (
-                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-amber-800 ring-1 ring-inset ring-amber-200">
-                        ⚠️ Possível nexo ocupacional — avaliar CAT/insalubridade
-                      </span>
-                    )}
-                  </div>
+                  {a.cid_codigo ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="font-mono font-semibold text-blue-700">{a.cid_codigo}</span>
+                      {a.cid_desc && a.cid_desc !== a.cid_codigo && (
+                        <span className="text-gray-400">— {a.cid_desc}</span>
+                      )}
+                      {a.nexo_ocupacional && (
+                        <span title="Possível nexo ocupacional — avaliar CAT/insalubridade">
+                          <AlertTriangle className="shrink-0 text-amber-500" size={14} />
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">{a.cid_desc || '—'}</span>
+                  )}
                 </td>
                 <td className="px-5 py-3.5">
                   <div className="flex items-center gap-2">
