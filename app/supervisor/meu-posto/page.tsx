@@ -10,14 +10,16 @@ export default async function MeuPostoPage() {
 
   const supabase = createClient()
 
-  const { data: configs } = await supabase
-    .from('config_supervisores_postos')
-    .select(`
-      posto_id,
-      postos!posto_id ( id, nome, secretaria, efetivo_previsto )
-    `)
-    .eq('supervisor_id', auth.user.id)
-    .eq('ativo', true)
+  const [{ data: configs }, { data: funcoesRaw }] = await Promise.all([
+    supabase
+      .from('config_supervisores_postos')
+      .select('posto_id, postos!posto_id ( id, nome, secretaria, efetivo_previsto )')
+      .eq('supervisor_id', auth.user.id)
+      .eq('ativo', true),
+    supabase.from('funcoes').select('id, nome').order('nome'),
+  ])
+
+  const funcoes = (funcoesRaw ?? []) as { id: string; nome: string }[]
 
   if (!configs?.length) {
     return (
@@ -68,7 +70,7 @@ export default async function MeuPostoPage() {
         <h1 className="text-lg font-bold text-gray-900">Meu Posto</h1>
         <p className="text-sm text-gray-400">Situação atual dos postos sob sua supervisão</p>
       </div>
-      <PostosDashboard postos={postos} />
+      <PostosDashboard postos={postos} funcoes={funcoes} />
     </div>
   )
 }

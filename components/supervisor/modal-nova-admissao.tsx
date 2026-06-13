@@ -10,6 +10,7 @@ type FuncaoOpt = { id: string; nome: string }
 interface Props {
   open: boolean
   onClose: () => void
+  onSuccess?: () => void
   postos: PostoOpt[]
   funcoes: FuncaoOpt[]
 }
@@ -18,7 +19,7 @@ const labelClass = 'mb-1 block text-xs font-semibold uppercase tracking-widest t
 const inputClass =
   'w-full rounded border border-gray-200 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600'
 
-export function ModalNovaAdmissao({ open, onClose, postos, funcoes }: Props) {
+export function ModalNovaAdmissao({ open, onClose, onSuccess, postos, funcoes }: Props) {
   const [erro, setErro]   = useState<string | null>(null)
   const [ok, setOk]       = useState(false)
   const [pending, start]  = useTransition()
@@ -37,7 +38,8 @@ export function ModalNovaAdmissao({ open, onClose, postos, funcoes }: Props) {
     start(async () => {
       const result = await solicitarAdmissao(fd)
       if (!result.success) { setErro(result.error); return }
-      setOk(true)
+      handleClose()
+      onSuccess?.()
     })
   }
 

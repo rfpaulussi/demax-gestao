@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
+import { UserPlus } from 'lucide-react'
 import { registrarAtestadoSupervisor } from '@/app/supervisor/meu-posto/actions'
+import { ModalNovaAdmissao } from './modal-nova-admissao'
 
 interface Funcionario {
   id: string
@@ -23,6 +25,7 @@ type Posto = PostoData
 
 interface Props {
   postos: Posto[]
+  funcoes?: { id: string; nome: string }[]
 }
 
 interface ModalState {
@@ -31,26 +34,20 @@ interface ModalState {
 }
 
 const STATUS_BADGE: Record<string, string> = {
-  ativo: 'bg-green-100 text-green-700',
+  ativo:    'bg-green-100 text-green-700',
   afastado: 'bg-red-100 text-red-700',
-  ferias: 'bg-orange-100 text-orange-700',
+  ferias:   'bg-orange-100 text-orange-700',
 }
 
 function PostoCard({ posto }: { posto: Posto }) {
   const efetivo_real = posto.funcionarios.length
   const diff = efetivo_real - posto.efetivo_previsto
 
-  const situacao = diff === 0 ? 'COMPLETO' : diff < 0 ? 'DÉFICIT' : 'EXCESSO'
-  const borderColor =
-    diff === 0 ? 'border-green-500' : diff < 0 ? 'border-red-500' : 'border-indigo-500'
-  const badgeColor =
-    diff === 0
-      ? 'bg-green-100 text-green-700'
-      : diff < 0
-      ? 'bg-red-100 text-red-700'
-      : 'bg-indigo-100 text-indigo-700'
+  const situacao    = diff === 0 ? 'COMPLETO' : diff < 0 ? 'DÉFICIT' : 'EXCESSO'
+  const borderColor = diff === 0 ? 'border-green-500' : diff < 0 ? 'border-red-500' : 'border-indigo-500'
+  const badgeColor  = diff === 0 ? 'bg-green-100 text-green-700' : diff < 0 ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'
 
-  const [modal, setModal] = useState<ModalState | null>(null)
+  const [modal, setModal]     = useState<ModalState | null>(null)
   const [pending, setPending] = useState(false)
 
   async function handleAtestado(e: React.FormEvent<HTMLFormElement>) {
@@ -185,17 +182,68 @@ function PostoCard({ posto }: { posto: Posto }) {
   )
 }
 
-export function PostosDashboard({ postos }: Props) {
+export function PostosDashboard({ postos, funcoes = [] }: Props) {
+  const [novaAdmissaoOpen, setNovaAdmissaoOpen] = useState(false)
+  const [toast, setToast] = useState(false)
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(false), 3500)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  const postosParaModal = postos.map(p => ({
+    id: p.id,
+    nome: p.nome,
+    secretaria: p.secretaria ?? null,
+  }))
+
   return (
-    <div className="grid gap-4 bg-gray-50 sm:grid-cols-2 xl:grid-cols-3">
-      {postos.map((posto) => (
-        <PostoCard key={posto.id} posto={posto} />
-      ))}
-      {postos.length === 0 && (
-        <p className="col-span-full py-8 text-center text-sm text-gray-400">
-          Nenhum posto encontrado.
+    <div className="space-y-4">
+      {/* Barra de ações */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-400">
+          {postos.length} posto{postos.length !== 1 ? 's' : ''} sob supervisão
         </p>
+        <button
+          type="button"
+          onClick={() => setNovaAdmissaoOpen(true)}
+          disabled={postos.length === 0 || funcoes.length === 0}
+          title={postos.length === 0 ? 'Nenhum posto vinculado' : undefined}
+          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-40 transition-colors"
+        >
+          <UserPlus className="h-3.5 w-3.5" />
+          Nova Admissão
+        </button>
+      </div>
+
+      {/* Toast */}
+      {toast && (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 shadow-sm">
+          <span>✓</span>
+          <span>Admissão enviada para aprovação.</span>
+        </div>
       )}
+
+      {/* Grid de postos */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {postos.map((posto) => (
+          <PostoCard key={posto.id} posto={posto} />
+        ))}
+        {postos.length === 0 && (
+          <p className="col-span-full py-8 text-center text-sm text-gray-400">
+            Nenhum posto encontrado.
+          </p>
+        )}
+      </div>
+
+      <ModalNovaAdmissao
+        open={novaAdmissaoOpen}
+        onClose={() => setNovaAdmissaoOpen(false)}
+        onSuccess={() => setToast(true)}
+        postos={postosParaModal}
+        funcoes={funcoes}
+      />
     </div>
   )
 }
