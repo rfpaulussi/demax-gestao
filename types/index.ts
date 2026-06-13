@@ -167,6 +167,7 @@ export type TipoSolicitacao =
   | 'afastamento'
   | 'retorno_afastamento'
   | 'rescisao_indireta'
+  | 'admissao'
 
 /** Status de solicitação */
 export type StatusSolicitacao = 'pendente' | 'aprovada' | 'rejeitada'

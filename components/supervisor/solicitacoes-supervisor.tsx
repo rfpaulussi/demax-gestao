@@ -2,21 +2,27 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { UserPlus } from 'lucide-react'
 import type { SolicitacaoRow } from '@/app/(admin)/aprovacoes/actions'
 import type { TipoSolicitacao } from '@/types'
+import { ModalNovaAdmissao } from './modal-nova-admissao'
 
 type StatusFilter = 'todas' | 'pendente' | 'aprovada' | 'rejeitada'
 
+type PostoOpt = { id: string; nome: string; secretaria: string | null }
+type FuncaoOpt = { id: string; nome: string }
+
 const TIPO_BADGE: Record<TipoSolicitacao, { label: string; className: string }> = {
-  desligamento:       { label: 'Desligamento',      className: 'bg-red-50 text-red-700 ring-red-200'           },
-  transferencia:      { label: 'Transferência',      className: 'bg-blue-50 text-blue-700 ring-blue-200'        },
-  mudanca_funcao:     { label: 'Mudança de Função',  className: 'bg-indigo-50 text-indigo-700 ring-indigo-200'  },
-  promocao:           { label: 'Promoção',           className: 'bg-green-50 text-green-700 ring-green-200'     },
-  mudanca_supervisor: { label: 'Mudança Supervisor', className: 'bg-purple-50 text-purple-700 ring-purple-200'  },
-  alteracao_salario:   { label: 'Alteração Salarial',   className: 'bg-amber-50 text-amber-700 ring-amber-200'    },
-  afastamento:         { label: 'Afastamento',          className: 'bg-orange-50 text-orange-700 ring-orange-200' },
-  retorno_afastamento: { label: 'Retorno Afastamento',  className: 'bg-teal-50 text-teal-700 ring-teal-200'       },
-  rescisao_indireta:   { label: 'Rescisão Indireta',    className: 'bg-rose-50 text-rose-700 ring-rose-200'       },
+  desligamento:        { label: 'Desligamento',        className: 'bg-red-50 text-red-700 ring-red-200'           },
+  transferencia:       { label: 'Transferência',        className: 'bg-blue-50 text-blue-700 ring-blue-200'        },
+  mudanca_funcao:      { label: 'Mudança de Função',    className: 'bg-indigo-50 text-indigo-700 ring-indigo-200'  },
+  promocao:            { label: 'Promoção',             className: 'bg-green-50 text-green-700 ring-green-200'     },
+  mudanca_supervisor:  { label: 'Mudança Supervisor',   className: 'bg-purple-50 text-purple-700 ring-purple-200'  },
+  alteracao_salario:   { label: 'Alteração Salarial',   className: 'bg-amber-50 text-amber-700 ring-amber-200'     },
+  afastamento:         { label: 'Afastamento',          className: 'bg-orange-50 text-orange-700 ring-orange-200'  },
+  retorno_afastamento: { label: 'Retorno Afastamento',  className: 'bg-teal-50 text-teal-700 ring-teal-200'        },
+  rescisao_indireta:   { label: 'Rescisão Indireta',    className: 'bg-rose-50 text-rose-700 ring-rose-200'        },
+  admissao:            { label: 'Admissão',             className: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
 }
 
 const STATUS_BADGE = {
@@ -31,12 +37,24 @@ const CAMPO_LABELS: Record<string, string> = {
   motivo:              'Motivo',
   posto_destino_nome:  'Posto destino',
   funcao_destino_nome: 'Função destino',
+  nome:                'Nome',
+  funcao_nome:         'Função',
+  posto_nome:          'Posto',
+  secretaria:          'Secretaria',
+  data_admissao:       'Data de admissão',
 }
 
 function fmt(iso: string | null) {
   if (!iso) return '—'
   const [y, m, d] = iso.split('T')[0].split('-')
   return `${d}/${m}/${y}`
+}
+
+function getNome(sol: SolicitacaoRow): string {
+  if (sol.tipo === 'admissao') {
+    return (sol.dados_depois as { nome?: string } | null)?.nome ?? '(sem nome)'
+  }
+  return sol.funcionarios?.nome ?? '—'
 }
 
 function DadosResumo({ dados }: { dados: Record<string, unknown> | null }) {
@@ -66,26 +84,22 @@ function SolicitacaoCard({ sol }: { sol: SolicitacaoRow }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={cn(
-                'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
-                tipo.className,
-              )}
-            >
+            <span className={cn(
+              'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
+              tipo.className,
+            )}>
               {tipo.label}
             </span>
             <span className="text-sm font-medium text-gray-800">
-              {sol.funcionarios?.nome ?? '—'}
+              {getNome(sol)}
             </span>
           </div>
           <p className="text-xs text-gray-400">{fmt(sol.created_at)}</p>
         </div>
-        <span
-          className={cn(
-            'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
-            status.className,
-          )}
-        >
+        <span className={cn(
+          'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
+          status.className,
+        )}>
           {status.label}
         </span>
       </div>
@@ -103,10 +117,15 @@ function SolicitacaoCard({ sol }: { sol: SolicitacaoRow }) {
 
 export function SolicitacoesSupervisor({
   solicitacoes,
+  postos,
+  funcoes,
 }: {
   solicitacoes: SolicitacaoRow[]
+  postos: PostoOpt[]
+  funcoes: FuncaoOpt[]
 }) {
   const [filtro, setFiltro] = useState<StatusFilter>('todas')
+  const [modalAdmissao, setModalAdmissao] = useState(false)
 
   const counts = {
     todas:     solicitacoes.length,
@@ -127,7 +146,7 @@ export function SolicitacoesSupervisor({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {PILLS.map(p => (
           <button
             key={p.key}
@@ -144,6 +163,17 @@ export function SolicitacoesSupervisor({
             <span className="ml-1.5 opacity-60">{counts[p.key]}</span>
           </button>
         ))}
+
+        <button
+          type="button"
+          onClick={() => setModalAdmissao(true)}
+          disabled={postos.length === 0}
+          title={postos.length === 0 ? 'Nenhum posto vinculado ao seu perfil' : undefined}
+          className="ml-auto flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-40 transition-colors"
+        >
+          <UserPlus className="h-3.5 w-3.5" />
+          Nova Admissão
+        </button>
       </div>
 
       {filtered.length === 0 ? (
@@ -157,6 +187,13 @@ export function SolicitacoesSupervisor({
           ))}
         </div>
       )}
+
+      <ModalNovaAdmissao
+        open={modalAdmissao}
+        onClose={() => setModalAdmissao(false)}
+        postos={postos}
+        funcoes={funcoes}
+      />
     </div>
   )
 }

@@ -35,6 +35,7 @@ const TIPO_LABELS: Record<TipoSolicitacao, string> = {
   afastamento:         'Afastamento',
   retorno_afastamento: 'Retorno de Afastamento',
   rescisao_indireta:   'Rescisão Indireta',
+  admissao:            'Admissão',
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────

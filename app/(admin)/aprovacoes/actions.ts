@@ -7,7 +7,7 @@ import type { TipoSolicitacao } from '@/types'
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
-type ActionResult = { success: true } | { success: false; error: string }
+type ActionResult = { success: true; redirect_url?: string } | { success: false; error: string }
 
 export type SolicitacaoFiltros = {
   tipo?: TipoSolicitacao
@@ -159,6 +159,58 @@ export async function aprovarSolicitacao(
         })
         .eq('id', sol.funcionario_id)
       break
+    }
+
+    case 'admissao': {
+      const { data: novoFunc, error: errCreate } = await supabase
+        .from('funcionarios')
+        .insert({
+          nome:          dadosDepois.nome as string,
+          funcao_id:     dadosDepois.funcao_id as string,
+          posto_id:      dadosDepois.posto_id as string,
+          data_admissao: dadosDepois.data_admissao as string,
+          status:        'ativo' as const,
+        })
+        .select('id')
+        .single()
+
+      if (errCreate || !novoFunc) {
+        return { success: false, error: errCreate?.message ?? 'Erro ao criar funcionário' }
+      }
+
+      // Marcar criado_via (coluna nova, não está nos tipos gerados)
+      await supabase
+        .from('funcionarios')
+        .update({ criado_via: 'solicitacao_admissao' } as unknown as { status: 'ativo' })
+        .eq('id', novoFunc.id)
+
+      await supabase.from('movimentacoes').insert({
+        funcionario_id: novoFunc.id,
+        tipo:           'admissao',
+        campo_alterado: 'status',
+        valor_antes:    null,
+        valor_depois:   'ativo',
+        executado_por:  guard.userId,
+        solicitacao_id: id,
+      })
+
+      await supabase
+        .from('solicitacoes')
+        .update({
+          status:           'aprovada',
+          aprovado_por:     guard.userId,
+          aprovado_em:      new Date().toISOString(),
+          observacao_admin: observacao ?? null,
+          funcionario_id:   novoFunc.id,
+        })
+        .eq('id', id)
+
+      revalidatePath('/aprovacoes')
+      revalidatePath('/efetivo')
+      revalidatePath('/dashboard')
+      revalidatePath('/pendencias')
+
+      return { success: true, redirect_url: `/efetivo/${novoFunc.id}` }
     }
   }
 

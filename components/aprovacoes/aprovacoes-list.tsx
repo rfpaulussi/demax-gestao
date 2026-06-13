@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { aprovarSolicitacao, rejeitarSolicitacao } from '@/app/(admin)/aprovacoes/actions'
 import type { SolicitacaoRow } from '@/app/(admin)/aprovacoes/actions'
@@ -8,7 +9,7 @@ import type { TipoSolicitacao } from '@/types'
 
 export type { SolicitacaoRow as SolicitacaoPendente }
 
-// ─── Cor do label "Solicitado" por tipo ───────────────────────────────────────
+// ─── Constantes ───────────────────────────────────────────────────────────────
 
 const TIPO_LABEL_COLOR: Record<TipoSolicitacao, string> = {
   desligamento:        'text-red-600',
@@ -20,20 +21,20 @@ const TIPO_LABEL_COLOR: Record<TipoSolicitacao, string> = {
   afastamento:         'text-orange-600',
   retorno_afastamento: 'text-teal-600',
   rescisao_indireta:   'text-rose-600',
+  admissao:            'text-emerald-600',
 }
 
-// ─── Constantes ───────────────────────────────────────────────────────────────
-
 const TIPO_BADGE: Record<TipoSolicitacao, { label: string; className: string }> = {
-  desligamento:        { label: 'Desligamento',         className: 'bg-red-50 text-red-700 ring-red-200'          },
-  transferencia:       { label: 'Transferência',         className: 'bg-blue-50 text-blue-700 ring-blue-200'       },
-  mudanca_funcao:      { label: 'Mudança de Função',     className: 'bg-indigo-50 text-indigo-700 ring-indigo-200' },
-  promocao:            { label: 'Promoção',              className: 'bg-green-50 text-green-700 ring-green-200'    },
-  mudanca_supervisor:  { label: 'Mudança Supervisor',    className: 'bg-purple-50 text-purple-700 ring-purple-200' },
-  alteracao_salario:   { label: 'Alteração Salarial',    className: 'bg-amber-50 text-amber-700 ring-amber-200'   },
-  afastamento:         { label: 'Afastamento',           className: 'bg-orange-50 text-orange-700 ring-orange-200' },
-  retorno_afastamento: { label: 'Retorno Afastamento',   className: 'bg-teal-50 text-teal-700 ring-teal-200'      },
-  rescisao_indireta:   { label: 'Rescisão Indireta',     className: 'bg-rose-50 text-rose-700 ring-rose-200'      },
+  desligamento:        { label: 'Desligamento',        className: 'bg-red-50 text-red-700 ring-red-200'           },
+  transferencia:       { label: 'Transferência',        className: 'bg-blue-50 text-blue-700 ring-blue-200'        },
+  mudanca_funcao:      { label: 'Mudança de Função',    className: 'bg-indigo-50 text-indigo-700 ring-indigo-200'  },
+  promocao:            { label: 'Promoção',             className: 'bg-green-50 text-green-700 ring-green-200'     },
+  mudanca_supervisor:  { label: 'Mudança Supervisor',   className: 'bg-purple-50 text-purple-700 ring-purple-200'  },
+  alteracao_salario:   { label: 'Alteração Salarial',   className: 'bg-amber-50 text-amber-700 ring-amber-200'     },
+  afastamento:         { label: 'Afastamento',          className: 'bg-orange-50 text-orange-700 ring-orange-200'  },
+  retorno_afastamento: { label: 'Retorno Afastamento',  className: 'bg-teal-50 text-teal-700 ring-teal-200'        },
+  rescisao_indireta:   { label: 'Rescisão Indireta',    className: 'bg-rose-50 text-rose-700 ring-rose-200'        },
+  admissao:            { label: 'Admissão',             className: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
 }
 
 const BORDER_COLOR: Record<TipoSolicitacao, string> = {
@@ -46,6 +47,7 @@ const BORDER_COLOR: Record<TipoSolicitacao, string> = {
   afastamento:         'border-l-orange-500',
   retorno_afastamento: 'border-l-teal-500',
   rescisao_indireta:   'border-l-rose-500',
+  admissao:            'border-l-emerald-500',
 }
 
 const TIPO_LABEL_FILTRO: Record<TipoSolicitacao, string> = {
@@ -58,6 +60,7 @@ const TIPO_LABEL_FILTRO: Record<TipoSolicitacao, string> = {
   afastamento:         'Afastamento',
   retorno_afastamento: 'Retorno Afastamento',
   rescisao_indireta:   'Rescisão Indireta',
+  admissao:            'Admissão',
 }
 
 const CAMPO_LABELS: Record<string, string> = {
@@ -76,6 +79,10 @@ const CAMPO_LABELS: Record<string, string> = {
   posto_destino_nome:    'Posto destino',
   funcao_destino_nome:   'Função destino',
   novo_supervisor_nome:  'Novo supervisor',
+  funcao_nome:           'Função',
+  posto_nome:            'Posto',
+  secretaria:            'Secretaria',
+  data_admissao:         'Data de admissão',
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -88,6 +95,13 @@ function fmt(iso: string) {
 function fmtVal(v: unknown): string {
   if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) return fmt(v)
   return String(v ?? '—')
+}
+
+function getNome(sol: SolicitacaoRow): string {
+  if (sol.tipo === 'admissao') {
+    return (sol.dados_depois as { nome?: string } | null)?.nome ?? '(sem nome)'
+  }
+  return sol.funcionarios?.nome ?? '—'
 }
 
 function renderColunaAntes(dados: Record<string, unknown> | null) {
@@ -125,6 +139,7 @@ function renderColunaDepois(dados: Record<string, unknown> | null) {
 // ─── SolicitacaoCard ──────────────────────────────────────────────────────────
 
 function SolicitacaoCard({ sol }: { sol: SolicitacaoRow }) {
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [fase, setFase]               = useState<'idle' | 'aprovando' | 'rejeitando'>('idle')
   const [observacao, setObservacao]   = useState('')
@@ -135,12 +150,17 @@ function SolicitacaoCard({ sol }: { sol: SolicitacaoRow }) {
   const badge       = TIPO_BADGE[sol.tipo]
   const borderColor = BORDER_COLOR[sol.tipo]
   const labelColor  = TIPO_LABEL_COLOR[sol.tipo]
+  const isAdmissao  = sol.tipo === 'admissao'
 
   function handleAprovar() {
     setErro(null)
     startTransition(async () => {
       const result = await aprovarSolicitacao(sol.id, observacao || undefined)
       if (!result.success) { setErro(result.error); return }
+      if (result.redirect_url) {
+        router.push(result.redirect_url)
+        return
+      }
       setOk(true)
     })
   }
@@ -191,7 +211,7 @@ function SolicitacaoCard({ sol }: { sol: SolicitacaoRow }) {
               {badge.label}
             </span>
             <span className="text-sm font-semibold text-gray-900 truncate">
-              {sol.funcionarios?.nome ?? '—'}
+              {getNome(sol)}
             </span>
           </div>
           {sol.created_at && (
@@ -206,21 +226,32 @@ function SolicitacaoCard({ sol }: { sol: SolicitacaoRow }) {
         </p>
       </div>
 
-      {/* CORPO — duas colunas */}
-      <div className="flex-1 grid grid-cols-2 divide-x divide-gray-200 bg-gray-50/50">
-        <div className="px-3 py-2">
-          <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
-            Situação atual
-          </p>
-          {renderColunaAntes(sol.dados_antes)}
-        </div>
-        <div className="px-3 py-2">
+      {/* CORPO */}
+      {isAdmissao ? (
+        // Admissão: layout de coluna única (sem "Situação atual")
+        <div className="flex-1 bg-gray-50/50 px-3 py-2">
           <p className={cn('mb-1 text-[10px] font-bold uppercase tracking-widest', labelColor)}>
-            Solicitado
+            Dados para admissão
           </p>
           {renderColunaDepois(sol.dados_depois)}
         </div>
-      </div>
+      ) : (
+        // Outros tipos: layout de duas colunas
+        <div className="flex-1 grid grid-cols-2 divide-x divide-gray-200 bg-gray-50/50">
+          <div className="px-3 py-2">
+            <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+              Situação atual
+            </p>
+            {renderColunaAntes(sol.dados_antes)}
+          </div>
+          <div className="px-3 py-2">
+            <p className={cn('mb-1 text-[10px] font-bold uppercase tracking-widest', labelColor)}>
+              Solicitado
+            </p>
+            {renderColunaDepois(sol.dados_depois)}
+          </div>
+        </div>
+      )}
 
       {/* Erro */}
       {erro && (
@@ -271,7 +302,7 @@ function SolicitacaoCard({ sol }: { sol: SolicitacaoRow }) {
                 disabled={isPending}
                 className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-50"
               >
-                {isPending ? 'Processando...' : 'Confirmar Aprovação'}
+                {isPending ? 'Processando...' : isAdmissao ? 'Criar funcionário' : 'Confirmar Aprovação'}
               </button>
             </div>
           </div>

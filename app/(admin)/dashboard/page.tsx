@@ -39,6 +39,7 @@ const TIPO_BADGE: Record<TipoSolicitacao, { label: string; className: string }> 
   afastamento:         { label: 'Afastamento',         className: 'bg-orange-50 text-orange-700 ring-orange-200' },
   retorno_afastamento: { label: 'Retorno Afastamento', className: 'bg-teal-50 text-teal-700 ring-teal-200'       },
   rescisao_indireta:   { label: 'Rescisão Indireta',   className: 'bg-rose-50 text-rose-700 ring-rose-200'       },
+  admissao:            { label: 'Admissão',            className: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
 }
 
 // ─── KpiCard ──────────────────────────────────────────────────────────────────

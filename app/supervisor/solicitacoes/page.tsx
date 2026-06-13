@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getUser } from '@/lib/auth/get-user'
+import { createClient } from '@/lib/supabase/server'
 import { buscarSolicitacoes } from '@/app/(admin)/aprovacoes/actions'
 import { SolicitacoesSupervisor } from '@/components/supervisor/solicitacoes-supervisor'
 
@@ -7,7 +8,24 @@ export default async function SolicitacoesPage() {
   const auth = await getUser()
   if (!auth) redirect('/login')
 
-  const solicitacoes = await buscarSolicitacoes({ supervisor_id: auth.user.id })
+  const supabase = createClient()
+
+  const [solicitacoes, { data: configRaw }, { data: funcoesRaw }] = await Promise.all([
+    buscarSolicitacoes({ supervisor_id: auth.user.id }),
+    supabase
+      .from('config_supervisores_postos')
+      .select('postos!posto_id ( id, nome, secretaria )')
+      .eq('supervisor_id', auth.user.id)
+      .eq('ativo', true),
+    supabase.from('funcoes').select('id, nome').order('nome'),
+  ])
+
+  type PostoRaw = { id: string; nome: string; secretaria: string | null }
+  const postos = (configRaw ?? [])
+    .map(c => (c.postos as unknown as PostoRaw | null))
+    .filter((p): p is PostoRaw => p !== null)
+
+  const funcoes = (funcoesRaw ?? []) as { id: string; nome: string }[]
 
   return (
     <div className="space-y-6">
@@ -17,7 +35,11 @@ export default async function SolicitacoesPage() {
           Acompanhe o status das solicitações enviadas para aprovação
         </p>
       </div>
-      <SolicitacoesSupervisor solicitacoes={solicitacoes} />
+      <SolicitacoesSupervisor
+        solicitacoes={solicitacoes}
+        postos={postos}
+        funcoes={funcoes}
+      />
     </div>
   )
 }

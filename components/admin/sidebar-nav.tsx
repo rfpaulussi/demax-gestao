@@ -20,6 +20,7 @@ import {
   Upload,
   ClipboardList,
   BarChart3,
+  ClipboardX,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import type { Role } from '@/types'
@@ -41,6 +42,7 @@ const NAV = [
 ] as const
 
 const ADMIN_NAV = [
+  { href: '/pendencias',  label: 'Pendências',  icon: ClipboardX    },
   { href: '/fechamento',  label: 'Fechamento',  icon: ClipboardList },
   { href: '/relatorios',  label: 'Relatórios',  icon: BarChart3     },
   { href: '/importacao',  label: 'Importação',  icon: Upload        },
