@@ -1,10 +1,27 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { FileSpreadsheet } from 'lucide-react'
 import { FiltrosEfetivo } from './filtros-efetivo'
 import type { FiltrosValues, FiltrosCounts } from './filtros-efetivo'
 import { FuncionariosTable } from './funcionarios-table'
 import type { FuncionarioRow } from './funcionarios-table'
+import { exportToExcel } from '@/lib/export-excel'
+
+const STATUS_LABELS: Record<string, string> = {
+  ativo:     'Ativo',
+  afastado:  'Afastado',
+  ferias:    'Férias',
+  desligado: 'Desligado',
+}
+
+function todayFilename() {
+  const d = new Date()
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const yyyy = d.getFullYear()
+  return `efetivo_${dd}${mm}${yyyy}.xlsx`
+}
 
 interface Props {
   funcionarios: FuncionarioRow[]
@@ -93,15 +110,41 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
     setValues(prev => ({ ...prev, [key]: value }))
   }
 
+  function handleExport() {
+    exportToExcel(
+      sorted,
+      [
+        { label: 'Nome',       value: r => r.nome },
+        { label: 'Função',     value: r => r.funcoes?.nome ?? '' },
+        { label: 'Posto',      value: r => r.postos?.nome ?? '' },
+        { label: 'Secretaria', value: r => r.postos?.secretaria ?? '' },
+        { label: 'Supervisor', value: r => r.supervisor_nome ?? '' },
+        { label: 'Status',     value: r => STATUS_LABELS[r.status ?? ''] ?? '' },
+      ],
+      todayFilename(),
+    )
+  }
+
   return (
     <div className="space-y-6">
-      <FiltrosEfetivo
-        secretarias={secretarias}
-        supervisores={supervisores}
-        counts={counts}
-        values={values}
-        onChange={handleChange}
-      />
+      <div className="flex flex-wrap items-start gap-3">
+        <div className="flex-1">
+          <FiltrosEfetivo
+            secretarias={secretarias}
+            supervisores={supervisores}
+            counts={counts}
+            values={values}
+            onChange={handleChange}
+          />
+        </div>
+        <button
+          onClick={handleExport}
+          className="inline-flex h-9 items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 text-sm font-medium text-green-700 shadow-sm hover:bg-green-100"
+        >
+          <FileSpreadsheet className="h-4 w-4" />
+          Exportar Excel
+        </button>
+      </div>
       <FuncionariosTable
         funcionarios={sorted}
         postos={postos}
