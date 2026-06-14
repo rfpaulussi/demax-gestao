@@ -312,16 +312,26 @@ export async function solicitarRetornoAfastamento(fd: FormData): Promise<ActionR
 
   const { data: func } = await supabase
     .from('funcionarios')
-    .select('status, posto_id')
+    .select('status, posto_id, postos!posto_id(nome)')
     .eq('id', funcionario_id)
     .single()
+
+  const funcTyped = func as unknown as {
+    status: string | null
+    posto_id: string | null
+    postos: { nome: string } | null
+  } | null
 
   const { error } = await supabase.from('solicitacoes').insert({
     funcionario_id,
     tipo:         'retorno_afastamento' as unknown as 'desligamento',
     status:       'pendente',
     supervisor_id: auth.user.id,
-    dados_antes:  { status: func?.status ?? null, posto_id: func?.posto_id ?? null },
+    dados_antes:  {
+      status:    funcTyped?.status ?? null,
+      posto_id:  funcTyped?.posto_id ?? null,
+      posto_nome: funcTyped?.postos?.nome ?? null,
+    },
     dados_depois: { data_retorno, posto_retorno_id },
   })
   if (error) return { success: false, error: error.message }

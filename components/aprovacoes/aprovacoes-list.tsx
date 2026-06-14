@@ -78,11 +78,24 @@ const CAMPO_LABELS: Record<string, string> = {
   data_rescisao:         'Data rescisão',
   posto_destino_nome:    'Posto destino',
   funcao_destino_nome:   'Função destino',
+  supervisor_nome:       'Supervisor atual',
   novo_supervisor_nome:  'Novo supervisor',
   funcao_nome:           'Função',
   posto_nome:            'Posto',
   secretaria:            'Secretaria',
   data_admissao:         'Data de admissão',
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  ativo:     'Ativo',
+  afastado:  'Afastado',
+  ferias:    'Férias',
+  desligado: 'Desligado',
+}
+
+const MOTIVO_AFASTAMENTO_LABELS: Record<string, string> = {
+  ausencia_temporaria: 'Ausência Temporária',
+  inss:                'INSS',
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -97,6 +110,16 @@ function fmtVal(v: unknown): string {
   return String(v ?? '—')
 }
 
+function fmtValComContexto(tipo: TipoSolicitacao, campo: string, v: unknown): string {
+  if (campo === 'status' && typeof v === 'string') {
+    return STATUS_LABELS[v] ?? v
+  }
+  if (tipo === 'afastamento' && campo === 'motivo' && typeof v === 'string') {
+    return MOTIVO_AFASTAMENTO_LABELS[v] ?? v
+  }
+  return fmtVal(v)
+}
+
 function getNome(sol: SolicitacaoRow): string {
   if (sol.tipo === 'admissao') {
     return (sol.dados_depois as { nome?: string } | null)?.nome ?? '(sem nome)'
@@ -104,7 +127,7 @@ function getNome(sol: SolicitacaoRow): string {
   return sol.funcionarios?.nome ?? '—'
 }
 
-function renderColunaAntes(dados: Record<string, unknown> | null) {
+function renderColunaAntes(tipo: TipoSolicitacao, dados: Record<string, unknown> | null) {
   if (!dados) return <span className="text-gray-400 italic text-xs">—</span>
   const entries = Object.entries(dados).filter(([k]) => !k.endsWith('_id'))
   if (entries.length === 0) return <span className="text-gray-400 italic text-xs">—</span>
@@ -113,14 +136,14 @@ function renderColunaAntes(dados: Record<string, unknown> | null) {
       {entries.map(([k, v]) => (
         <div key={k} className="flex gap-1 text-xs">
           <dt className="text-gray-400 shrink-0">{CAMPO_LABELS[k] ?? k.replace(/_/g, ' ')}:</dt>
-          <dd className="text-gray-600 break-words">{fmtVal(v)}</dd>
+          <dd className="text-gray-600 break-words">{fmtValComContexto(tipo, k, v)}</dd>
         </div>
       ))}
     </dl>
   )
 }
 
-function renderColunaDepois(dados: Record<string, unknown> | null) {
+function renderColunaDepois(tipo: TipoSolicitacao, dados: Record<string, unknown> | null) {
   if (!dados) return <span className="text-gray-400 italic text-xs">—</span>
   const entries = Object.entries(dados).filter(([k]) => !k.endsWith('_id'))
   if (entries.length === 0) return <span className="text-gray-400 italic text-xs">—</span>
@@ -129,7 +152,7 @@ function renderColunaDepois(dados: Record<string, unknown> | null) {
       {entries.map(([k, v]) => (
         <div key={k} className="flex gap-1 text-xs">
           <dt className="text-gray-500 shrink-0">{CAMPO_LABELS[k] ?? k.replace(/_/g, ' ')}:</dt>
-          <dd className="font-medium text-gray-800 break-words">{fmtVal(v)}</dd>
+          <dd className="font-medium text-gray-800 break-words">{fmtValComContexto(tipo, k, v)}</dd>
         </div>
       ))}
     </dl>
@@ -233,7 +256,7 @@ function SolicitacaoCard({ sol }: { sol: SolicitacaoRow }) {
           <p className={cn('mb-1 text-[10px] font-bold uppercase tracking-widest', labelColor)}>
             Dados para admissão
           </p>
-          {renderColunaDepois(sol.dados_depois)}
+          {renderColunaDepois(sol.tipo, sol.dados_depois)}
         </div>
       ) : (
         // Outros tipos: layout de duas colunas
@@ -242,13 +265,13 @@ function SolicitacaoCard({ sol }: { sol: SolicitacaoRow }) {
             <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
               Situação atual
             </p>
-            {renderColunaAntes(sol.dados_antes)}
+            {renderColunaAntes(sol.tipo, sol.dados_antes)}
           </div>
           <div className="px-3 py-2">
             <p className={cn('mb-1 text-[10px] font-bold uppercase tracking-widest', labelColor)}>
               Solicitado
             </p>
-            {renderColunaDepois(sol.dados_depois)}
+            {renderColunaDepois(sol.tipo, sol.dados_depois)}
           </div>
         </div>
       )}
