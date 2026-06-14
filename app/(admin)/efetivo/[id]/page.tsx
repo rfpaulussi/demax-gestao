@@ -58,7 +58,7 @@ export default async function PerfilFuncionarioPage({
   ] = await Promise.all([
     supabase
       .from('movimentacoes')
-      .select('id, tipo, campo_alterado, valor_antes, valor_depois, created_at, perfis!executado_por(nome)')
+      .select('id, tipo, campo_alterado, valor_antes, valor_depois, created_at, solicitacao_id, perfis!executado_por(nome)')
       .eq('funcionario_id', id)
       .order('created_at', { ascending: false }),
     supabase
@@ -160,6 +160,7 @@ export default async function PerfilFuncionarioPage({
           advertencias={advertencias}
           solicitacoes={solicitacoes}
           funcionario={{
+            id:            id,
             nome:          f.nome,
             cpf:           f.cpf,
             funcao:        f.funcoes?.nome ?? null,

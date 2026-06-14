@@ -4,6 +4,7 @@ import type { MovimentacaoItem } from './perfil-tabs'
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 export type FuncionarioParaPDF = {
+  id: string
   nome: string
   cpf: string | null
   funcao: string | null

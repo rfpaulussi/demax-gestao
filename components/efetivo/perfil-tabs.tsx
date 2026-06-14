@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils'
 import type { TipoSolicitacao, StatusSolicitacao } from '@/types'
 import { downloadMovimentacaoPDF } from './movimentacao-pdf'
 import type { FuncionarioParaPDF } from './movimentacao-pdf'
+import { getDadosMovColaborador } from '@/lib/movimentacao-colaborador'
+import { downloadMovColaboradorPDF } from './movimentacao-colaborador-pdf'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -16,6 +18,7 @@ export type MovimentacaoItem = {
   valor_antes: string | null
   valor_depois: string | null
   created_at: string | null
+  solicitacao_id: string | null
   perfis: { nome: string | null } | null
 }
 
@@ -77,7 +80,18 @@ function TabMovimentacoes({
   async function handleDownload(mov: MovimentacaoItem) {
     setBaixando(mov.id)
     try {
-      await downloadMovimentacaoPDF(mov, funcionario)
+      if (mov.tipo === 'mudanca_funcao') {
+        const dados = await getDadosMovColaborador(
+          funcionario.id,
+          mov.valor_antes,
+          mov.valor_depois,
+          mov.created_at,
+          mov.solicitacao_id,
+        )
+        if (dados) await downloadMovColaboradorPDF(dados)
+      } else {
+        await downloadMovimentacaoPDF(mov, funcionario)
+      }
     } finally {
       setBaixando(null)
     }

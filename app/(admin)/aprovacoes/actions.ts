@@ -95,6 +95,7 @@ export async function aprovarSolicitacao(
     .single()
 
   const dadosDepois = (sol.dados_depois ?? {}) as Record<string, unknown>
+  const dadosAntes  = (sol.dados_antes  ?? {}) as Record<string, unknown>
 
   switch (sol.tipo as TipoSolicitacao) {
     case 'desligamento': {
@@ -217,8 +218,8 @@ export async function aprovarSolicitacao(
   const campoMap: Partial<Record<TipoSolicitacao, { campo: string; antes: string | null; depois: string | null }>> = {
     desligamento:     { campo: 'status',       antes: func?.status ?? null,              depois: 'desligado' },
     transferencia:    { campo: 'posto_id',     antes: func?.posto_id ?? null,            depois: (dadosDepois.posto_destino_id as string) ?? null },
-    mudanca_funcao:   { campo: 'funcao_id',    antes: func?.funcao_id ?? null,           depois: (dadosDepois.funcao_destino_id as string) ?? null },
-    promocao:         { campo: 'funcao_id',    antes: func?.funcao_id ?? null,           depois: (dadosDepois.funcao_destino_id as string) ?? null },
+    mudanca_funcao:   { campo: 'funcao_id',    antes: (dadosAntes.funcao_id  as string | null) ?? func?.funcao_id ?? null, depois: (dadosDepois.funcao_destino_id as string) ?? null },
+    promocao:         { campo: 'funcao_id',    antes: (dadosAntes.funcao_id  as string | null) ?? func?.funcao_id ?? null, depois: (dadosDepois.funcao_destino_id as string) ?? null },
     alteracao_salario:   { campo: 'salario_base', antes: String(func?.salario_base ?? ''), depois: String(dadosDepois.novo_salario ?? '') },
     afastamento:         { campo: 'status',       antes: func?.status ?? null,            depois: 'afastado'   },
     retorno_afastamento: { campo: 'status',       antes: func?.status ?? null,            depois: 'ativo'      },
