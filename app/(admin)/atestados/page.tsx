@@ -12,6 +12,7 @@ type AtestadoRaw = {
   data_fim: string
   motivo: string | null
   cid_codigo: string | null
+  origem_ocupacional: string | null
   funcionarios: { id: string; nome: string } | null
   postos: { nome: string; secretaria: string | null } | null
 }
@@ -48,7 +49,7 @@ export default async function AtestadosPage({
     supabase
       .from('atestados')
       .select(`
-        id, funcionario_id, posto_id, data_inicio, data_fim, motivo, cid_codigo,
+        id, funcionario_id, posto_id, data_inicio, data_fim, motivo, cid_codigo, origem_ocupacional,
         funcionarios!funcionario_id ( id, nome ),
         postos!posto_id ( nome, secretaria )
       `)
@@ -114,6 +115,7 @@ export default async function AtestadosPage({
       data_fim: a.data_fim,
       motivo: a.motivo,
       cid_codigo: a.cid_codigo,
+      origem_ocupacional: a.origem_ocupacional,
       funcionario_nome: a.funcionarios?.nome ?? '—',
       posto_nome: a.postos?.nome ?? '—',
       secretaria: a.postos?.secretaria ?? '—',

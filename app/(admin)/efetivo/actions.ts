@@ -11,12 +11,13 @@ export async function registrarAtestado(formData: FormData) {
   const auth = await getUser()
   if (!auth) throw new Error('Não autenticado')
 
-  const funcionarioId = formData.get('funcionario_id') as string
-  const postoId       = formData.get('posto_id') as string
-  const dataInicio    = formData.get('data_inicio') as string
-  const dataFim       = formData.get('data_fim') as string
-  const motivo        = (formData.get('motivo') as string) || null
-  const cidCodigo     = (formData.get('cid_codigo') as string) || null
+  const funcionarioId      = formData.get('funcionario_id') as string
+  const postoId            = formData.get('posto_id') as string
+  const dataInicio         = formData.get('data_inicio') as string
+  const dataFim            = formData.get('data_fim') as string
+  const motivo             = (formData.get('motivo') as string) || null
+  const cidCodigo          = (formData.get('cid_codigo') as string) || null
+  const origemOcupacional = ((formData.get('origem_ocupacional') as string) || null) as 'acidente_trabalho' | 'doenca_ocupacional' | null
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -31,6 +32,7 @@ export async function registrarAtestado(formData: FormData) {
     data_fim: dataFim,
     motivo,
     cid_codigo: cidCodigo,
+    origem_ocupacional: origemOcupacional,
     registrado_por: auth.user.id,
   })
   if (errAtestado) throw new Error(errAtestado.message)

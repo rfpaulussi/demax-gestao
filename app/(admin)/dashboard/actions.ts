@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { addBusinessDays } from '@/lib/utils'
 
 // ─── Tipos exportados ─────────────────────────────────────────────────────────
 
@@ -22,10 +23,18 @@ export type PostoDeficit = {
   gap: number
 }
 
+export type CatAlerta = {
+  id: string
+  funcionarioNome: string
+  prazoLimite: string
+  emAtraso: boolean
+}
+
 export type AlertasDashboard = {
   postosDeficit: PostoDeficit[]
   funcSemPosto: number
   feriasLimiteVencendo: number
+  catAlertas: CatAlerta[]
 }
 
 export type ProximaFerias = {
@@ -156,11 +165,14 @@ export async function buscarAlertasDashboard(): Promise<AlertasDashboard> {
   const todayStr = currentDateStr()
   const plus30str = todayPlusDays(30)
 
+  const thirtyDaysAgoStr = new Date(Date.now() - 30 * 86_400_000).toISOString().split('T')[0]
+
   const [
     { data: postosData },
     { data: funcAtivosData },
     { count: funcSemPosto },
     { count: feriasLimiteVencendo },
+    { data: catData },
   ] = await Promise.all([
     supabase.from('postos').select('id, nome, secretaria, efetivo_previsto').eq('ativo', true),
     supabase.from('funcionarios').select('posto_id').eq('status', 'ativo').not('posto_id', 'is', null),
@@ -178,6 +190,12 @@ export async function buscarAlertasDashboard(): Promise<AlertasDashboard> {
       .neq('status', 'concluido')
       .neq('status', 'cancelado')
       .neq('status', 'em_curso'),
+    supabase
+      .from('atestados')
+      .select('id, data_inicio, funcionarios!funcionario_id(nome)')
+      .eq('origem_ocupacional', 'acidente_trabalho')
+      .gte('data_inicio', thirtyDaysAgoStr)
+      .order('data_inicio', { ascending: false }),
   ])
 
   // Calcular gap por posto
@@ -197,10 +215,27 @@ export async function buscarAlertasDashboard(): Promise<AlertasDashboard> {
     .filter(p => p.gap > 0)
     .sort((a, b) => b.gap - a.gap)
 
+  type CatRow = { id: string; data_inicio: string; funcionarios: { nome: string } | null }
+  const hoje = new Date()
+  function fmtDDMM(d: Date) {
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+  }
+  const catAlertas: CatAlerta[] = ((catData ?? []) as unknown as CatRow[]).map(c => {
+    const inicio = new Date(c.data_inicio + 'T00:00:00')
+    const prazo = addBusinessDays(inicio, 1)
+    return {
+      id: c.id,
+      funcionarioNome: c.funcionarios?.nome ?? '—',
+      prazoLimite: fmtDDMM(prazo),
+      emAtraso: hoje > prazo,
+    }
+  })
+
   return {
     postosDeficit,
     funcSemPosto: funcSemPosto ?? 0,
     feriasLimiteVencendo: feriasLimiteVencendo ?? 0,
+    catAlertas,
   }
 }
 

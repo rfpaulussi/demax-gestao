@@ -77,13 +77,32 @@ export default async function EfetivoPage() {
     }
   }
 
-  // Enrich ALL funcionarios with supervisor_nome + supervisor_id
-  const funcionarios = ((raw ?? []) as unknown as FuncionarioRow[]).map(f => {
+  // Buscar origem ocupacional dos atestados ativos de afastados
+  const rawFuncs = (raw ?? []) as unknown as FuncionarioRow[]
+  const todayStr = new Date().toISOString().split('T')[0]
+  const afastadoIds = rawFuncs.filter(f => f.status === 'afastado').map(f => f.id)
+  const catOrigemMap = new Map<string, string>()
+  if (afastadoIds.length > 0) {
+    const { data: catData } = await supabase
+      .from('atestados')
+      .select('funcionario_id, origem_ocupacional')
+      .in('funcionario_id', afastadoIds)
+      .not('origem_ocupacional', 'is', null)
+      .gte('data_fim', todayStr)
+      .order('data_inicio', { ascending: false })
+    for (const c of (catData ?? []) as unknown as { funcionario_id: string; origem_ocupacional: string }[]) {
+      if (!catOrigemMap.has(c.funcionario_id)) catOrigemMap.set(c.funcionario_id, c.origem_ocupacional)
+    }
+  }
+
+  // Enrich ALL funcionarios with supervisor_nome + supervisor_id + origem_ocupacional_cat
+  const funcionarios = rawFuncs.map(f => {
     const sup = f.posto_id ? postoSupervisorMap.get(f.posto_id) : undefined
     return {
       ...f,
-      supervisor_nome: sup?.nomeCompleto ?? null,
-      supervisor_id:   sup?.id ?? null,
+      supervisor_nome:        sup?.nomeCompleto ?? null,
+      supervisor_id:          sup?.id ?? null,
+      origem_ocupacional_cat: catOrigemMap.get(f.id) ?? null,
     }
   })
 

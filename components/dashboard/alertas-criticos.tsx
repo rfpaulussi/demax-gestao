@@ -7,10 +7,10 @@ interface AlertasCriticosProps {
 }
 
 export function AlertasCriticos({ alertas }: AlertasCriticosProps) {
-  const { postosDeficit, funcSemPosto, feriasLimiteVencendo } = alertas
+  const { postosDeficit, funcSemPosto, feriasLimiteVencendo, catAlertas } = alertas
 
   const temAlertas =
-    postosDeficit.length > 0 || funcSemPosto > 0 || feriasLimiteVencendo > 0
+    postosDeficit.length > 0 || funcSemPosto > 0 || feriasLimiteVencendo > 0 || catAlertas.length > 0
 
   if (!temAlertas) {
     return (
@@ -92,6 +92,33 @@ export function AlertasCriticos({ alertas }: AlertasCriticosProps) {
               className="mt-1 inline-block text-xs font-semibold text-blue-600 hover:text-blue-800"
             >
               ver nas férias →
+            </Link>
+          </div>
+        )}
+
+        {/* Bloco laranja — CAT pendente/em atraso */}
+        {catAlertas.length > 0 && (
+          <div className="rounded-lg border-l-4 border-orange-400 bg-orange-50/30 px-4 py-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-orange-600">
+              CAT — Acidente de Trabalho
+            </p>
+            <ul className="space-y-1">
+              {catAlertas.map(c => (
+                <li key={c.id} className="text-sm text-gray-700">
+                  {c.emAtraso ? '🔴' : '⚠'}{' '}
+                  <span className="font-medium">{c.funcionarioNome}</span>
+                  {' — '}
+                  {c.emAtraso
+                    ? `CAT em atraso — prazo era ${c.prazoLimite}`
+                    : `CAT pendente — prazo até ${c.prazoLimite}`}
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/atestados"
+              className="mt-2 inline-block text-xs font-semibold text-orange-600 hover:text-orange-800"
+            >
+              ver atestados →
             </Link>
           </div>
         )}

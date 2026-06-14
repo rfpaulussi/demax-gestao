@@ -20,9 +20,10 @@ export function ModalEditarAtestado({ atestado, onClose, cids }: Props) {
   const [cidBusca, setCidBusca] = useState('')
   const [cidCodigo, setCidCodigo] = useState('')
   const [cidAberto, setCidAberto] = useState(false)
+  const [origemOcupacional, setOrigemOcupacional] = useState('')
   const cidRef = useRef<HTMLDivElement>(null)
 
-  // Pre-preenche estado do CID quando o modal abre
+  // Pre-preenche estado do CID e origem quando o modal abre
   function handleOpenChange(isOpen: boolean) {
     if (isOpen && atestado) {
       if (atestado.cid_codigo) {
@@ -33,6 +34,7 @@ export function ModalEditarAtestado({ atestado, onClose, cids }: Props) {
         setCidCodigo('')
         setCidBusca('')
       }
+      setOrigemOcupacional(atestado.origem_ocupacional ?? '')
       setErro('')
     }
     if (!isOpen) onClose()
@@ -161,6 +163,22 @@ export function ModalEditarAtestado({ atestado, onClose, cids }: Props) {
                 )}
                 <input type="hidden" name="cid_codigo" value={cidCodigo} />
               </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600">
+                Origem <span className="font-normal normal-case tracking-normal text-gray-400">(opcional)</span>
+              </label>
+              <select
+                name="origem_ocupacional"
+                value={origemOcupacional}
+                onChange={e => setOrigemOcupacional(e.target.value)}
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+              >
+                <option value="">Não ocupacional</option>
+                <option value="acidente_trabalho">Acidente de Trabalho</option>
+                <option value="doenca_ocupacional">Doença Ocupacional</option>
+              </select>
             </div>
 
             {erro && <p className="text-sm text-red-600">{erro}</p>}

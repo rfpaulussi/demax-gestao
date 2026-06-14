@@ -14,12 +14,18 @@ export type FuncionarioRow = {
   cpf: string | null
   status: 'ativo' | 'afastado' | 'ferias' | 'desligado' | null
   motivo_afastamento: 'ausencia_temporaria' | 'inss' | null
+  origem_ocupacional_cat: string | null
   data_admissao: string | null
   posto_id: string | null
   funcoes: { id: string; nome: string } | null
   postos: { id: string; nome: string; secretaria: string | null } | null
   supervisor_nome?: string | null
   supervisor_id?: string | null
+}
+
+const ORIGEM_SUBTEXT: Record<string, string> = {
+  acidente_trabalho:  'Acidente de Trabalho',
+  doenca_ocupacional: 'Doença Ocupacional',
 }
 
 function fmtSupervisor(nome: string | null | undefined): string | null {
@@ -158,7 +164,12 @@ export function FuncionariosTable({
                             <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset', badge.className)}>
                               {badge.label}
                             </span>
-                            {f.status === 'afastado' && f.motivo_afastamento && (
+                            {f.status === 'afastado' && f.origem_ocupacional_cat && (
+                              <span className="text-[10px] font-semibold text-orange-600 pl-0.5">
+                                {ORIGEM_SUBTEXT[f.origem_ocupacional_cat] ?? f.origem_ocupacional_cat}
+                              </span>
+                            )}
+                            {f.status === 'afastado' && !f.origem_ocupacional_cat && f.motivo_afastamento && (
                               <span className="text-[10px] text-gray-400 pl-0.5">
                                 {f.motivo_afastamento === 'inss' ? 'INSS' : 'Temporário'}
                               </span>

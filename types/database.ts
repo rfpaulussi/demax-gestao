@@ -512,6 +512,7 @@ export type Database = {
           motivo: string | null
           cid: string | null
           cid_codigo: string | null
+          origem_ocupacional: 'acidente_trabalho' | 'doenca_ocupacional' | null
           registrado_por: string
           created_at: string
         }
@@ -524,6 +525,7 @@ export type Database = {
           motivo?: string | null
           cid?: string | null
           cid_codigo?: string | null
+          origem_ocupacional?: 'acidente_trabalho' | 'doenca_ocupacional' | null
           registrado_por: string
           created_at?: string
         }
@@ -536,6 +538,7 @@ export type Database = {
           motivo?: string | null
           cid?: string | null
           cid_codigo?: string | null
+          origem_ocupacional?: 'acidente_trabalho' | 'doenca_ocupacional' | null
           registrado_por?: string
         }
         Relationships: []

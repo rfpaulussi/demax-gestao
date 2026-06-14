@@ -154,6 +154,21 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
               </div>
             </div>
 
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600">
+                Origem <span className="font-normal normal-case tracking-normal text-gray-400">(opcional)</span>
+              </label>
+              <select
+                name="origem_ocupacional"
+                defaultValue=""
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+              >
+                <option value="">Não ocupacional</option>
+                <option value="acidente_trabalho">Acidente de Trabalho</option>
+                <option value="doenca_ocupacional">Doença Ocupacional</option>
+              </select>
+            </div>
+
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"

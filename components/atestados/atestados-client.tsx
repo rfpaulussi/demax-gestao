@@ -14,6 +14,7 @@ export type AtestadoRow = {
   data_fim: string
   motivo: string | null
   cid_codigo: string | null
+  origem_ocupacional: string | null
   funcionario_nome: string
   posto_nome: string
   secretaria: string
@@ -22,6 +23,11 @@ export type AtestadoRow = {
   alerta: boolean
   cid_desc: string
   nexo_ocupacional: boolean
+}
+
+const ORIGEM_BADGE: Record<string, { label: string; className: string }> = {
+  acidente_trabalho:  { label: 'Acidente de Trabalho', className: 'bg-red-100 text-red-700 ring-red-200'        },
+  doenca_ocupacional: { label: 'Doença Ocupacional',   className: 'bg-orange-100 text-orange-700 ring-orange-200' },
 }
 
 type CidOpt = { codigo: string; descricao: string }
@@ -43,6 +49,7 @@ const COLS: { label: string; sortKey?: SortCol }[] = [
   { label: 'Fim',         sortKey: 'data_fim'         },
   { label: 'Dias',        sortKey: 'dias'             },
   { label: 'CID'                                       },
+  { label: 'Origem'                                    },
   { label: 'Acum. 30d',   sortKey: 'acumulado'        },
   { label: 'Ações'                                     },
 ]
@@ -157,6 +164,18 @@ export function AtestadosClient({ atestados, cids }: Props) {
                     </span>
                   ) : (
                     <span className="text-gray-400">{a.cid_desc || '—'}</span>
+                  )}
+                </td>
+                <td className="px-5 py-3.5">
+                  {a.origem_ocupacional ? (
+                    <span className={cn(
+                      'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset whitespace-nowrap',
+                      ORIGEM_BADGE[a.origem_ocupacional]?.className,
+                    )}>
+                      {ORIGEM_BADGE[a.origem_ocupacional]?.label}
+                    </span>
+                  ) : (
+                    <span className="text-gray-300">—</span>
                   )}
                 </td>
                 <td className="px-5 py-3.5">

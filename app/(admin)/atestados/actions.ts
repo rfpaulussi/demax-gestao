@@ -16,10 +16,11 @@ export async function updateAtestado(
   const { error } = await supabase
     .from('atestados')
     .update({
-      data_inicio: formData.get('data_inicio') as string,
-      data_fim: formData.get('data_fim') as string,
-      motivo: (formData.get('motivo') as string) || null,
-      cid_codigo: (formData.get('cid_codigo') as string) || null,
+      data_inicio:        formData.get('data_inicio') as string,
+      data_fim:           formData.get('data_fim') as string,
+      motivo:             (formData.get('motivo') as string) || null,
+      cid_codigo:         (formData.get('cid_codigo') as string) || null,
+      origem_ocupacional: ((formData.get('origem_ocupacional') as string) || null) as 'acidente_trabalho' | 'doenca_ocupacional' | null,
     })
     .eq('id', id)
 
