@@ -77,21 +77,22 @@ export default async function EfetivoPage() {
     }
   }
 
-  // Buscar origem ocupacional dos atestados ativos de afastados
+  // Para cada afastado, buscar o atestado mais recente (sem filtro data_fim)
+  // e usar a origem_ocupacional dele — o status 'afastado' já garante que
+  // esse é o motivo atual; o que importa é a origem, não se a data_fim passou.
   const rawFuncs = (raw ?? []) as unknown as FuncionarioRow[]
-  const todayStr = new Date().toISOString().split('T')[0]
   const afastadoIds = rawFuncs.filter(f => f.status === 'afastado').map(f => f.id)
-  const catOrigemMap = new Map<string, string>()
+  const catOrigemMap = new Map<string, string | null>()
   if (afastadoIds.length > 0) {
     const { data: catData } = await supabase
       .from('atestados')
       .select('funcionario_id, origem_ocupacional')
       .in('funcionario_id', afastadoIds)
-      .not('origem_ocupacional', 'is', null)
-      .gte('data_fim', todayStr)
       .order('data_inicio', { ascending: false })
-    for (const c of (catData ?? []) as unknown as { funcionario_id: string; origem_ocupacional: string }[]) {
-      if (!catOrigemMap.has(c.funcionario_id)) catOrigemMap.set(c.funcionario_id, c.origem_ocupacional)
+    for (const c of (catData ?? []) as unknown as { funcionario_id: string; origem_ocupacional: string | null }[]) {
+      if (!catOrigemMap.has(c.funcionario_id)) {
+        catOrigemMap.set(c.funcionario_id, c.origem_ocupacional)
+      }
     }
   }
 
