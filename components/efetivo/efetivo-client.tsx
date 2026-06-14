@@ -15,6 +15,13 @@ const STATUS_LABELS: Record<string, string> = {
   desligado: 'Desligado',
 }
 
+const STATUS_COLORS: Record<string, { fill: string; color: string }> = {
+  ativo:     { fill: 'F0FDF4', color: '15803D' },
+  afastado:  { fill: 'FFF1F2', color: 'B91C1C' },
+  ferias:    { fill: 'FFF7ED', color: 'C2410C' },
+  desligado: { fill: 'F3F4F6', color: '6B7280' },
+}
+
 function todayFilename() {
   const d = new Date()
   const dd = String(d.getDate()).padStart(2, '0')
@@ -114,13 +121,17 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
     exportToExcel(
       sorted,
       [
-        { label: 'Registro',   value: r => r.registro ?? '' },
+        { label: 'Registro',   value: r => r.registro ?? '', asText: true },
         { label: 'Nome',       value: r => r.nome },
         { label: 'Função',     value: r => r.funcoes?.nome ?? '' },
         { label: 'Posto',      value: r => r.postos?.nome ?? '' },
         { label: 'Secretaria', value: r => r.postos?.secretaria ?? '' },
         { label: 'Supervisor', value: r => r.supervisor_nome ?? '' },
-        { label: 'Status',     value: r => STATUS_LABELS[r.status ?? ''] ?? '' },
+        {
+          label: 'Status',
+          value: r => STATUS_LABELS[r.status ?? ''] ?? '',
+          cellStyle: r => STATUS_COLORS[r.status ?? ''],
+        },
       ],
       todayFilename(),
     )
