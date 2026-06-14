@@ -62,7 +62,7 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
   const filtered = useMemo(() => {
     let list = funcionarios
     const q = values.busca.trim().toLowerCase()
-    if (q)               list = list.filter(f => f.nome.toLowerCase().includes(q))
+    if (q)               list = list.filter(f => f.nome.toLowerCase().includes(q) || (f.registro ?? '').includes(q))
     if (values.status)   list = list.filter(f => f.status === values.status)
     if (values.secretaria) list = list.filter(f => f.postos?.secretaria === values.secretaria)
     if (values.supervisor === 'sem_supervisor') {
@@ -114,6 +114,7 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
     exportToExcel(
       sorted,
       [
+        { label: 'Registro',   value: r => r.registro ?? '' },
         { label: 'Nome',       value: r => r.nome },
         { label: 'Função',     value: r => r.funcoes?.nome ?? '' },
         { label: 'Posto',      value: r => r.postos?.nome ?? '' },

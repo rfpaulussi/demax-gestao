@@ -11,6 +11,7 @@ import { ModalNovaSolicitacao } from './modal-nova-solicitacao'
 export type FuncionarioRow = {
   id: string
   nome: string
+  registro: string | null
   cpf: string | null
   status: 'ativo' | 'afastado' | 'ferias' | 'desligado' | null
   motivo_afastamento: 'ausencia_temporaria' | 'inss' | null
@@ -56,6 +57,7 @@ const STATUS_ROW: Record<
 }
 
 const COLS: { label: string; sortKey?: string }[] = [
+  { label: 'Registro'                           },
   { label: 'Nome',       sortKey: 'nome'       },
   { label: 'Função',     sortKey: 'funcao'     },
   { label: 'Posto',      sortKey: 'posto'      },
@@ -130,6 +132,9 @@ export function FuncionariosTable({
                         rowStyle?.dimmed && 'opacity-60',
                       )}
                     >
+                      <td className="px-5 py-3.5 font-mono text-sm text-gray-500">
+                        {f.registro ?? '—'}
+                      </td>
                       <td
                         className={cn(
                           'px-5 py-3.5 font-medium text-gray-900',

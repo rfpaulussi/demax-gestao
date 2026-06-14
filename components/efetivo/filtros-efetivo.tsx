@@ -53,7 +53,7 @@ export function FiltrosEfetivo({
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
         <input
           type="text"
-          placeholder="Buscar por nome..."
+          placeholder="Buscar por nome ou registro..."
           defaultValue={values.busca}
           onChange={e => handleBusca(e.target.value)}
           className={`${inputClass} w-full pl-9`}
