@@ -20,12 +20,18 @@ export default async function MeuPostoPage() {
   ])
 
   const funcoes = (funcoesRaw ?? [])
-    .filter(f => !f.nome.toUpperCase().startsWith('SUPERVISOR'))
-    .map(f => ({
-      id: f.id,
-      nome: f.nome,
-      allowSMS: f.nome === 'AGENTE DE HIGIENIZAÇÃO A' || f.nome.toUpperCase().startsWith('ENCARREGADO'),
-    }))
+    .filter(f => {
+      const n = f.nome.trim().normalize('NFC').toUpperCase()
+      return !n.startsWith('SUPERVISOR')
+    })
+    .map(f => {
+      const n = f.nome.trim().normalize('NFC').toUpperCase()
+      return {
+        id: f.id,
+        nome: f.nome,
+        allowSMS: (n.startsWith('AGENTE') && n.endsWith(' A')) || n.startsWith('ENCARREGADO'),
+      }
+    })
 
   if (!configs?.length) {
     return (
