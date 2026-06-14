@@ -442,7 +442,7 @@ export async function buscarAprovacoesData(): Promise<SolicitacaoPendenteRow[]> 
 
     const { data, error } = await supabase
       .from('solicitacoes')
-      .select('id, tipo, created_at, funcionarios!funcionario_id(nome), perfis!supervisor_id(nome)')
+      .select('id, tipo, created_at, dados_depois, funcionarios!funcionario_id(nome), perfis!supervisor_id(nome)')
       .eq('status', 'pendente')
       .order('created_at', { ascending: true })
       .limit(5)
@@ -453,6 +453,7 @@ export async function buscarAprovacoesData(): Promise<SolicitacaoPendenteRow[]> 
       id: string
       tipo: string
       created_at: string | null
+      dados_depois: { nome?: string } | null
       funcionarios: { nome: string } | null
       perfis: { nome: string | null } | null
     }
@@ -461,7 +462,9 @@ export async function buscarAprovacoesData(): Promise<SolicitacaoPendenteRow[]> 
       id: s.id,
       tipo: s.tipo,
       created_at: s.created_at,
-      funcionarioNome: s.funcionarios?.nome ?? '—',
+      funcionarioNome: s.tipo === 'admissao'
+        ? (s.dados_depois?.nome ?? '—')
+        : (s.funcionarios?.nome ?? '—'),
       supervisorNome: s.perfis?.nome ?? null,
     }))
   } catch {

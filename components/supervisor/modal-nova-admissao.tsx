@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useMemo, useEffect, useRef } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { solicitarAdmissao } from '@/app/supervisor/solicitacoes/actions'
 
 type PostoOpt = { id: string; nome: string; secretaria: string | null }
-type FuncaoOpt = { id: string; nome: string }
+type FuncaoOpt = { id: string; nome: string; allowSMS: boolean }
 
 interface Props {
   open: boolean
@@ -20,14 +20,36 @@ const inputClass =
   'w-full rounded border border-gray-200 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600'
 
 export function ModalNovaAdmissao({ open, onClose, onSuccess, postos, funcoes }: Props) {
-  const [erro, setErro]   = useState<string | null>(null)
-  const [ok, setOk]       = useState(false)
-  const [pending, start]  = useTransition()
+  const [erro, setErro]         = useState<string | null>(null)
+  const [ok, setOk]             = useState(false)
+  const [pending, start]        = useTransition()
+  const [funcaoId, setFuncaoId] = useState('')
+  const [postoId, setPostoId]   = useState('')
+  const postoRef                = useRef<HTMLSelectElement>(null)
+
+  const selectedFuncao = funcoes.find(f => f.id === funcaoId) ?? null
+
+  const postosFiltrados = useMemo(() => {
+    if (!selectedFuncao || selectedFuncao.allowSMS) return postos
+    return postos.filter(p => p.secretaria !== 'SMS')
+  }, [postos, selectedFuncao])
+
+  // Reset posto quando ele ficar inválido pela troca de função
+  useEffect(() => {
+    if (!postoId) return
+    const still = postosFiltrados.some(p => p.id === postoId)
+    if (!still) {
+      setPostoId('')
+      if (postoRef.current) postoRef.current.value = ''
+    }
+  }, [postosFiltrados, postoId])
 
   function handleClose() {
     if (pending) return
     setErro(null)
     setOk(false)
+    setFuncaoId('')
+    setPostoId('')
     onClose()
   }
 
@@ -84,7 +106,13 @@ export function ModalNovaAdmissao({ open, onClose, onSuccess, postos, funcoes }:
 
               <div>
                 <label className={labelClass}>Função</label>
-                <select name="funcao_id" required className={inputClass}>
+                <select
+                  name="funcao_id"
+                  required
+                  className={inputClass}
+                  value={funcaoId}
+                  onChange={e => setFuncaoId(e.target.value)}
+                >
                   <option value="">Selecione...</option>
                   {funcoes.map(f => (
                     <option key={f.id} value={f.id}>{f.nome}</option>
@@ -94,9 +122,16 @@ export function ModalNovaAdmissao({ open, onClose, onSuccess, postos, funcoes }:
 
               <div>
                 <label className={labelClass}>Posto</label>
-                <select name="posto_id" required className={inputClass}>
+                <select
+                  ref={postoRef}
+                  name="posto_id"
+                  required
+                  className={inputClass}
+                  value={postoId}
+                  onChange={e => setPostoId(e.target.value)}
+                >
                   <option value="">Selecione...</option>
-                  {postos.map(p => (
+                  {postosFiltrados.map(p => (
                     <option key={p.id} value={p.id}>
                       {p.nome}{p.secretaria ? ` — ${p.secretaria}` : ''}
                     </option>

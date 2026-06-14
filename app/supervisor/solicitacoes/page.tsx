@@ -25,7 +25,13 @@ export default async function SolicitacoesPage() {
     .map(c => (c.postos as unknown as PostoRaw | null))
     .filter((p): p is PostoRaw => p !== null)
 
-  const funcoes = (funcoesRaw ?? []) as { id: string; nome: string }[]
+  const funcoes = (funcoesRaw ?? [])
+    .filter(f => !f.nome.toUpperCase().startsWith('SUPERVISOR'))
+    .map(f => ({
+      id: f.id,
+      nome: f.nome,
+      allowSMS: f.nome === 'AGENTE DE HIGIENIZAÇÃO A' || f.nome.toUpperCase().startsWith('ENCARREGADO'),
+    }))
 
   return (
     <div className="space-y-6">

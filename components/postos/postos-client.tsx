@@ -84,7 +84,7 @@ const selectClass =
 interface PostosClientProps {
   postos: PostoRow[]
   role?: string
-  funcoes?: { id: string; nome: string }[]
+  funcoes?: { id: string; nome: string; allowSMS: boolean }[]
   supervisorPostos?: { id: string; nome: string; secretaria: string | null }[]
 }
 

@@ -22,7 +22,13 @@ export default async function PostosPage() {
       : Promise.resolve({ data: null }),
   ])
 
-  const funcoes = (funcoesRaw ?? []) as { id: string; nome: string }[]
+  const funcoes = (funcoesRaw ?? [])
+    .filter(f => !f.nome.toUpperCase().startsWith('SUPERVISOR'))
+    .map(f => ({
+      id: f.id,
+      nome: f.nome,
+      allowSMS: f.nome === 'AGENTE DE HIGIENIZAÇÃO A' || f.nome.toUpperCase().startsWith('ENCARREGADO'),
+    }))
   const supervisorPostos = (spRaw ?? []).map((c: unknown) => {
     const row = c as { posto_id: string; postos: { id: string; nome: string; secretaria: string | null } }
     const p = row.postos

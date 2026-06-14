@@ -19,7 +19,13 @@ export default async function MeuPostoPage() {
     supabase.from('funcoes').select('id, nome').order('nome'),
   ])
 
-  const funcoes = (funcoesRaw ?? []) as { id: string; nome: string }[]
+  const funcoes = (funcoesRaw ?? [])
+    .filter(f => !f.nome.toUpperCase().startsWith('SUPERVISOR'))
+    .map(f => ({
+      id: f.id,
+      nome: f.nome,
+      allowSMS: f.nome === 'AGENTE DE HIGIENIZAÇÃO A' || f.nome.toUpperCase().startsWith('ENCARREGADO'),
+    }))
 
   if (!configs?.length) {
     return (
