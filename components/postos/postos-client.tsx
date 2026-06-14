@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { UserPlus } from 'lucide-react'
 import type { PostoRow } from '@/app/(admin)/postos/actions'
-import { ModalNovaAdmissao } from '@/components/supervisor/modal-nova-admissao'
+import { ModalNovaAdmissao } from './modal-nova-admissao'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 

@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useMemo, useEffect, useRef } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
-import { solicitarAdmissao } from '@/app/supervisor/solicitacoes/actions'
+import { solicitarAdmissao } from '@/app/(admin)/postos/actions'
 
 type PostoOpt = { id: string; nome: string; secretaria: string | null }
 type FuncaoOpt = { id: string; nome: string; postoFiltro: 'apenas_sms' | 'todos' | 'sem_sms' }
