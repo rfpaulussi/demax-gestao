@@ -77,12 +77,12 @@ export async function getDadosMovColaborador(
       .from('funcionarios')
       .select('nome, registro, cpf, salario_base, posto_id')
       .eq('id', funcionarioId)
-      .single(),
+      .maybeSingle(),
     funcaoAntigaId
-      ? supabase.from('funcoes').select('nome, insalubridade_perc').eq('id', funcaoAntigaId).single()
+      ? supabase.from('funcoes').select('nome, insalubridade_perc').eq('id', funcaoAntigaId).maybeSingle()
       : Promise.resolve({ data: null }),
     funcaoNovaId
-      ? supabase.from('funcoes').select('nome, insalubridade_perc').eq('id', funcaoNovaId).single()
+      ? supabase.from('funcoes').select('nome, insalubridade_perc').eq('id', funcaoNovaId).maybeSingle()
       : Promise.resolve({ data: null }),
   ])
 
@@ -97,7 +97,7 @@ export async function getDadosMovColaborador(
   // Posto + supervisor + regime + motivo em paralelo
   const [postoRes, supRes, regimeRes, solRes] = await Promise.all([
     postoId
-      ? supabase.from('postos').select('nome').eq('id', postoId).single()
+      ? supabase.from('postos').select('nome').eq('id', postoId).maybeSingle()
       : Promise.resolve({ data: null }),
     postoId
       ? supabase
@@ -106,13 +106,13 @@ export async function getDadosMovColaborador(
           .eq('posto_id', postoId)
           .eq('ativo', true)
           .limit(1)
-          .single()
+          .maybeSingle()
       : Promise.resolve({ data: null }),
     postoId
-      ? supabase.from('config_escalas_postos').select('regime').eq('posto_id', postoId).single()
+      ? supabase.from('config_escalas_postos').select('regime').eq('posto_id', postoId).maybeSingle()
       : Promise.resolve({ data: null }),
     solicitacaoId
-      ? supabase.from('solicitacoes').select('dados_depois').eq('id', solicitacaoId).single()
+      ? supabase.from('solicitacoes').select('dados_depois').eq('id', solicitacaoId).maybeSingle()
       : Promise.resolve({ data: null }),
   ])
 
