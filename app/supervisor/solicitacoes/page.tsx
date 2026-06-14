@@ -32,11 +32,11 @@ export default async function SolicitacoesPage() {
     })
     .map(f => {
       const n = f.nome.trim().normalize('NFC').toUpperCase()
-      return {
-        id: f.id,
-        nome: f.nome,
-        allowSMS: (n.startsWith('AGENTE') && n.endsWith(' A')) || n.startsWith('ENCARREGADO'),
-      }
+      const postoFiltro =
+        (n.startsWith('AGENTE') && n.endsWith(' A')) ? 'apenas_sms' as const :
+        n.startsWith('ENCARREGADO')                  ? 'todos'      as const :
+                                                       'sem_sms'    as const
+      return { id: f.id, nome: f.nome, postoFiltro }
     })
 
   return (

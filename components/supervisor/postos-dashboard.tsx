@@ -25,7 +25,7 @@ type Posto = PostoData
 
 interface Props {
   postos: Posto[]
-  funcoes?: { id: string; nome: string; allowSMS: boolean }[]
+  funcoes?: { id: string; nome: string; postoFiltro: 'apenas_sms' | 'todos' | 'sem_sms' }[]
 }
 
 interface ModalState {

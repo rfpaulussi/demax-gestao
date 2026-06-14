@@ -5,7 +5,7 @@ import { Dialog } from '@base-ui/react/dialog'
 import { solicitarAdmissao } from '@/app/supervisor/solicitacoes/actions'
 
 type PostoOpt = { id: string; nome: string; secretaria: string | null }
-type FuncaoOpt = { id: string; nome: string; allowSMS: boolean }
+type FuncaoOpt = { id: string; nome: string; postoFiltro: 'apenas_sms' | 'todos' | 'sem_sms' }
 
 interface Props {
   open: boolean
@@ -30,8 +30,12 @@ export function ModalNovaAdmissao({ open, onClose, onSuccess, postos, funcoes }:
   const selectedFuncao = funcoes.find(f => f.id === funcaoId) ?? null
 
   const postosFiltrados = useMemo(() => {
-    if (!selectedFuncao || selectedFuncao.allowSMS) return postos
-    return postos.filter(p => p.secretaria !== 'SMS')
+    if (!selectedFuncao) return postos
+    switch (selectedFuncao.postoFiltro) {
+      case 'apenas_sms': return postos.filter(p => p.secretaria === 'SMS')
+      case 'todos':      return postos
+      case 'sem_sms':    return postos.filter(p => p.secretaria !== 'SMS')
+    }
   }, [postos, selectedFuncao])
 
   // Reset posto quando ele ficar inválido pela troca de função

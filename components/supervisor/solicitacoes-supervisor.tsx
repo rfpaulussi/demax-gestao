@@ -10,7 +10,7 @@ import { ModalNovaAdmissao } from './modal-nova-admissao'
 type StatusFilter = 'todas' | 'pendente' | 'aprovada' | 'rejeitada'
 
 type PostoOpt = { id: string; nome: string; secretaria: string | null }
-type FuncaoOpt = { id: string; nome: string; allowSMS: boolean }
+type FuncaoOpt = { id: string; nome: string; postoFiltro: 'apenas_sms' | 'todos' | 'sem_sms' }
 
 const TIPO_BADGE: Record<TipoSolicitacao, { label: string; className: string }> = {
   desligamento:        { label: 'Desligamento',        className: 'bg-red-50 text-red-700 ring-red-200'           },
