@@ -1,7 +1,7 @@
 'use client'
 
 import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
-import type { DadosMovColaborador } from '@/lib/movimentacao-colaborador'
+import type { DadosMovColaborador } from '@/lib/movimentacao-colaborador-constants'
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
