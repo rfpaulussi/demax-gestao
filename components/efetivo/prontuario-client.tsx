@@ -76,12 +76,12 @@ function buildHistoricoMes(
   eventos: ProntuarioEvento[],
   funcionario: ProntuarioFuncionario,
 ): MesEntry[] {
-  if (eventos.length === 0) return []
-
   const sorted = [...eventos].sort((a, b) => a.data.localeCompare(b.data))
-  const firstYM = sorted[0].data.substring(0, 7)
   const now = new Date()
   const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const admissaoYM    = funcionario.data_admissao?.substring(0, 7)
+  const primeiroEvYM  = sorted[0]?.data.substring(0, 7)
+  const firstYM = [admissaoYM, primeiroEvYM].filter(Boolean).sort()[0] ?? currentYM
 
   // Generate all months from first event to today
   const months: string[] = []
@@ -252,6 +252,12 @@ export function ProntuarioClient({ funcionario, eventos }: Props) {
                   {statusBadge.label}
                 </span>
               )}
+              {funcionario.status === 'desligado' && funcionario.data_desligamento && (
+                <span className="text-xs text-gray-400">
+                  Desligado em {fmt(funcionario.data_desligamento)}
+                  {funcionario.motivo_desligamento ? ` — ${funcionario.motivo_desligamento}` : ''}
+                </span>
+              )}
             </div>
           </div>
           <span className="text-sm text-gray-400">{eventos.length} evento{eventos.length !== 1 ? 's' : ''}</span>
@@ -369,29 +375,27 @@ export function ProntuarioClient({ funcionario, eventos }: Props) {
                           <p className="mt-1.5 text-sm text-gray-700">{evento.descricao}</p>
                         )}
 
-                        {antList.length > 0 && novList.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-3">
-                            {antList.map(([k, v]) => {
+                        {(antList.length > 0 || novList.length > 0) && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {Array.from(new Set([...antList.map(([k]) => k), ...novList.map(([k]) => k)])).map(k => {
+                              const antValor = antList.find(([ak]) => ak === k)?.[1]
                               const novValor = novList.find(([nk]) => nk === k)?.[1]
                               return (
                                 <span key={k} className="inline-flex items-center gap-1 rounded-md bg-gray-50 px-2 py-0.5 text-xs text-gray-500">
                                   <span className="font-medium text-gray-400">{k}:</span>
-                                  <span className="line-through text-gray-400">{v}</span>
-                                  {novValor && <span className="text-gray-700">→ {novValor}</span>}
+                                  {antValor && novValor ? (
+                                    <>
+                                      <span className="line-through text-gray-400">{antValor}</span>
+                                      <span className="text-gray-700">→ {novValor}</span>
+                                    </>
+                                  ) : antValor ? (
+                                    <span className="line-through text-gray-400">{antValor}</span>
+                                  ) : (
+                                    <span>{novValor}</span>
+                                  )}
                                 </span>
                               )
                             })}
-                          </div>
-                        )}
-
-                        {antList.length === 0 && novList.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {novList.map(([k, v]) => (
-                              <span key={k} className="inline-flex items-center gap-1 rounded-md bg-gray-50 px-2 py-0.5 text-xs text-gray-500">
-                                <span className="font-medium text-gray-400">{k}:</span>
-                                <span>{v}</span>
-                              </span>
-                            ))}
                           </div>
                         )}
                       </div>

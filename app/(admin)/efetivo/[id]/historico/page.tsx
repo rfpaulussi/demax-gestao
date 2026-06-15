@@ -12,6 +12,8 @@ export interface ProntuarioFuncionario {
   secretaria: string | null
   status: string | null
   data_admissao: string | null
+  data_desligamento: string | null
+  motivo_desligamento: string | null
 }
 
 export interface ProntuarioEvento {
@@ -49,7 +51,7 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
   ] = await Promise.all([
     supabase
       .from('funcionarios')
-      .select('id, nome, cpf, status, data_admissao, funcoes!funcao_id(nome), postos!posto_id(nome, secretaria)')
+      .select('id, nome, cpf, status, data_admissao, data_desligamento, motivo_desligamento, funcoes!funcao_id(nome), postos!posto_id(nome, secretaria)')
       .eq('id', id)
       .single(),
     supabase
@@ -87,6 +89,8 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
     cpf: string | null
     status: string | null
     data_admissao: string | null
+    data_desligamento: string | null
+    motivo_desligamento: string | null
     funcoes: { nome: string } | null
     postos: { nome: string; secretaria: string | null } | null
   }
@@ -100,6 +104,8 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
     secretaria: f.postos?.secretaria ?? null,
     status: f.status,
     data_admissao: f.data_admissao,
+    data_desligamento: f.data_desligamento,
+    motivo_desligamento: f.motivo_desligamento,
   }
 
   // Se afastado sem posto atual, busca último posto conhecido no histórico
