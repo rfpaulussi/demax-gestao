@@ -85,7 +85,8 @@ export async function calcularFechamento(
   const mesEnd      = new Date(mesEndStr   + 'T12:00:00')
 
   // 1. Funcionários ativos em algum momento no mês (paginado para superar max_rows)
-  const funcionarios = await fetchAllRows((from, to) =>
+  // order('id') garante paginação determinística — order('nome') não é único
+  const funcionariosRaw = await fetchAllRows((from, to) =>
     supabase
       .from('funcionarios')
       .select(`
@@ -95,8 +96,12 @@ export async function calcularFechamento(
       `)
       .lte('data_admissao', mesEndStr)
       .or(`data_desligamento.is.null,data_desligamento.gte.${mesStartStr}`)
-      .order('nome')
+      .order('id', { ascending: true })
       .range(from, to),
+  )
+  // Ordenar por nome em memória para preservar exibição alfabética na tabela
+  const funcionarios = funcionariosRaw.sort((a, b) =>
+    (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR', { sensitivity: 'base' }),
   )
 
   if (funcionarios.length === 0) return []
