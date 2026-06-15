@@ -23,31 +23,29 @@ import {
   ClipboardX,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
+import { NAV_GROUPS } from './nav-config'
 import type { Role } from '@/types'
 
-// ─── nav definition ──────────────────────────────────────────────────────────
+// ─── icon mapping ─────────────────────────────────────────────────────────────
 
-const NAV = [
-  { href: '/dashboard',     label: 'Dashboard',     icon: LayoutDashboard },
-  { href: '/efetivo',       label: 'Efetivo',       icon: Users           },
-  { href: '/postos',        label: 'Postos',        icon: Building2       },
-  { href: '/aprovacoes',    label: 'Aprovações',    icon: ClipboardCheck, badge: true },
-  { href: '/coberturas',    label: 'Coberturas',    icon: Repeat2         },
-  { href: '/ferias',        label: 'Férias',        icon: Palmtree        },
-  { href: '/advertencias',  label: 'Advertências',  icon: ShieldAlert     },
-  { href: '/faltas',        label: 'Faltas',        icon: UserMinus       },
-  { href: '/atestados',    label: 'Atestados',     icon: Stethoscope     },
-  { href: '/insalubridade', label: 'Insalubridade', icon: Biohazard       },
-  { href: '/ocorrencias',   label: 'Ocorrências',   icon: Siren           },
-] as const
-
-const ADMIN_NAV = [
-  { href: '/pendencias',  label: 'Pendências',  icon: ClipboardX    },
-  { href: '/fechamento',  label: 'Fechamento',  icon: ClipboardList },
-  { href: '/relatorios',  label: 'Relatórios',  icon: BarChart3     },
-  { href: '/importacao',  label: 'Importação',  icon: Upload        },
-  { href: '/usuarios',    label: 'Usuários',    icon: UserCog       },
-] as const
+const ICONS: Record<string, React.ElementType> = {
+  '/dashboard':     LayoutDashboard,
+  '/efetivo':       Users,
+  '/postos':        Building2,
+  '/aprovacoes':    ClipboardCheck,
+  '/coberturas':    Repeat2,
+  '/ferias':        Palmtree,
+  '/advertencias':  ShieldAlert,
+  '/faltas':        UserMinus,
+  '/atestados':     Stethoscope,
+  '/insalubridade': Biohazard,
+  '/ocorrencias':   Siren,
+  '/pendencias':    ClipboardX,
+  '/fechamento':    ClipboardList,
+  '/relatorios':    BarChart3,
+  '/importacao':    Upload,
+  '/usuarios':      UserCog,
+}
 
 // ─── shared nav content ──────────────────────────────────────────────────────
 
@@ -62,43 +60,45 @@ function NavLinks({
 }) {
   const pathname = usePathname()
 
-  function renderItem({ href, label, icon: Icon, ...rest }: { href: string; label: string; icon: React.ElementType; badge?: boolean }) {
-    const active = pathname === href || pathname.startsWith(href + '/')
-    const showBadge = 'badge' in rest && rest.badge && pendingCount > 0
-    return (
-      <Link
-        key={href}
-        href={href}
-        onClick={onNavigate}
-        className={
-          active
-            ? 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold bg-white/10 text-white shadow-sm'
-            : 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white transition-colors'
-        }
-      >
-        <Icon className="h-4 w-4 shrink-0" />
-        <span className="flex-1">{label}</span>
-        {showBadge && (
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
-            {pendingCount > 99 ? '99+' : pendingCount}
-          </span>
-        )}
-      </Link>
-    )
-  }
-
   return (
-    <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-4">
-      {NAV.map(item => renderItem(item))}
-
-      {role === 'admin' && (
-        <>
-          <div className="px-3 pt-4 pb-1">
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Administração</p>
+    <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-4">
+      {NAV_GROUPS.map((group, i) => {
+        if (group.adminOnly && role !== 'admin') return null
+        return (
+          <div key={group.label} className={i > 0 ? 'mt-6' : undefined}>
+            <p className="text-[10px] uppercase tracking-widest text-slate-500 px-3 mb-2">
+              {group.label}
+            </p>
+            <div className="flex flex-col gap-0.5">
+              {group.items.map(({ href, label, badge }) => {
+                const Icon = ICONS[href]
+                const active = pathname === href || pathname.startsWith(href + '/')
+                const showBadge = badge && pendingCount > 0
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={onNavigate}
+                    className={
+                      active
+                        ? 'flex items-center gap-3 rounded-r-lg border-l-2 border-blue-500 bg-white/10 px-3 py-2.5 text-sm font-semibold text-white'
+                        : 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-white'
+                    }
+                  >
+                    {Icon && <Icon className="h-4 w-4 shrink-0" />}
+                    <span className="flex-1">{label}</span>
+                    {showBadge && (
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                        {pendingCount > 99 ? '99+' : pendingCount}
+                      </span>
+                    )}
+                  </Link>
+                )
+              })}
+            </div>
           </div>
-          {ADMIN_NAV.map(item => renderItem(item))}
-        </>
-      )}
+        )
+      })}
     </nav>
   )
 }
