@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 const DIAS_COBERTURA_ATESTADO = 15 // dias corridos cobertos pela empresa (CLT)
 
@@ -83,20 +84,21 @@ export async function calcularFechamento(
   const mesStart    = new Date(mesStartStr + 'T12:00:00')
   const mesEnd      = new Date(mesEndStr   + 'T12:00:00')
 
-  // 1. Funcionários ativos em algum momento no mês
-  const { data: funcs } = await supabase
-    .from('funcionarios')
-    .select(`
-      id, nome, data_admissao, data_desligamento, status,
-      funcoes!funcionarios_funcao_id_fkey ( nome ),
-      postos!posto_id ( nome, secretaria, config_escalas_postos ( regime ) )
-    `)
-    .lte('data_admissao', mesEndStr)
-    .or(`data_desligamento.is.null,data_desligamento.gte.${mesStartStr}`)
-    .order('nome')
-    .range(0, 1499)
+  // 1. Funcionários ativos em algum momento no mês (paginado para superar max_rows)
+  const funcionarios = await fetchAllRows((from, to) =>
+    supabase
+      .from('funcionarios')
+      .select(`
+        id, nome, data_admissao, data_desligamento, status,
+        funcoes!funcionarios_funcao_id_fkey ( nome ),
+        postos!posto_id ( nome, secretaria, config_escalas_postos ( regime ) )
+      `)
+      .lte('data_admissao', mesEndStr)
+      .or(`data_desligamento.is.null,data_desligamento.gte.${mesStartStr}`)
+      .order('nome')
+      .range(from, to),
+  )
 
-  const funcionarios = funcs ?? []
   if (funcionarios.length === 0) return []
 
   // 2. Busca paralela de todos os eventos do mês

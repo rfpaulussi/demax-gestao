@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { getUser } from '@/lib/auth/get-user'
 
 type ActionResult = { success: true } | { success: false; error: string }
@@ -75,7 +76,7 @@ type ConfigRow = {
 export async function getPostosData(): Promise<PostoRow[]> {
   const supabase = createClient()
 
-  const [{ data: postos }, { data: funcionarios }, { data: config }] = await Promise.all([
+  const [{ data: postos }, funcionarios, { data: config }] = await Promise.all([
     supabase
       .from('postos')
       .select('id, nome, secretaria, efetivo_previsto, cota_insalubridade, ativo')
@@ -83,10 +84,14 @@ export async function getPostosData(): Promise<PostoRow[]> {
       .eq('ativo', true)
       .order('secretaria', { ascending: true })
       .order('nome', { ascending: true }),
-    supabase
-      .from('funcionarios')
-      .select('id, posto_id, status')
-      .in('status', ['ativo', 'afastado', 'ferias']),
+    // paginado para superar max_rows do PostgREST
+    fetchAllRows((from, to) =>
+      supabase
+        .from('funcionarios')
+        .select('id, posto_id, status')
+        .in('status', ['ativo', 'afastado', 'ferias'])
+        .range(from, to),
+    ),
     supabase
       .from('config_supervisores_postos')
       .select('posto_id, supervisor_id, perfis!supervisor_id(id, nome)')
@@ -94,7 +99,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
   ])
 
   const efetivoMap = new Map<string, number>()
-  for (const f of funcionarios ?? []) {
+  for (const f of funcionarios) {
     if (f.posto_id) {
       efetivoMap.set(f.posto_id, (efetivoMap.get(f.posto_id) ?? 0) + 1)
     }
