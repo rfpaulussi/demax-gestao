@@ -39,7 +39,8 @@ export async function getDadosMovColaborador(
     nome: string; registro: string | null; cpf: string | null
     salario_base: number | null; posto_id: string | null
   } | null
-  if (!func) return null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (!func) return { _debug: 'funcionario não encontrado na tabela funcionarios', funcionarioId, supabaseError: (funcRes as any).error?.message ?? null } as unknown as DadosMovColaborador
 
   const postoId = func.posto_id
 
