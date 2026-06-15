@@ -104,7 +104,7 @@ function Checkbox({ checked, label }: { checked: boolean; label: string }) {
   return (
     <View style={s.cb}>
       <View style={s.cbBox}>
-        {checked && <Text style={s.cbX}>X</Text>}
+        {checked ? <Text style={s.cbX}>X</Text> : null}
       </View>
       <Text style={s.cbLabel}>{label}</Text>
     </View>
@@ -159,7 +159,7 @@ function ColRowDiff({
   )
 }
 
-function MovColaboradorDoc({ dados }: { dados: DadosMovColaborador }) {
+function MovColaboradorDoc({ dados, tipo }: { dados: DadosMovColaborador; tipo: string }) {
   const emitidoEm = new Date().toLocaleDateString('pt-BR')
   const localStr  = local(dados.posto)
   const salStr    = fmtSalario(dados.salario)
@@ -177,9 +177,9 @@ function MovColaboradorDoc({ dados }: { dados: DadosMovColaborador }) {
           <View style={s.titleBlock}>
             <Text style={s.title}>MOVIMENTAÇÃO DE COLABORADOR</Text>
             <View style={s.cbRow}>
-              <Checkbox checked={false} label="Transferência" />
-              <Checkbox checked={true}  label="Mudança de Função" />
-              <Checkbox checked={false} label="Promoção" />
+              <Checkbox checked={tipo === 'transferencia'}  label="Transferência" />
+              <Checkbox checked={tipo === 'mudanca_funcao'} label="Mudança de Função" />
+              <Checkbox checked={tipo === 'promocao'}       label="Promoção" />
             </View>
             <View style={s.vigRow}>
               <Text style={s.vigLabel}>Vigência:</Text>
@@ -288,14 +288,14 @@ function MovColaboradorDoc({ dados }: { dados: DadosMovColaborador }) {
 
 // ─── Download ─────────────────────────────────────────────────────────────────
 
-export async function downloadMovColaboradorPDF(dados: DadosMovColaborador): Promise<void> {
+export async function downloadMovColaboradorPDF(dados: DadosMovColaborador, tipo: string): Promise<void> {
   const slug = dados.nome
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/\s+/g, '_').toUpperCase()
   const filename = `MUD_FUNCAO_${slug}.pdf`
 
   const { pdf } = await import('@react-pdf/renderer')
-  const blob = await pdf(<MovColaboradorDoc dados={dados} />).toBlob()
+  const blob = await pdf(<MovColaboradorDoc dados={dados} tipo={tipo} />).toBlob()
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement('a')
   a.href     = url

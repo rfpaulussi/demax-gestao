@@ -88,7 +88,7 @@ function TabMovimentacoes({
           mov.created_at,
           mov.solicitacao_id,
         )
-        if (dados) await downloadMovColaboradorPDF(dados)
+        if (dados) await downloadMovColaboradorPDF(dados, mov.tipo)
       } else {
         await downloadMovimentacaoPDF(mov, funcionario)
       }
