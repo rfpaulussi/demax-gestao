@@ -236,21 +236,5 @@ export async function calcularFechamento(
     }
   })
 
-  // DEBUG — remover após validação
-  const kpiTotal         = resultado.length
-  const kpiIdsUnicos     = new Set(resultado.map(d => d.funcionario_id)).size
-  const kpiDiasTrab      = resultado.reduce((a, d) => a + d.dias_trabalhados, 0)
-  const kpiSuspensao     = resultado.filter(d => d.tem_suspensao).length
-  const kpiInsalubridade = resultado.filter(d => d.insalubridade_dias > 0).length
-  console.log('[DEBUG calcularFechamento]', JSON.stringify({
-    mes, ano,
-    totalLinhas:    kpiTotal,
-    idsUnicos:      kpiIdsUnicos,
-    duplicados:     kpiTotal - kpiIdsUnicos,
-    kpiDiasTrab,
-    kpiSuspensao,
-    kpiInsalubridade,
-  }))
-
   return resultado
 }
