@@ -46,6 +46,10 @@ export default async function EfetivoPage() {
     { data: postosRaw },
     { data: funcoesRaw },
     { data: cidsRaw },
+    { count: countTotal },
+    { count: countAtivos },
+    { count: countAfastados },
+    { count: countFerias },
   ] = await Promise.all([
     supabase
       .from('funcionarios')
@@ -70,6 +74,11 @@ export default async function EfetivoPage() {
     supabase.from('postos').select('id, nome, secretaria').order('nome'),
     supabase.from('funcoes').select('id, nome').order('nome'),
     supabase.from('cid_referencia').select('codigo, descricao').order('codigo'),
+    // KPIs via COUNT — bypassa o max_rows do PostgREST (head:true não retorna linhas)
+    supabase.from('funcionarios').select('*', { count: 'exact', head: true }),
+    supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'ativo'),
+    supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'afastado'),
+    supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'ferias'),
   ])
 
   // posto_id → { supervisor_id, nomeCompleto }
@@ -111,11 +120,11 @@ export default async function EfetivoPage() {
     }
   })
 
-  // KPI counters (always over full list)
-  const total     = funcionarios.length
-  const ativos    = funcionarios.filter(f => f.status === 'ativo').length
-  const afastados = funcionarios.filter(f => f.status === 'afastado').length
-  const emFerias  = funcionarios.filter(f => f.status === 'ferias').length
+  // KPI counters via COUNT exact — independentes do limite de linhas da query da tabela
+  const total     = countTotal    ?? 0
+  const ativos    = countAtivos   ?? 0
+  const afastados = countAfastados ?? 0
+  const emFerias  = countFerias   ?? 0
 
   const supervisores = (supervisoresRaw ?? []) as { id: string; nome: string | null }[]
   const postos       = (postosRaw ?? []) as { id: string; nome: string; secretaria: string | null }[]
