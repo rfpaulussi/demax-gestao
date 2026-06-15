@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { getUser } from '@/lib/auth/get-user'
+import { FUNCOES_FORA_DO_EFETIVO } from '@/lib/constants'
 
 type ActionResult = { success: true } | { success: false; error: string }
 
@@ -76,7 +77,14 @@ type ConfigRow = {
 export async function getPostosData(): Promise<PostoRow[]> {
   const supabase = createClient()
 
-  const [{ data: postos }, funcionarios, { data: config }] = await Promise.all([
+  // Pre-fetch IDs dos cargos que não contam no efetivo contratual
+  const { data: funcoesExcluidasRaw } = await supabase
+    .from('funcoes')
+    .select('id')
+    .in('nome', [...FUNCOES_FORA_DO_EFETIVO])
+  const excludedFuncaoIds = new Set((funcoesExcluidasRaw ?? []).map(f => f.id))
+
+  const [{ data: postos }, funcionariosRaw, { data: config }] = await Promise.all([
     supabase
       .from('postos')
       .select('id, nome, secretaria, efetivo_previsto, cota_insalubridade, ativo')
@@ -84,11 +92,11 @@ export async function getPostosData(): Promise<PostoRow[]> {
       .eq('ativo', true)
       .order('secretaria', { ascending: true })
       .order('nome', { ascending: true }),
-    // paginado para superar max_rows do PostgREST
+    // paginado para superar max_rows do PostgREST; inclui funcao_id para filtragem
     fetchAllRows((from, to) =>
       supabase
         .from('funcionarios')
-        .select('id, posto_id, status')
+        .select('id, posto_id, status, funcao_id')
         .in('status', ['ativo', 'afastado', 'ferias'])
         .order('id', { ascending: true })
         .range(from, to),
@@ -99,12 +107,38 @@ export async function getPostosData(): Promise<PostoRow[]> {
       .eq('ativo', true),
   ])
 
+  // DEBUG — remover após validação
+  const efetivoMapAntes = new Map<string, number>()
+  for (const f of funcionariosRaw) {
+    if (f.posto_id) efetivoMapAntes.set(f.posto_id, (efetivoMapAntes.get(f.posto_id) ?? 0) + 1)
+  }
+  const somaAntes = Array.from(efetivoMapAntes.values()).reduce((a, v) => a + v, 0)
+
+  // Excluir cargos fora do efetivo contratual
+  const funcionarios = funcionariosRaw.filter(
+    f => !f.funcao_id || !excludedFuncaoIds.has(f.funcao_id),
+  )
+
   const efetivoMap = new Map<string, number>()
   for (const f of funcionarios) {
     if (f.posto_id) {
       efetivoMap.set(f.posto_id, (efetivoMap.get(f.posto_id) ?? 0) + 1)
     }
   }
+  const somaDepois = Array.from(efetivoMap.values()).reduce((a, v) => a + v, 0)
+  const pessoasExcesso = (postos ?? []).reduce((acc, p) => {
+    const atual = efetivoMap.get(p.id) ?? 0
+    return atual > (p.efetivo_previsto ?? 0) ? acc + atual - (p.efetivo_previsto ?? 0) : acc
+  }, 0)
+  console.log('[DEBUG getPostosData]', JSON.stringify({
+    excludedFuncaoIdsFound: excludedFuncaoIds.size,
+    totalFetched:           funcionariosRaw.length,
+    somaEfetivoMapAntes:    somaAntes,
+    filtrados:              funcionariosRaw.length - funcionarios.length,
+    somaEfetivoMapDepois:   somaDepois,
+    pessoasExcesso,
+  }))
+  // END DEBUG
 
 const supervisorMap = new Map<string, string>()
   for (const row of (config ?? []) as unknown as ConfigRow[]) {

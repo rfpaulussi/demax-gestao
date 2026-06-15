@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { addBusinessDays } from '@/lib/utils'
 import { calcularKPIsAtuais } from '@/lib/dashboard-kpis'
+import { FUNCOES_FORA_DO_EFETIVO } from '@/lib/constants'
 
 // ─── Tipos exportados ─────────────────────────────────────────────────────────
 
@@ -461,4 +462,20 @@ export async function buscarAprovacoesData(): Promise<SolicitacaoPendenteRow[]> 
   } catch {
     return []
   }
+}
+
+export async function buscarForaDoEfetivo(): Promise<number> {
+  const supabase = createClient()
+  const { data: funcoesRaw } = await supabase
+    .from('funcoes')
+    .select('id')
+    .in('nome', [...FUNCOES_FORA_DO_EFETIVO])
+  const ids = (funcoesRaw ?? []).map(f => f.id)
+  if (ids.length === 0) return 0
+  const { count } = await supabase
+    .from('funcionarios')
+    .select('*', { count: 'exact', head: true })
+    .in('status', ['ativo', 'afastado', 'ferias'])
+    .in('funcao_id', ids)
+  return count ?? 0
 }

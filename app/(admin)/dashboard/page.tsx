@@ -13,6 +13,7 @@ import {
   buscarEvolucaoEfetivo,
   buscarSecretariaData,
   buscarAprovacoesData,
+  buscarForaDoEfetivo,
 } from './actions'
 import { AlertasCriticos } from '@/components/dashboard/alertas-criticos'
 import { ProximasFerias } from '@/components/dashboard/proximas-ferias'
@@ -93,7 +94,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
-  const [kpis, alertas, proximasFerias, atestados, evolucao, secretarias, aprovacoes] =
+  const [kpis, alertas, proximasFerias, atestados, evolucao, secretarias, aprovacoes, foraDoEfetivo] =
     await Promise.all([
       buscarKPIsDashboard(),
       buscarAlertasDashboard(),
@@ -102,6 +103,7 @@ export default async function DashboardPage() {
       buscarEvolucaoEfetivo(),
       buscarSecretariaData(),
       buscarAprovacoesData(),
+      buscarForaDoEfetivo(),
     ])
 
   return (
@@ -170,6 +172,13 @@ export default async function DashboardPage() {
           />
         </div>
       </section>
+
+      {/* Nota informativa: cargos fora do efetivo contratual */}
+      {foraDoEfetivo > 0 && (
+        <p className="text-xs text-gray-400">
+          <span className="font-medium text-gray-500">{foraDoEfetivo}</span> funcionários (Jovem Aprendiz, Limpador de Vidros, Aux. Administrativo) não contam no efetivo contratual e são excluídos do Controle de Postos.
+        </p>
+      )}
 
       {/* ── LINHA 2: Alertas, Próximas Férias, Atestados ───────────────────── */}
       <section>
