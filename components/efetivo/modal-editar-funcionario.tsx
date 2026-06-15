@@ -11,6 +11,11 @@ const MOTIVOS_DESLIGAMENTO = [
   'SALÁRIO', 'FALECIMENTO', 'JUSTA CAUSA',
 ]
 
+const STATUS_LOCKED_LABEL: Record<string, string> = {
+  afastado: 'Afastado',
+  ferias:   'Em Férias',
+}
+
 interface Props {
   funcionario: FuncionarioRow
   postos: { id: string; nome: string; secretaria: string | null }[]
@@ -23,6 +28,8 @@ const labelClass = 'mb-1 block text-xs font-semibold uppercase tracking-widest t
 const inputClass = 'w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600'
 
 export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onClose }: Props) {
+  const isStatusLocked = funcionario.status === 'afastado' || funcionario.status === 'ferias'
+
   const [nome,               setNome]               = useState(funcionario.nome)
   const [funcaoId,           setFuncaoId]           = useState(funcionario.funcoes?.id ?? '')
   const [postoId,            setPostoId]            = useState(funcionario.posto_id ?? '')
@@ -52,15 +59,21 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErro(null)
+
+    // Quando status está bloqueado (afastado/ferias), preserva o status original
+    const statusEnviado = isStatusLocked
+      ? (funcionario.status as 'ativo' | 'afastado' | 'ferias' | 'desligado')
+      : status
+
     start(async () => {
       const result = await editarFuncionario(funcionario.id, {
         nome,
         funcao_id:           funcaoId,
         posto_id:            postoId,
         data_admissao:       dataAdmissao || null,
-        status,
-        data_desligamento:   status === 'ativo' ? null : dataDesligamento || null,
-        motivo_desligamento: status === 'ativo' ? null : motivoDesligamento || null,
+        status:              statusEnviado,
+        data_desligamento:   statusEnviado === 'ativo' ? null : dataDesligamento || null,
+        motivo_desligamento: statusEnviado === 'ativo' ? null : motivoDesligamento || null,
       })
       if (!result.success) {
         setErro(result.error)
@@ -122,17 +135,28 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
 
             <div>
               <label className={labelClass}>Status</label>
-              <select
-                value={status}
-                onChange={e => handleStatusChange(e.target.value as 'ativo' | 'desligado')}
-                className={inputClass}
-              >
-                <option value="ativo">Ativo</option>
-                <option value="desligado">Desligado</option>
-              </select>
+              {isStatusLocked ? (
+                <>
+                  <div className="w-full rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
+                    {STATUS_LOCKED_LABEL[funcionario.status!]}
+                  </div>
+                  <p className="mt-1 text-xs text-gray-400">
+                    Para alterar este status, use o botão Afastar/Retorno na tabela de Efetivo ou o módulo Férias.
+                  </p>
+                </>
+              ) : (
+                <select
+                  value={status}
+                  onChange={e => handleStatusChange(e.target.value as 'ativo' | 'desligado')}
+                  className={inputClass}
+                >
+                  <option value="ativo">Ativo</option>
+                  <option value="desligado">Desligado</option>
+                </select>
+              )}
             </div>
 
-            {status === 'desligado' && (
+            {!isStatusLocked && status === 'desligado' && (
               <>
                 <div>
                   <label className={labelClass}>Data de Desligamento</label>

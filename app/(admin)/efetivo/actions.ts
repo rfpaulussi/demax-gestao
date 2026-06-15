@@ -333,7 +333,7 @@ export async function editarFuncionario(
     funcao_id: string
     posto_id: string
     data_admissao: string | null
-    status: 'ativo' | 'desligado'
+    status: 'ativo' | 'afastado' | 'ferias' | 'desligado'
     data_desligamento: string | null
     motivo_desligamento: string | null
   },
@@ -352,7 +352,7 @@ export async function editarFuncionario(
       funcao_id:           campos.funcao_id || null,
       posto_id:            campos.posto_id || null,
       data_admissao:       campos.data_admissao || null,
-      status:              campos.status as 'ativo' | 'afastado' | 'ferias' | 'desligado',
+      status:              campos.status,
       data_desligamento:   campos.status === 'ativo' ? null : campos.data_desligamento || null,
       motivo_desligamento: campos.status === 'ativo' ? null : campos.motivo_desligamento || null,
     })
