@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import {
-  FileText, UserCheck, UserX, MapPin, Briefcase,
+  FileText, UserCheck, UserX, UserMinus, MapPin, Briefcase,
   Umbrella, XCircle, AlertTriangle, Ban, Shield, ArrowRightLeft,
   RotateCcw, Loader2,
 } from 'lucide-react'
@@ -30,8 +30,10 @@ const EVENT_CONFIG: Record<string, EventConfig> = {
   advertencia:         { label: 'Advertência',        icon: AlertTriangle,   dot: 'bg-red-500',     text: 'text-red-700',     ring: 'ring-red-100'    },
   suspensao:           { label: 'Suspensão',          icon: Ban,             dot: 'bg-red-800',     text: 'text-red-900',     ring: 'ring-red-200'    },
   cobertura_insalubre: { label: 'Cob. Insalubre',     icon: Shield,          dot: 'bg-indigo-500',  text: 'text-indigo-700',  ring: 'ring-indigo-100' },
-  transferencia:       { label: 'Transferência',      icon: ArrowRightLeft,  dot: 'bg-cyan-500',    text: 'text-cyan-700',    ring: 'ring-cyan-100'   },
-  reativacao:          { label: 'Reativação',         icon: RotateCcw,       dot: 'bg-green-400',   text: 'text-green-600',   ring: 'ring-green-100'  },
+  transferencia:         { label: 'Transferência',       icon: ArrowRightLeft, dot: 'bg-cyan-500',    text: 'text-cyan-700',    ring: 'ring-cyan-100'   },
+  reativacao:            { label: 'Reativação',          icon: RotateCcw,      dot: 'bg-green-400',   text: 'text-green-600',   ring: 'ring-green-100'  },
+  afastamento:           { label: 'Afastamento',         icon: UserMinus,      dot: 'bg-amber-500',   text: 'text-amber-700',   ring: 'ring-amber-100'  },
+  retorno_afastamento:   { label: 'Retorno Afastamento', icon: UserCheck,      dot: 'bg-green-500',   text: 'text-green-700',   ring: 'ring-green-100'  },
 }
 
 const DEFAULT_CONFIG: EventConfig = {
@@ -134,6 +136,12 @@ function buildHistoricoMes(
           state.status = 'desligado'
           break
         case 'reativacao':
+          state.status = 'ativo'
+          break
+        case 'afastamento':
+          state.status = 'afastado'
+          break
+        case 'retorno_afastamento':
           state.status = 'ativo'
           break
       }
