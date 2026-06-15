@@ -84,6 +84,15 @@ export async function getPostosData(): Promise<PostoRow[]> {
     .in('nome', [...FUNCOES_FORA_DO_EFETIVO])
   const excludedFuncaoIds = new Set((funcoesExcluidasRaw ?? []).map(f => f.id))
 
+  // Pre-fetch IDs dos encarregados volantes (coluna nova — cast até tipos serem regenerados)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: volantesRaw } = await (supabase.from('funcionarios').select('id') as any)
+    .eq('eh_encarregado_volante', true)
+    .in('status', ['ativo', 'afastado', 'ferias'])
+  const encarregadoVolanteIds = new Set<string>(
+    ((volantesRaw ?? []) as { id: string }[]).map(f => f.id),
+  )
+
   const [{ data: postos }, funcionariosRaw, { data: config }] = await Promise.all([
     supabase
       .from('postos')
@@ -107,12 +116,15 @@ export async function getPostosData(): Promise<PostoRow[]> {
       .eq('ativo', true),
   ])
 
-  const somaAntes = funcionariosRaw.filter(f => f.posto_id).length
-
-  // Excluir cargos fora do efetivo contratual
-  const funcionarios = funcionariosRaw.filter(
+  // Filtro 1: excluir cargos fora do efetivo contratual (funcao)
+  const semFuncaoExcluida = funcionariosRaw.filter(
     f => !f.funcao_id || !excludedFuncaoIds.has(f.funcao_id),
   )
+  const somaAposFiltroCargo = semFuncaoExcluida.filter(f => f.posto_id).length
+
+  // Filtro 2: excluir encarregados volantes
+  const funcionarios = semFuncaoExcluida.filter(f => !encarregadoVolanteIds.has(f.id))
+  const filtradosPorVolante = semFuncaoExcluida.length - funcionarios.length
 
   const efetivoMap = new Map<string, number>()
   for (const f of funcionarios) {
@@ -129,9 +141,11 @@ export async function getPostosData(): Promise<PostoRow[]> {
   }, 0)
   console.log('[DEBUG getPostosData]', JSON.stringify({
     excludedFuncaoIdsFound: excludedFuncaoIds.size,
+    encarregadosVolantes:   encarregadoVolanteIds.size,
     totalFetched:           funcionariosRaw.length,
-    filtrados:              funcionariosRaw.length - funcionarios.length,
-    somaEfetivoMapAntes:    somaAntes,
+    filtradosPorCargo:      funcionariosRaw.length - semFuncaoExcluida.length,
+    somaEfetivoMapAntesVolante: somaAposFiltroCargo,
+    filtradosPorVolante,
     somaEfetivoMapDepois:   somaDepois,
     kpiExcesso,
   }))
