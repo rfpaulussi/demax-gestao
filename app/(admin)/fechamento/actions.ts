@@ -154,7 +154,7 @@ export async function calcularFechamento(
   const afastamentos   = afaRes.data ?? []
 
   // 3. Cálculo por funcionário
-  return funcionarios.map(func => {
+  const resultado = funcionarios.map(func => {
     const admissao     = func.data_admissao
       ? new Date(func.data_admissao + 'T12:00:00')
       : mesStart
@@ -235,4 +235,22 @@ export async function calcularFechamento(
       insalubridade_dias: insalubridadeDias,
     }
   })
+
+  // DEBUG — remover após validação
+  const kpiTotal         = resultado.length
+  const kpiIdsUnicos     = new Set(resultado.map(d => d.funcionario_id)).size
+  const kpiDiasTrab      = resultado.reduce((a, d) => a + d.dias_trabalhados, 0)
+  const kpiSuspensao     = resultado.filter(d => d.tem_suspensao).length
+  const kpiInsalubridade = resultado.filter(d => d.insalubridade_dias > 0).length
+  console.log('[DEBUG calcularFechamento]', JSON.stringify({
+    mes, ano,
+    totalLinhas:    kpiTotal,
+    idsUnicos:      kpiIdsUnicos,
+    duplicados:     kpiTotal - kpiIdsUnicos,
+    kpiDiasTrab,
+    kpiSuspensao,
+    kpiInsalubridade,
+  }))
+
+  return resultado
 }
