@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { FileMinus, ArrowUpRight, ClipboardList, Clock } from 'lucide-react'
+import { FileMinus, UserMinus, ArrowUpRight, ClipboardList, Clock } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ModalAtestado } from './modal-atestado'
+import { ModalAfastar } from './modal-afastar'
 import { ModalNovaSolicitacao } from './modal-nova-solicitacao'
 
 export type FuncionarioRow = {
@@ -85,6 +86,7 @@ export function FuncionariosTable({
   onSort?: (col: string) => void
 }) {
   const [atestadoFuncionario, setAtestadoFuncionario]     = useState<FuncionarioRow | null>(null)
+  const [afastarFuncionario, setAfastarFuncionario]       = useState<FuncionarioRow | null>(null)
   const [solicitarFuncionario, setSolicitarFuncionario]   = useState<FuncionarioRow | null>(null)
 
   return (
@@ -196,6 +198,16 @@ export function FuncionariosTable({
                               Atestado
                             </Button>
                           )}
+                          {f.status === 'ativo' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setAfastarFuncionario(f)}
+                            >
+                              <UserMinus className="h-3.5 w-3.5" />
+                              Afastar
+                            </Button>
+                          )}
                           {f.status !== 'desligado' && (
                             <Button
                               size="sm"
@@ -239,6 +251,14 @@ export function FuncionariosTable({
           onClose={() => setAtestadoFuncionario(null)}
           funcionario={atestadoFuncionario}
           cids={cids}
+        />
+      )}
+
+      {afastarFuncionario && (
+        <ModalAfastar
+          open
+          onClose={() => setAfastarFuncionario(null)}
+          funcionario={afastarFuncionario}
         />
       )}
 
