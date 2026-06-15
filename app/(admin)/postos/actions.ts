@@ -106,6 +106,20 @@ export async function getPostosData(): Promise<PostoRow[]> {
     }
   }
 
+  // DEBUG — remover após validação
+  const somaEfetivoMap = Array.from(efetivoMap.values()).reduce((a, v) => a + v, 0)
+  const semPosto = funcionarios.filter(f => !f.posto_id).length
+  console.log('[DEBUG getPostosData]', JSON.stringify({
+    totalFuncionariosFetched: funcionarios.length,
+    semPosto,
+    somaEfetivoMap,
+    postosComExcesso: (postos ?? []).filter(p => (efetivoMap.get(p.id) ?? 0) > (p.efetivo_previsto ?? 0)).length,
+    pessoasExcesso: (postos ?? []).reduce((acc, p) => {
+      const atual = efetivoMap.get(p.id) ?? 0
+      return atual > (p.efetivo_previsto ?? 0) ? acc + atual - (p.efetivo_previsto ?? 0) : acc
+    }, 0),
+  }))
+
   const supervisorMap = new Map<string, string>()
   for (const row of (config ?? []) as unknown as ConfigRow[]) {
     if (!supervisorMap.has(row.posto_id) && row.perfis?.nome) {
