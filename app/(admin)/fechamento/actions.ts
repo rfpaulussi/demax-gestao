@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 
+const DIAS_COBERTURA_ATESTADO = 15 // dias corridos cobertos pela empresa (CLT)
+
 export interface FechamentoFuncionario {
   funcionario_id: string
   funcionario_nome: string
@@ -22,6 +24,7 @@ export interface FechamentoFuncionario {
   faltas_dias: number
   atestados_dias: number
   dias_suspensao: number
+  afastamento_dias: number
   // Resultado
   dias_trabalhados: number
   // Indicadores
@@ -97,7 +100,7 @@ export async function calcularFechamento(
   if (funcionarios.length === 0) return []
 
   // 2. Busca paralela de todos os eventos do mês
-  const [ferRes, atRes, falRes, advRes, insRes] = await Promise.all([
+  const [ferRes, atRes, falRes, advRes, insRes, afaRes] = await Promise.all([
     supabase
       .from('ferias')
       .select('funcionario_id, data_inicio, data_fim')
@@ -128,6 +131,12 @@ export async function calcularFechamento(
       .select('funcionario_id')
       .eq('mes', mes)
       .eq('ano', ano),
+
+    supabase
+      .from('afastamentos')
+      .select('funcionario_id, data_inicio, data_fim_real')
+      .lte('data_inicio', mesEndStr)
+      .or(`data_fim_real.is.null,data_fim_real.gte.${mesStartStr}`),
   ])
 
   const ferias         = ferRes.data ?? []
@@ -135,6 +144,7 @@ export async function calcularFechamento(
   const faltas         = falRes.data ?? []
   const advertencias   = advRes.data ?? []
   const insalubridades = insRes.data ?? []
+  const afastamentos   = afaRes.data ?? []
 
   // 3. Cálculo por funcionário
   return funcionarios.map(func => {
@@ -165,7 +175,13 @@ export async function calcularFechamento(
 
     const atestadosDias = atestados
       .filter(a => a.funcionario_id === func.id)
-      .reduce((acc, a) => acc + diasSobrepostos(a.data_inicio, a.data_fim, mesStartStr, mesEndStr), 0)
+      .reduce((acc, a) => {
+        const fimCoberto = new Date(
+          new Date(a.data_inicio + 'T12:00:00').getTime() + (DIAS_COBERTURA_ATESTADO - 1) * 86400000,
+        ).toISOString().split('T')[0]
+        const fimEfetivo = fimCoberto < a.data_fim ? fimCoberto : a.data_fim
+        return acc + diasSobrepostos(a.data_inicio, fimEfetivo, mesStartStr, mesEndStr)
+      }, 0)
 
     const faltasDias = faltas
       .filter(f => f.funcionario_id === func.id)
@@ -179,9 +195,13 @@ export async function calcularFechamento(
 
     const insalubridadeDias = insalubridades.filter(i => i.funcionario_id === func.id).length
 
+    const afastamentoDias = afastamentos
+      .filter(a => a.funcionario_id === func.id)
+      .reduce((acc, a) => acc + diasSobrepostos(a.data_inicio, a.data_fim_real ?? mesEndStr, mesStartStr, mesEndStr), 0)
+
     const diasTrabalhados = Math.max(
       0,
-      diasUteis - feriasDias - faltasDias - atestadosDias - diasSuspensao,
+      diasUteis - feriasDias - faltasDias - atestadosDias - diasSuspensao - afastamentoDias,
     )
 
     return {
@@ -201,6 +221,7 @@ export async function calcularFechamento(
       faltas_dias:       faltasDias,
       atestados_dias:    atestadosDias,
       dias_suspensao:    diasSuspensao,
+      afastamento_dias:  afastamentoDias,
       dias_trabalhados:  diasTrabalhados,
       tem_advertencia:   temAdvertencia,
       tem_suspensao:     temSuspensao,
