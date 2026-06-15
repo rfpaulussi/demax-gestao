@@ -392,6 +392,7 @@ export type Database = {
           posto_id: string | null
           status: 'ativo' | 'afastado' | 'ferias' | 'desligado' | null
           motivo_afastamento: 'ausencia_temporaria' | 'inss' | null
+          motivo_desligamento: string | null
           data_admissao: string | null
           data_desligamento: string | null
           salario_base: number | null
@@ -406,6 +407,7 @@ export type Database = {
           posto_id?: string | null
           status?: 'ativo' | 'afastado' | 'ferias' | 'desligado' | null
           motivo_afastamento?: 'ausencia_temporaria' | 'inss' | null
+          motivo_desligamento?: string | null
           data_admissao?: string | null
           data_desligamento?: string | null
           salario_base?: number | null
@@ -420,6 +422,7 @@ export type Database = {
           posto_id?: string | null
           status?: 'ativo' | 'afastado' | 'ferias' | 'desligado' | null
           motivo_afastamento?: 'ausencia_temporaria' | 'inss' | null
+          motivo_desligamento?: string | null
           data_admissao?: string | null
           data_desligamento?: string | null
           salario_base?: number | null

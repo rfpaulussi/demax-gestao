@@ -1,0 +1,109 @@
+-- ─── 1. Nova coluna ───────────────────────────────────────────────────────────
+
+ALTER TABLE funcionarios ADD COLUMN IF NOT EXISTS motivo_desligamento TEXT;
+
+-- ─── 2. Atualizar função do trigger (corpo completo pós Fase D) ───────────────
+
+CREATE OR REPLACE FUNCTION trg_fn_historico_funcionarios_update()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  -- Desligamento: status muda para 'desligado'
+  IF OLD.status IS DISTINCT FROM NEW.status AND NEW.status = 'desligado' THEN
+    INSERT INTO historico_funcionarios
+      (funcionario_id, tipo, data_evento, descricao, dados_anteriores, dados_novos, registrado_por)
+    VALUES (
+      NEW.id,
+      'desligamento',
+      COALESCE(NEW.data_desligamento, CURRENT_DATE),
+      'Funcionário desligado',
+      jsonb_build_object('status', OLD.status),
+      jsonb_build_object(
+        'status',              NEW.status,
+        'data_desligamento',   NEW.data_desligamento,
+        'motivo_desligamento', NEW.motivo_desligamento
+      ),
+      auth.uid()
+    );
+  END IF;
+
+  -- Reativação: status muda de 'desligado' para outro
+  IF OLD.status = 'desligado' AND NEW.status IS DISTINCT FROM 'desligado' THEN
+    INSERT INTO historico_funcionarios
+      (funcionario_id, tipo, data_evento, descricao, dados_anteriores, dados_novos, registrado_por)
+    VALUES (
+      NEW.id,
+      'reativacao',
+      CURRENT_DATE,
+      'Funcionário reativado (status: ' || COALESCE(NEW.status, '—') || ')',
+      jsonb_build_object('status', OLD.status),
+      jsonb_build_object('status', NEW.status),
+      auth.uid()
+    );
+  END IF;
+
+  -- Mudança de função
+  IF OLD.funcao_id IS DISTINCT FROM NEW.funcao_id THEN
+    INSERT INTO historico_funcionarios
+      (funcionario_id, tipo, data_evento, descricao, dados_anteriores, dados_novos, registrado_por)
+    VALUES (
+      NEW.id,
+      'mudanca_funcao',
+      CURRENT_DATE,
+      'Função alterada',
+      jsonb_build_object('funcao_id', OLD.funcao_id),
+      jsonb_build_object('funcao_id', NEW.funcao_id),
+      auth.uid()
+    );
+  END IF;
+
+  -- Mudança de posto
+  IF OLD.posto_id IS DISTINCT FROM NEW.posto_id THEN
+    INSERT INTO historico_funcionarios
+      (funcionario_id, tipo, data_evento, descricao, dados_anteriores, dados_novos, registrado_por)
+    VALUES (
+      NEW.id,
+      'mudanca_posto',
+      CURRENT_DATE,
+      'Posto alterado',
+      jsonb_build_object('posto_id', OLD.posto_id),
+      jsonb_build_object('posto_id', NEW.posto_id),
+      auth.uid()
+    );
+  END IF;
+
+  -- Afastamento: status muda para 'afastado'
+  IF OLD.status IS DISTINCT FROM NEW.status AND NEW.status = 'afastado' THEN
+    INSERT INTO historico_funcionarios
+      (funcionario_id, tipo, data_evento, descricao, dados_anteriores, dados_novos, registrado_por)
+    VALUES (
+      NEW.id,
+      'afastamento',
+      CURRENT_DATE,
+      'Funcionário afastado',
+      jsonb_build_object('status', OLD.status),
+      jsonb_build_object('status', NEW.status, 'motivo_afastamento', NEW.motivo_afastamento),
+      auth.uid()
+    );
+  END IF;
+
+  -- Retorno de afastamento: status sai de 'afastado' (exceto desligamento direto)
+  IF OLD.status = 'afastado'
+     AND NEW.status IS DISTINCT FROM 'afastado'
+     AND NEW.status IS DISTINCT FROM 'desligado'
+  THEN
+    INSERT INTO historico_funcionarios
+      (funcionario_id, tipo, data_evento, descricao, dados_anteriores, dados_novos, registrado_por)
+    VALUES (
+      NEW.id,
+      'retorno_afastamento',
+      CURRENT_DATE,
+      'Retorno de afastamento',
+      jsonb_build_object('status', OLD.status, 'motivo_afastamento', OLD.motivo_afastamento),
+      jsonb_build_object('status', NEW.status),
+      auth.uid()
+    );
+  END IF;
+
+  RETURN NEW;
+END;
+$$;

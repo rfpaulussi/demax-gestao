@@ -102,7 +102,11 @@ export async function aprovarSolicitacao(
       const dataDesligamento = dadosDepois.data_desligamento as string | undefined
       await supabase
         .from('funcionarios')
-        .update({ status: 'desligado', data_desligamento: dataDesligamento ?? null })
+        .update({
+          status:              'desligado',
+          data_desligamento:   dataDesligamento ?? null,
+          motivo_desligamento: (dadosDepois.motivo as string) ?? null,
+        })
         .eq('id', sol.funcionario_id)
       break
     }
@@ -170,8 +174,9 @@ export async function aprovarSolicitacao(
       await supabase
         .from('funcionarios')
         .update({
-          status:             'desligado',
-          data_desligamento:  (dadosDepois.data_rescisao as string) ?? null,
+          status:              'desligado',
+          data_desligamento:   (dadosDepois.data_rescisao as string) ?? null,
+          motivo_desligamento: (dadosDepois.motivo as string) ?? sol.motivo ?? 'Rescisão Indireta',
         })
         .eq('id', sol.funcionario_id)
       break
