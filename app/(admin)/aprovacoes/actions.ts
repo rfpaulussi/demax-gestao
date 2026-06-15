@@ -90,7 +90,7 @@ export async function aprovarSolicitacao(
 
   const { data: func } = await supabase
     .from('funcionarios')
-    .select('status, posto_id, funcao_id')
+    .select('status, posto_id, funcao_id, salario_base')
     .eq('id', sol.funcionario_id)
     .single()
 
