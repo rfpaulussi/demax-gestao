@@ -13,6 +13,46 @@ export type Database = {
   public: {
     Tables: {
       // ----------------------------------------------------------
+      // afastamentos
+      // ----------------------------------------------------------
+      afastamentos: {
+        Row: {
+          id: string
+          funcionario_id: string
+          motivo: string | null
+          data_inicio: string
+          data_fim_prevista: string | null
+          data_fim_real: string | null
+          solicitacao_id: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          funcionario_id: string
+          motivo?: string | null
+          data_inicio: string
+          data_fim_prevista?: string | null
+          data_fim_real?: string | null
+          solicitacao_id?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          funcionario_id?: string
+          motivo?: string | null
+          data_inicio?: string
+          data_fim_prevista?: string | null
+          data_fim_real?: string | null
+          solicitacao_id?: string | null
+          created_at?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: 'afastamentos_funcionario_id_fkey'; columns: ['funcionario_id']; referencedRelation: 'funcionarios'; referencedColumns: ['id'] },
+          { foreignKeyName: 'afastamentos_solicitacao_id_fkey'; columns: ['solicitacao_id']; referencedRelation: 'solicitacoes'; referencedColumns: ['id'] },
+        ]
+      }
+
+      // ----------------------------------------------------------
       // funcoes
       // ----------------------------------------------------------
       funcoes: {

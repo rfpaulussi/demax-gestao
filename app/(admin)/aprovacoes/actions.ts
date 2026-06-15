@@ -133,10 +133,20 @@ export async function aprovarSolicitacao(
     }
 
     case 'afastamento': {
+      const motivoAfastamento = String(dadosDepois.motivo ?? '').toUpperCase().startsWith('INSS')
+        ? 'inss'
+        : 'ausencia_temporaria'
       await supabase
         .from('funcionarios')
-        .update({ status: 'afastado' })
+        .update({ status: 'afastado', motivo_afastamento: motivoAfastamento })
         .eq('id', sol.funcionario_id)
+      await supabase.from('afastamentos').insert({
+        funcionario_id:    sol.funcionario_id,
+        motivo:            (dadosDepois.motivo as string | null) ?? null,
+        data_inicio:       dadosDepois.data_inicio as string,
+        data_fim_prevista: (dadosDepois.data_retorno_prevista as string | null) ?? null,
+        solicitacao_id:    sol.id,
+      })
       break
     }
 
@@ -148,6 +158,11 @@ export async function aprovarSolicitacao(
           posto_id: (dadosDepois.posto_retorno_id as string | undefined) ?? func?.posto_id ?? null,
         })
         .eq('id', sol.funcionario_id)
+      await supabase
+        .from('afastamentos')
+        .update({ data_fim_real: dadosDepois.data_retorno as string })
+        .eq('funcionario_id', sol.funcionario_id)
+        .is('data_fim_real', null)
       break
     }
 
