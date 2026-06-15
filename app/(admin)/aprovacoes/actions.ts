@@ -88,11 +88,12 @@ export async function aprovarSolicitacao(
   if (solError || !sol) return { success: false, error: 'Solicitação não encontrada' }
   if (sol.status !== 'pendente') return { success: false, error: 'Solicitação já processada' }
 
-  const { data: func } = await supabase
+  const { data: func, error: funcError } = await supabase
     .from('funcionarios')
     .select('status, posto_id, funcao_id, salario_base')
     .eq('id', sol.funcionario_id)
     .single()
+  console.log('DEBUG func:', JSON.stringify(func), 'error:', JSON.stringify(funcError), 'funcionario_id:', sol.funcionario_id)
 
   const dadosDepois = (sol.dados_depois ?? {}) as Record<string, unknown>
   const dadosAntes  = (sol.dados_antes  ?? {}) as Record<string, unknown>
