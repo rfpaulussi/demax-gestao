@@ -90,6 +90,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
         .from('funcionarios')
         .select('id, posto_id, status')
         .in('status', ['ativo', 'afastado', 'ferias'])
+        .order('id', { ascending: true })
         .range(from, to),
     ),
     supabase
