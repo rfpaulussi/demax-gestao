@@ -101,49 +101,6 @@ export async function registrarFerias(formData: FormData) {
   revalidatePath('/dashboard')
 }
 
-export async function afastarFuncionario(formData: FormData) {
-  const supabase = createClient()
-  const auth = await getUser()
-  if (!auth) throw new Error('Não autenticado')
-
-  const funcionarioId      = formData.get('funcionario_id') as string
-  const motivoAfastamento  = formData.get('motivo_afastamento') as 'ausencia_temporaria' | 'inss'
-
-  const { data: func } = await supabase
-    .from('funcionarios')
-    .select('status, motivo_afastamento')
-    .eq('id', funcionarioId)
-    .single()
-
-  const [, { error: errMovStatus }, { error: errMovMotivo }] = await Promise.all([
-    supabase
-      .from('funcionarios')
-      .update({ status: 'afastado', motivo_afastamento: motivoAfastamento })
-      .eq('id', funcionarioId),
-    supabase.from('movimentacoes').insert({
-      funcionario_id: funcionarioId,
-      tipo: 'afastamento',
-      campo_alterado: 'status',
-      valor_antes: func?.status ?? null,
-      valor_depois: 'afastado',
-      executado_por: auth.user.id,
-    }),
-    supabase.from('movimentacoes').insert({
-      funcionario_id: funcionarioId,
-      tipo: 'afastamento',
-      campo_alterado: 'motivo_afastamento',
-      valor_antes: func?.motivo_afastamento ?? null,
-      valor_depois: motivoAfastamento,
-      executado_por: auth.user.id,
-    }),
-  ])
-  if (errMovStatus) console.error('[movimentacoes] afastarFuncionario status:', errMovStatus.message)
-  if (errMovMotivo) console.error('[movimentacoes] afastarFuncionario motivo:', errMovMotivo.message)
-
-  revalidatePath('/efetivo')
-  revalidatePath('/dashboard')
-}
-
 // ─── solicitações (requerem aprovação do admin) ───────────────────────────────
 
 type ActionResult = { success: true } | { success: false; error: string }

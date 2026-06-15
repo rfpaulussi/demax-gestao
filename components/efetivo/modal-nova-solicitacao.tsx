@@ -6,7 +6,6 @@ import {
   solicitarDesligamento,
   solicitarTransferencia,
   solicitarMudancaFuncao,
-  solicitarAfastamento,
   solicitarRetornoAfastamento,
   solicitarRescisaoIndireta,
 } from '@/app/(admin)/efetivo/actions'
@@ -16,7 +15,6 @@ type TipoSolicitacao =
   | 'desligamento'
   | 'transferencia'
   | 'mudanca_funcao'
-  | 'afastamento'
   | 'retorno_afastamento'
   | 'rescisao_indireta'
 
@@ -32,13 +30,12 @@ const TIPO_LABELS: Record<TipoSolicitacao, string> = {
   desligamento:        'Desligamento',
   transferencia:       'Transferência',
   mudanca_funcao:      'Mudança de Função',
-  afastamento:         'Afastamento',
   retorno_afastamento: 'Retorno de Afastamento',
   rescisao_indireta:   'Rescisão Indireta',
 }
 
 const TIPOS_POR_STATUS: Partial<Record<string, TipoSolicitacao[]>> = {
-  ativo:    ['afastamento', 'transferencia', 'mudanca_funcao', 'desligamento', 'rescisao_indireta'],
+  ativo:    ['transferencia', 'mudanca_funcao', 'desligamento', 'rescisao_indireta'],
   afastado: ['retorno_afastamento', 'desligamento'],
   default:  ['desligamento'],
 }
@@ -97,10 +94,9 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
 
     start(async () => {
       let result
-      if (tipo === 'desligamento')          result = await solicitarDesligamento(fd)
-      else if (tipo === 'transferencia')    result = await solicitarTransferencia(fd)
-      else if (tipo === 'mudanca_funcao')   result = await solicitarMudancaFuncao(fd)
-      else if (tipo === 'afastamento')      result = await solicitarAfastamento(fd)
+      if (tipo === 'desligamento')             result = await solicitarDesligamento(fd)
+      else if (tipo === 'transferencia')       result = await solicitarTransferencia(fd)
+      else if (tipo === 'mudanca_funcao')      result = await solicitarMudancaFuncao(fd)
       else if (tipo === 'retorno_afastamento') result = await solicitarRetornoAfastamento(fd)
       else if (tipo === 'rescisao_indireta')   result = await solicitarRescisaoIndireta(fd)
       else return
@@ -228,32 +224,6 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
                 <div>
                   <label className={labelClass}>Motivo</label>
                   <input type="text" name="motivo" placeholder="Justificativa..." className={inputClass} />
-                </div>
-              </>
-            )}
-
-            {/* afastamento */}
-            {tipo === 'afastamento' && (
-              <>
-                <div>
-                  <label className={labelClass}>Motivo do Afastamento</label>
-                  <select name="motivo" required className={inputClass}>
-                    <option value="">Selecione...</option>
-                    <option value="INSS - Doença">INSS — Doença</option>
-                    <option value="INSS - Acidente de Trabalho">INSS — Acidente de Trabalho</option>
-                    <option value="Licença Maternidade">Licença Maternidade</option>
-                    <option value="Licença Paternidade">Licença Paternidade</option>
-                    <option value="Afastamento Judicial">Afastamento Judicial</option>
-                    <option value="Outros">Outros</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>Data de Início</label>
-                  <input type="date" name="data_inicio" required className={inputClass} />
-                </div>
-                <div>
-                  <label className={labelClass}>Data Prevista de Retorno</label>
-                  <input type="date" name="data_retorno_prevista" className={inputClass} />
                 </div>
               </>
             )}
