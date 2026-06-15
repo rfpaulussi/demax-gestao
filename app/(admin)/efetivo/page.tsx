@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getUser } from '@/lib/auth/get-user'
 import { EfetivoClient } from '@/components/efetivo/efetivo-client'
 import type { FuncionarioRow } from '@/components/efetivo/funcionarios-table'
 
@@ -35,6 +36,8 @@ type ConfigRow = {
 
 export default async function EfetivoPage() {
   const supabase = createClient()
+  const auth = await getUser()
+  const isAdmin = auth?.perfil.role === 'admin'
 
   const [
     { data: raw },
@@ -48,6 +51,7 @@ export default async function EfetivoPage() {
       .from('funcionarios')
       .select(`
         id, nome, registro, cpf, status, motivo_afastamento, data_admissao, posto_id,
+        data_desligamento, motivo_desligamento,
         funcoes!funcao_id ( id, nome ),
         postos!posto_id ( id, nome, secretaria )
       `)
@@ -140,6 +144,7 @@ export default async function EfetivoPage() {
         postos={postos}
         funcoes={funcoes}
         cids={cids}
+        isAdmin={isAdmin}
       />
     </div>
   )

@@ -326,6 +326,47 @@ export async function solicitarRescisaoIndireta(fd: FormData): Promise<ActionRes
   return { success: true }
 }
 
+export async function editarFuncionario(
+  id: string,
+  campos: {
+    nome: string
+    funcao_id: string
+    posto_id: string
+    data_admissao: string | null
+    status: 'ativo' | 'desligado'
+    data_desligamento: string | null
+    motivo_desligamento: string | null
+  },
+): Promise<ActionResult> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role !== 'admin') {
+    return { success: false, error: 'Acesso negado' }
+  }
+
+  const supabase = createClient()
+
+  const { error } = await supabase
+    .from('funcionarios')
+    .update({
+      nome:                campos.nome,
+      funcao_id:           campos.funcao_id || null,
+      posto_id:            campos.posto_id || null,
+      data_admissao:       campos.data_admissao || null,
+      status:              campos.status as 'ativo' | 'afastado' | 'ferias' | 'desligado',
+      data_desligamento:   campos.status === 'ativo' ? null : campos.data_desligamento || null,
+      motivo_desligamento: campos.status === 'ativo' ? null : campos.motivo_desligamento || null,
+    })
+    .eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/efetivo')
+  revalidatePath(`/efetivo/${id}`)
+  revalidatePath('/dashboard')
+
+  return { success: true }
+}
+
 export async function solicitarMudancaSupervisor(formData: FormData) {
   const supabase = createClient()
   const auth = await getUser()

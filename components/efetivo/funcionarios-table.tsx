@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { FileMinus, UserMinus, ArrowUpRight, ClipboardList, Clock } from 'lucide-react'
+import { FileMinus, UserMinus, ArrowUpRight, ClipboardList, Clock, Pencil } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ModalAtestado } from './modal-atestado'
 import { ModalAfastar } from './modal-afastar'
 import { ModalNovaSolicitacao } from './modal-nova-solicitacao'
+import { ModalEditarFuncionario } from './modal-editar-funcionario'
 
 export type FuncionarioRow = {
   id: string
@@ -18,6 +19,8 @@ export type FuncionarioRow = {
   motivo_afastamento: 'ausencia_temporaria' | 'inss' | null
   origem_ocupacional_cat: string | null
   data_admissao: string | null
+  data_desligamento: string | null
+  motivo_desligamento: string | null
   posto_id: string | null
   funcoes: { id: string; nome: string } | null
   postos: { id: string; nome: string; secretaria: string | null } | null
@@ -76,6 +79,7 @@ export function FuncionariosTable({
   sortCol,
   sortDir,
   onSort,
+  isAdmin,
 }: {
   funcionarios: FuncionarioRow[]
   postos: { id: string; nome: string; secretaria: string | null }[]
@@ -84,10 +88,12 @@ export function FuncionariosTable({
   sortCol?: string
   sortDir?: 'asc' | 'desc'
   onSort?: (col: string) => void
+  isAdmin?: boolean
 }) {
   const [atestadoFuncionario, setAtestadoFuncionario]     = useState<FuncionarioRow | null>(null)
   const [afastarFuncionario, setAfastarFuncionario]       = useState<FuncionarioRow | null>(null)
   const [solicitarFuncionario, setSolicitarFuncionario]   = useState<FuncionarioRow | null>(null)
+  const [editarFuncionario,    setEditarFuncionario]      = useState<FuncionarioRow | null>(null)
 
   return (
     <>
@@ -186,6 +192,16 @@ export function FuncionariosTable({
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-1.5">
+                          {isAdmin && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setEditarFuncionario(f)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Editar
+                            </Button>
+                          )}
                           {f.status === 'ativo' && (
                             <Button
                               size="sm"
@@ -267,6 +283,17 @@ export function FuncionariosTable({
           open
           onClose={() => setSolicitarFuncionario(null)}
           funcionario={solicitarFuncionario}
+          postos={postos}
+          funcoes={funcoes}
+        />
+      )}
+
+      {editarFuncionario && (
+        <ModalEditarFuncionario
+          key={editarFuncionario.id}
+          open
+          onClose={() => setEditarFuncionario(null)}
+          funcionario={editarFuncionario}
           postos={postos}
           funcoes={funcoes}
         />
