@@ -37,7 +37,7 @@ export function AlertasCriticos({ alertas }: AlertasCriticosProps) {
 
       <div className="space-y-3">
         {/* Bloco vermelho — postos em déficit */}
-        <div className="rounded-lg border-l-4 border-red-400 bg-red-50/30 px-4 py-3">
+        <div className="rounded-lg border-l-4 border-red-500 bg-red-50/30 px-4 py-3">
           <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-red-600">
             Postos em Déficit
           </p>
@@ -82,7 +82,7 @@ export function AlertasCriticos({ alertas }: AlertasCriticosProps) {
 
         {/* Bloco azul — férias com limite de gozo vencendo */}
         {feriasLimiteVencendo > 0 && (
-          <div className="rounded-lg border-l-4 border-blue-400 bg-blue-50/30 px-4 py-3">
+          <div className="rounded-lg border-l-4 border-blue-500 bg-blue-50/30 px-4 py-3">
             <p className="text-sm text-blue-700">
               {feriasLimiteVencendo} funcionário{feriasLimiteVencendo > 1 ? 's' : ''} com limite de
               gozo nos próximos 30 dias
@@ -98,7 +98,7 @@ export function AlertasCriticos({ alertas }: AlertasCriticosProps) {
 
         {/* Bloco laranja — CAT pendente/em atraso */}
         {catAlertas.length > 0 && (
-          <div className="rounded-lg border-l-4 border-orange-400 bg-orange-50/30 px-4 py-3">
+          <div className="rounded-lg border-l-4 border-amber-500 bg-orange-50/30 px-4 py-3">
             <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-orange-600">
               CAT — Acidente de Trabalho
             </p>
