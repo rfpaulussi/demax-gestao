@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { addBusinessDays } from '@/lib/utils'
+import { calcularKPIsAtuais } from '@/lib/dashboard-kpis'
 
 // ─── Tipos exportados ─────────────────────────────────────────────────────────
 
@@ -101,61 +102,16 @@ function currentDateStr(): string {
 
 export async function buscarKPIsDashboard(): Promise<KPIDashboard> {
   const supabase = createClient()
-
-  const todayStr = currentDateStr()
-  const plus30str = todayPlusDays(30)
-
-  const [
-    { count: totalAtivos },
-    { count: afastados },
-    { count: emFerias },
-    { count: coberturasAtivas },
-    { count: solicitacoesPendentes },
-    { count: feriasTerminando30dias },
-    { data: postosData },
-    { data: funcAtivosData },
-  ] = await Promise.all([
-    supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'ativo'),
-    supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'afastado'),
-    supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'ferias'),
-    supabase.from('coberturas_temporarias').select('*', { count: 'exact', head: true }).eq('status', 'ativa'),
-    supabase.from('solicitacoes').select('*', { count: 'exact', head: true }).eq('status', 'pendente'),
-    supabase
-      .from('ferias')
-      .select('*', { count: 'exact', head: true })
-      .in('status', ['em_curso', 'aprovado'])
-      .gte('data_fim', todayStr)
-      .lte('data_fim', plus30str),
-    supabase.from('postos').select('id, efetivo_previsto').eq('ativo', true),
-    supabase.from('funcionarios').select('posto_id').eq('status', 'ativo').not('posto_id', 'is', null),
-  ])
-
-  // Calcular déficit e postos críticos em JS
-  const funcPorPosto: Record<string, number> = {}
-  for (const f of funcAtivosData ?? []) {
-    const pid = f.posto_id as string
-    funcPorPosto[pid] = (funcPorPosto[pid] ?? 0) + 1
-  }
-
-  let deficit = 0
-  let postosCriticos = 0
-  for (const p of postosData ?? []) {
-    const previsto = (p.efetivo_previsto ?? 0)
-    const real = funcPorPosto[p.id] ?? 0
-    const gap = previsto - real
-    if (gap > 0) deficit++
-    if (gap >= 2) postosCriticos++
-  }
-
+  const kpis = await calcularKPIsAtuais(supabase)
   return {
-    totalAtivos: totalAtivos ?? 0,
-    afastados: afastados ?? 0,
-    emFerias: emFerias ?? 0,
-    coberturasAtivas: coberturasAtivas ?? 0,
-    solicitacoesPendentes: solicitacoesPendentes ?? 0,
-    deficit,
-    postosCriticos,
-    feriasTerminando30dias: feriasTerminando30dias ?? 0,
+    totalAtivos: kpis.ativos,
+    afastados: kpis.afastados,
+    emFerias: kpis.em_ferias,
+    coberturasAtivas: kpis.coberturas_ativas,
+    solicitacoesPendentes: kpis.aprovacoes_pendentes,
+    deficit: kpis.postos_deficit,
+    postosCriticos: kpis.postosCriticos,
+    feriasTerminando30dias: kpis.feriasTerminando30dias,
   }
 }
 

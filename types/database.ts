@@ -974,6 +974,43 @@ export type Database = {
         }
         Relationships: []
       }
+
+      // ----------------------------------------------------------
+      // snapshots_diarios
+      // ----------------------------------------------------------
+      snapshots_diarios: {
+        Row: {
+          data: string
+          ativos: number
+          afastados: number
+          em_ferias: number
+          postos_deficit: number
+          aprovacoes_pendentes: number
+          coberturas_ativas: number
+          created_at: string | null
+        }
+        Insert: {
+          data: string
+          ativos: number
+          afastados: number
+          em_ferias: number
+          postos_deficit: number
+          aprovacoes_pendentes: number
+          coberturas_ativas: number
+          created_at?: string | null
+        }
+        Update: {
+          data?: string
+          ativos?: number
+          afastados?: number
+          em_ferias?: number
+          postos_deficit?: number
+          aprovacoes_pendentes?: number
+          coberturas_ativas?: number
+          created_at?: string | null
+        }
+        Relationships: []
+      }
     }
 
     Views: { [_ in never]: never }
