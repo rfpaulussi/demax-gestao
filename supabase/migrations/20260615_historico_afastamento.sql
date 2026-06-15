@@ -97,8 +97,11 @@ BEGIN
     );
   END IF;
 
-  -- Retorno de afastamento: status sai de 'afastado'
-  IF OLD.status = 'afastado' AND NEW.status IS DISTINCT FROM 'afastado' THEN
+  -- Retorno de afastamento: status sai de 'afastado' (exceto desligamento direto)
+  IF OLD.status = 'afastado'
+     AND NEW.status IS DISTINCT FROM 'afastado'
+     AND NEW.status IS DISTINCT FROM 'desligado'
+  THEN
     INSERT INTO historico_funcionarios
       (funcionario_id, tipo, data_evento, descricao, dados_anteriores, dados_novos, registrado_por)
     VALUES (
