@@ -24,7 +24,7 @@ export async function getDadosMovColaborador(
   const [funcRes, antRes, novaRes] = await Promise.all([
     supabase
       .from('funcionarios')
-      .select('nome, registro, cpf, salario_base, posto_id')
+      .select('nome, registro, cpf, salario, posto_id')
       .eq('id', funcionarioId)
       .maybeSingle(),
     funcaoAntigaId
@@ -37,10 +37,9 @@ export async function getDadosMovColaborador(
 
   const func = funcRes.data as {
     nome: string; registro: string | null; cpf: string | null
-    salario_base: number | null; posto_id: string | null
+    salario: number | null; posto_id: string | null
   } | null
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (!func) return { _debug: 'funcionario não encontrado na tabela funcionarios', funcionarioId, supabaseError: (funcRes as any).error?.message ?? null } as unknown as DadosMovColaborador
+  if (!func) return null
 
   const postoId = func.posto_id
 
@@ -80,7 +79,7 @@ export async function getDadosMovColaborador(
     registro:  func.registro,
     nome:      func.nome,
     cpf:       func.cpf,
-    salario:   func.salario_base,
+    salario:   func.salario,
     posto:     postoNome,
     supervisor: supNome,
     regime,

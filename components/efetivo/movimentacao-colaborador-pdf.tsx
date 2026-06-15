@@ -289,26 +289,17 @@ function MovColaboradorDoc({ dados }: { dados: DadosMovColaborador }) {
 // ─── Download ─────────────────────────────────────────────────────────────────
 
 export async function downloadMovColaboradorPDF(dados: DadosMovColaborador): Promise<void> {
-  try {
-    const slug = dados.nome
-      .normalize('NFD').replace(/[̀-ͯ]/g, '')
-      .replace(/\s+/g, '_').toUpperCase()
-    const filename = `MUD_FUNCAO_${slug}.pdf`
+  const slug = dados.nome
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, '_').toUpperCase()
+  const filename = `MUD_FUNCAO_${slug}.pdf`
 
-    console.log('3. gerando blob...')
-    const { pdf } = await import('@react-pdf/renderer')
-    const blob = await pdf(<MovColaboradorDoc dados={dados} />).toBlob()
-    console.log('4. blob gerado:', blob)
-
-    console.log('5. disparando download')
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href     = url
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(url)
-  } catch (err) {
-    console.error('ERRO no downloadMovColaboradorPDF:', err)
-    throw err
-  }
+  const { pdf } = await import('@react-pdf/renderer')
+  const blob = await pdf(<MovColaboradorDoc dados={dados} />).toBlob()
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }

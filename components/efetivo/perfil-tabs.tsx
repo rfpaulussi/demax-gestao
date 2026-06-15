@@ -81,11 +81,6 @@ function TabMovimentacoes({
     setBaixando(mov.id)
     try {
       if (mov.tipo === 'mudanca_funcao') {
-        console.log('1. chamando getDadosMovColaborador', {
-          funcionarioId: funcionario.id,
-          valorAntes: mov.valor_antes,
-          valorDepois: mov.valor_depois,
-        })
         const dados = await getDadosMovColaborador(
           funcionario.id,
           mov.valor_antes,
@@ -93,13 +88,10 @@ function TabMovimentacoes({
           mov.created_at,
           mov.solicitacao_id,
         )
-        console.log('2. dados recebidos:', dados)
         if (dados) await downloadMovColaboradorPDF(dados)
       } else {
         await downloadMovimentacaoPDF(mov, funcionario)
       }
-    } catch (err) {
-      console.error('ERRO no handleDownload:', err)
     } finally {
       setBaixando(null)
     }
