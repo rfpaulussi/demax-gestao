@@ -107,6 +107,8 @@ export async function getPostosData(): Promise<PostoRow[]> {
       .eq('ativo', true),
   ])
 
+  const somaAntes = funcionariosRaw.filter(f => f.posto_id).length
+
   // Excluir cargos fora do efetivo contratual
   const funcionarios = funcionariosRaw.filter(
     f => !f.funcao_id || !excludedFuncaoIds.has(f.funcao_id),
@@ -118,6 +120,22 @@ export async function getPostosData(): Promise<PostoRow[]> {
       efetivoMap.set(f.posto_id, (efetivoMap.get(f.posto_id) ?? 0) + 1)
     }
   }
+
+  // DEBUG — remover após validação
+  const somaDepois = Array.from(efetivoMap.values()).reduce((a, v) => a + v, 0)
+  const kpiExcesso = (postos ?? []).reduce((acc, p) => {
+    const atual = efetivoMap.get(p.id) ?? 0
+    return atual > (p.efetivo_previsto ?? 0) ? acc + atual - (p.efetivo_previsto ?? 0) : acc
+  }, 0)
+  console.log('[DEBUG getPostosData]', JSON.stringify({
+    excludedFuncaoIdsFound: excludedFuncaoIds.size,
+    totalFetched:           funcionariosRaw.length,
+    filtrados:              funcionariosRaw.length - funcionarios.length,
+    somaEfetivoMapAntes:    somaAntes,
+    somaEfetivoMapDepois:   somaDepois,
+    kpiExcesso,
+  }))
+  // END DEBUG
 
   const supervisorMap = new Map<string, string>()
   for (const row of (config ?? []) as unknown as ConfigRow[]) {
