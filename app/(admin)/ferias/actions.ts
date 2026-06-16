@@ -67,18 +67,17 @@ export async function agendarFerias(data: {
   periodo_fim: string
   limite_gozo: string
   dias_direito: number
-  data_inicio: string
-  data_fim: string
+  data_inicio: string | null
+  data_fim: string | null
   observacao?: string
 }) {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Não autenticado')
 
-  const dias_utilizados = Math.ceil(
-    (new Date(data.data_fim).getTime() - new Date(data.data_inicio).getTime())
-    / (1000 * 60 * 60 * 24)
-  ) + 1
+  const dias_utilizados = data.data_inicio && data.data_fim
+    ? Math.ceil((new Date(data.data_fim).getTime() - new Date(data.data_inicio).getTime()) / (1000 * 60 * 60 * 24)) + 1
+    : null
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const payload: any = {
@@ -268,6 +267,36 @@ export async function buscarFeriasLista(): Promise<FeriasListaItem[]> {
 }
 
 // ─── Buscar supervisores para filtro ─────────────────────────────────────────
+
+export async function importarFeriasHistoricas(data: {
+  funcionario_id: string
+  numero_periodo: number
+  periodo_inicio: string
+  periodo_fim: string
+  limite_gozo: string | null
+  dias_direito: number
+  data_inicio: string
+  data_fim: string
+  dias_utilizados?: number
+  observacao?: string
+}) {
+  const supabase = createClient()
+  const { error } = await supabase.from('ferias').insert({
+    funcionario_id: data.funcionario_id,
+    numero_periodo: data.numero_periodo,
+    periodo_inicio: data.periodo_inicio,
+    periodo_fim: data.periodo_fim,
+    limite_gozo: data.limite_gozo,
+    dias_direito: data.dias_direito,
+    data_inicio: data.data_inicio,
+    data_fim: data.data_fim,
+    dias_utilizados: data.dias_utilizados ?? null,
+    status: 'concluido',
+    observacao: data.observacao ?? null,
+  })
+  if (error) throw new Error(error.message)
+  revalidatePath('/ferias')
+}
 
 export async function buscarSupervisoresParaFiltro(): Promise<SupervisorFiltro[]> {
   const supabase = createClient()

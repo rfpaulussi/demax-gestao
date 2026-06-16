@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { agendarFerias, buscarPeriodosAquisitivos } from '@/app/(admin)/ferias/actions'
+import { importarFeriasHistoricas } from '@/app/(admin)/ferias/actions'
 
 interface Funcionario {
   id: string
@@ -11,6 +11,7 @@ interface Funcionario {
   posto_nome: string
   secretaria: string
   data_admissao: string | null
+  status: string
 }
 
 interface Props {
@@ -19,30 +20,16 @@ interface Props {
   onSuccess?: () => void
 }
 
-function addMonths(dateStr: string, months: number): string {
-  const d = new Date(dateStr + 'T00:00:00')
-  d.setMonth(d.getMonth() + months)
-  return d.toISOString().split('T')[0]
-}
-
-function formatDateBR(str: string | null): string {
-  if (!str) return '—'
-  const d = new Date(str + 'T00:00:00')
-  return d.toLocaleDateString('pt-BR')
-}
-
-export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
+export function ModalImportarHistoricoFerias({ open, onClose, onSuccess }: Props) {
   const [busca, setBusca] = useState('')
   const [resultados, setResultados] = useState<Funcionario[]>([])
   const [selecionado, setSelecionado] = useState<Funcionario | null>(null)
-  const [periodosExistentes, setPeriodosExistentes] = useState<any[]>([])
 
   const [numeroPeriodo, setNumeroPeriodo] = useState('')
   const [periodoInicio, setPeriodoInicio] = useState('')
   const [periodoFim, setPeriodoFim] = useState('')
   const [limiteGozo, setLimiteGozo] = useState('')
   const [diasDireito, setDiasDireito] = useState('30')
-
   const [dataInicio, setDataInicio] = useState('')
   const [dataFim, setDataFim] = useState('')
   const [observacao, setObservacao] = useState('')
@@ -57,8 +44,7 @@ export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
       const sb = createClient()
       const { data } = await sb
         .from('funcionarios')
-        .select('id, nome, registro, posto_id, data_admissao')
-        .eq('status', 'ativo')
+        .select('id, nome, registro, posto_id, data_admissao, status')
         .ilike('nome', `%${busca}%`)
         .limit(10)
       const com_posto = await Promise.all((data ?? []).map(async (f: any) => {
@@ -71,88 +57,45 @@ export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
     return () => clearTimeout(t)
   }, [busca])
 
-  async function handleSelecionarFuncionario(f: Funcionario) {
+  function handleSelecionarFuncionario(f: Funcionario) {
     setSelecionado(f)
     setBusca(f.nome)
     setResultados([])
-    const periodos = await buscarPeriodosAquisitivos(f.id)
-    setPeriodosExistentes(periodos ?? [])
-
-    const maxPeriodo = (periodos ?? []).reduce((max: number, p: any) => Math.max(max, p.numero_periodo ?? 0), 0)
-    setNumeroPeriodo(String(maxPeriodo + 1))
-
-    if ((periodos ?? []).length === 0 && f.data_admissao) {
-      setPeriodoInicio(f.data_admissao)
-      const fim = addMonths(f.data_admissao, 12)
-      const d = new Date(fim + 'T00:00:00')
-      d.setDate(d.getDate() - 1)
-      const fimStr = d.toISOString().split('T')[0]
-      setPeriodoFim(fimStr)
-      setLimiteGozo(addMonths(fimStr, 10))
-    } else if ((periodos ?? []).length > 0) {
-      const ultimo = [...(periodos ?? [])].sort((a: any, b: any) => (b.numero_periodo ?? 0) - (a.numero_periodo ?? 0))[0]
-      if (ultimo.periodo_fim) {
-        const d = new Date(ultimo.periodo_fim + 'T00:00:00')
-        d.setDate(d.getDate() + 1)
-        const inicioStr = d.toISOString().split('T')[0]
-        setPeriodoInicio(inicioStr)
-        const fimD = new Date(inicioStr + 'T00:00:00')
-        fimD.setFullYear(fimD.getFullYear() + 1)
-        fimD.setDate(fimD.getDate() - 1)
-        const fimStr = fimD.toISOString().split('T')[0]
-        setPeriodoFim(fimStr)
-        setLimiteGozo(addMonths(fimStr, 10))
-      }
-    }
   }
-
-  useEffect(() => {
-    if (periodoFim) setLimiteGozo(addMonths(periodoFim, 10))
-  }, [periodoFim])
 
   const diasCalculados = dataInicio && dataFim
     ? Math.round((new Date(dataFim + 'T00:00:00').getTime() - new Date(dataInicio + 'T00:00:00').getTime()) / 86400000) + 1
     : null
 
-  const limiteWarning = (() => {
-    if (!limiteGozo) return null
-    const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
-    const limite = new Date(limiteGozo + 'T00:00:00')
-    const diff = Math.ceil((limite.getTime() - hoje.getTime()) / 86400000)
-    if (diff < 0) return { level: 'vencido', dias: Math.abs(diff) }
-    if (diff <= 30) return { level: 'critico', dias: diff }
-    if (diff <= 60) return { level: 'atencao', dias: diff }
-    return null
-  })()
-
   async function handleSubmit() {
     if (!selecionado) { setErro('Selecione um funcionário'); return }
     if (!periodoInicio || !periodoFim) { setErro('Informe o período aquisitivo'); return }
-    if (!limiteGozo) { setErro('Informe o limite de gozo'); return }
+    if (!dataInicio || !dataFim) { setErro('Informe as datas de gozo (histórico requer datas já realizadas)'); return }
     setSalvando(true); setErro('')
     try {
-      await agendarFerias({
+      await importarFeriasHistoricas({
         funcionario_id: selecionado.id,
         numero_periodo: Number(numeroPeriodo) || 1,
         periodo_inicio: periodoInicio,
         periodo_fim: periodoFim,
-        limite_gozo: limiteGozo,
+        limite_gozo: limiteGozo || null,
         dias_direito: Number(diasDireito) || 30,
-        data_inicio: dataInicio || null,
-        data_fim: dataFim || null,
+        data_inicio: dataInicio,
+        data_fim: dataFim,
+        dias_utilizados: diasCalculados ?? undefined,
         observacao: observacao || undefined,
       })
       onSuccess?.()
       handleClose()
     } catch (e: any) {
-      setErro(e.message ?? 'Erro ao salvar')
+      setErro(e.message ?? 'Erro ao importar')
     } finally {
       setSalvando(false)
     }
   }
 
   function handleClose() {
-    setBusca(''); setResultados([]); setSelecionado(null); setPeriodosExistentes([])
+    setBusca(''); setResultados([]); setSelecionado(null)
     setNumeroPeriodo(''); setPeriodoInicio(''); setPeriodoFim(''); setLimiteGozo('')
     setDiasDireito('30'); setDataInicio(''); setDataFim(''); setObservacao(''); setErro('')
     onClose()
@@ -165,20 +108,24 @@ export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Agendar Férias</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Registra férias futuras ou em andamento</p>
+            <h2 className="text-lg font-semibold text-slate-900">Importar Histórico de Férias</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Registra férias já realizadas — status: Concluído</p>
           </div>
           <button type="button" onClick={handleClose} className="text-slate-400 hover:text-slate-600 text-xl font-bold">✕</button>
         </div>
 
         <div className="overflow-y-auto px-6 py-4 space-y-4 flex-1">
-          {/* Busca funcionário */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
+            ↩ Este modal registra <strong>férias já gozadas</strong>. O status será salvo automaticamente como <strong>Concluído</strong>. Use para migrar dados históricos do sistema anterior.
+          </div>
+
+          {/* Busca funcionário — inclui desligados */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-widest text-slate-500 mb-1">Funcionário</label>
             <input
               value={busca}
               onChange={e => { setBusca(e.target.value); setSelecionado(null) }}
-              placeholder="Digite o nome..."
+              placeholder="Digite o nome (inclui desligados)..."
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
             />
             {resultados.length > 0 && (
@@ -187,25 +134,12 @@ export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
                   <button key={f.id} type="button" onClick={() => handleSelecionarFuncionario(f)}
                     className="w-full text-left px-3 py-2 hover:bg-slate-50 border-b border-slate-100 last:border-0">
                     <div className="text-sm font-medium text-slate-800">{f.nome}</div>
-                    <div className="text-xs text-slate-400">{f.registro} · {f.posto_nome}</div>
+                    <div className="text-xs text-slate-400">{f.registro} · {f.status}</div>
                   </button>
                 ))}
               </div>
             )}
           </div>
-
-          {/* Períodos existentes */}
-          {selecionado && periodosExistentes.length > 0 && (
-            <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-600">
-              <div className="font-semibold mb-1 text-slate-700">Períodos já registrados:</div>
-              {periodosExistentes.map((p: any) => (
-                <div key={p.id} className="flex justify-between py-0.5">
-                  <span>{p.numero_periodo}º período ({formatDateBR(p.periodo_inicio)} – {formatDateBR(p.periodo_fim)})</span>
-                  <span className="font-medium">{p.status}</span>
-                </div>
-              ))}
-            </div>
-          )}
 
           {/* Período aquisitivo */}
           <div>
@@ -229,29 +163,6 @@ export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
             </div>
           </div>
 
-          {/* Limite de gozo */}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-widest text-slate-500 mb-1">Limite de Gozo</label>
-            <input type="date" value={limiteGozo} onChange={e => setLimiteGozo(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300" />
-            <p className="text-xs text-slate-400 mt-1">
-              Calculado automaticamente: fim do período aquisitivo + 10 meses (margem RH). O prazo legal é 12 meses após o fim do período.
-            </p>
-            {limiteWarning && (
-              <div className={`mt-2 rounded-lg px-3 py-2 text-xs font-medium ${
-                limiteWarning.level === 'vencido' ? 'bg-red-100 text-red-700' :
-                limiteWarning.level === 'critico' ? 'bg-orange-100 text-orange-700' :
-                'bg-amber-100 text-amber-700'
-              }`}>
-                {limiteWarning.level === 'vencido'
-                  ? `⛔ Prazo VENCIDO há ${limiteWarning.dias} dias — férias em dobro!`
-                  : limiteWarning.level === 'critico'
-                  ? `⚠️ Vence em ${limiteWarning.dias} dias — ação urgente`
-                  : `⏰ Vence em ${limiteWarning.dias} dias`}
-              </div>
-            )}
-          </div>
-
           {/* Dias de direito */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-widest text-slate-500 mb-1">Dias de Direito</label>
@@ -259,10 +170,10 @@ export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300" />
           </div>
 
-          {/* Datas de gozo (opcionais) */}
+          {/* Datas de gozo — obrigatórias no histórico */}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-widest text-slate-500 mb-1">
-              Datas de Gozo <span className="text-slate-300 font-normal normal-case">(opcional — pode agendar depois)</span>
+              Datas de Gozo <span className="text-red-400">*</span>
             </label>
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -277,7 +188,7 @@ export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
               </div>
             </div>
             {diasCalculados !== null && diasCalculados > 0 && (
-              <p className="text-xs text-slate-500 mt-1">{diasCalculados} dias de gozo</p>
+              <p className="text-xs text-slate-500 mt-1">{diasCalculados} dias de gozo registrados</p>
             )}
           </div>
 
@@ -285,6 +196,7 @@ export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
           <div>
             <label className="block text-xs font-semibold uppercase tracking-widest text-slate-500 mb-1">Observação</label>
             <textarea value={observacao} onChange={e => setObservacao(e.target.value)} rows={2}
+              placeholder="Ex: Migrado do sistema legado — período 2024/2025"
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-slate-300" />
           </div>
 
@@ -294,8 +206,8 @@ export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
         <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-3">
           <button type="button" onClick={handleClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition">Cancelar</button>
           <button type="button" onClick={handleSubmit} disabled={salvando}
-            className="px-5 py-2 text-sm font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50 transition">
-            {salvando ? 'Salvando...' : 'Salvar Férias'}
+            className="px-5 py-2 text-sm font-semibold bg-blue-700 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50 transition">
+            {salvando ? 'Importando...' : '↩ Importar Histórico'}
           </button>
         </div>
       </div>

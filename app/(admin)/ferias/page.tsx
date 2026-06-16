@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { ModalNovaFerias } from '@/components/ferias/modal-nova-ferias'
+import { ModalImportarHistoricoFerias } from '@/components/ferias/modal-importar-historico-ferias'
 import {
   buscarFeriasLista,
   buscarSupervisoresParaFiltro,
@@ -163,6 +164,7 @@ export default function FeriasPage() {
   const [supervisores, setSupervisores] = useState<SupervisorFiltro[]>([])
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
+  const [modalHistoricoAberto, setModalHistoricoAberto] = useState(false)
 
   // Filtros
   const [filtroStatus, setFiltroStatus] = useState('todos')
@@ -275,6 +277,13 @@ export default function FeriasPage() {
             ✦ Relação por Supervisor
           </Link>
           <button
+            type="button"
+            onClick={() => setModalHistoricoAberto(true)}
+            className="px-4 py-2 text-sm font-medium bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition"
+          >
+            ↩ Importar Histórico
+          </button>
+          <button
             onClick={() => setModalAberto(true)}
             className="px-4 py-2 text-sm font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-700 transition"
           >
@@ -379,6 +388,9 @@ export default function FeriasPage() {
                 <Th label="Secretaria" k="secretaria" />
                 <Th label="Supervisor" k="supervisor_nome" />
                 <Th label="Período" k="numero_periodo" />
+                <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-slate-500 whitespace-nowrap">
+                  Período Aquisitivo
+                </th>
                 <Th label="Dias" k="dias_direito" />
                 <Th label="Limite Gozo" k="limite_gozo" />
                 <Th label="Início" k="data_inicio" />
@@ -392,7 +404,7 @@ export default function FeriasPage() {
             <tbody className="divide-y divide-slate-100">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-4 py-10 text-center text-slate-400">
+                  <td colSpan={13} className="px-4 py-10 text-center text-slate-400">
                     Nenhum registro encontrado
                   </td>
                 </tr>
@@ -412,6 +424,11 @@ export default function FeriasPage() {
                     <td className="px-3 py-3 text-slate-600">{item.secretaria}</td>
                     <td className="px-3 py-3 text-slate-600">{item.supervisor_nome}</td>
                     <td className="px-3 py-3 text-center text-slate-600">{item.numero_periodo ?? '—'}º</td>
+                    <td className="px-3 py-3 text-xs text-slate-500 whitespace-nowrap">
+                      {item.periodo_inicio && item.periodo_fim
+                        ? `${formatDate(item.periodo_inicio)} – ${formatDate(item.periodo_fim)}`
+                        : '—'}
+                    </td>
                     <td className="px-3 py-3 text-center font-medium text-slate-700">{item.dias_direito ?? '—'}</td>
                     <td className="px-3 py-3">
                       <LimiteBadge item={item} />
@@ -442,6 +459,11 @@ export default function FeriasPage() {
         onSuccess={() => {
           buscarFeriasLista().then(setFerias)
         }}
+      />
+      <ModalImportarHistoricoFerias
+        open={modalHistoricoAberto}
+        onClose={() => setModalHistoricoAberto(false)}
+        onSuccess={() => buscarFeriasLista().then(setFerias)}
       />
     </div>
   )
