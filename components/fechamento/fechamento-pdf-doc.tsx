@@ -22,17 +22,14 @@ const s = StyleSheet.create({
   tdBold:      { fontSize: 8, fontWeight: 'bold', color: '#1d4ed8', paddingVertical: 3,
                  paddingHorizontal: 3, textAlign: 'center' },
   // column widths
-  cNome:   { width: 115 },
-  cFuncao: { width: 82 },
-  cPosto:  { width: 80 },
-  cSec:    { width: 52 },
-  cReg:    { width: 28 },
-  cN5:     { width: 26 },
-  cAfast:  { width: 26 },
+  cNome:   { width: 160 },
+  cFuncao: { width: 100 },
+  cReg:    { width: 32 },
+  cN5:     { width: 32 },
+  cAfast:  { width: 32 },
+  cSusp:   { width: 42 },
   cTrab:   { width: 52 },
-  cInsal:  { width: 40 },
-  cSusp:   { width: 38 },
-  cAdv:    { width: 46 },
+  cAdv:    { width: 58 },
 })
 
 function advLabel(f: FechamentoFuncionario) {
@@ -42,28 +39,24 @@ function advLabel(f: FechamentoFuncionario) {
 }
 
 const COLS = [
-  { label: 'Nome',          style: s.cNome,   num: false },
-  { label: 'Função',        style: s.cFuncao, num: false },
-  { label: 'Posto',         style: s.cPosto,  num: false },
-  { label: 'Secretaria',    style: s.cSec,    num: false },
-  { label: 'Regime',        style: s.cReg,    num: true  },
-  { label: 'D.Úteis',       style: s.cN5,     num: true  },
-  { label: 'Férias',        style: s.cN5,     num: true  },
-  { label: 'Faltas',        style: s.cN5,     num: true  },
-  { label: 'Atestados',     style: s.cN5,     num: true  },
-  { label: 'Suspens.',      style: s.cSusp,   num: true  },
-  { label: 'Afast.',        style: s.cAfast,  num: true  },
-  { label: 'Trabalhados',   style: s.cTrab,   num: true  },
-  { label: 'Insalub.',      style: s.cInsal,  num: true  },
-  { label: 'Advertên.',     style: s.cAdv,    num: false },
+  { label: 'Nome',        style: s.cNome,   num: false },
+  { label: 'Função',      style: s.cFuncao, num: false },
+  { label: 'Regime',      style: s.cReg,    num: true  },
+  { label: 'D.Úteis',     style: s.cN5,     num: true  },
+  { label: 'Férias',      style: s.cN5,     num: true  },
+  { label: 'Faltas',      style: s.cN5,     num: true  },
+  { label: 'Atestados',   style: s.cN5,     num: true  },
+  { label: 'Suspens.',    style: s.cSusp,   num: true  },
+  { label: 'Afast.',      style: s.cAfast,  num: true  },
+  { label: 'Trabalhados', style: s.cTrab,   num: true  },
+  { label: 'Insalub.',    style: s.cN5,     num: true  },
+  { label: 'Advertên.',   style: s.cAdv,    num: false },
 ]
 
 function cellValue(f: FechamentoFuncionario, idx: number): string {
   const vals = [
     f.funcionario_nome,
     f.funcao ?? '—',
-    f.posto_nome ?? '—',
-    f.secretaria ?? '—',
     f.regime,
     String(f.dias_uteis),
     f.ferias_dias > 0 ? String(f.ferias_dias) : '—',
