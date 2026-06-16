@@ -18,6 +18,7 @@ export type AtestadoRow = {
   funcionario_nome: string
   posto_nome: string
   secretaria: string
+  supervisor_nome: string | null
   dias: number
   acumulado: number
   alerta: boolean
@@ -66,6 +67,8 @@ export function AtestadosClient({ atestados, cids }: Props) {
   const [pendingDelete, setPendingDelete] = useState(false)
   const [sortCol, setSortCol] = useState<SortCol>('data_inicio')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [aba, setAba] = useState<'lista' | 'ranking'>('lista')
+  const [janelaRanking, setJanelaRanking] = useState<30 | 60 | 90 | 180>(90)
 
   function handleSort(col: SortCol) {
     if (col === sortCol) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
@@ -92,6 +95,53 @@ export function AtestadosClient({ atestados, cids }: Props) {
     })
   }, [atestados, sortCol, sortDir])
 
+  const rankingFuncionarios = useMemo(() => {
+    const limite = new Date()
+    limite.setDate(limite.getDate() - janelaRanking)
+    const limStr = limite.toISOString().split('T')[0]
+    const map = new Map<string, { nome: string; supervisor: string | null; posto: string; secretaria: string; dias: number; ocorrencias: number }>()
+    for (const a of atestados) {
+      if (a.data_fim < limStr) continue
+      const cur = map.get(a.funcionario_id) ?? { nome: a.funcionario_nome, supervisor: a.supervisor_nome, posto: a.posto_nome, secretaria: a.secretaria, dias: 0, ocorrencias: 0 }
+      cur.dias += a.dias
+      cur.ocorrencias += 1
+      map.set(a.funcionario_id, cur)
+    }
+    return Array.from(map.values()).sort((a, b) => b.dias - a.dias).slice(0, 10)
+  }, [atestados, janelaRanking])
+
+  const rankingPostos = useMemo(() => {
+    const limite = new Date()
+    limite.setDate(limite.getDate() - janelaRanking)
+    const limStr = limite.toISOString().split('T')[0]
+    const map = new Map<string, { posto: string; secretaria: string; supervisor: string | null; dias: number; ocorrencias: number }>()
+    for (const a of atestados) {
+      if (a.data_fim < limStr) continue
+      const key = a.posto_nome
+      const cur = map.get(key) ?? { posto: a.posto_nome, secretaria: a.secretaria, supervisor: a.supervisor_nome, dias: 0, ocorrencias: 0 }
+      cur.dias += a.dias
+      cur.ocorrencias += 1
+      map.set(key, cur)
+    }
+    return Array.from(map.values()).sort((a, b) => b.dias - a.dias).slice(0, 10)
+  }, [atestados, janelaRanking])
+
+  const rankingCids = useMemo(() => {
+    const limite = new Date()
+    limite.setDate(limite.getDate() - janelaRanking)
+    const limStr = limite.toISOString().split('T')[0]
+    const map = new Map<string, { codigo: string; descricao: string; dias: number; ocorrencias: number }>()
+    for (const a of atestados) {
+      if (a.data_fim < limStr || !a.cid_codigo) continue
+      const key = a.cid_codigo
+      const cur = map.get(key) ?? { codigo: a.cid_codigo, descricao: a.cid_desc || a.cid_codigo, dias: 0, ocorrencias: 0 }
+      cur.dias += a.dias
+      cur.ocorrencias += 1
+      map.set(key, cur)
+    }
+    return Array.from(map.values()).sort((a, b) => b.ocorrencias - a.ocorrencias).slice(0, 10)
+  }, [atestados, janelaRanking])
+
   async function confirmarExclusao() {
     if (!excluindoId) return
     setPendingDelete(true)
@@ -102,141 +152,275 @@ export function AtestadosClient({ atestados, cids }: Props) {
     setExcluindoId(null)
   }
 
-  if (atestados.length === 0) {
-    return <p className="px-6 py-10 text-center text-sm text-gray-400">Nenhum atestado encontrado.</p>
-  }
-
   return (
     <>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="border-b border-gray-100 bg-slate-50">
-            <tr>
-              {COLS.map(col => (
-                <th
-                  key={col.label}
-                  onClick={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
-                  className={cn(
-                    'px-5 py-3 text-left text-xs font-semibold uppercase tracking-widest',
-                    col.sortKey === sortCol ? 'text-gray-700' : 'text-gray-400',
-                    col.sortKey && 'cursor-pointer select-none hover:text-gray-600',
-                  )}
-                >
-                  {col.label}
-                  {col.sortKey === sortCol && (
-                    <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
-                  )}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {sorted.map(a => (
-              <tr
-                key={a.id}
+      {/* Barra de abas + seletor de janela */}
+      <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
+        <div className="flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
+          <button
+            type="button"
+            onClick={() => setAba('lista')}
+            className={cn(
+              'rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
+              aba === 'lista' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700',
+            )}
+          >
+            Lista
+          </button>
+          <button
+            type="button"
+            onClick={() => setAba('ranking')}
+            className={cn(
+              'rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
+              aba === 'ranking' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700',
+            )}
+          >
+            Ranking
+          </button>
+        </div>
+        {aba === 'ranking' && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">Janela:</span>
+            {([30, 60, 90, 180] as const).map(j => (
+              <button
+                key={j}
+                type="button"
+                onClick={() => setJanelaRanking(j)}
                 className={cn(
-                  'transition-colors',
-                  a.alerta ? 'bg-red-50 hover:bg-red-100' : 'bg-white hover:bg-gray-50',
+                  'rounded-md px-2.5 py-1 text-xs font-medium',
+                  janelaRanking === j
+                    ? 'bg-slate-900 text-white'
+                    : 'border border-gray-200 text-gray-500 hover:bg-gray-50',
                 )}
               >
-                <td className="px-5 py-3.5 font-medium text-gray-900">{a.funcionario_nome}</td>
-                <td className="px-5 py-3.5 text-gray-500">{a.posto_nome}</td>
-                <td className="px-5 py-3.5 text-gray-500">{a.secretaria}</td>
-                <td className="px-5 py-3.5 tabular-nums text-gray-500">
-                  {a.data_inicio.split('-').reverse().join('/')}
-                </td>
-                <td className="px-5 py-3.5 tabular-nums text-gray-500">
-                  {a.data_fim.split('-').reverse().join('/')}
-                </td>
-                <td className="px-5 py-3.5 tabular-nums text-gray-700">{a.dias}</td>
-                <td className="px-5 py-3.5 text-gray-500">
-                  {a.cid_codigo ? (
-                    <span className="inline-flex items-center gap-1.5">
-                      <span className="font-mono font-semibold text-blue-700">{a.cid_codigo}</span>
-                      {a.cid_desc && a.cid_desc !== a.cid_codigo && (
-                        <span className="text-gray-400">— {a.cid_desc}</span>
-                      )}
-                      {a.nexo_ocupacional && (
-                        <span title="Possível nexo ocupacional — avaliar CAT/insalubridade">
-                          <AlertTriangle className="shrink-0 text-amber-500" size={14} />
-                        </span>
-                      )}
-                    </span>
-                  ) : (
-                    <span className="text-gray-400">{a.cid_desc || '—'}</span>
-                  )}
-                </td>
-                <td className="px-5 py-3.5">
-                  {a.origem_ocupacional ? (
-                    <span className={cn(
-                      'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset whitespace-nowrap',
-                      ORIGEM_BADGE[a.origem_ocupacional]?.className,
-                    )}>
-                      {ORIGEM_BADGE[a.origem_ocupacional]?.label}
-                    </span>
-                  ) : (
-                    <span className="text-gray-300">—</span>
-                  )}
-                </td>
-                <td className="px-5 py-3.5">
-                  <div className="flex items-center gap-2">
-                    <span className={cn('tabular-nums font-semibold', a.alerta ? 'text-red-700' : 'text-gray-700')}>
-                      {a.acumulado}d
-                    </span>
-                    {a.alerta && (
-                      <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-red-700 ring-1 ring-inset ring-red-200">
-                        ⚠️ Avaliar INSS
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-5 py-3.5">
-                  {excluindoId === a.id ? (
-                    <div className="flex flex-col gap-1">
-                      <p className="text-xs text-gray-600">Tem certeza? Esta ação não pode ser desfeita.</p>
-                      {erroExcluir && <p className="text-xs text-red-600">{erroExcluir}</p>}
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={confirmarExclusao}
-                          disabled={pendingDelete}
-                          className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                        >
-                          {pendingDelete ? '...' : 'Confirmar'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setExcluindoId(null); setErroExcluir('') }}
-                          className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
-                        >
-                          Cancelar
-                        </button>
+                {j}d
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Seção Ranking */}
+      {aba === 'ranking' && (
+        <div className="p-5">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            {/* Top Funcionários — Dias */}
+            <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
+              <div className="border-b border-gray-100 px-5 py-3">
+                <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Top Funcionários — Dias</p>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {rankingFuncionarios.length === 0 ? (
+                  <p className="px-5 py-8 text-center text-sm text-gray-400">Sem dados</p>
+                ) : (
+                  rankingFuncionarios.map((r, i) => (
+                    <div key={r.nome} className="flex items-center gap-3 px-5 py-3">
+                      <span className="w-5 text-xs font-bold text-gray-300">{i + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-gray-900">{r.nome}</p>
+                        <p className="truncate text-xs text-gray-400">{r.supervisor ?? '—'} · {r.secretaria}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-red-600">{r.dias}d</p>
+                        <p className="text-xs text-gray-400">{r.ocorrencias}x</p>
                       </div>
                     </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setEditando(a)}
-                        className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setExcluindoId(a.id)}
-                        className="rounded border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-                      >
-                        Excluir
-                      </button>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Top Unidades — Dias */}
+            <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
+              <div className="border-b border-gray-100 px-5 py-3">
+                <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Top Unidades — Dias</p>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {rankingPostos.length === 0 ? (
+                  <p className="px-5 py-8 text-center text-sm text-gray-400">Sem dados</p>
+                ) : (
+                  rankingPostos.map((r, i) => (
+                    <div key={r.posto} className="flex items-center gap-3 px-5 py-3">
+                      <span className="w-5 text-xs font-bold text-gray-300">{i + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-gray-900">{r.posto}</p>
+                        <p className="truncate text-xs text-gray-400">{r.supervisor ?? '—'} · {r.secretaria}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-amber-600">{r.dias}d</p>
+                        <p className="text-xs text-gray-400">{r.ocorrencias}x</p>
+                      </div>
                     </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* CIDs Mais Recorrentes */}
+            <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
+              <div className="border-b border-gray-100 px-5 py-3">
+                <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">CIDs Mais Recorrentes</p>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {rankingCids.length === 0 ? (
+                  <p className="px-5 py-8 text-center text-sm text-gray-400">Sem dados</p>
+                ) : (
+                  rankingCids.map((r, i) => (
+                    <div key={r.codigo} className="flex items-center gap-3 px-5 py-3">
+                      <span className="w-5 text-xs font-bold text-gray-300">{i + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-blue-700">{r.codigo}</p>
+                        <p className="truncate text-xs text-gray-400">{r.descricao}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-gray-700">{r.ocorrencias}x</p>
+                        <p className="text-xs text-gray-400">{r.dias}d</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Seção Lista */}
+      {aba === 'lista' && (
+        atestados.length === 0 ? (
+          <p className="px-6 py-10 text-center text-sm text-gray-400">Nenhum atestado encontrado.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-gray-100 bg-slate-50">
+                <tr>
+                  {COLS.map(col => (
+                    <th
+                      key={col.label}
+                      onClick={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
+                      className={cn(
+                        'px-5 py-3 text-left text-xs font-semibold uppercase tracking-widest',
+                        col.sortKey === sortCol ? 'text-gray-700' : 'text-gray-400',
+                        col.sortKey && 'cursor-pointer select-none hover:text-gray-600',
+                      )}
+                    >
+                      {col.label}
+                      {col.sortKey === sortCol && (
+                        <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {sorted.map(a => (
+                  <tr
+                    key={a.id}
+                    className={cn(
+                      'transition-colors',
+                      a.alerta ? 'bg-red-50 hover:bg-red-100' : 'bg-white hover:bg-gray-50',
+                    )}
+                  >
+                    <td className="px-5 py-3.5 font-medium text-gray-900">{a.funcionario_nome}</td>
+                    <td className="px-5 py-3.5 text-gray-500">{a.posto_nome}</td>
+                    <td className="px-5 py-3.5 text-gray-500">{a.secretaria}</td>
+                    <td className="px-5 py-3.5 tabular-nums text-gray-500">
+                      {a.data_inicio.split('-').reverse().join('/')}
+                    </td>
+                    <td className="px-5 py-3.5 tabular-nums text-gray-500">
+                      {a.data_fim.split('-').reverse().join('/')}
+                    </td>
+                    <td className="px-5 py-3.5 tabular-nums text-gray-700">{a.dias}</td>
+                    <td className="px-5 py-3.5 text-gray-500">
+                      {a.cid_codigo ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="font-mono font-semibold text-blue-700">{a.cid_codigo}</span>
+                          {a.cid_desc && a.cid_desc !== a.cid_codigo && (
+                            <span className="text-gray-400">— {a.cid_desc}</span>
+                          )}
+                          {a.nexo_ocupacional && (
+                            <span title="Possível nexo ocupacional — avaliar CAT/insalubridade">
+                              <AlertTriangle className="shrink-0 text-amber-500" size={14} />
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">{a.cid_desc || '—'}</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {a.origem_ocupacional ? (
+                        <span className={cn(
+                          'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset whitespace-nowrap',
+                          ORIGEM_BADGE[a.origem_ocupacional]?.className,
+                        )}>
+                          {ORIGEM_BADGE[a.origem_ocupacional]?.label}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <span className={cn('tabular-nums font-semibold', a.alerta ? 'text-red-700' : 'text-gray-700')}>
+                          {a.acumulado}d
+                        </span>
+                        {a.alerta && (
+                          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-red-700 ring-1 ring-inset ring-red-200">
+                            ⚠️ Avaliar INSS
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {excluindoId === a.id ? (
+                        <div className="flex flex-col gap-1">
+                          <p className="text-xs text-gray-600">Tem certeza? Esta ação não pode ser desfeita.</p>
+                          {erroExcluir && <p className="text-xs text-red-600">{erroExcluir}</p>}
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={confirmarExclusao}
+                              disabled={pendingDelete}
+                              className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                            >
+                              {pendingDelete ? '...' : 'Confirmar'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setExcluindoId(null); setErroExcluir('') }}
+                              className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditando(a)}
+                            className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setExcluindoId(a.id)}
+                            className="rounded border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
 
       <ModalEditarAtestado
         atestado={editando}

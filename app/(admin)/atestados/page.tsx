@@ -14,7 +14,14 @@ type AtestadoRaw = {
   cid_codigo: string | null
   origem_ocupacional: string | null
   funcionarios: { id: string; nome: string } | null
-  postos: { nome: string; secretaria: string | null } | null
+  postos: {
+    nome: string
+    secretaria: string | null
+    config_supervisores_postos: Array<{
+      ativo: boolean
+      perfis: { nome: string } | null
+    }> | null
+  } | null
 }
 
 function calcDias(inicio: string, fim: string): number {
@@ -51,7 +58,13 @@ export default async function AtestadosPage({
       .select(`
         id, funcionario_id, posto_id, data_inicio, data_fim, motivo, cid_codigo, origem_ocupacional,
         funcionarios!funcionario_id ( id, nome ),
-        postos!posto_id ( nome, secretaria )
+        postos!posto_id (
+          nome, secretaria,
+          config_supervisores_postos!posto_id (
+            ativo,
+            perfis!supervisor_id ( nome )
+          )
+        )
       `)
       .order('data_inicio', { ascending: false })
       .range(0, 1499),
@@ -107,6 +120,10 @@ export default async function AtestadosPage({
     const dias     = calcDias(a.data_inicio, a.data_fim)
     const acumulado = acumuladoMap.get(a.funcionario_id) ?? 0
     const cidDesc  = a.cid_codigo ? (cidMap.get(a.cid_codigo) ?? a.cid_codigo) : ''
+    const supervisorNome =
+      a.postos?.config_supervisores_postos
+        ?.find(c => c.ativo)
+        ?.perfis?.nome ?? null
     return {
       id: a.id,
       funcionario_id: a.funcionario_id,
@@ -119,6 +136,7 @@ export default async function AtestadosPage({
       funcionario_nome: a.funcionarios?.nome ?? '—',
       posto_nome: a.postos?.nome ?? '—',
       secretaria: a.postos?.secretaria ?? '—',
+      supervisor_nome: supervisorNome,
       dias,
       acumulado,
       alerta: acumulado > 15,
