@@ -3,7 +3,9 @@
 import { useState, useMemo, useEffect } from 'react'
 import { UserPlus, FileSpreadsheet } from 'lucide-react'
 import * as XLSX from 'xlsx-js-style'
+import { cn } from '@/lib/utils'
 import type { PostoRow } from '@/app/(admin)/postos/actions'
+import { criarPosto, editarPosto, desativarPosto } from '@/app/(admin)/postos/actions'
 import { ModalNovaAdmissao } from './modal-nova-admissao'
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -170,10 +172,49 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
   const [novaAdmissaoOpen, setNovaAdmissaoOpen] = useState(false)
   const [toast, setToast]                   = useState(false)
   const [loadingXlsx, setLoadingXlsx]       = useState(false)
+  const [aba, setAba]                        = useState<'visao' | 'gerenciar'>('visao')
+  const [modalPosto, setModalPosto]          = useState<'criar' | PostoRow | null>(null)
+  const [confirmDesativar, setConfirmDesativar] = useState<PostoRow | null>(null)
+  const [saving, setSaving]                  = useState(false)
+  const [erroModal, setErroModal]            = useState('')
+  const [formNome, setFormNome]              = useState('')
+  const [formSecretaria, setFormSecretaria]  = useState('')
+  const [formPrevisto, setFormPrevisto]      = useState(1)
+  const [formInsalubridade, setFormInsalubridade] = useState(0)
 
   async function handleExcel() {
     setLoadingXlsx(true)
     try { exportExcelPostos(filtered) } finally { setLoadingXlsx(false) }
+  }
+
+  function abrirCriar() {
+    setFormNome(''); setFormSecretaria(''); setFormPrevisto(1); setFormInsalubridade(0)
+    setErroModal(''); setModalPosto('criar')
+  }
+
+  function abrirEditar(p: PostoRow) {
+    setFormNome(p.nome); setFormSecretaria(p.secretaria ?? '')
+    setFormPrevisto(p.efetivo_previsto); setFormInsalubridade(p.cota_insalubridade ?? 0)
+    setErroModal(''); setModalPosto(p)
+  }
+
+  async function handleSalvar() {
+    if (!formNome.trim() || !formSecretaria.trim()) { setErroModal('Nome e secretaria são obrigatórios'); return }
+    setSaving(true); setErroModal('')
+    const payload = { nome: formNome, secretaria: formSecretaria, efetivo_previsto: formPrevisto, cota_insalubridade: formInsalubridade }
+    const res = modalPosto === 'criar'
+      ? await criarPosto(payload)
+      : await editarPosto((modalPosto as PostoRow).id, payload)
+    setSaving(false)
+    if (res.error) { setErroModal(res.error); return }
+    setModalPosto(null)
+  }
+
+  async function handleDesativar() {
+    if (!confirmDesativar) return
+    setSaving(true)
+    await desativarPosto(confirmDesativar.id)
+    setSaving(false); setConfirmDesativar(null)
   }
 
   useEffect(() => {
@@ -265,143 +306,277 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
 
   return (
     <div className="space-y-6">
-      {/* KPI grid */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
-        <CounterCard label="Total"          value={kpis.total}         topColor="border-t-gray-400"   />
-        <CounterCard label="Ok"             value={kpis.ok}            topColor="border-t-green-500"  />
-        <CounterCard
-          label="Déficit"
-          value={kpis.deficit}
-          topColor="border-t-red-500"
-          subtext={kpis.pessoasDeficit > 0 ? `-${kpis.pessoasDeficit} pessoas` : undefined}
-          subtextClass="text-red-500"
-        />
-        <CounterCard label="Vagos"          value={kpis.vagos}         topColor="border-t-gray-400"   />
-        <CounterCard
-          label="Excesso"
-          value={kpis.excesso}
-          topColor="border-t-indigo-500"
-          subtext={kpis.pessoasExcesso > 0 ? `+${kpis.pessoasExcesso} pessoas` : undefined}
-        />
-        <CounterCard label="Sem Supervisor" value={kpis.semSupervisor} topColor="border-t-amber-500"  />
+      {/* Barra de abas */}
+      <div className="flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1 w-fit">
+        <button type="button" onClick={() => setAba('visao')}
+          className={cn('rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
+            aba === 'visao' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+          )}>Visão Geral</button>
+        <button type="button" onClick={() => setAba('gerenciar')}
+          className={cn('rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
+            aba === 'gerenciar' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+          )}>Gerenciar</button>
       </div>
 
-      {/* Filtros + botão Nova Admissão (supervisor) */}
-      <div className="flex flex-wrap items-center gap-3">
-        <select value={secretaria} onChange={e => setSecretaria(e.target.value)} className={selectClass}>
-          <option value="">Todas as secretarias</option>
-          {secretarias.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
+      {aba === 'visao' && (
+        <>
+          {/* KPI grid */}
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
+            <CounterCard label="Total"          value={kpis.total}         topColor="border-t-gray-400"   />
+            <CounterCard label="Ok"             value={kpis.ok}            topColor="border-t-green-500"  />
+            <CounterCard
+              label="Déficit"
+              value={kpis.deficit}
+              topColor="border-t-red-500"
+              subtext={kpis.pessoasDeficit > 0 ? `-${kpis.pessoasDeficit} pessoas` : undefined}
+              subtextClass="text-red-500"
+            />
+            <CounterCard label="Vagos"          value={kpis.vagos}         topColor="border-t-gray-400"   />
+            <CounterCard
+              label="Excesso"
+              value={kpis.excesso}
+              topColor="border-t-indigo-500"
+              subtext={kpis.pessoasExcesso > 0 ? `+${kpis.pessoasExcesso} pessoas` : undefined}
+            />
+            <CounterCard label="Sem Supervisor" value={kpis.semSupervisor} topColor="border-t-amber-500"  />
+          </div>
 
-        <select value={supervisor} onChange={e => setSupervisor(e.target.value)} className={selectClass}>
-          <option value="">Todos os supervisores</option>
-          <option value="sem_supervisor">Sem supervisor</option>
-          {supervisores.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
+          {/* Filtros + botão Nova Admissão (supervisor) */}
+          <div className="flex flex-wrap items-center gap-3">
+            <select value={secretaria} onChange={e => setSecretaria(e.target.value)} className={selectClass}>
+              <option value="">Todas as secretarias</option>
+              {secretarias.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
 
-        <select value={status} onChange={e => setStatus(e.target.value)} className={selectClass}>
-          <option value="">Todos os status</option>
-          <option value="ok">Ok</option>
-          <option value="deficit">Déficit</option>
-          <option value="excesso">Excesso</option>
-          <option value="vago">Vago</option>
-        </select>
+            <select value={supervisor} onChange={e => setSupervisor(e.target.value)} className={selectClass}>
+              <option value="">Todos os supervisores</option>
+              <option value="sem_supervisor">Sem supervisor</option>
+              {supervisores.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
 
-        <button
-          type="button"
-          onClick={handleExcel}
-          disabled={loadingXlsx || filtered.length === 0}
-          className="flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-        >
-          <FileSpreadsheet className="h-4 w-4 text-green-600" />
-          {loadingXlsx ? 'Gerando…' : 'Excel'}
-        </button>
+            <select value={status} onChange={e => setStatus(e.target.value)} className={selectClass}>
+              <option value="">Todos os status</option>
+              <option value="ok">Ok</option>
+              <option value="deficit">Déficit</option>
+              <option value="excesso">Excesso</option>
+              <option value="vago">Vago</option>
+            </select>
 
-        {role === 'supervisor' && (
-          <button
-            type="button"
-            onClick={() => setNovaAdmissaoOpen(true)}
-            className="ml-auto flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors"
-          >
-            <UserPlus className="h-3.5 w-3.5" />
-            Nova Admissão
-          </button>
-        )}
-      </div>
+            <button
+              type="button"
+              onClick={handleExcel}
+              disabled={loadingXlsx || filtered.length === 0}
+              className="flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+            >
+              <FileSpreadsheet className="h-4 w-4 text-green-600" />
+              {loadingXlsx ? 'Gerando…' : 'Excel'}
+            </button>
 
-      {/* Toast confirmação */}
-      {toast && (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 shadow-sm">
-          <span>✓</span>
-          <span>Admissão enviada para aprovação.</span>
+            {role === 'supervisor' && (
+              <button
+                type="button"
+                onClick={() => setNovaAdmissaoOpen(true)}
+                className="ml-auto flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                Nova Admissão
+              </button>
+            )}
+          </div>
+
+          {/* Toast confirmação */}
+          {toast && (
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 shadow-sm">
+              <span>✓</span>
+              <span>Admissão enviada para aprovação.</span>
+            </div>
+          )}
+
+          {/* Tabela */}
+          <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  {COLS.map(col => (
+                    <th
+                      key={col.label}
+                      onClick={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
+                      className={[
+                        `px-4 py-3 ${col.align === 'center' ? 'text-center' : 'text-left'} text-xs font-semibold uppercase tracking-widest`,
+                        col.sortKey === sortCol ? 'text-gray-700' : 'text-gray-400',
+                        col.sortKey ? 'cursor-pointer select-none hover:text-gray-600' : '',
+                      ].join(' ')}
+                    >
+                      {col.label}
+                      {col.sortKey === sortCol && (
+                        <span className="ml-1 text-xs">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {sorted.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">
+                      Nenhum posto encontrado
+                    </td>
+                  </tr>
+                ) : (
+                  sorted.map(p => {
+                    const st = getStatusPosto(p.efetivo_atual, p.efetivo_previsto)
+                    const rowBg =
+                      st === 'vago'        ? 'bg-red-50' :
+                      !p.supervisor_nome   ? 'bg-amber-50' :
+                      'hover:bg-gray-50'
+                    return (
+                      <tr key={p.id} className={rowBg}>
+                        <td className="px-4 py-3 font-medium text-gray-900">{p.nome}</td>
+                        <td className="px-4 py-3 text-gray-600">{p.secretaria || '—'}</td>
+                        <td className="px-4 py-3">
+                          {p.supervisor_nome ? (
+                            <span className="text-gray-600">{p.supervisor_nome}</span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                              Sem supervisor
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center tabular-nums text-gray-900">{p.efetivo_atual}</td>
+                        <td className="px-4 py-3 text-center tabular-nums text-gray-600">{p.efetivo_previsto}</td>
+                        <td className="px-4 py-3 text-center tabular-nums text-gray-600">{p.cota_insalubridade}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CHIP[st]}`}>
+                            {STATUS_LABELS[st]}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {aba === 'gerenciar' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+              {postos.length} postos cadastrados
+            </p>
+            <button type="button" onClick={abrirCriar}
+              className="flex h-9 items-center gap-1.5 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700">
+              + Novo Posto
+            </button>
+          </div>
+
+          <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50">
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Posto</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Secretaria</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Previsto</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Insalubridade</th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {[...postos].sort((a, b) => a.secretaria.localeCompare(b.secretaria) || a.nome.localeCompare(b.nome)).map(p => (
+                  <tr key={p.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900">{p.nome}</td>
+                    <td className="px-4 py-3 text-gray-500">{p.secretaria || '—'}</td>
+                    <td className="px-4 py-3 text-center tabular-nums text-gray-700">{p.efetivo_previsto}</td>
+                    <td className="px-4 py-3 text-center tabular-nums text-gray-700">{p.cota_insalubridade ?? 0}</td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button type="button" onClick={() => abrirEditar(p)}
+                          className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50">
+                          Editar
+                        </button>
+                        <button type="button" onClick={() => setConfirmDesativar(p)}
+                          className="rounded border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50">
+                          Desativar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* Tabela */}
-      <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-100">
-              {COLS.map(col => (
-                <th
-                  key={col.label}
-                  onClick={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
-                  className={[
-                    `px-4 py-3 ${col.align === 'center' ? 'text-center' : 'text-left'} text-xs font-semibold uppercase tracking-widest`,
-                    col.sortKey === sortCol ? 'text-gray-700' : 'text-gray-400',
-                    col.sortKey ? 'cursor-pointer select-none hover:text-gray-600' : '',
-                  ].join(' ')}
-                >
-                  {col.label}
-                  {col.sortKey === sortCol && (
-                    <span className="ml-1 text-xs">{sortDir === 'asc' ? '↑' : '↓'}</span>
-                  )}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {sorted.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">
-                  Nenhum posto encontrado
-                </td>
-              </tr>
-            ) : (
-              sorted.map(p => {
-                const st = getStatusPosto(p.efetivo_atual, p.efetivo_previsto)
-                const rowBg =
-                  st === 'vago'        ? 'bg-red-50' :
-                  !p.supervisor_nome   ? 'bg-amber-50' :
-                  'hover:bg-gray-50'
-                return (
-                  <tr key={p.id} className={rowBg}>
-                    <td className="px-4 py-3 font-medium text-gray-900">{p.nome}</td>
-                    <td className="px-4 py-3 text-gray-600">{p.secretaria || '—'}</td>
-                    <td className="px-4 py-3">
-                      {p.supervisor_nome ? (
-                        <span className="text-gray-600">{p.supervisor_nome}</span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-                          Sem supervisor
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center tabular-nums text-gray-900">{p.efetivo_atual}</td>
-                    <td className="px-4 py-3 text-center tabular-nums text-gray-600">{p.efetivo_previsto}</td>
-                    <td className="px-4 py-3 text-center tabular-nums text-gray-600">{p.cota_insalubridade}</td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CHIP[st]}`}>
-                        {STATUS_LABELS[st]}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+      {modalPosto !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="mb-4 text-base font-bold text-gray-900">
+              {modalPosto === 'criar' ? 'Novo Posto' : 'Editar Posto'}
+            </h2>
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-400">Nome</label>
+                <input value={formNome} onChange={e => setFormNome(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  placeholder="Ex: UBS VILA NOVA" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-400">Secretaria</label>
+                <input value={formSecretaria} onChange={e => setFormSecretaria(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  placeholder="Ex: SMS" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-400">Efetivo Previsto</label>
+                  <input type="number" min={0} value={formPrevisto} onChange={e => setFormPrevisto(Number(e.target.value))}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-400">Cota Insalubridade</label>
+                  <input type="number" min={0} value={formInsalubridade} onChange={e => setFormInsalubridade(Number(e.target.value))}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                </div>
+              </div>
+              {erroModal && <p className="text-xs text-red-600">{erroModal}</p>}
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setModalPosto(null)}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button type="button" onClick={handleSalvar} disabled={saving}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
+                {saving ? 'Salvando…' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDesativar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="mb-2 text-base font-bold text-gray-900">Desativar posto?</h2>
+            <p className="mb-4 text-sm text-gray-500">
+              <span className="font-semibold text-gray-700">{confirmDesativar.nome}</span> será marcado como inativo. Esta ação pode ser revertida via banco de dados.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setConfirmDesativar(null)}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button type="button" onClick={handleDesativar} disabled={saving}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
+                {saving ? '...' : 'Desativar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {role === 'supervisor' && (
         <ModalNovaAdmissao

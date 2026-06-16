@@ -148,3 +148,61 @@ export async function getPostosData(): Promise<PostoRow[]> {
     supervisor_nome: supervisorMap.get(p.id) ?? null,
   }))
 }
+
+export async function criarPosto(data: {
+  nome: string
+  secretaria: string
+  efetivo_previsto: number
+  cota_insalubridade: number
+}): Promise<{ error?: string }> {
+  const supabase = createClient()
+  const { data: contratos } = await supabase
+    .from('contratos')
+    .select('id')
+    .eq('ativo', true)
+    .limit(1)
+    .single()
+  if (!contratos) return { error: 'Contrato ativo não encontrado' }
+
+  const { error } = await supabase.from('postos').insert({
+    contrato_id: contratos.id,
+    nome: data.nome.trim().toUpperCase(),
+    secretaria: data.secretaria.trim().toUpperCase(),
+    efetivo_previsto: data.efetivo_previsto,
+    cota_insalubridade: data.cota_insalubridade,
+    ativo: true,
+  })
+  if (error) return { error: error.message }
+  revalidatePath('/postos')
+  return {}
+}
+
+export async function editarPosto(id: string, data: {
+  nome: string
+  secretaria: string
+  efetivo_previsto: number
+  cota_insalubridade: number
+}): Promise<{ error?: string }> {
+  const supabase = createClient()
+  const { error } = await supabase.from('postos').update({
+    nome: data.nome.trim().toUpperCase(),
+    secretaria: data.secretaria.trim().toUpperCase(),
+    efetivo_previsto: data.efetivo_previsto,
+    cota_insalubridade: data.cota_insalubridade,
+    updated_at: new Date().toISOString(),
+  }).eq('id', id)
+  if (error) return { error: error.message }
+  revalidatePath('/postos')
+  return {}
+}
+
+export async function desativarPosto(id: string): Promise<{ error?: string }> {
+  const supabase = createClient()
+  const { error } = await supabase.from('postos').update({
+    ativo: false,
+    updated_at: new Date().toISOString(),
+  }).eq('id', id)
+  if (error) return { error: error.message }
+  revalidatePath('/postos')
+  return {}
+}
