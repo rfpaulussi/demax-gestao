@@ -127,6 +127,12 @@ interface Props {
 export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias, MESES, anos }: Props) {
   const [loadingXlsx, setLoadingXlsx] = useState(false)
   const [loadingPdf,  setLoadingPdf]  = useState(false)
+  const [mostrarVazias, setMostrarVazias] = useState(false)
+
+  const temSuspensao   = dados.some(f => f.dias_suspensao > 0)
+  const temAfastamento = dados.some(f => f.afastamento_dias > 0)
+  const exibirSuspensao   = mostrarVazias || temSuspensao
+  const exibirAfastamento = mostrarVazias || temAfastamento
 
   async function handleExcel() {
     setLoadingXlsx(true)
@@ -200,9 +206,18 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
         </div>
       </form>
 
-      <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-        {dados.length} funcionário{dados.length !== 1 ? 's' : ''}
-      </p>
+      <div className="flex items-center gap-3">
+        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+          {dados.length} funcionário{dados.length !== 1 ? 's' : ''}
+        </p>
+        <button
+          type="button"
+          onClick={() => setMostrarVazias(v => !v)}
+          className="text-xs text-gray-400 underline underline-offset-2 hover:text-gray-600"
+        >
+          {mostrarVazias ? 'Ocultar colunas vazias' : 'Mostrar todas as colunas'}
+        </button>
+      </div>
 
       {dados.length === 0 ? (
         <div className="rounded-xl border border-gray-100 bg-white py-12 text-center shadow-sm">
@@ -214,7 +229,7 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
             <table className="w-full text-sm" style={{ minWidth: '1400px' }}>
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="min-w-[220px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Funcionário</th>
+                  <th className="sticky left-0 z-10 bg-gray-50 min-w-[220px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Funcionário</th>
                   <th className="min-w-[160px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Função</th>
                   <th className="min-w-[200px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Posto</th>
                   <th className="min-w-[80px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Secretaria</th>
@@ -224,8 +239,8 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
                   <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Férias</th>
                   <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Faltas</th>
                   <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Atestados</th>
-                  <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Suspensão</th>
-                  <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Afastamento</th>
+                  {exibirSuspensao   && <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Suspensão</th>}
+                  {exibirAfastamento && <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Afastamento</th>}
                   <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Trabalhados</th>
                   <th className="min-w-[90px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Insalubridade</th>
                   <th className="min-w-[90px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Advertência</th>
@@ -237,12 +252,21 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
                     key={f.funcionario_id}
                     className={cn(
                       'transition-colors hover:bg-gray-50/80',
-                      f.tem_suspensao && 'bg-red-50/40 hover:bg-red-50/60',
+                      f.tem_suspensao          ? 'bg-red-50/40 hover:bg-red-50/60'
+                      : f.faltas_dias > 0      ? 'bg-red-50/20 hover:bg-red-50/40'
+                      : f.ferias_dias > 0      ? 'bg-orange-50/30 hover:bg-orange-50/50'
+                      : f.afastamento_dias > 0 ? 'bg-gray-50/60 hover:bg-gray-50/80'
+                      : null,
                     )}
                   >
                     <td className={cn(
-                      'px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap',
+                      'sticky left-0 z-10 px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap',
                       f.data_desligamento && 'text-gray-400',
+                      f.tem_suspensao          ? 'bg-red-50/40'
+                      : f.faltas_dias > 0      ? 'bg-red-50/20'
+                      : f.ferias_dias > 0      ? 'bg-orange-50/30'
+                      : f.afastamento_dias > 0 ? 'bg-gray-50/60'
+                      : 'bg-white',
                     )}>
                       {f.funcionario_nome}
                       {f.data_desligamento && (
@@ -275,16 +299,20 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
                         ? <span className="font-mono text-amber-600">{f.atestados_dias}</span>
                         : <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-3 py-2.5 text-center">
-                      {f.dias_suspensao > 0
-                        ? <span className="font-mono text-red-700 font-semibold">{f.dias_suspensao}</span>
-                        : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
-                      {f.afastamento_dias > 0
-                        ? <span className="font-mono text-gray-600">{f.afastamento_dias}</span>
-                        : <span className="text-gray-300">—</span>}
-                    </td>
+                    {exibirSuspensao && (
+                      <td className="px-3 py-2.5 text-center">
+                        {f.dias_suspensao > 0
+                          ? <span className="font-mono text-red-700 font-semibold">{f.dias_suspensao}</span>
+                          : <span className="text-gray-300">—</span>}
+                      </td>
+                    )}
+                    {exibirAfastamento && (
+                      <td className="px-3 py-2.5 text-center">
+                        {f.afastamento_dias > 0
+                          ? <span className="font-mono text-gray-600">{f.afastamento_dias}</span>
+                          : <span className="text-gray-300">—</span>}
+                      </td>
+                    )}
                     <td className="px-3 py-2.5 text-center">
                       <span className="inline-flex items-center justify-center rounded-full bg-blue-50 px-2.5 py-0.5 font-mono text-sm font-bold text-blue-700">
                         {f.dias_trabalhados}

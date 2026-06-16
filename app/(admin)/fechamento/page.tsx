@@ -33,9 +33,9 @@ export default async function FechamentoPage({
     new Set(todos.map(f => f.secretaria).filter((s): s is string => Boolean(s)))
   ).sort()
 
-  const kpiTotal        = dados.length
-  const kpiDiasTrab     = dados.reduce((a, f) => a + f.dias_trabalhados, 0)
-  const kpiSuspensao    = dados.filter(f => f.tem_suspensao).length
+  const kpiTotal         = dados.length
+  const kpiDeducoes      = dados.filter(f => f.ferias_dias > 0 || f.faltas_dias > 0 || f.atestados_dias > 0 || f.afastamento_dias > 0 || f.dias_suspensao > 0).length
+  const kpiSuspensao     = dados.filter(f => f.tem_suspensao).length
   const kpiInsalubridade = dados.filter(f => f.insalubridade_dias > 0).length
 
   const anos = [now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2]
@@ -48,9 +48,9 @@ export default async function FechamentoPage({
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <KpiCard label="Funcionários"    value={kpiTotal}       borderColor="border-t-slate-500"  />
-        <KpiCard label="Dias Trabalhados" value={kpiDiasTrab}   sub="soma do período" borderColor="border-t-blue-500"   />
-        <KpiCard label="Com Suspensão"   value={kpiSuspensao}   borderColor="border-t-red-500"    />
+        <KpiCard label="Funcionários"      value={kpiTotal}         borderColor="border-t-slate-500"  />
+        <KpiCard label="Com Deduções"      value={kpiDeducoes}      borderColor="border-t-amber-500"  />
+        <KpiCard label="Com Suspensão"     value={kpiSuspensao}     borderColor="border-t-red-500"    />
         <KpiCard label="Com Insalubridade" value={kpiInsalubridade} borderColor="border-t-purple-500" />
       </div>
 
