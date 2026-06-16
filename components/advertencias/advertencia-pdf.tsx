@@ -12,8 +12,29 @@ const NATUREZA_LABEL: Record<string, string> = {
   falta:          'Falta Injustificada',
   atraso:         'Atraso Recorrente',
   negligencia:    'Negligência no Trabalho',
-  descumprimento: 'Descumprimento de Normas',
+  descumprimento: 'Descumprimento de Normas Internas',
+  insubordinacao: 'Insubordinação',
+  'desídia':      'Desídia no Desempenho das Funções',
+  improbidade:    'Improbidade / Desonestidade',
+  ofensa_honra:   'Ofensa à Honra',
+  uso_indevido:   'Uso Indevido de Equipamentos/Patrimônio',
+  abandono:       'Abandono de Posto de Trabalho',
   outro:          'Outro',
+}
+
+const NATUREZA_CLT_PDF: Record<string, string> = {
+  comportamento:   'Art. 482, alínea "j" da CLT',
+  falta:           'Art. 482, alínea "e" da CLT',
+  atraso:          'Art. 482, alínea "e" da CLT',
+  negligencia:     'Art. 482, alínea "e" da CLT',
+  descumprimento:  'Art. 482, alínea "h" da CLT',
+  insubordinacao:  'Art. 482, alínea "h" da CLT',
+  'desídia':       'Art. 482, alínea "e" da CLT',
+  improbidade:     'Art. 482, alínea "a" da CLT',
+  ofensa_honra:    'Art. 482, alínea "j" da CLT',
+  uso_indevido:    'Art. 482, alínea "f" da CLT',
+  abandono:        'Art. 482, alínea "i" da CLT',
+  outro:           'Art. 482 da CLT e Regulamento Interno',
 }
 
 const s = StyleSheet.create({
@@ -114,6 +135,12 @@ function AdvertenciaDocument({ adv }: { adv: AdvertenciaCompleta }) {
             <Text style={s.label}>Natureza:</Text>
             <Text style={s.value}>{naturezaLabel}</Text>
           </View>
+          {adv.natureza && NATUREZA_CLT_PDF[adv.natureza] && (
+            <View style={s.row}>
+              <Text style={s.label}>Fundamentação Legal:</Text>
+              <Text style={s.value}>{NATUREZA_CLT_PDF[adv.natureza]}</Text>
+            </View>
+          )}
           {(adv.relato || adv.descricao) ? (
             <View style={{ marginTop: 4 }}>
               <Text style={[s.label, { marginBottom: 4 }]}>Relato:</Text>
@@ -178,9 +205,7 @@ function AdvertenciaDocument({ adv }: { adv: AdvertenciaCompleta }) {
         <View style={s.section}>
           <Text style={s.sectionTitle}>VI. CIÊNCIA E CONCORDÂNCIA</Text>
           <Text style={s.ciencia}>
-            O(A) colaborador(a) declara ter tomado ciência desta advertência, estando ciente de que reincidências
-            poderão resultar em medidas disciplinares mais severas, incluindo a rescisão do contrato de trabalho por
-            justa causa, nos termos do art. 482 da Consolidação das Leis do Trabalho — CLT.
+            {`O(A) colaborador(a) declara ter tomado ciência desta advertência e dos fatos nela descritos, estando ciente de que a reincidência em infrações disciplinares poderá resultar em medidas progressivamente mais severas, podendo culminar na rescisão do contrato de trabalho por justa causa, nos termos do art. 482 da Consolidação das Leis do Trabalho — CLT.\n\nA presente medida disciplinar não implica confissão de culpa pelo empregador quanto a eventuais débitos trabalhistas, nem afasta o direito de defesa do(a) colaborador(a), que poderá apresentar justificativa por escrito no prazo de 48 (quarenta e oito) horas a contar do recebimento deste documento.\n\nMogi das Cruzes, ${new Date().toLocaleDateString('pt-BR')}.`}
           </Text>
         </View>
 

@@ -1,10 +1,14 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { getUser } from '@/lib/auth/get-user'
 import { cn } from '@/lib/utils'
 import { AdvertenciasTable } from '@/components/advertencias/advertencias-table'
 import { NovaAdvertenciaBtn } from '@/components/advertencias/nova-advertencia-btn'
-import type { AdvertenciaCompleta, FuncionarioOpt } from '@/app/(admin)/advertencias/actions'
+import {
+  buscarAdvertencias,
+  buscarFuncionariosAtivos,
+  buscarSupervisoresParaAdvertencia,
+} from '@/app/(admin)/advertencias/actions'
+import type { AdvertenciaCompleta } from '@/app/(admin)/advertencias/actions'
 
 const inputClass =
   'flex h-9 rounded-lg border border-gray-200 bg-transparent px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
@@ -26,17 +30,6 @@ function KpiCard({
   )
 }
 
-const ADV_SELECT = `
-  id, funcionario_id, tipo, grau, descricao, data_ocorrencia, horario_fato,
-  natureza, relato, testemunha_1, testemunha_2, defesa_colaborador,
-  dias_suspensao, data_aplicacao, pdf_url, status, criado_por, registrado_por, created_at,
-  funcionarios!funcionario_id (
-    id, nome, cpf,
-    funcoes!funcao_id ( nome ),
-    postos!posto_id ( nome, secretaria )
-  )
-`
-
 export default async function AdvertenciasPage({
   searchParams,
 }: {
@@ -48,22 +41,11 @@ export default async function AdvertenciasPage({
     redirect(auth.perfil.role === 'supervisor' ? '/supervisor/meu-posto' : '/dashboard')
   }
 
-  const supabase = createClient()
-
-  const [{ data: rawAdv }, { data: rawFunc }] = await Promise.all([
-    supabase
-      .from('advertencias')
-      .select(ADV_SELECT)
-      .order('data_ocorrencia', { ascending: false }),
-    supabase
-      .from('funcionarios')
-      .select('id, nome, postos!posto_id(nome, secretaria)')
-      .in('status', ['ativo', 'ferias', 'afastado'])
-      .order('nome'),
+  const [all, funcionarios, supervisores] = await Promise.all([
+    buscarAdvertencias(),
+    buscarFuncionariosAtivos(),
+    buscarSupervisoresParaAdvertencia(),
   ])
-
-  const all = (rawAdv ?? []) as unknown as AdvertenciaCompleta[]
-  const funcionarios = (rawFunc ?? []) as unknown as FuncionarioOpt[]
 
   const reincidencias: Record<string, number> = {}
   for (const a of all) {
@@ -93,7 +75,7 @@ export default async function AdvertenciasPage({
           <h1 className="text-lg font-bold text-gray-900">Advertências</h1>
           <p className="text-sm text-gray-400">Registro e acompanhamento de medidas disciplinares</p>
         </div>
-        <NovaAdvertenciaBtn funcionarios={funcionarios} reincidencias={reincidencias} />
+        <NovaAdvertenciaBtn funcionarios={funcionarios} supervisores={supervisores} reincidencias={reincidencias} />
       </div>
 
       {/* KPI cards */}

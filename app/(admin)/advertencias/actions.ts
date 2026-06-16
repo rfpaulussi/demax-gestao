@@ -154,3 +154,80 @@ export async function gerarPDFAdvertencia(id: string): Promise<AdvertenciaComple
     .single()
   return (data ?? null) as unknown as AdvertenciaCompleta | null
 }
+
+export type SupervisorOpt = {
+  id: string
+  nome: string
+}
+
+export type HistoricoAdvertencia = {
+  id: string
+  grau: string
+  natureza: string | null
+  natureza_label: string
+  dias_suspensao: number | null
+  data_ocorrencia: string | null
+  data_fmt: string
+  dias_atras: number
+}
+
+const NATUREZA_LABEL_MAP: Record<string, string> = {
+  comportamento:  'Comportamento Inadequado',
+  falta:          'Falta Injustificada',
+  atraso:         'Atraso Recorrente',
+  negligencia:    'Negligência no Trabalho',
+  descumprimento: 'Descumprimento de Normas',
+  insubordinacao: 'Insubordinação',
+  'desídia':      'Desídia',
+  improbidade:    'Improbidade',
+  ofensa_honra:   'Ofensa à Honra',
+  uso_indevido:   'Uso Indevido de Equipamentos',
+  abandono:       'Abandono de Posto',
+  outro:          'Outro',
+}
+
+export async function buscarSupervisoresParaAdvertencia(): Promise<SupervisorOpt[]> {
+  const supabase = createClient()
+  const { data } = await supabase
+    .from('config_supervisores_postos')
+    .select('supervisor_id, perfis(id, nome)')
+    .eq('ativo', true)
+  if (!data) return []
+  const vistos = new Set<string>()
+  const result: SupervisorOpt[] = []
+  for (const row of data) {
+    const perfil = Array.isArray(row.perfis) ? row.perfis[0] : row.perfis
+    if (perfil?.id && !vistos.has(perfil.id)) {
+      vistos.add(perfil.id)
+      result.push({ id: perfil.id, nome: perfil.nome })
+    }
+  }
+  return result.sort((a, b) => a.nome.localeCompare(b.nome))
+}
+
+export async function buscarHistoricoAdvertencias(funcionario_id: string): Promise<HistoricoAdvertencia[]> {
+  const supabase = createClient()
+  const { data } = await supabase
+    .from('advertencias')
+    .select('id, grau, natureza, dias_suspensao, data_ocorrencia')
+    .eq('funcionario_id', funcionario_id)
+    .order('data_ocorrencia', { ascending: false })
+    .limit(10)
+  if (!data) return []
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
+  return data.map(a => {
+    const d = a.data_ocorrencia ? new Date(a.data_ocorrencia + 'T00:00:00') : null
+    const dias_atras = d ? Math.round((hoje.getTime() - d.getTime()) / 86400000) : 0
+    const data_fmt = d ? d.toLocaleDateString('pt-BR') : '—'
+    return {
+      id: a.id,
+      grau: a.grau ?? '',
+      natureza: a.natureza,
+      natureza_label: a.natureza ? (NATUREZA_LABEL_MAP[a.natureza] ?? a.natureza) : '—',
+      dias_suspensao: a.dias_suspensao,
+      data_ocorrencia: a.data_ocorrencia,
+      data_fmt,
+      dias_atras,
+    }
+  })
+}
