@@ -28,6 +28,7 @@ const s = StyleSheet.create({
   cSec:    { width: 75 },
   cReg:    { width: 30 },
   cN5:     { width: 30 },  // small numeric cols
+  cAfast:  { width: 30 },
   cTrab:   { width: 44 },  // Trabalhados (highlighted)
   cAdv:    { width: 52 },  // Advertência (text badge)
 })
@@ -49,6 +50,7 @@ const COLS = [
   { label: 'Faltas',        style: s.cN5,     num: true  },
   { label: 'Atestados',     style: s.cN5,     num: true  },
   { label: 'Suspensão',     style: s.cN5,     num: true  },
+  { label: 'Afast.',        style: s.cAfast,  num: true  },
   { label: 'Trabalhados',   style: s.cTrab,   num: true  },
   { label: 'Insalubridade', style: s.cN5,     num: true  },
   { label: 'Advertência',   style: s.cAdv,    num: false },
@@ -66,6 +68,7 @@ function cellValue(f: FechamentoFuncionario, idx: number): string {
     f.faltas_dias > 0 ? String(f.faltas_dias) : '—',
     f.atestados_dias > 0 ? String(f.atestados_dias) : '—',
     f.dias_suspensao > 0 ? String(f.dias_suspensao) : '—',
+    f.afastamento_dias > 0 ? String(f.afastamento_dias) : '—',
     String(f.dias_trabalhados),
     f.insalubridade_dias > 0 ? String(f.insalubridade_dias) : '—',
     advLabel(f),

@@ -24,7 +24,7 @@ type XlsxRow = { data: (string | number)[]; rowStyle?: 'groupHeader' | 'totals' 
 function exportExcel(dados: FechamentoFuncionario[], mes: number, ano: number, MESES: string[]) {
   const wb = XLSX.utils.book_new()
   const secretarias = Array.from(new Set(dados.map(f => f.secretaria ?? 'Sem Secretaria'))).sort()
-  const HEADERS = ['Nome','Função','Posto','Secretaria','Regime','D.Úteis','Férias','Faltas','Atestados','Suspensão','Trabalhados','Insalubridade','Advertência']
+  const HEADERS = ['Nome','Função','Posto','Secretaria','Regime','D.Úteis','Férias','Faltas','Atestados','Suspensão','Afastamento','Trabalhados','Insalubridade','Advertência']
   const NC = HEADERS.length
 
   const rows: XlsxRow[] = [
@@ -41,7 +41,7 @@ function exportExcel(dados: FechamentoFuncionario[], mes: number, ano: number, M
       rows.push({ data: [
         f.funcionario_nome, f.funcao ?? '—', f.posto_nome ?? '—', f.secretaria ?? '—', f.regime,
         f.dias_uteis, f.ferias_dias || 0, f.faltas_dias || 0, f.atestados_dias || 0,
-        f.dias_suspensao || 0, f.dias_trabalhados, f.insalubridade_dias || 0,
+        f.dias_suspensao || 0, f.afastamento_dias || 0, f.dias_trabalhados, f.insalubridade_dias || 0,
         f.tem_suspensao ? 'Suspensão' : f.tem_advertencia ? 'Sim' : '',
       ]})
     }
@@ -225,6 +225,7 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
                   <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Faltas</th>
                   <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Atestados</th>
                   <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Suspensão</th>
+                  <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Afastamento</th>
                   <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Trabalhados</th>
                   <th className="min-w-[90px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Insalubridade</th>
                   <th className="min-w-[90px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Advertência</th>
@@ -277,6 +278,11 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
                     <td className="px-3 py-2.5 text-center">
                       {f.dias_suspensao > 0
                         ? <span className="font-mono text-red-700 font-semibold">{f.dias_suspensao}</span>
+                        : <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="px-3 py-2.5 text-center">
+                      {f.afastamento_dias > 0
+                        ? <span className="font-mono text-gray-600">{f.afastamento_dias}</span>
                         : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-3 py-2.5 text-center">
