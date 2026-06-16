@@ -464,6 +464,30 @@ export async function buscarAprovacoesData(): Promise<SolicitacaoPendenteRow[]> 
   }
 }
 
+export type DeltaKPIs = {
+  ativos: number | null
+  afastados: number | null
+  emFerias: number | null
+}
+
+export async function buscarDeltaKPIs(): Promise<DeltaKPIs> {
+  const supabase = createClient()
+  const { data } = await supabase
+    .from('snapshots_diarios')
+    .select('data, ativos, afastados, em_ferias')
+    .order('data', { ascending: false })
+    .limit(2)
+
+  if (!data || data.length < 2) return { ativos: null, afastados: null, emFerias: null }
+
+  const [hoje, ontem] = data
+  return {
+    ativos:    hoje.ativos    - ontem.ativos,
+    afastados: hoje.afastados - ontem.afastados,
+    emFerias:  hoje.em_ferias - ontem.em_ferias,
+  }
+}
+
 export async function buscarForaDoEfetivo(): Promise<number> {
   const supabase = createClient()
   const { data: funcoesRaw } = await supabase

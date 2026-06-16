@@ -14,6 +14,7 @@ import {
   buscarSecretariaData,
   buscarAprovacoesData,
   buscarForaDoEfetivo,
+  buscarDeltaKPIs,
 } from './actions'
 import { AlertasCriticos } from '@/components/dashboard/alertas-criticos'
 import { ProximasFerias } from '@/components/dashboard/proximas-ferias'
@@ -53,6 +54,8 @@ function KpiCard({
   iconBg,
   href,
   subInfo,
+  delta,
+  deltaInvert,
 }: {
   label: string
   value: number
@@ -61,6 +64,8 @@ function KpiCard({
   iconBg: string
   href?: string
   subInfo?: string
+  delta?: number | null
+  deltaInvert?: boolean
 }) {
   const [iconClass, bgClass] = iconBg.split(' ')
   const inner = (
@@ -76,6 +81,17 @@ function KpiCard({
       </div>
       <p className="mt-3 text-4xl font-black tracking-tight text-gray-900">{value}</p>
       <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
+      {delta !== null && delta !== undefined && (
+        <p className={cn(
+          'mt-0.5 text-xs font-medium',
+          delta === 0 ? 'text-gray-400'
+            : deltaInvert
+              ? (delta > 0 ? 'text-green-600' : 'text-red-500')
+              : (delta > 0 ? 'text-red-500'   : 'text-green-600'),
+        )}>
+          {delta > 0 ? `▲ +${delta}` : delta < 0 ? `▼ ${delta}` : '→ 0'} vs ontem
+        </p>
+      )}
       {subInfo && <p className="mt-1 text-xs text-gray-500">{subInfo}</p>}
     </div>
   )
@@ -94,7 +110,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
-  const [kpis, alertas, proximasFerias, atestados, evolucao, secretarias, aprovacoes, foraDoEfetivo] =
+  const [kpis, alertas, proximasFerias, atestados, evolucao, secretarias, aprovacoes, foraDoEfetivo, delta] =
     await Promise.all([
       buscarKPIsDashboard(),
       buscarAlertasDashboard(),
@@ -104,6 +120,7 @@ export default async function DashboardPage() {
       buscarSecretariaData(),
       buscarAprovacoesData(),
       buscarForaDoEfetivo(),
+      buscarDeltaKPIs(),
     ])
 
   return (
@@ -120,6 +137,8 @@ export default async function DashboardPage() {
             topColor="border-t-blue-500"
             iconBg="text-blue-600 bg-blue-50"
             href="/efetivo?status=ativo"
+            delta={delta.ativos}
+            deltaInvert
           />
           <KpiCard
             label="Afastados"
@@ -128,6 +147,7 @@ export default async function DashboardPage() {
             topColor="border-t-amber-500"
             iconBg="text-amber-600 bg-amber-50"
             href="/efetivo?status=afastado"
+            delta={delta.afastados}
           />
           <KpiCard
             label="Em Férias"
@@ -136,6 +156,7 @@ export default async function DashboardPage() {
             topColor="border-t-green-500"
             iconBg="text-green-600 bg-green-50"
             href="/efetivo?status=ferias"
+            delta={delta.emFerias}
             subInfo={
               kpis.feriasTerminando30dias > 0
                 ? `⚑ ${kpis.feriasTerminando30dias} vencem em 30 dias`
