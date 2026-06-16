@@ -74,6 +74,15 @@ type ConfigRow = {
   perfis: { id: string; nome: string | null } | null
 }
 
+// Tipo local até eh_encarregado_volante ser adicionado aos tipos gerados do Supabase
+interface FuncionarioRow {
+  id: string
+  posto_id: string | null
+  status: string
+  funcao_id: string | null
+  eh_encarregado_volante: boolean | null
+}
+
 export async function getPostosData(): Promise<PostoRow[]> {
   const supabase = createClient()
 
@@ -102,19 +111,13 @@ export async function getPostosData(): Promise<PostoRow[]> {
       .order('secretaria', { ascending: true })
       .order('nome', { ascending: true }),
     // paginado para superar max_rows do PostgREST; inclui funcao_id e eh_encarregado_volante para filtragem
-    fetchAllRows<{
-      id: string
-      posto_id: string | null
-      status: string
-      funcao_id: string | null
-      eh_encarregado_volante: boolean | null
-    }>((from, to) =>
-      (supabase
+    fetchAllRows<FuncionarioRow>((from, to) =>
+      supabase
         .from('funcionarios')
-        .select('id, posto_id, status, funcao_id, eh_encarregado_volante') as any)
+        .select('id, posto_id, status, funcao_id, eh_encarregado_volante')
         .in('status', ['ativo', 'afastado', 'ferias'])
         .order('id', { ascending: true })
-        .range(from, to),
+        .range(from, to) as unknown as PromiseLike<{ data: FuncionarioRow[] | null; error: { message: string } | null }>,
     ),
     supabase
       .from('config_supervisores_postos')
