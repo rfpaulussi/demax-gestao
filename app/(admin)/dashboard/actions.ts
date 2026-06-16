@@ -468,6 +468,7 @@ export type DeltaKPIs = {
   ativos: number | null
   afastados: number | null
   emFerias: number | null
+  historico: { data: string; ativos: number; afastados: number; em_ferias: number }[]
 }
 
 export async function buscarDeltaKPIs(): Promise<DeltaKPIs> {
@@ -475,16 +476,20 @@ export async function buscarDeltaKPIs(): Promise<DeltaKPIs> {
   const { data } = await supabase
     .from('snapshots_diarios')
     .select('data, ativos, afastados, em_ferias')
-    .order('data', { ascending: false })
-    .limit(2)
+    .order('data', { ascending: true })
+    .limit(30)
 
-  if (!data || data.length < 2) return { ativos: null, afastados: null, emFerias: null }
+  if (!data || data.length === 0) return { ativos: null, afastados: null, emFerias: null, historico: [] }
 
-  const [hoje, ontem] = data
+  const historico = data
+  const ultimo = data[data.length - 1]
+  const penultimo = data.length >= 2 ? data[data.length - 2] : null
+
   return {
-    ativos:    hoje.ativos    - ontem.ativos,
-    afastados: hoje.afastados - ontem.afastados,
-    emFerias:  hoje.em_ferias - ontem.em_ferias,
+    ativos:    penultimo ? ultimo.ativos    - penultimo.ativos    : null,
+    afastados: penultimo ? ultimo.afastados - penultimo.afastados : null,
+    emFerias:  penultimo ? ultimo.em_ferias - penultimo.em_ferias : null,
+    historico,
   }
 }
 

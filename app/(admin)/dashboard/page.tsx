@@ -44,6 +44,33 @@ const TIPO_BADGE: Record<TipoSolicitacao, { label: string; className: string }> 
   admissao:            { label: 'Admissão',            className: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
 }
 
+// ─── Sparkline ────────────────────────────────────────────────────────────────
+
+function Sparkline({ values, color }: { values: number[]; color: string }) {
+  if (values.length < 2) return null
+  const w = 80, h = 28
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * w
+    const y = h - ((v - min) / range) * h
+    return `${x},${y}`
+  }).join(' ')
+  return (
+    <svg width={w} height={h} className="mt-2 opacity-60">
+      <polyline
+        points={pts}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
 // ─── KpiCard ──────────────────────────────────────────────────────────────────
 
 function KpiCard({
@@ -56,6 +83,8 @@ function KpiCard({
   subInfo,
   delta,
   deltaInvert,
+  sparkline,
+  sparklineColor,
 }: {
   label: string
   value: number
@@ -66,6 +95,8 @@ function KpiCard({
   subInfo?: string
   delta?: number | null
   deltaInvert?: boolean
+  sparkline?: number[]
+  sparklineColor?: string
 }) {
   const [iconClass, bgClass] = iconBg.split(' ')
   const inner = (
@@ -91,6 +122,9 @@ function KpiCard({
         )}>
           {delta > 0 ? `▲ +${delta}` : delta < 0 ? `▼ ${delta}` : '→ 0'} vs ontem
         </p>
+      )}
+      {sparkline && sparkline.length >= 2 && (
+        <Sparkline values={sparkline} color={sparklineColor ?? '#94a3b8'} />
       )}
       {subInfo && <p className="mt-1 text-xs text-gray-500">{subInfo}</p>}
     </div>
@@ -139,6 +173,8 @@ export default async function DashboardPage() {
             href="/efetivo?status=ativo"
             delta={delta.ativos}
             deltaInvert
+            sparkline={delta.historico.map(h => h.ativos)}
+            sparklineColor="#3b82f6"
           />
           <KpiCard
             label="Afastados"
@@ -148,6 +184,8 @@ export default async function DashboardPage() {
             iconBg="text-amber-600 bg-amber-50"
             href="/efetivo?status=afastado"
             delta={delta.afastados}
+            sparkline={delta.historico.map(h => h.afastados)}
+            sparklineColor="#f59e0b"
           />
           <KpiCard
             label="Em Férias"
@@ -157,6 +195,8 @@ export default async function DashboardPage() {
             iconBg="text-green-600 bg-green-50"
             href="/efetivo?status=ferias"
             delta={delta.emFerias}
+            sparkline={delta.historico.map(h => h.em_ferias)}
+            sparklineColor="#22c55e"
             subInfo={
               kpis.feriasTerminando30dias > 0
                 ? `⚑ ${kpis.feriasTerminando30dias} vencem em 30 dias`
