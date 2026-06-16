@@ -101,11 +101,17 @@ export async function getPostosData(): Promise<PostoRow[]> {
       .eq('ativo', true)
       .order('secretaria', { ascending: true })
       .order('nome', { ascending: true }),
-    // paginado para superar max_rows do PostgREST; inclui funcao_id para filtragem
-    fetchAllRows((from, to) =>
-      supabase
+    // paginado para superar max_rows do PostgREST; inclui funcao_id e eh_encarregado_volante para filtragem
+    fetchAllRows<{
+      id: string
+      posto_id: string | null
+      status: string
+      funcao_id: string | null
+      eh_encarregado_volante: boolean | null
+    }>((from, to) =>
+      (supabase
         .from('funcionarios')
-        .select('id, posto_id, status, funcao_id')
+        .select('id, posto_id, status, funcao_id, eh_encarregado_volante') as any)
         .in('status', ['ativo', 'afastado', 'ferias'])
         .order('id', { ascending: true })
         .range(from, to),
@@ -122,8 +128,8 @@ export async function getPostosData(): Promise<PostoRow[]> {
   )
   const somaAposFiltroCargo = semFuncaoExcluida.filter(f => f.posto_id).length
 
-  // Filtro 2: excluir encarregados volantes
-  const funcionarios = semFuncaoExcluida.filter(f => !encarregadoVolanteIds.has(f.id))
+  // Filtro 2: excluir encarregados volantes (=== true para tratar null de registros antigos)
+  const funcionarios = semFuncaoExcluida.filter(f => f.eh_encarregado_volante !== true)
   const filtradosPorVolante = semFuncaoExcluida.length - funcionarios.length
 
   const efetivoMap = new Map<string, number>()
