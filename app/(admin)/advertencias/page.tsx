@@ -8,7 +8,6 @@ import {
   buscarFuncionariosAtivos,
   buscarSupervisoresParaAdvertencia,
 } from '@/app/(admin)/advertencias/actions'
-import type { AdvertenciaCompleta } from '@/app/(admin)/advertencias/actions'
 
 const inputClass =
   'flex h-9 rounded-lg border border-gray-200 bg-transparent px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
