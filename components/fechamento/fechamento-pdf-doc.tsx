@@ -10,27 +10,30 @@ const s = StyleSheet.create({
   thead:       { flexDirection: 'row', backgroundColor: '#f8fafc', borderBottomWidth: 1,
                  borderBottomColor: '#e2e8f0' },
   th:          { fontSize: 7, fontWeight: 'bold', color: '#94a3b8', paddingVertical: 3,
-                 paddingHorizontal: 3, textTransform: 'uppercase' },
+                 paddingHorizontal: 3, textTransform: 'uppercase', flexWrap: 'nowrap' },
   row:         { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   rowAlt:      { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
                  backgroundColor: '#fafafa' },
   rowSusp:     { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
                  backgroundColor: '#fff1f2' },
-  td:          { fontSize: 8, color: '#374151', paddingVertical: 3, paddingHorizontal: 3 },
+  td:          { fontSize: 8, color: '#374151', paddingVertical: 3, paddingHorizontal: 3,
+                 flexWrap: 'nowrap' },
   tdNum:       { fontSize: 8, color: '#374151', paddingVertical: 3, paddingHorizontal: 3,
-                 textAlign: 'center' },
+                 textAlign: 'center', flexWrap: 'nowrap' },
   tdBold:      { fontSize: 8, fontWeight: 'bold', color: '#1d4ed8', paddingVertical: 3,
-                 paddingHorizontal: 3, textAlign: 'center' },
+                 paddingHorizontal: 3, textAlign: 'center', flexWrap: 'nowrap' },
   // column widths
-  cNome:   { width: 120 },
-  cFuncao: { width: 75 },
-  cPosto:  { width: 80 },
-  cSec:    { width: 75 },
+  cNome:   { width: 118 },
+  cFuncao: { width: 74 },
+  cPosto:  { width: 72 },
+  cSec:    { width: 68 },
   cReg:    { width: 30 },
-  cN5:     { width: 30 },  // small numeric cols
-  cAfast:  { width: 30 },
-  cTrab:   { width: 44 },  // Trabalhados (highlighted)
-  cAdv:    { width: 52 },  // Advertência (text badge)
+  cN5:     { width: 28 },
+  cAfast:  { width: 28 },
+  cTrab:   { width: 42 },
+  cInsal:  { width: 42 },
+  cSusp:   { width: 38 },
+  cAdv:    { width: 50 },
 })
 
 function advLabel(f: FechamentoFuncionario) {
@@ -49,11 +52,11 @@ const COLS = [
   { label: 'Férias',        style: s.cN5,     num: true  },
   { label: 'Faltas',        style: s.cN5,     num: true  },
   { label: 'Atestados',     style: s.cN5,     num: true  },
-  { label: 'Suspensão',     style: s.cN5,     num: true  },
+  { label: 'Suspens.',      style: s.cSusp,   num: true  },
   { label: 'Afast.',        style: s.cAfast,  num: true  },
   { label: 'Trabalhados',   style: s.cTrab,   num: true  },
-  { label: 'Insalubridade', style: s.cN5,     num: true  },
-  { label: 'Advertência',   style: s.cAdv,    num: false },
+  { label: 'Insalub.',      style: s.cInsal,  num: true  },
+  { label: 'Advertên.',     style: s.cAdv,    num: false },
 ]
 
 function cellValue(f: FechamentoFuncionario, idx: number): string {
