@@ -31,8 +31,9 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Administração',
     adminOnly: true,
     items: [
-      { href: '/pendencias',  label: 'Pendências'  },
-      { href: '/fechamento',  label: 'Fechamento'  },
+      { href: '/pendencias',    label: 'Pendências'    },
+      { href: '/desligamentos', label: 'Desligamentos' },
+      { href: '/fechamento',    label: 'Fechamento'    },
       { href: '/relatorios',  label: 'Relatórios'  },
       { href: '/importacao',  label: 'Importação'  },
       { href: '/usuarios',    label: 'Usuários'    },
