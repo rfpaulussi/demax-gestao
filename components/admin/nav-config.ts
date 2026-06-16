@@ -18,7 +18,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/efetivo',       label: 'Efetivo'       },
       { href: '/postos',        label: 'Postos'        },
       { href: '/aprovacoes',    label: 'Aprovações',   badge: true },
-      { href: '/coberturas',    label: 'Coberturas'    },
+      { href: '/coberturas',    label: 'Cobertura Temp.' },
       { href: '/ferias',        label: 'Férias'        },
       { href: '/advertencias',  label: 'Advertências'  },
       { href: '/faltas',        label: 'Faltas'        },
