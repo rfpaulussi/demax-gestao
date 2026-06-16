@@ -336,6 +336,7 @@ export async function editarFuncionario(
     status: 'ativo' | 'afastado' | 'ferias' | 'desligado'
     data_desligamento: string | null
     motivo_desligamento: string | null
+    tipo_desligamento: string | null
   },
 ): Promise<ActionResult> {
   const auth = await getUser()
@@ -345,18 +346,19 @@ export async function editarFuncionario(
 
   const supabase = createClient()
 
-  const { error } = await supabase
-    .from('funcionarios')
-    .update({
-      nome:                campos.nome,
-      funcao_id:           campos.funcao_id || null,
-      posto_id:            campos.posto_id || null,
-      data_admissao:       campos.data_admissao || null,
-      status:              campos.status,
-      data_desligamento:   campos.status === 'ativo' ? null : campos.data_desligamento || null,
-      motivo_desligamento: campos.status === 'ativo' ? null : campos.motivo_desligamento || null,
-    })
-    .eq('id', id)
+  const updatePayload: Record<string, unknown> = {
+    nome:                campos.nome,
+    funcao_id:           campos.funcao_id || null,
+    posto_id:            campos.posto_id || null,
+    data_admissao:       campos.data_admissao || null,
+    status:              campos.status,
+    data_desligamento:   campos.status === 'ativo' ? null : campos.data_desligamento || null,
+    motivo_desligamento: campos.status === 'ativo' ? null : campos.motivo_desligamento || null,
+    tipo_desligamento:   campos.status === 'ativo' ? null : campos.tipo_desligamento || null,
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await supabase.from('funcionarios').update(updatePayload as any).eq('id', id)
 
   if (error) return { success: false, error: error.message }
 

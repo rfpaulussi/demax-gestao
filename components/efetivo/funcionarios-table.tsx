@@ -21,6 +21,7 @@ export type FuncionarioRow = {
   data_admissao: string | null
   data_desligamento: string | null
   motivo_desligamento: string | null
+  tipo_desligamento: string | null
   posto_id: string | null
   funcoes: { id: string; nome: string } | null
   postos: { id: string; nome: string; secretaria: string | null } | null

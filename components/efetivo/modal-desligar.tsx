@@ -11,8 +11,64 @@ interface Props {
   onClose: () => void
 }
 
+const labelClass = 'mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600'
+const inputClass = 'w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600'
+
+export type TipoDesligamento = 'voluntaria' | 'demissao' | 'reprova_experiencia' | 'judicial' | 'outros'
+
+export const TIPOS_DESLIGAMENTO: { value: TipoDesligamento; label: string }[] = [
+  { value: 'voluntaria',          label: 'Voluntária (pedido do funcionário)' },
+  { value: 'demissao',            label: 'Demissão (iniciativa da empresa)' },
+  { value: 'reprova_experiencia', label: 'Reprova de Experiência (até 90 dias)' },
+  { value: 'judicial',            label: 'Judicial (rescisão indireta, ação trabalhista)' },
+  { value: 'outros',              label: 'Outros (falecimento, aposentadoria, invalidez)' },
+]
+
+export const MOTIVOS_POR_TIPO: Record<TipoDesligamento, { value: string; label: string }[]> = {
+  voluntaria: [
+    { value: 'pessoal',            label: 'Motivo Pessoal' },
+    { value: 'salario',            label: 'Insatisfação Salarial' },
+    { value: 'adaptacao',          label: 'Dificuldade de Adaptação' },
+    { value: 'transferencia',      label: 'Transferência / Mudança' },
+    { value: 'outra_oportunidade', label: 'Outra Oportunidade de Emprego' },
+    { value: 'aposentadoria',      label: 'Aposentadoria' },
+  ],
+  demissao: [
+    { value: 'corte_custo',         label: 'Corte de Custo / Redução de Quadro' },
+    { value: 'fim_contrato',        label: 'Término de Contrato / Serviço' },
+    { value: 'justa_causa',         label: 'Justa Causa (Art. 482 CLT)' },
+    { value: 'desempenho',          label: 'Baixo Desempenho' },
+    { value: 'comportamental',      label: 'Conduta / Comportamento' },
+    { value: 'faltas_excessivas',   label: 'Faltas Excessivas' },
+    { value: 'abandono',            label: 'Abandono de Emprego' },
+    { value: 'deficiencia_tecnica', label: 'Deficiência Técnica' },
+  ],
+  reprova_experiencia: [
+    { value: 'comportamental',      label: 'Conduta / Comportamento' },
+    { value: 'desempenho',          label: 'Baixo Desempenho' },
+    { value: 'deficiencia_tecnica', label: 'Deficiência Técnica' },
+    { value: 'faltas_excessivas',   label: 'Faltas Excessivas' },
+    { value: 'adaptacao',           label: 'Dificuldade de Adaptação' },
+    { value: 'abandono',            label: 'Abandono de Emprego' },
+  ],
+  judicial: [
+    { value: 'rescisao_indireta',  label: 'Rescisão Indireta (Art. 483 CLT)' },
+    { value: 'acao_insalubridade', label: 'Ação de Insalubridade' },
+    { value: 'acao_trabalhista',   label: 'Ação Trabalhista (outros)' },
+    { value: 'culpa_reciproca',    label: 'Culpa Recíproca (Art. 484 CLT)' },
+    { value: 'acordo_mutuo',       label: 'Acordo Entre Partes (Art. 484-A CLT)' },
+  ],
+  outros: [
+    { value: 'falecimento',     label: 'Falecimento' },
+    { value: 'aposentadoria',   label: 'Aposentadoria' },
+    { value: 'invalidez',       label: 'Invalidez Permanente' },
+    { value: 'fim_experiencia', label: 'Fim da Experiência (não efetivado)' },
+  ],
+}
+
 export function ModalDesligar({ funcionario, open, onClose }: Props) {
   const [pending, setPending] = useState(false)
+  const [tipo, setTipo]       = useState<TipoDesligamento | ''>('')
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -23,11 +79,14 @@ export function ModalDesligar({ funcionario, open, onClose }: Props) {
     try {
       await solicitarDesligamento(data)
       form.reset()
+      setTipo('')
       onClose()
     } finally {
       setPending(false)
     }
   }
+
+  const motivos = tipo ? MOTIVOS_POR_TIPO[tipo] : []
 
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
@@ -43,54 +102,52 @@ export function ModalDesligar({ funcionario, open, onClose }: Props) {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600">
-                Data de Desligamento
-              </label>
+              <label className={labelClass}>Data de Desligamento</label>
               <input
                 type="date"
                 name="data_desligamento"
                 required
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600"
+                className={inputClass}
               />
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600">
-                Motivo
-              </label>
+              <label className={labelClass}>Tipo de Desligamento</label>
               <select
-                name="motivo"
+                name="tipo_desligamento"
                 required
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600"
+                value={tipo}
+                onChange={e => setTipo(e.target.value as TipoDesligamento | '')}
+                className={inputClass}
               >
-                <option value="">Selecione...</option>
-                <option value="PESSOAL">PESSOAL</option>
-                <option value="RESCISÃO INDIRETA">RESCISÃO INDIRETA</option>
-                <option value="ADAPTAÇÃO">ADAPTAÇÃO</option>
-                <option value="COMPORTAMENTAL">COMPORTAMENTAL</option>
-                <option value="FALTAS EXCESSIVAS">FALTAS EXCESSIVAS</option>
-                <option value="ABANDONO">ABANDONO</option>
-                <option value="CORTE DE CUSTO">CORTE DE CUSTO</option>
-                <option value="DEFICIÊNCIA TÉCNICA">DEFICIÊNCIA TÉCNICA</option>
-                <option value="SALÁRIO">SALÁRIO</option>
-                <option value="FALECIMENTO">FALECIMENTO</option>
-                <option value="JUSTA CAUSA">JUSTA CAUSA</option>
+                <option value="">Selecione o tipo...</option>
+                {TIPOS_DESLIGAMENTO.map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
               </select>
             </div>
 
+            {tipo && (
+              <div>
+                <label className={labelClass}>Motivação</label>
+                <select
+                  name="motivo"
+                  required
+                  className={inputClass}
+                >
+                  <option value="">Selecione a motivação...</option>
+                  {motivos.map(m => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
-              >
+              <button type="button" onClick={onClose} className="rounded px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100">
                 Cancelar
               </button>
-              <button
-                type="submit"
-                disabled={pending}
-                className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
-              >
+              <button type="submit" disabled={pending} className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
                 {pending ? 'Enviando...' : 'Enviar Solicitação'}
               </button>
             </div>

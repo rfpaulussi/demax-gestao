@@ -4,12 +4,8 @@ import { useState, useTransition } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { editarFuncionario } from '@/app/(admin)/efetivo/actions'
 import type { FuncionarioRow } from './funcionarios-table'
+import { TIPOS_DESLIGAMENTO, MOTIVOS_POR_TIPO, type TipoDesligamento } from './modal-desligar'
 
-const MOTIVOS_DESLIGAMENTO = [
-  'PESSOAL', 'RESCISÃO INDIRETA', 'ADAPTAÇÃO', 'COMPORTAMENTAL',
-  'FALTAS EXCESSIVAS', 'ABANDONO', 'CORTE DE CUSTO', 'DEFICIÊNCIA TÉCNICA',
-  'SALÁRIO', 'FALECIMENTO', 'JUSTA CAUSA',
-]
 
 const STATUS_LOCKED_LABEL: Record<string, string> = {
   afastado: 'Afastado',
@@ -39,6 +35,9 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
   )
   const [dataDesligamento,   setDataDesligamento]   = useState(funcionario.data_desligamento ?? '')
   const [motivoDesligamento, setMotivoDesligamento] = useState(funcionario.motivo_desligamento ?? '')
+  const [tipoDesligamento, setTipoDesligamento] = useState<TipoDesligamento | ''>(
+    (funcionario.tipo_desligamento as TipoDesligamento) ?? ''
+  )
   const [erro,               setErro]               = useState<string | null>(null)
   const [pending,            start]                 = useTransition()
 
@@ -53,6 +52,7 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
     if (v === 'ativo') {
       setDataDesligamento('')
       setMotivoDesligamento('')
+      setTipoDesligamento('')
     }
   }
 
@@ -74,6 +74,7 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
         status:              statusEnviado,
         data_desligamento:   statusEnviado === 'ativo' ? null : dataDesligamento || null,
         motivo_desligamento: statusEnviado === 'ativo' ? null : motivoDesligamento || null,
+        tipo_desligamento:   statusEnviado === 'ativo' ? null : tipoDesligamento || null,
       })
       if (!result.success) {
         setErro(result.error)
@@ -167,16 +168,35 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
                     className={inputClass}
                   />
                 </div>
+
                 <div>
-                  <label className={labelClass}>Motivo do Desligamento</label>
+                  <label className={labelClass}>Tipo de Desligamento</label>
+                  <select
+                    value={tipoDesligamento}
+                    onChange={e => {
+                      setTipoDesligamento(e.target.value as TipoDesligamento | '')
+                      setMotivoDesligamento('')
+                    }}
+                    className={inputClass}
+                  >
+                    <option value="">Selecione o tipo...</option>
+                    {TIPOS_DESLIGAMENTO.map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelClass}>Motivação</label>
                   <select
                     value={motivoDesligamento}
                     onChange={e => setMotivoDesligamento(e.target.value)}
+                    disabled={!tipoDesligamento}
                     className={inputClass}
                   >
-                    <option value="">Selecione...</option>
-                    {MOTIVOS_DESLIGAMENTO.map(m => (
-                      <option key={m} value={m}>{m}</option>
+                    <option value="">Selecione a motivação...</option>
+                    {tipoDesligamento && MOTIVOS_POR_TIPO[tipoDesligamento].map(m => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
                     ))}
                   </select>
                 </div>
