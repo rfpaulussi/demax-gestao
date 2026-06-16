@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { UserPlus } from 'lucide-react'
+import { UserPlus, FileSpreadsheet } from 'lucide-react'
+import * as XLSX from 'xlsx-js-style'
 import type { PostoRow } from '@/app/(admin)/postos/actions'
 import { ModalNovaAdmissao } from './modal-nova-admissao'
 
@@ -79,6 +80,78 @@ const COLS: ColDef[] = [
 const selectClass =
   'h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm text-gray-700 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
 
+// ─── Excel export ─────────────────────────────────────────────────────────────
+
+function exportExcelPostos(postos: PostoRow[]) {
+  const wb = XLSX.utils.book_new()
+
+  const HEADERS = ['Posto', 'Secretaria', 'Supervisor', 'Previsto', 'Atual', 'Status', 'Diferença']
+  const NC = HEADERS.length
+
+  const rows: { data: (string | number)[]; style?: 'header' | 'totals' }[] = [
+    { data: ['Controle de Postos'] },
+    { data: [] },
+    { data: HEADERS, style: 'header' },
+  ]
+
+  const sorted = [...postos].sort((a, b) =>
+    a.secretaria.localeCompare(b.secretaria) || a.nome.localeCompare(b.nome)
+  )
+
+  for (const p of sorted) {
+    const status = getStatusPosto(p.efetivo_atual, p.efetivo_previsto)
+    const labelStatus =
+      status === 'vago'    ? 'Vago' :
+      status === 'deficit' ? 'Déficit' :
+      status === 'excesso' ? 'Excesso' : 'OK'
+    const diferenca = p.efetivo_atual - p.efetivo_previsto
+
+    rows.push({ data: [
+      p.nome,
+      p.secretaria ?? '—',
+      p.supervisor_nome ?? '—',
+      p.efetivo_previsto,
+      p.efetivo_atual,
+      labelStatus,
+      diferenca,
+    ]})
+  }
+
+  rows.push({ data: [
+    'TOTAL', '', '',
+    postos.reduce((s, p) => s + p.efetivo_previsto, 0),
+    postos.reduce((s, p) => s + p.efetivo_atual, 0),
+    '', '',
+  ], style: 'totals' })
+
+  const aoa = rows.map(r => r.data)
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+
+  rows.forEach((row, ri) => {
+    if (!row.style) return
+    for (let ci = 0; ci < NC; ci++) {
+      const addr = XLSX.utils.encode_cell({ r: ri, c: ci })
+      if (!ws[addr]) ws[addr] = { v: '', t: 's' }
+      if (row.style === 'header') {
+        ws[addr].s = {
+          font: { bold: true, color: { rgb: '475569' } },
+          fill: { patternType: 'solid', fgColor: { rgb: 'e2e8f0' } },
+        }
+      } else if (row.style === 'totals') {
+        ws[addr].s = {
+          font: { bold: true },
+          fill: { patternType: 'solid', fgColor: { rgb: 'f1f5f9' } },
+        }
+      }
+    }
+  })
+
+  ws['!cols'] = [{ wch: 40 }, { wch: 14 }, { wch: 22 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 }]
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Postos')
+  XLSX.writeFile(wb, `postos-${new Date().toISOString().slice(0, 10)}.xlsx`)
+}
+
 // ─── component ────────────────────────────────────────────────────────────────
 
 interface PostosClientProps {
@@ -96,6 +169,12 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
   const [sortDir, setSortDir]               = useState<SortDir>('asc')
   const [novaAdmissaoOpen, setNovaAdmissaoOpen] = useState(false)
   const [toast, setToast]                   = useState(false)
+  const [loadingXlsx, setLoadingXlsx]       = useState(false)
+
+  async function handleExcel() {
+    setLoadingXlsx(true)
+    try { exportExcelPostos(filtered) } finally { setLoadingXlsx(false) }
+  }
 
   useEffect(() => {
     if (!toast) return
@@ -227,6 +306,16 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
           <option value="excesso">Excesso</option>
           <option value="vago">Vago</option>
         </select>
+
+        <button
+          type="button"
+          onClick={handleExcel}
+          disabled={loadingXlsx || filtered.length === 0}
+          className="flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+        >
+          <FileSpreadsheet className="h-4 w-4 text-green-600" />
+          {loadingXlsx ? 'Gerando…' : 'Excel'}
+        </button>
 
         {role === 'supervisor' && (
           <button
