@@ -13,6 +13,7 @@ export interface ProntuarioFuncionario {
   status: string | null
   data_admissao: string | null
   data_desligamento: string | null
+  tipo_desligamento: string | null
   motivo_desligamento: string | null
 }
 
@@ -51,7 +52,7 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
   ] = await Promise.all([
     supabase
       .from('funcionarios')
-      .select('id, nome, cpf, status, data_admissao, data_desligamento, motivo_desligamento, funcoes!funcao_id(nome), postos!posto_id(nome, secretaria)')
+      .select('id, nome, cpf, status, data_admissao, data_desligamento, tipo_desligamento, motivo_desligamento, funcoes!funcao_id(nome), postos!posto_id(nome, secretaria)')
       .eq('id', id)
       .single(),
     supabase
@@ -90,6 +91,7 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
     status: string | null
     data_admissao: string | null
     data_desligamento: string | null
+    tipo_desligamento: string | null
     motivo_desligamento: string | null
     funcoes: { nome: string } | null
     postos: { nome: string; secretaria: string | null } | null
@@ -105,6 +107,7 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
     status: f.status,
     data_admissao: f.data_admissao,
     data_desligamento: f.data_desligamento,
+    tipo_desligamento: f.tipo_desligamento,
     motivo_desligamento: f.motivo_desligamento,
   }
 

@@ -8,6 +8,12 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ProntuarioFuncionario, ProntuarioEvento } from '@/app/(admin)/efetivo/[id]/historico/page'
+import { TIPOS_DESLIGAMENTO, MOTIVOS_POR_TIPO } from '@/components/efetivo/modal-desligar'
+
+const TIPO_DESLIG_MAP = Object.fromEntries(TIPOS_DESLIGAMENTO.map(t => [t.value, t.label]))
+const TODOS_MOTIVOS_DESLIG = Object.fromEntries(
+  Object.values(MOTIVOS_POR_TIPO).flat().map(m => [m.value, m.label])
+)
 
 // ─── Event config ─────────────────────────────────────────────────────────────
 
@@ -255,7 +261,12 @@ export function ProntuarioClient({ funcionario, eventos }: Props) {
               {funcionario.status === 'desligado' && funcionario.data_desligamento && (
                 <span className="text-xs text-gray-400">
                   Desligado em {fmt(funcionario.data_desligamento)}
-                  {funcionario.motivo_desligamento ? ` — ${funcionario.motivo_desligamento}` : ''}
+                  {funcionario.tipo_desligamento && (
+                    <> — {TIPO_DESLIG_MAP[funcionario.tipo_desligamento] ?? funcionario.tipo_desligamento}</>
+                  )}
+                  {funcionario.motivo_desligamento && (
+                    <> · {TODOS_MOTIVOS_DESLIG[funcionario.motivo_desligamento] ?? funcionario.motivo_desligamento}</>
+                  )}
                 </span>
               )}
             </div>

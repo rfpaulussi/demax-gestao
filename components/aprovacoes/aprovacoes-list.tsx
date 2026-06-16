@@ -6,6 +6,12 @@ import { cn } from '@/lib/utils'
 import { aprovarSolicitacao, rejeitarSolicitacao } from '@/app/(admin)/aprovacoes/actions'
 import type { SolicitacaoRow } from '@/app/(admin)/aprovacoes/actions'
 import type { TipoSolicitacao } from '@/types'
+import { TIPOS_DESLIGAMENTO, MOTIVOS_POR_TIPO } from '@/components/efetivo/modal-desligar'
+
+const TIPO_DESLIG_MAP = Object.fromEntries(TIPOS_DESLIGAMENTO.map(t => [t.value, t.label]))
+const TODOS_MOTIVOS_DESLIG = Object.fromEntries(
+  Object.values(MOTIVOS_POR_TIPO).flat().map(m => [m.value, m.label])
+)
 
 export type { SolicitacaoRow as SolicitacaoPendente }
 
@@ -71,6 +77,7 @@ const CAMPO_LABELS: Record<string, string> = {
   salario:               'Salário',
   novo_salario:          'Novo salário',
   data_desligamento:     'Data desligamento',
+  tipo_desligamento:     'Tipo de desligamento',
   motivo:                'Motivo',
   data_inicio:           'Início',
   data_retorno_prevista: 'Retorno previsto',
@@ -116,6 +123,12 @@ function fmtValComContexto(tipo: TipoSolicitacao, campo: string, v: unknown): st
   }
   if (tipo === 'afastamento' && campo === 'motivo' && typeof v === 'string') {
     return MOTIVO_AFASTAMENTO_LABELS[v] ?? v
+  }
+  if (campo === 'tipo_desligamento' && typeof v === 'string') {
+    return TIPO_DESLIG_MAP[v] ?? v
+  }
+  if (tipo === 'desligamento' && campo === 'motivo' && typeof v === 'string') {
+    return TODOS_MOTIVOS_DESLIG[v] ?? v
   }
   return fmtVal(v)
 }
