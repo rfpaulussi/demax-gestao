@@ -128,6 +128,26 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
   const [loadingXlsx, setLoadingXlsx] = useState(false)
   const [loadingPdf,  setLoadingPdf]  = useState(false)
   const [mostrarVazias, setMostrarVazias] = useState(false)
+  const [sortCol, setSortCol] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  function toggleSort(col: string) {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
+
+  const dadosOrdenados = sortCol ? [...dados].sort((a, b) => {
+    const map: Record<string, number> = {
+      nome:          a.funcionario_nome.localeCompare(b.funcionario_nome),
+      uteis:         a.dias_uteis - b.dias_uteis,
+      ferias:        a.ferias_dias - b.ferias_dias,
+      faltas:        a.faltas_dias - b.faltas_dias,
+      atestados:     a.atestados_dias - b.atestados_dias,
+      trabalhados:   a.dias_trabalhados - b.dias_trabalhados,
+      insalubridade: a.insalubridade_dias - b.insalubridade_dias,
+    }
+    return sortDir === 'asc' ? map[sortCol] : -map[sortCol]
+  }) : dados
 
   const temSuspensao   = dados.some(f => f.dias_suspensao > 0)
   const temAfastamento = dados.some(f => f.afastamento_dias > 0)
@@ -224,30 +244,44 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
           <p className="text-sm text-gray-400">Nenhum funcionário encontrado para o período.</p>
         </div>
       ) : (
-        <div className="w-full overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
+        <div className="w-full rounded-xl border border-gray-100 bg-white shadow-sm">
           <div className="overflow-x-auto w-full">
             <table className="w-full text-sm" style={{ minWidth: '1400px' }}>
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="sticky left-0 z-10 bg-gray-50 min-w-[220px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Funcionário</th>
+                  <th onClick={() => toggleSort('nome')} className="sticky left-0 z-10 bg-gray-50 min-w-[220px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400 cursor-pointer select-none hover:text-gray-600">
+                    Funcionário {sortCol === 'nome' ? (sortDir === 'asc' ? '↑' : '↓') : <span className="text-gray-300">↕</span>}
+                  </th>
                   <th className="min-w-[160px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Função</th>
                   <th className="min-w-[200px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Posto</th>
                   <th className="min-w-[80px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Secretaria</th>
                   <th className="min-w-[160px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Período no mês</th>
                   <th className="min-w-[55px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Regime</th>
-                  <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">D. Úteis</th>
-                  <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Férias</th>
-                  <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Faltas</th>
-                  <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Atestados</th>
+                  <th onClick={() => toggleSort('uteis')} className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400 cursor-pointer select-none hover:text-gray-600">
+                    D. Úteis {sortCol === 'uteis' ? (sortDir === 'asc' ? '↑' : '↓') : <span className="text-gray-300">↕</span>}
+                  </th>
+                  <th onClick={() => toggleSort('ferias')} className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400 cursor-pointer select-none hover:text-gray-600">
+                    Férias {sortCol === 'ferias' ? (sortDir === 'asc' ? '↑' : '↓') : <span className="text-gray-300">↕</span>}
+                  </th>
+                  <th onClick={() => toggleSort('faltas')} className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400 cursor-pointer select-none hover:text-gray-600">
+                    Faltas {sortCol === 'faltas' ? (sortDir === 'asc' ? '↑' : '↓') : <span className="text-gray-300">↕</span>}
+                  </th>
+                  <th onClick={() => toggleSort('atestados')} className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400 cursor-pointer select-none hover:text-gray-600">
+                    Atestados {sortCol === 'atestados' ? (sortDir === 'asc' ? '↑' : '↓') : <span className="text-gray-300">↕</span>}
+                  </th>
                   {exibirSuspensao   && <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Suspensão</th>}
                   {exibirAfastamento && <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Afastamento</th>}
-                  <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Trabalhados</th>
-                  <th className="min-w-[90px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Insalubridade</th>
+                  <th onClick={() => toggleSort('trabalhados')} className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400 cursor-pointer select-none hover:text-gray-600">
+                    Trabalhados {sortCol === 'trabalhados' ? (sortDir === 'asc' ? '↑' : '↓') : <span className="text-gray-300">↕</span>}
+                  </th>
+                  <th onClick={() => toggleSort('insalubridade')} className="min-w-[90px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400 cursor-pointer select-none hover:text-gray-600">
+                    Insalubridade {sortCol === 'insalubridade' ? (sortDir === 'asc' ? '↑' : '↓') : <span className="text-gray-300">↕</span>}
+                  </th>
                   <th className="min-w-[90px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Advertência</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {dados.map(f => (
+                {dadosOrdenados.map(f => (
                   <tr
                     key={f.funcionario_id}
                     className={cn(
