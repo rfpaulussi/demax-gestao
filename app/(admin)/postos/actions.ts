@@ -93,15 +93,6 @@ export async function getPostosData(): Promise<PostoRow[]> {
     .in('nome', [...FUNCOES_FORA_DO_EFETIVO])
   const excludedFuncaoIds = new Set((funcoesExcluidasRaw ?? []).map(f => f.id))
 
-  // Pre-fetch IDs dos encarregados volantes (coluna nova — cast até tipos serem regenerados)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: volantesRaw } = await (supabase.from('funcionarios').select('id') as any)
-    .eq('eh_encarregado_volante', true)
-    .in('status', ['ativo', 'afastado', 'ferias'])
-  const encarregadoVolanteIds = new Set<string>(
-    ((volantesRaw ?? []) as { id: string }[]).map(f => f.id),
-  )
-
   const [{ data: postos }, funcionariosRaw, { data: config }] = await Promise.all([
     supabase
       .from('postos')
@@ -129,11 +120,8 @@ export async function getPostosData(): Promise<PostoRow[]> {
   const semFuncaoExcluida = funcionariosRaw.filter(
     f => !f.funcao_id || !excludedFuncaoIds.has(f.funcao_id),
   )
-  const somaAposFiltroCargo = semFuncaoExcluida.filter(f => f.posto_id).length
-
   // Filtro 2: excluir encarregados volantes (=== true para tratar null de registros antigos)
   const funcionarios = semFuncaoExcluida.filter(f => f.eh_encarregado_volante !== true)
-  const filtradosPorVolante = semFuncaoExcluida.length - funcionarios.length
 
   const efetivoMap = new Map<string, number>()
   for (const f of funcionarios) {
@@ -141,24 +129,6 @@ export async function getPostosData(): Promise<PostoRow[]> {
       efetivoMap.set(f.posto_id, (efetivoMap.get(f.posto_id) ?? 0) + 1)
     }
   }
-
-  // DEBUG — remover após validação
-  const somaDepois = Array.from(efetivoMap.values()).reduce((a, v) => a + v, 0)
-  const kpiExcesso = (postos ?? []).reduce((acc, p) => {
-    const atual = efetivoMap.get(p.id) ?? 0
-    return atual > (p.efetivo_previsto ?? 0) ? acc + atual - (p.efetivo_previsto ?? 0) : acc
-  }, 0)
-  console.log('[DEBUG getPostosData]', JSON.stringify({
-    excludedFuncaoIdsFound: excludedFuncaoIds.size,
-    encarregadosVolantes:   encarregadoVolanteIds.size,
-    totalFetched:           funcionariosRaw.length,
-    filtradosPorCargo:      funcionariosRaw.length - semFuncaoExcluida.length,
-    somaEfetivoMapAntesVolante: somaAposFiltroCargo,
-    filtradosPorVolante,
-    somaEfetivoMapDepois:   somaDepois,
-    kpiExcesso,
-  }))
-  // END DEBUG
 
   const supervisorMap = new Map<string, string>()
   for (const row of (config ?? []) as unknown as ConfigRow[]) {
