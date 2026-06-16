@@ -24,6 +24,7 @@ export type AtestadoRow = {
   alerta: boolean
   cid_desc: string
   nexo_ocupacional: boolean
+  tem_cobertura: boolean
 }
 
 const ORIGEM_BADGE: Record<string, { label: string; className: string }> = {
@@ -51,6 +52,7 @@ const COLS: { label: string; sortKey?: SortCol }[] = [
   { label: 'Dias',        sortKey: 'dias'             },
   { label: 'CID'                                       },
   { label: 'Origem'                                    },
+  { label: 'Cobertura'                                 },
   { label: 'Acum. 30d',   sortKey: 'acumulado'        },
   { label: 'Ações'                                     },
 ]
@@ -359,6 +361,12 @@ export function AtestadosClient({ atestados, cids }: Props) {
                       ) : (
                         <span className="text-gray-300">—</span>
                       )}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      {a.tem_cobertura
+                        ? <span className="inline-flex items-center rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-200">✓ Registrada</span>
+                        : <span className="text-gray-300 text-xs">—</span>
+                      }
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2">

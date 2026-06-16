@@ -52,7 +52,7 @@ export default async function AtestadosPage({
 
   const supabase = createClient()
 
-  const [{ data: rawAtestados }, { data: rawCids }] = await Promise.all([
+  const [{ data: rawAtestados }, { data: rawCids }, { data: rawCoberturas }] = await Promise.all([
     supabase
       .from('atestados')
       .select(`
@@ -69,6 +69,11 @@ export default async function AtestadosPage({
       .order('data_inicio', { ascending: false })
       .range(0, 1499),
     supabase.from('cid_referencia').select('codigo, descricao, nexo_ocupacional_limpeza'),
+    supabase
+      .from('coberturas_temporarias')
+      .select('funcionario_ausente_id, data_inicio, data_retorno_real, data_prev_retorno')
+      .not('funcionario_ausente_id', 'is', null)
+      .range(0, 1499),
   ])
 
   type CidRef = { codigo: string; descricao: string; nexo_ocupacional_limpeza: boolean }
@@ -77,6 +82,23 @@ export default async function AtestadosPage({
   const cidMap = new Map(cidsRaw.map(c => [c.codigo, c.descricao] as [string, string]))
   const nexoMap = new Map(cidsRaw.map(c => [c.codigo, c.nexo_ocupacional_limpeza ?? false] as [string, boolean]))
   const cids = cidsRaw.map(c => ({ codigo: c.codigo, descricao: c.descricao }))
+
+  type CoberturaLookup = { funcionario_ausente_id: string; data_inicio: string; data_fim: string }
+  type CoberturaRaw = { funcionario_ausente_id: string; data_inicio: string; data_retorno_real: string | null; data_prev_retorno: string | null }
+  const coberturas: CoberturaLookup[] = ((rawCoberturas ?? []) as unknown as CoberturaRaw[]).map(c => ({
+    funcionario_ausente_id: c.funcionario_ausente_id,
+    data_inicio: c.data_inicio,
+    data_fim: c.data_retorno_real ?? c.data_prev_retorno ?? c.data_inicio,
+  }))
+
+  function temCobertura(funcionario_id: string, atestado_inicio: string, atestado_fim: string): boolean {
+    return coberturas.some(
+      c =>
+        c.funcionario_ausente_id === funcionario_id &&
+        c.data_inicio <= atestado_fim &&
+        c.data_fim >= atestado_inicio,
+    )
+  }
 
   const all = (rawAtestados ?? []) as unknown as AtestadoRaw[]
 
@@ -142,6 +164,7 @@ export default async function AtestadosPage({
       alerta: acumulado > 15,
       cid_desc: cidDesc,
       nexo_ocupacional: a.cid_codigo ? (nexoMap.get(a.cid_codigo) ?? false) : false,
+      tem_cobertura: temCobertura(a.funcionario_id, a.data_inicio, a.data_fim),
     }
   })
 
