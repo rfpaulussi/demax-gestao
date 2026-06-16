@@ -865,6 +865,25 @@ export type Database = {
       }
 
       // ----------------------------------------------------------
+      // config_escalas_postos
+      // ----------------------------------------------------------
+      config_escalas_postos: {
+        Row: {
+          posto_id: string
+          regime: string
+        }
+        Insert: {
+          posto_id: string
+          regime: string
+        }
+        Update: {
+          posto_id?: string
+          regime?: string
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
       // afastamentos
       // ----------------------------------------------------------
       afastamentos: {
@@ -908,7 +927,7 @@ export type Database = {
           id: string
           funcionario_id: string
           data_falta: string
-          tipo: 'sem_atestado' | 'com_atestado' | 'suspensao'
+          tipo: 'sem_atestado' | 'com_atestado' | 'suspensao' | 'sem_justificativa' | 'declaracao'
           dias: number
           observacao: string | null
           registrado_por: string | null
@@ -971,63 +990,6 @@ export type Database = {
           dados_anteriores?: Json | null
           dados_novos?: Json | null
           registrado_por?: string | null
-        }
-        Relationships: []
-      }
-
-      // ----------------------------------------------------------
-      // insalubridade_coberturas
-      // ----------------------------------------------------------
-      insalubridade_coberturas: {
-        Row: {
-          id: string
-          funcionario_id: string
-          mes: number
-          ano: number
-          data_cobertura: string
-          agente_ausente_id: string | null
-          agente_ausente_nome: string | null
-          posto_id: string | null
-          origem: 'manual' | 'cobertura'
-          cobertura_id: string | null
-          percentual: number
-          observacao: string | null
-          status: 'pendente' | 'enviado' | 'pago'
-          criado_por: string | null
-          created_at: string | null
-        }
-        Insert: {
-          id?: string
-          funcionario_id: string
-          mes: number
-          ano: number
-          data_cobertura: string
-          agente_ausente_id?: string | null
-          agente_ausente_nome?: string | null
-          posto_id?: string | null
-          origem?: 'manual' | 'cobertura'
-          cobertura_id?: string | null
-          percentual?: number
-          observacao?: string | null
-          status?: 'pendente' | 'enviado' | 'pago'
-          criado_por?: string | null
-          created_at?: string | null
-        }
-        Update: {
-          id?: string
-          funcionario_id?: string
-          mes?: number
-          ano?: number
-          data_cobertura?: string
-          agente_ausente_id?: string | null
-          agente_ausente_nome?: string | null
-          posto_id?: string | null
-          origem?: 'manual' | 'cobertura'
-          cobertura_id?: string | null
-          percentual?: number
-          observacao?: string | null
-          status?: 'pendente' | 'enviado' | 'pago'
-          criado_por?: string | null
         }
         Relationships: []
       }

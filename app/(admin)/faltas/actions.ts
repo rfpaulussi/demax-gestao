@@ -93,7 +93,8 @@ export async function buscarFaltas(mes: number, ano: number, tipo?: string): Pro
   }
 
   if (tipo && tipo !== 'todos') {
-    query = query.eq('tipo', tipo as unknown as 'suspensao')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+query = query.eq('tipo', tipo as any)
   }
 
   const { data, error } = await query
@@ -128,7 +129,7 @@ export async function buscarDashFaltas(mes: number, ano: number): Promise<DashFa
     return a + Math.ceil((d2.getTime() - d1.getTime()) / 86400000) + 1
   }, 0)
 
-  const semJustificativa = (faltas ?? []).filter(f => f.tipo === 'sem_justificativa').length
+  const semJustificativa = (faltas ?? []).filter(f => f.tipo === 'sem_atestado').length
 
   const ocorrenciasPorFunc: Record<string, number> = {}
   for (const f of faltas ?? []) {

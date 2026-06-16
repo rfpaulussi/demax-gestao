@@ -37,7 +37,7 @@ export async function buscarFaltasMes(
     supabase
       .from('faltas')
       .select(`
-        id, data_falta, tipo, dias, tem_documento, justificativa, observacao,
+        id, data_falta, tipo, dias, observacao,
         funcionarios!funcionario_id ( nome, registro, posto_id, postos!posto_id ( nome, secretaria ) )
       `)
       .gte('data_falta', inicio)
@@ -76,8 +76,8 @@ export async function buscarFaltasMes(
       supervisor:       supByPosto.get(postoId) ?? '—',
       tipo:             f.tipo,
       dias:             f.dias,
-      tem_documento:    f.tem_documento ?? false,
-      justificativa:    f.justificativa ?? f.observacao ?? '—',
+      tem_documento:    f.tipo === 'com_atestado',
+      justificativa:    f.observacao ?? '—',
     }
   })
 

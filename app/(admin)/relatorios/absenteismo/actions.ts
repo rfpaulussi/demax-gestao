@@ -83,7 +83,7 @@ export async function buscarAbsenteismo(
     supabase
       .from('faltas')
       .select(`
-        id, data_falta, tipo, dias, justificativa, observacao,
+        id, data_falta, tipo, dias, observacao,
         funcionarios!funcionario_id ( nome, registro, postos!posto_id ( nome, secretaria ) )
       `)
       .gte('data_falta', inicio)
@@ -147,7 +147,7 @@ export async function buscarAbsenteismo(
       tipo_ausencia:    'falta',
       data:             f.data_falta,
       dias:             f.dias,
-      justificativa:    f.justificativa ?? f.observacao ?? '—',
+      justificativa:    f.observacao ?? '—',
     })
   }
 
