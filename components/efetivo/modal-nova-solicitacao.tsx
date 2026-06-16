@@ -10,6 +10,7 @@ import {
   solicitarRescisaoIndireta,
 } from '@/app/(admin)/efetivo/actions'
 import type { FuncionarioRow } from './funcionarios-table'
+import { TIPOS_DESLIGAMENTO, MOTIVOS_POR_TIPO, type TipoDesligamento } from './modal-desligar'
 
 type TipoSolicitacao =
   | 'desligamento'
@@ -40,11 +41,6 @@ const TIPOS_POR_STATUS: Partial<Record<string, TipoSolicitacao[]>> = {
   default:  ['desligamento'],
 }
 
-const MOTIVOS_DESLIGAMENTO = [
-  'PESSOAL', 'RESCISÃO INDIRETA', 'ADAPTAÇÃO', 'COMPORTAMENTAL',
-  'FALTAS EXCESSIVAS', 'ABANDONO', 'CORTE DE CUSTO', 'DEFICIÊNCIA TÉCNICA',
-  'SALÁRIO', 'FALECIMENTO', 'JUSTA CAUSA',
-]
 
 const labelClass = 'mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500'
 const inputClass =
@@ -52,8 +48,9 @@ const inputClass =
 
 export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClose }: Props) {
   const tiposDisponiveis = TIPOS_POR_STATUS[funcionario.status ?? ''] ?? TIPOS_POR_STATUS.default!
-  const [tipo, setTipo]   = useState<TipoSolicitacao | ''>('')
-  const [erro, setErro]   = useState<string | null>(null)
+  const [tipo, setTipo]         = useState<TipoSolicitacao | ''>('')
+  const [tipoDeslig, setTipoDeslig] = useState<TipoDesligamento | ''>('')
+  const [erro, setErro]         = useState<string | null>(null)
   const [pending, start]  = useTransition()
 
   // Combobox posto destino (transferência)
@@ -79,6 +76,7 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
   function handleClose() {
     if (pending) return
     setTipo('')
+    setTipoDeslig('')
     setErro(null)
     setPostoSearch(''); setPostoOpen(false); setPostoSelecionado(null)
     setPostoRetornoSearch(''); setPostoRetornoOpen(false); setPostoRetornoSelecionado(null)
@@ -147,14 +145,31 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
                   <input type="date" name="data_desligamento" required className={inputClass} />
                 </div>
                 <div>
-                  <label className={labelClass}>Motivo</label>
-                  <select name="motivo" required className={inputClass}>
-                    <option value="">Selecione...</option>
-                    {MOTIVOS_DESLIGAMENTO.map(m => (
-                      <option key={m} value={m}>{m}</option>
+                  <label className={labelClass}>Tipo de Desligamento</label>
+                  <select
+                    name="tipo_desligamento"
+                    required
+                    value={tipoDeslig}
+                    onChange={e => { setTipoDeslig(e.target.value as TipoDesligamento | '') }}
+                    className={inputClass}
+                  >
+                    <option value="">Selecione o tipo...</option>
+                    {TIPOS_DESLIGAMENTO.map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
                     ))}
                   </select>
                 </div>
+                {tipoDeslig && (
+                  <div>
+                    <label className={labelClass}>Motivação</label>
+                    <select name="motivo" required className={inputClass}>
+                      <option value="">Selecione a motivação...</option>
+                      {MOTIVOS_POR_TIPO[tipoDeslig].map(m => (
+                        <option key={m.value} value={m.value}>{m.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </>
             )}
 
