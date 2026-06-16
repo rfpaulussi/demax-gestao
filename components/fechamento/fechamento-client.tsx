@@ -149,10 +149,8 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
     return sortDir === 'asc' ? map[sortCol] : -map[sortCol]
   }) : dados
 
-  const temSuspensao   = dados.some(f => f.dias_suspensao > 0)
-  const temAfastamento = dados.some(f => f.afastamento_dias > 0)
-  const exibirSuspensao   = mostrarVazias || temSuspensao
-  const exibirAfastamento = mostrarVazias || temAfastamento
+  const exibirSuspensao   = mostrarVazias
+  const exibirAfastamento = mostrarVazias
 
   async function handleExcel() {
     setLoadingXlsx(true)
@@ -235,7 +233,7 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
           onClick={() => setMostrarVazias(v => !v)}
           className="text-xs text-gray-400 underline underline-offset-2 hover:text-gray-600"
         >
-          {mostrarVazias ? 'Ocultar colunas vazias' : 'Mostrar todas as colunas'}
+          {mostrarVazias ? 'Ocultar colunas opcionais' : 'Mostrar todas as colunas'}
         </button>
       </div>
 
@@ -245,7 +243,7 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
         </div>
       ) : (
         <div className="w-full rounded-xl border border-gray-100 bg-white shadow-sm">
-          <div className="overflow-x-auto w-full">
+          <div className="overflow-x-scroll w-full">
             <table className="w-full text-sm" style={{ minWidth: '1400px' }}>
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
