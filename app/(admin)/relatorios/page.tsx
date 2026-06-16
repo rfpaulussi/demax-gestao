@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Users, ArrowLeftRight, RefreshCw, CalendarX, AlertTriangle, UserX } from 'lucide-react'
+import { Users, ArrowLeftRight, RefreshCw, CalendarX, AlertTriangle, UserX, LogOut } from 'lucide-react'
 
 const RELATORIOS = [
   {
@@ -49,6 +49,14 @@ const RELATORIOS = [
     desc: 'Faltas registradas no mês com KPIs de frequência',
     color: 'border-t-orange-500',
     iconColor: 'text-orange-500',
+  },
+  {
+    href: '/relatorios/desligamentos',
+    icon: LogOut,
+    label: 'Desligamentos',
+    desc: 'Histórico de saídas por tipo, motivo, secretaria e tempo de casa.',
+    color: 'border-t-slate-500',
+    iconColor: 'text-slate-500',
   },
 ]
 
