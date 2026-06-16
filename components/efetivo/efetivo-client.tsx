@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { FileSpreadsheet } from 'lucide-react'
+import { FileSpreadsheet, UserPlus } from 'lucide-react'
+import { ModalAdmitirAdmin } from './modal-admitir-admin'
 import { FiltrosEfetivo } from './filtros-efetivo'
 import type { FiltrosValues, FiltrosCounts } from './filtros-efetivo'
 import { FuncionariosTable } from './funcionarios-table'
@@ -45,6 +46,7 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
   })
   const [sortCol, setSortCol] = useState<string>('nome')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [admitirOpen, setAdmitirOpen] = useState(false)
 
   function toggleSort(col: string) {
     if (sortCol === col) {
@@ -157,6 +159,16 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
           <FileSpreadsheet className="h-4 w-4" />
           Exportar Excel
         </button>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => setAdmitirOpen(true)}
+            className="flex h-9 items-center gap-1.5 rounded-lg bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700"
+          >
+            <UserPlus className="h-4 w-4" />
+            Admitir Funcionário
+          </button>
+        )}
       </div>
       <FuncionariosTable
         funcionarios={sorted}
@@ -167,6 +179,12 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
         sortDir={sortDir}
         onSort={toggleSort}
         isAdmin={isAdmin}
+      />
+      <ModalAdmitirAdmin
+        open={admitirOpen}
+        onClose={() => setAdmitirOpen(false)}
+        postos={postos}
+        funcoes={funcoes}
       />
     </div>
   )

@@ -417,3 +417,29 @@ export async function solicitarMudancaSupervisor(formData: FormData) {
   revalidatePath('/efetivo')
   revalidatePath('/aprovacoes')
 }
+
+export async function admitirFuncionarioAdmin(formData: FormData): Promise<{ error?: string }> {
+  const supabase = createClient()
+
+  const nome          = (formData.get('nome') as string)?.trim().toUpperCase()
+  const funcao_id     = formData.get('funcao_id') as string
+  const posto_id      = formData.get('posto_id') as string
+  const data_admissao = formData.get('data_admissao') as string
+  const registro      = (formData.get('registro') as string)?.trim() || null
+  const cpf           = (formData.get('cpf') as string)?.trim() || null
+
+  if (!nome || !funcao_id || !posto_id || !data_admissao) {
+    return { error: 'Nome, função, posto e data de admissão são obrigatórios' }
+  }
+
+  const payload: Record<string, unknown> = { nome, funcao_id, posto_id, data_admissao, status: 'ativo' }
+  if (registro) payload.registro = registro
+  if (cpf) payload.cpf = cpf
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await supabase.from('funcionarios').insert(payload as any)
+
+  if (error) return { error: error.message }
+  revalidatePath('/efetivo')
+  return {}
+}
