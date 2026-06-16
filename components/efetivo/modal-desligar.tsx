@@ -1,42 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-
-export const TIPOS_DESLIGAMENTO = [
-  { value: 'voluntaria',          label: 'Voluntária'           },
-  { value: 'demissao',            label: 'Demissão'             },
-  { value: 'reprova_experiencia', label: 'Reprova Experiência'  },
-  { value: 'judicial',            label: 'Judicial'             },
-  { value: 'outros',              label: 'Outros'               },
-]
-
-export const MOTIVOS_POR_TIPO: Record<string, { value: string; label: string }[]> = {
-  voluntaria: [
-    { value: 'pessoal',   label: 'Pessoal'   },
-    { value: 'salario',   label: 'Salário'   },
-    { value: 'adaptacao', label: 'Adaptação' },
-  ],
-  demissao: [
-    { value: 'comportamental',      label: 'Comportamental'      },
-    { value: 'faltas_excessivas',   label: 'Faltas Excessivas'   },
-    { value: 'abandono',            label: 'Abandono'            },
-    { value: 'deficiencia_tecnica', label: 'Deficiência Técnica' },
-    { value: 'justa_causa',         label: 'Justa Causa'         },
-    { value: 'corte_custo',         label: 'Corte de Custo'      },
-  ],
-  reprova_experiencia: [
-    { value: 'adaptacao',           label: 'Adaptação'           },
-    { value: 'comportamental',      label: 'Comportamental'      },
-    { value: 'deficiencia_tecnica', label: 'Deficiência Técnica' },
-  ],
-  judicial: [
-    { value: 'rescisao_indireta', label: 'Rescisão Indireta' },
-  ],
-  outros: [
-    { value: 'falecimento', label: 'Falecimento' },
-    { value: 'corte_custo', label: 'Corte de Custo' },
-  ],
-}
 import { Dialog } from '@base-ui/react/dialog'
 import { solicitarDesligamento } from '@/app/(admin)/efetivo/actions'
 import type { FuncionarioRow } from './funcionarios-table'

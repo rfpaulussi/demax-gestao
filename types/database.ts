@@ -301,6 +301,7 @@ export type Database = {
           registro: string | null
           tipo_desligamento: 'voluntaria' | 'demissao' | 'reprova_experiencia' | 'judicial' | 'outros' | null
           motivo_desligamento: string | null
+          motivo_afastamento: string | null
         }
         Insert: {
           id?: string
@@ -317,6 +318,7 @@ export type Database = {
           registro?: string | null
           tipo_desligamento?: 'voluntaria' | 'demissao' | 'reprova_experiencia' | 'judicial' | 'outros' | null
           motivo_desligamento?: string | null
+          motivo_afastamento?: string | null
         }
         Update: {
           id?: string
@@ -332,6 +334,7 @@ export type Database = {
           registro?: string | null
           tipo_desligamento?: 'voluntaria' | 'demissao' | 'reprova_experiencia' | 'judicial' | 'outros' | null
           motivo_desligamento?: string | null
+          motivo_afastamento?: string | null
         }
         Relationships: []
       }
@@ -458,6 +461,8 @@ export type Database = {
           data_inicio: string
           data_fim: string
           motivo: string | null
+          cid_codigo: string | null
+          origem_ocupacional: 'acidente_trabalho' | 'doenca_ocupacional' | null
           registrado_por: string
           created_at: string
         }
@@ -468,6 +473,8 @@ export type Database = {
           data_inicio: string
           data_fim: string
           motivo?: string | null
+          cid_codigo?: string | null
+          origem_ocupacional?: 'acidente_trabalho' | 'doenca_ocupacional' | null
           registrado_por: string
           created_at?: string
         }
@@ -478,6 +485,8 @@ export type Database = {
           data_inicio?: string
           data_fim?: string
           motivo?: string | null
+          cid_codigo?: string | null
+          origem_ocupacional?: 'acidente_trabalho' | 'doenca_ocupacional' | null
           registrado_por?: string
         }
         Relationships: []
@@ -768,7 +777,7 @@ export type Database = {
       solicitacoes: {
         Row: {
           id: string
-          tipo: 'desligamento' | 'transferencia' | 'mudanca_funcao' | 'promocao' | 'alteracao_salario' | 'mudanca_supervisor'
+          tipo: 'desligamento' | 'transferencia' | 'mudanca_funcao' | 'promocao' | 'alteracao_salario' | 'mudanca_supervisor' | 'afastamento' | 'retorno_afastamento' | 'rescisao_indireta' | 'admissao'
           status: 'pendente' | 'aprovada' | 'rejeitada'
           funcionario_id: string
           supervisor_id: string | null
@@ -784,7 +793,7 @@ export type Database = {
         }
         Insert: {
           id?: string
-          tipo: 'desligamento' | 'transferencia' | 'mudanca_funcao' | 'promocao' | 'alteracao_salario' | 'mudanca_supervisor'
+          tipo: 'desligamento' | 'transferencia' | 'mudanca_funcao' | 'promocao' | 'alteracao_salario' | 'mudanca_supervisor' | 'afastamento' | 'retorno_afastamento' | 'rescisao_indireta' | 'admissao'
           status?: 'pendente' | 'aprovada' | 'rejeitada'
           funcionario_id: string
           supervisor_id?: string | null
@@ -800,7 +809,7 @@ export type Database = {
         }
         Update: {
           id?: string
-          tipo?: 'desligamento' | 'transferencia' | 'mudanca_funcao' | 'promocao' | 'alteracao_salario' | 'mudanca_supervisor'
+          tipo?: 'desligamento' | 'transferencia' | 'mudanca_funcao' | 'promocao' | 'alteracao_salario' | 'mudanca_supervisor' | 'afastamento' | 'retorno_afastamento' | 'rescisao_indireta' | 'admissao'
           status?: 'pendente' | 'aprovada' | 'rejeitada'
           funcionario_id?: string
           supervisor_id?: string | null
@@ -851,6 +860,229 @@ export type Database = {
           valor_depois?: string | null
           executado_por?: string | null
           solicitacao_id?: string | null
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
+      // afastamentos
+      // ----------------------------------------------------------
+      afastamentos: {
+        Row: {
+          id: string
+          funcionario_id: string
+          motivo: string | null
+          data_inicio: string
+          data_fim_prevista: string | null
+          data_fim_real: string | null
+          solicitacao_id: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          funcionario_id: string
+          motivo?: string | null
+          data_inicio: string
+          data_fim_prevista?: string | null
+          data_fim_real?: string | null
+          solicitacao_id?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          funcionario_id?: string
+          motivo?: string | null
+          data_inicio?: string
+          data_fim_prevista?: string | null
+          data_fim_real?: string | null
+          solicitacao_id?: string | null
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
+      // faltas
+      // ----------------------------------------------------------
+      faltas: {
+        Row: {
+          id: string
+          funcionario_id: string
+          data_falta: string
+          tipo: 'sem_atestado' | 'com_atestado' | 'suspensao'
+          dias: number
+          observacao: string | null
+          registrado_por: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          funcionario_id: string
+          data_falta: string
+          tipo: 'sem_atestado' | 'com_atestado' | 'suspensao'
+          dias?: number
+          observacao?: string | null
+          registrado_por?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          funcionario_id?: string
+          data_falta?: string
+          tipo?: 'sem_atestado' | 'com_atestado' | 'suspensao'
+          dias?: number
+          observacao?: string | null
+          registrado_por?: string | null
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
+      // historico_funcionarios
+      // ----------------------------------------------------------
+      historico_funcionarios: {
+        Row: {
+          id: string
+          funcionario_id: string
+          tipo: 'admissao' | 'desligamento' | 'mudanca_posto' | 'mudanca_funcao' | 'ferias' | 'atestado' | 'falta' | 'advertencia' | 'suspensao' | 'cobertura_insalubre' | 'transferencia' | 'reativacao'
+          data_evento: string
+          descricao: string | null
+          dados_anteriores: Json | null
+          dados_novos: Json | null
+          registrado_por: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          funcionario_id: string
+          tipo: 'admissao' | 'desligamento' | 'mudanca_posto' | 'mudanca_funcao' | 'ferias' | 'atestado' | 'falta' | 'advertencia' | 'suspensao' | 'cobertura_insalubre' | 'transferencia' | 'reativacao'
+          data_evento: string
+          descricao?: string | null
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          registrado_por?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          funcionario_id?: string
+          tipo?: 'admissao' | 'desligamento' | 'mudanca_posto' | 'mudanca_funcao' | 'ferias' | 'atestado' | 'falta' | 'advertencia' | 'suspensao' | 'cobertura_insalubre' | 'transferencia' | 'reativacao'
+          data_evento?: string
+          descricao?: string | null
+          dados_anteriores?: Json | null
+          dados_novos?: Json | null
+          registrado_por?: string | null
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
+      // insalubridade_coberturas
+      // ----------------------------------------------------------
+      insalubridade_coberturas: {
+        Row: {
+          id: string
+          funcionario_id: string
+          mes: number
+          ano: number
+          data_cobertura: string
+          agente_ausente_id: string | null
+          agente_ausente_nome: string | null
+          posto_id: string | null
+          origem: 'manual' | 'cobertura'
+          cobertura_id: string | null
+          percentual: number
+          observacao: string | null
+          status: 'pendente' | 'enviado' | 'pago'
+          criado_por: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          funcionario_id: string
+          mes: number
+          ano: number
+          data_cobertura: string
+          agente_ausente_id?: string | null
+          agente_ausente_nome?: string | null
+          posto_id?: string | null
+          origem?: 'manual' | 'cobertura'
+          cobertura_id?: string | null
+          percentual?: number
+          observacao?: string | null
+          status?: 'pendente' | 'enviado' | 'pago'
+          criado_por?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          funcionario_id?: string
+          mes?: number
+          ano?: number
+          data_cobertura?: string
+          agente_ausente_id?: string | null
+          agente_ausente_nome?: string | null
+          posto_id?: string | null
+          origem?: 'manual' | 'cobertura'
+          cobertura_id?: string | null
+          percentual?: number
+          observacao?: string | null
+          status?: 'pendente' | 'enviado' | 'pago'
+          criado_por?: string | null
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
+      // cid_referencia
+      // ----------------------------------------------------------
+      cid_referencia: {
+        Row: {
+          codigo: string
+          descricao: string
+        }
+        Insert: {
+          codigo: string
+          descricao: string
+        }
+        Update: {
+          codigo?: string
+          descricao?: string
+        }
+        Relationships: []
+      }
+
+      // ----------------------------------------------------------
+      // snapshots_diarios
+      // ----------------------------------------------------------
+      snapshots_diarios: {
+        Row: {
+          data: string
+          ativos: number
+          afastados: number
+          em_ferias: number
+          postos_deficit: number
+          aprovacoes_pendentes: number
+          coberturas_ativas: number
+          created_at: string | null
+        }
+        Insert: {
+          data: string
+          ativos: number
+          afastados: number
+          em_ferias: number
+          postos_deficit: number
+          aprovacoes_pendentes: number
+          coberturas_ativas: number
+          created_at?: string | null
+        }
+        Update: {
+          data?: string
+          ativos?: number
+          afastados?: number
+          em_ferias?: number
+          postos_deficit?: number
+          aprovacoes_pendentes?: number
+          coberturas_ativas?: number
         }
         Relationships: []
       }

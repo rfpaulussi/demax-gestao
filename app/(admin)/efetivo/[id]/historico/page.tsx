@@ -164,7 +164,7 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
         data: at.data_inicio,
         descricao: `Atestado: ${fmt(at.data_inicio)} a ${fmt(at.data_fim)}${at.motivo ? ` — ${at.motivo}` : ''}`,
         dados_anteriores: null,
-        dados_novos: { cid: at.cid, motivo: at.motivo } as Record<string, unknown>,
+        dados_novos: { cid: at.cid_codigo, motivo: at.motivo } as Record<string, unknown>,
       })),
 
     // Supplementary faltas
@@ -176,7 +176,7 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
         data: fa.data_falta,
         descricao: `Falta — ${fa.tipo}${fa.observacao ? `: ${fa.observacao}` : ''}`,
         dados_anteriores: null,
-        dados_novos: { tipo: fa.tipo, dias: fa.dias, justificativa: fa.justificativa } as Record<string, unknown>,
+        dados_novos: { tipo: fa.tipo, dias: fa.dias, observacao: fa.observacao } as Record<string, unknown>,
       })),
 
     // Supplementary advertências/suspensões

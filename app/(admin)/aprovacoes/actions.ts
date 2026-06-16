@@ -90,7 +90,7 @@ export async function aprovarSolicitacao(
 
   const { data: func } = await supabase
     .from('funcionarios')
-    .select('status, posto_id, funcao_id, salario_base')
+    .select('status, posto_id, funcao_id, salario')
     .eq('id', sol.funcionario_id)
     .single()
 
@@ -131,7 +131,7 @@ export async function aprovarSolicitacao(
     case 'alteracao_salario': {
       await supabase
         .from('funcionarios')
-        .update({ salario_base: dadosDepois.novo_salario as number })
+        .update({ salario: dadosDepois.novo_salario as number })
         .eq('id', sol.funcionario_id)
       break
     }
@@ -240,7 +240,7 @@ export async function aprovarSolicitacao(
     transferencia:    { campo: 'posto_id',     antes: func?.posto_id ?? null,            depois: (dadosDepois.posto_destino_id as string) ?? null },
     mudanca_funcao:   { campo: 'funcao_id',    antes: (dadosAntes.funcao_id  as string | null) ?? func?.funcao_id ?? null, depois: (dadosDepois.funcao_destino_id as string) ?? null },
     promocao:         { campo: 'funcao_id',    antes: (dadosAntes.funcao_id  as string | null) ?? func?.funcao_id ?? null, depois: (dadosDepois.funcao_destino_id as string) ?? null },
-    alteracao_salario:   { campo: 'salario_base', antes: String(func?.salario_base ?? ''), depois: String(dadosDepois.novo_salario ?? '') },
+    alteracao_salario:   { campo: 'salario',      antes: String(func?.salario ?? ''),      depois: String(dadosDepois.novo_salario ?? '') },
     afastamento:         { campo: 'status',       antes: func?.status ?? null,            depois: 'afastado'   },
     retorno_afastamento: { campo: 'status',       antes: func?.status ?? null,            depois: 'ativo'      },
     rescisao_indireta:   { campo: 'status',       antes: func?.status ?? null,            depois: 'desligado'  },

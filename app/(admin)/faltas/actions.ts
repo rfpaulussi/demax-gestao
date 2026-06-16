@@ -93,7 +93,7 @@ export async function buscarFaltas(mes: number, ano: number, tipo?: string): Pro
   }
 
   if (tipo && tipo !== 'todos') {
-    query = query.eq('tipo', tipo)
+    query = query.eq('tipo', tipo as unknown as 'suspensao')
   }
 
   const { data, error } = await query
