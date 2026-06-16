@@ -83,104 +83,138 @@ const s = StyleSheet.create({
   sigLine:   { borderBottomWidth: 1, borderBottomColor: '#9ca3af', width: 200, marginTop: 2 },
 })
 
-function DeclaracaoDocument({ grupo, mes, ano }: { grupo: InsalubridadeGrupo; mes: number; ano: number }) {
+function DeclaracaoPage({ grupo, mes, ano }: { grupo: InsalubridadeGrupo; mes: number; ano: number }) {
   const mesAno = fmtMesAno(mes, ano)
   const hoje   = new Date()
   const periodos = agruparPeriodos(grupo.registros)
 
   return (
-    <Document>
-      <Page size="A4" style={s.page}>
+    <Page size="A4" style={s.page}>
 
-        {/* Cabeçalho */}
-        <View style={s.header}>
-          <View>
-            <Text style={s.logo}>DEMAX</Text>
-            <Text style={s.subtitle}>Serviços e Comércio Ltda.</Text>
-          </View>
-          <Text style={{ fontSize: 9, color: '#6b7280' }}>Declaração — {mesAno}</Text>
+      {/* Cabeçalho */}
+      <View style={s.header}>
+        <View>
+          <Text style={s.logo}>DEMAX</Text>
+          <Text style={s.subtitle}>Serviços e Comércio Ltda.</Text>
         </View>
+        <Text style={{ fontSize: 9, color: '#6b7280' }}>Declaração — {mesAno}</Text>
+      </View>
 
-        {/* Título */}
-        <Text style={s.docTitle}>
-          DECLARAÇÃO DE COBERTURA INSALUBRE — {mesAno}
-        </Text>
+      {/* Título */}
+      <Text style={s.docTitle}>
+        DECLARAÇÃO DE COBERTURA INSALUBRE — {mesAno}
+      </Text>
 
-        {/* Corpo */}
-        <Text style={s.body}>
-          A <Text style={s.bold}>DEMAX SERVIÇOS E COMÉRCIO LTDA</Text>, inscrita no CNPJ nº{' '}
-          <Text style={s.bold}>48.096.044/0001-93</Text>, por meio desta, declara para os devidos fins
-          que o(a) colaborador(a){' '}
-          <Text style={s.bold}>{grupo.funcionario_nome.toUpperCase()}</Text>,
-          atualmente na função de{' '}
-          <Text style={s.bold}>{(grupo.funcao ?? 'Ajudante de Limpeza').toUpperCase()}</Text> e
-          alocado(a) no posto{' '}
-          <Text style={s.bold}>{(grupo.posto_nome ?? '—').toUpperCase()}</Text>, realizou{' '}
-          <Text style={s.bold}>coberturas pontuais</Text> da função de{' '}
-          <Text style={s.bold}>Agente de Higienização</Text> nos períodos abaixo relacionados,
-          conforme registros internos:
-        </Text>
+      {/* Corpo */}
+      <Text style={s.body}>
+        A <Text style={s.bold}>DEMAX SERVIÇOS E COMÉRCIO LTDA</Text>, inscrita no CNPJ nº{' '}
+        <Text style={s.bold}>48.096.044/0001-93</Text>, por meio desta, declara para os devidos fins
+        que o(a) colaborador(a){' '}
+        <Text style={s.bold}>{grupo.funcionario_nome.toUpperCase()}</Text>,
+        atualmente na função de{' '}
+        <Text style={s.bold}>{(grupo.funcao ?? 'Ajudante de Limpeza').toUpperCase()}</Text> e
+        alocado(a) no posto{' '}
+        <Text style={s.bold}>{(grupo.posto_nome ?? '—').toUpperCase()}</Text>, realizou{' '}
+        <Text style={s.bold}>coberturas pontuais</Text> da função de{' '}
+        <Text style={s.bold}>Agente de Higienização</Text> nos períodos abaixo relacionados,
+        conforme registros internos:
+      </Text>
 
-        {/* Lista de períodos */}
-        <View style={{ marginBottom: 12 }}>
-          {periodos.map((p, i) => (
-            <Text key={i} style={s.periodo}>
-              {'  '}• {fmtData(p.inicio)}{p.inicio !== p.fim ? ` a ${fmtData(p.fim)}` : ''}{' '}
-              ({p.count} dia{p.count !== 1 ? 's' : ''}) — Agente ausente:{' '}
-              <Text style={s.bold}>{p.agente}</Text>
-            </Text>
-          ))}
-        </View>
-
-        {/* Apuração */}
-        <View style={s.apuracaoBox}>
-          <Text style={s.apTtl}>APURAÇÃO DO ADICIONAL — {mesAno}</Text>
-          <View style={s.apRow}>
-            <Text style={s.apLbl}>Total de dias cobertos:</Text>
-            <Text style={s.apVal}>{grupo.total_dias} dia{grupo.total_dias !== 1 ? 's' : ''}</Text>
-          </View>
-          <View style={s.apRow}>
-            <Text style={s.apLbl}>Percentual aplicável por dia coberto:</Text>
-            <Text style={s.apVal}>40% INS.</Text>
-          </View>
-        </View>
-
-        {/* Parágrafo legal */}
-        <Text style={s.legal}>
-          Declara a empresa que o(a) colaborador(a) acima identificado(a) realizou, nos períodos
-          relacionados, cobertura pontual e eventual de função de Agente de Higienização, com adicional
-          de insalubridade em grau máximo (40%), conforme CLT e NR-15.{'\n'}
-          A presente declaração tem por finalidade resguardar a empresa quanto à comprovação de
-          atividade insalubre exercida pelo(a) colaborador(a) em caráter de substituição/cobertura,
-          para fins de auditoria e controles internos.
-        </Text>
-
-        {/* Rodapé */}
-        <View style={s.footer}>
-          <Text style={{ fontSize: 9, marginBottom: 6 }}>
-            Local e data: Mogi das Cruzes,{' '}
-            <Text style={s.bold}>{fmtDataExtenso(hoje)}</Text>
+      {/* Lista de períodos */}
+      <View style={{ marginBottom: 12 }}>
+        {periodos.map((p, i) => (
+          <Text key={i} style={s.periodo}>
+            {'  '}• {fmtData(p.inicio)}{p.inicio !== p.fim ? ` a ${fmtData(p.fim)}` : ''}{' '}
+            ({p.count} dia{p.count !== 1 ? 's' : ''}) — Agente ausente:{' '}
+            <Text style={s.bold}>{p.agente}</Text>
           </Text>
-          <Text style={{ fontSize: 9 }}>Nome: <Text style={s.bold}>Rodolfo Paulussi</Text></Text>
-          <Text style={{ fontSize: 9 }}>Cargo: <Text style={s.bold}>Coordenador Operacional</Text></Text>
-        </View>
+        ))}
+      </View>
 
-        {/* Ciência do colaborador */}
-        <View style={s.sigBox}>
-          <Text style={s.sigTtl}>CIÊNCIA DO COLABORADOR</Text>
-          <View style={s.sigRow}>
-            <Text style={s.sigLbl}>Nome:</Text>
-            <Text style={s.sigVal}>{grupo.funcionario_nome.toUpperCase()}</Text>
-          </View>
-          <View style={[s.sigRow, { marginTop: 12 }]}>
-            <Text style={s.sigLbl}>Assinatura:</Text>
-            <View style={s.sigLine} />
-          </View>
+      {/* Apuração */}
+      <View style={s.apuracaoBox}>
+        <Text style={s.apTtl}>APURAÇÃO DO ADICIONAL — {mesAno}</Text>
+        <View style={s.apRow}>
+          <Text style={s.apLbl}>Total de dias cobertos:</Text>
+          <Text style={s.apVal}>{grupo.total_dias} dia{grupo.total_dias !== 1 ? 's' : ''}</Text>
         </View>
+        <View style={s.apRow}>
+          <Text style={s.apLbl}>Percentual aplicável por dia coberto:</Text>
+          <Text style={s.apVal}>40% INS.</Text>
+        </View>
+      </View>
 
-      </Page>
+      {/* Parágrafo legal */}
+      <Text style={s.legal}>
+        Declara a empresa que o(a) colaborador(a) acima identificado(a) realizou, nos períodos
+        relacionados, cobertura pontual e eventual de função de Agente de Higienização, com adicional
+        de insalubridade em grau máximo (40%), conforme CLT e NR-15.{'\n'}
+        A presente declaração tem por finalidade resguardar a empresa quanto à comprovação de
+        atividade insalubre exercida pelo(a) colaborador(a) em caráter de substituição/cobertura,
+        para fins de auditoria e controles internos.
+      </Text>
+
+      {/* Rodapé */}
+      <View style={s.footer}>
+        <Text style={{ fontSize: 9, marginBottom: 6 }}>
+          Local e data: Mogi das Cruzes,{' '}
+          <Text style={s.bold}>{fmtDataExtenso(hoje)}</Text>
+        </Text>
+        <Text style={{ fontSize: 9 }}>Nome: <Text style={s.bold}>Rodolfo Paulussi</Text></Text>
+        <Text style={{ fontSize: 9 }}>Cargo: <Text style={s.bold}>Coordenador Operacional</Text></Text>
+      </View>
+
+      {/* Ciência do colaborador */}
+      <View style={s.sigBox}>
+        <Text style={s.sigTtl}>CIÊNCIA DO COLABORADOR</Text>
+        <View style={s.sigRow}>
+          <Text style={s.sigLbl}>Nome:</Text>
+          <Text style={s.sigVal}>{grupo.funcionario_nome.toUpperCase()}</Text>
+        </View>
+        <View style={[s.sigRow, { marginTop: 12 }]}>
+          <Text style={s.sigLbl}>Assinatura:</Text>
+          <View style={s.sigLine} />
+        </View>
+      </View>
+
+    </Page>
+  )
+}
+
+function DeclaracaoDocument({ grupo, mes, ano }: { grupo: InsalubridadeGrupo; mes: number; ano: number }) {
+  return (
+    <Document>
+      <DeclaracaoPage grupo={grupo} mes={mes} ano={ano} />
     </Document>
   )
+}
+
+function DeclaracaoLoteDocument({ grupos, mes, ano }: { grupos: InsalubridadeGrupo[]; mes: number; ano: number }) {
+  return (
+    <Document>
+      {grupos.map(grupo => (
+        <DeclaracaoPage key={grupo.funcionario_id} grupo={grupo} mes={mes} ano={ano} />
+      ))}
+    </Document>
+  )
+}
+
+export async function downloadDeclaracaoPDFLote(
+  grupos: InsalubridadeGrupo[],
+  mes: number,
+  ano: number
+): Promise<void> {
+  const pad2 = (n: number) => String(n).padStart(2, '0')
+  const mesAno = `${pad2(mes)}-${ano}`
+  const filename = `Declaracoes_Insalubridade_${mesAno}.pdf`
+  const { pdf } = await import('@react-pdf/renderer')
+  const blob = await pdf(<DeclaracaoLoteDocument grupos={grupos} mes={mes} ano={ano} />).toBlob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 export async function downloadDeclaracaoPDF(

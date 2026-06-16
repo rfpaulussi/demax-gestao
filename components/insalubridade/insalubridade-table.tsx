@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileSpreadsheet, FileText } from 'lucide-react'
+import * as XLSX from 'xlsx-js-style'
 import { marcarEnviado, removerDia } from '@/app/(admin)/insalubridade/actions'
 import { ModalNovaInsalubridade } from './modal-nova-insalubridade'
-import { downloadDeclaracaoPDF } from './declaracao-insalubridade-pdf'
+import { downloadDeclaracaoPDF, downloadDeclaracaoPDFLote } from './declaracao-insalubridade-pdf'
 import type { InsalubridadeGrupo, InsalubridadeCobertura, FuncOpt } from '@/app/(admin)/insalubridade/actions'
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
@@ -80,6 +81,70 @@ function PDFBtn({ grupo, mes, ano }: { grupo: InsalubridadeGrupo; mes: number; a
   )
 }
 
+// ─── Excel export ─────────────────────────────────────────────────────────────
+
+function pad2(n: number) { return String(n).padStart(2, '0') }
+
+function exportExcelInsalubridade(grupos: InsalubridadeGrupo[], mes: number, ano: number) {
+  const wb = XLSX.utils.book_new()
+  const HEADERS = ['Funcionário','Função','Posto','Secretaria','Supervisor','Total Dias','%','Status','Origens']
+  const NC = HEADERS.length
+
+  const rows: { data: (string | number)[]; style?: 'header' | 'totals' }[] = [
+    { data: [`Insalubridade — ${pad2(mes)}/${ano}`] },
+    { data: [] },
+    { data: HEADERS, style: 'header' },
+  ]
+
+  for (const g of grupos) {
+    rows.push({ data: [
+      g.funcionario_nome,
+      g.funcao ?? '—',
+      g.posto_nome ?? '—',
+      g.secretaria ?? '—',
+      g.supervisor_nome ?? '—',
+      g.total_dias,
+      '40%',
+      g.status.charAt(0).toUpperCase() + g.status.slice(1),
+      g.origens.join(', '),
+    ]})
+  }
+
+  rows.push({ data: [
+    'TOTAL', '', '', '', '',
+    grupos.reduce((s, g) => s + g.total_dias, 0),
+    '', '', '',
+  ], style: 'totals' })
+
+  const aoa = rows.map(r => r.data)
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+
+  rows.forEach((row, ri) => {
+    if (!row.style) return
+    for (let ci = 0; ci < NC; ci++) {
+      const addr = XLSX.utils.encode_cell({ r: ri, c: ci })
+      if (!ws[addr]) ws[addr] = { v: '', t: 's' }
+      if (row.style === 'header') {
+        ws[addr].s = {
+          font: { bold: true, color: { rgb: '475569' } },
+          fill: { patternType: 'solid', fgColor: { rgb: 'e2e8f0' } },
+        }
+      } else if (row.style === 'totals') {
+        ws[addr].s = {
+          font: { bold: true },
+          fill: { patternType: 'solid', fgColor: { rgb: 'f1f5f9' } },
+        }
+      }
+    }
+  })
+
+  ws['!cols'] = [{ wch: 36 }, { wch: 20 }, { wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 6 }, { wch: 12 }, { wch: 18 }]
+  XLSX.utils.book_append_sheet(wb, ws, 'Insalubridade')
+  XLSX.writeFile(wb, `insalubridade-${pad2(mes)}-${ano}.xlsx`)
+}
+
+// ─── component ────────────────────────────────────────────────────────────────
+
 interface Props {
   grupos: InsalubridadeGrupo[]
   mes: number
@@ -91,6 +156,19 @@ interface Props {
 export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [showModal, setShowModal] = useState(false)
+  const [loadingXlsx, setLoadingXlsx] = useState(false)
+  const [loadingLote, setLoadingLote] = useState(false)
+
+  async function handleExcel() {
+    setLoadingXlsx(true)
+    try { exportExcelInsalubridade(grupos, mes, ano) } finally { setLoadingXlsx(false) }
+  }
+
+  async function handlePDFLote() {
+    setLoadingLote(true)
+    try { await downloadDeclaracaoPDFLote(grupos, mes, ano) }
+    finally { setLoadingLote(false) }
+  }
 
   function toggle(id: string) {
     setExpanded(prev => {
@@ -113,8 +191,26 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos }
         </p>
         <div className="flex items-center gap-2">
           <button
+            type="button"
+            onClick={handleExcel}
+            disabled={loadingXlsx || grupos.length === 0}
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+          >
+            <FileSpreadsheet className="h-4 w-4 text-green-600" />
+            {loadingXlsx ? 'Gerando…' : 'Excel'}
+          </button>
+          <button
+            type="button"
+            onClick={handlePDFLote}
+            disabled={loadingLote || grupos.length === 0}
+            className="flex h-9 items-center gap-1.5 rounded-lg bg-amber-500 px-3 text-sm font-semibold text-slate-900 hover:bg-amber-400 disabled:opacity-40"
+          >
+            <FileText className="h-4 w-4" />
+            {loadingLote ? 'Gerando…' : 'PDF do Mês'}
+          </button>
+          <button
             onClick={() => setShowModal(true)}
-            className="flex h-9 items-center rounded-lg bg-amber-500 px-4 text-sm font-semibold text-slate-900 transition-colors hover:bg-amber-400"
+            className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white transition-colors hover:bg-slate-700"
           >
             + Nova Declaração
           </button>
