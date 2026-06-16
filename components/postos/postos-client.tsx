@@ -181,6 +181,8 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
   const [formSecretaria, setFormSecretaria]  = useState('')
   const [formPrevisto, setFormPrevisto]      = useState(1)
   const [formInsalubridade, setFormInsalubridade] = useState(0)
+  const [gerenciarSortCol, setGerenciarSortCol] = useState<'nome' | 'secretaria' | 'efetivo_previsto' | 'cota_insalubridade'>('secretaria')
+  const [gerenciarSortDir, setGerenciarSortDir] = useState<'asc' | 'desc'>('asc')
 
   async function handleExcel() {
     setLoadingXlsx(true)
@@ -215,6 +217,11 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
     setSaving(true)
     await desativarPosto(confirmDesativar.id)
     setSaving(false); setConfirmDesativar(null)
+  }
+
+  function toggleGerenciarSort(col: typeof gerenciarSortCol) {
+    if (col === gerenciarSortCol) setGerenciarSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setGerenciarSortCol(col); setGerenciarSortDir('asc') }
   }
 
   useEffect(() => {
@@ -296,6 +303,24 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
       }
     })
   }, [filtered, sortCol, sortDir])
+
+  const postosGerenciar = useMemo(() => {
+    const dir = gerenciarSortDir === 'asc' ? 1 : -1
+    return [...postos].sort((a, b) => {
+      switch (gerenciarSortCol) {
+        case 'nome':
+          return dir * a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
+        case 'secretaria':
+          return dir * (a.secretaria ?? '').localeCompare(b.secretaria ?? '', 'pt-BR', { sensitivity: 'base' })
+        case 'efetivo_previsto':
+          return dir * (a.efetivo_previsto - b.efetivo_previsto)
+        case 'cota_insalubridade':
+          return dir * ((a.cota_insalubridade ?? 0) - (b.cota_insalubridade ?? 0))
+        default:
+          return 0
+      }
+    })
+  }, [postos, gerenciarSortCol, gerenciarSortDir])
 
   function handleSort(col: SortCol) {
     if (col === sortCol) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
@@ -476,15 +501,29 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Posto</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Secretaria</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Previsto</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Insalubridade</th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Ações</th>
+                  <th onClick={() => toggleGerenciarSort('nome')}
+                    className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400 cursor-pointer select-none hover:text-gray-600">
+                    Posto {gerenciarSortCol === 'nome' ? (gerenciarSortDir === 'asc' ? '↑' : '↓') : <span className="text-gray-300">↕</span>}
+                  </th>
+                  <th onClick={() => toggleGerenciarSort('secretaria')}
+                    className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400 cursor-pointer select-none hover:text-gray-600">
+                    Secretaria {gerenciarSortCol === 'secretaria' ? (gerenciarSortDir === 'asc' ? '↑' : '↓') : <span className="text-gray-300">↕</span>}
+                  </th>
+                  <th onClick={() => toggleGerenciarSort('efetivo_previsto')}
+                    className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400 cursor-pointer select-none hover:text-gray-600">
+                    Previsto {gerenciarSortCol === 'efetivo_previsto' ? (gerenciarSortDir === 'asc' ? '↑' : '↓') : <span className="text-gray-300">↕</span>}
+                  </th>
+                  <th onClick={() => toggleGerenciarSort('cota_insalubridade')}
+                    className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400 cursor-pointer select-none hover:text-gray-600">
+                    Insalubridade {gerenciarSortCol === 'cota_insalubridade' ? (gerenciarSortDir === 'asc' ? '↑' : '↓') : <span className="text-gray-300">↕</span>}
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">
+                    Ações
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {[...postos].sort((a, b) => a.secretaria.localeCompare(b.secretaria) || a.nome.localeCompare(b.nome)).map(p => (
+                {postosGerenciar.map(p => (
                   <tr key={p.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">{p.nome}</td>
                     <td className="px-4 py-3 text-gray-500">{p.secretaria || '—'}</td>
