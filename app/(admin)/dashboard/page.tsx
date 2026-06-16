@@ -13,8 +13,6 @@ import {
   buscarEvolucaoEfetivo,
   buscarSecretariaData,
   buscarAprovacoesData,
-  buscarForaDoEfetivo,
-  buscarDeltaKPIs,
 } from './actions'
 import { AlertasCriticos } from '@/components/dashboard/alertas-criticos'
 import { ProximasFerias } from '@/components/dashboard/proximas-ferias'
@@ -37,38 +35,7 @@ const TIPO_BADGE: Record<TipoSolicitacao, { label: string; className: string }> 
   mudanca_funcao:     { label: 'Mudança Função',     className: 'bg-indigo-50 text-indigo-700 ring-indigo-200' },
   promocao:           { label: 'Promoção',           className: 'bg-green-50 text-green-700 ring-green-200'    },
   mudanca_supervisor: { label: 'Mudança Supervisor', className: 'bg-purple-50 text-purple-700 ring-purple-200' },
-  alteracao_salario:   { label: 'Alteração Salário',   className: 'bg-amber-50 text-amber-700 ring-amber-200'    },
-  afastamento:         { label: 'Afastamento',         className: 'bg-orange-50 text-orange-700 ring-orange-200' },
-  retorno_afastamento: { label: 'Retorno Afastamento', className: 'bg-teal-50 text-teal-700 ring-teal-200'       },
-  rescisao_indireta:   { label: 'Rescisão Indireta',   className: 'bg-rose-50 text-rose-700 ring-rose-200'       },
-  admissao:            { label: 'Admissão',            className: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
-}
-
-// ─── Sparkline ────────────────────────────────────────────────────────────────
-
-function Sparkline({ values, color }: { values: number[]; color: string }) {
-  if (values.length < 2) return null
-  const w = 80, h = 28
-  const min = Math.min(...values)
-  const max = Math.max(...values)
-  const range = max - min || 1
-  const pts = values.map((v, i) => {
-    const x = (i / (values.length - 1)) * w
-    const y = h - ((v - min) / range) * h
-    return `${x},${y}`
-  }).join(' ')
-  return (
-    <svg width={w} height={h} className="mt-2 opacity-60">
-      <polyline
-        points={pts}
-        fill="none"
-        stroke={color}
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
+  alteracao_salario:  { label: 'Alteração Salarial', className: 'bg-amber-50 text-amber-700 ring-amber-200'   },
 }
 
 // ─── KpiCard ──────────────────────────────────────────────────────────────────
@@ -81,10 +48,6 @@ function KpiCard({
   iconBg,
   href,
   subInfo,
-  delta,
-  deltaInvert,
-  sparkline,
-  sparklineColor,
 }: {
   label: string
   value: number
@@ -93,10 +56,6 @@ function KpiCard({
   iconBg: string
   href?: string
   subInfo?: string
-  delta?: number | null
-  deltaInvert?: boolean
-  sparkline?: number[]
-  sparklineColor?: string
 }) {
   const [iconClass, bgClass] = iconBg.split(' ')
   const inner = (
@@ -112,20 +71,6 @@ function KpiCard({
       </div>
       <p className="mt-3 text-4xl font-black tracking-tight text-gray-900">{value}</p>
       <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
-      {delta !== null && delta !== undefined && (
-        <p className={cn(
-          'mt-0.5 text-xs font-medium',
-          delta === 0 ? 'text-gray-400'
-            : deltaInvert
-              ? (delta > 0 ? 'text-green-600' : 'text-red-500')
-              : (delta > 0 ? 'text-red-500'   : 'text-green-600'),
-        )}>
-          {delta > 0 ? `▲ +${delta}` : delta < 0 ? `▼ ${delta}` : '→ 0'} vs ontem
-        </p>
-      )}
-      {sparkline && sparkline.length >= 2 && (
-        <Sparkline values={sparkline} color={sparklineColor ?? '#94a3b8'} />
-      )}
       {subInfo && <p className="mt-1 text-xs text-gray-500">{subInfo}</p>}
     </div>
   )
@@ -144,7 +89,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
-  const [kpis, alertas, proximasFerias, atestados, evolucao, secretarias, aprovacoes, foraDoEfetivo, delta] =
+  const [kpis, alertas, proximasFerias, atestados, evolucao, secretarias, aprovacoes] =
     await Promise.all([
       buscarKPIsDashboard(),
       buscarAlertasDashboard(),
@@ -153,8 +98,6 @@ export default async function DashboardPage() {
       buscarEvolucaoEfetivo(),
       buscarSecretariaData(),
       buscarAprovacoesData(),
-      buscarForaDoEfetivo(),
-      buscarDeltaKPIs(),
     ])
 
   return (
@@ -171,10 +114,6 @@ export default async function DashboardPage() {
             topColor="border-t-blue-500"
             iconBg="text-blue-600 bg-blue-50"
             href="/efetivo?status=ativo"
-            delta={delta.ativos}
-            deltaInvert
-            sparkline={delta.historico.map(h => h.ativos)}
-            sparklineColor="#3b82f6"
           />
           <KpiCard
             label="Afastados"
@@ -183,9 +122,6 @@ export default async function DashboardPage() {
             topColor="border-t-amber-500"
             iconBg="text-amber-600 bg-amber-50"
             href="/efetivo?status=afastado"
-            delta={delta.afastados}
-            sparkline={delta.historico.map(h => h.afastados)}
-            sparklineColor="#f59e0b"
           />
           <KpiCard
             label="Em Férias"
@@ -194,9 +130,6 @@ export default async function DashboardPage() {
             topColor="border-t-green-500"
             iconBg="text-green-600 bg-green-50"
             href="/efetivo?status=ferias"
-            delta={delta.emFerias}
-            sparkline={delta.historico.map(h => h.em_ferias)}
-            sparklineColor="#22c55e"
             subInfo={
               kpis.feriasTerminando30dias > 0
                 ? `⚑ ${kpis.feriasTerminando30dias} vencem em 30 dias`
@@ -233,13 +166,6 @@ export default async function DashboardPage() {
           />
         </div>
       </section>
-
-      {/* Nota informativa: cargos fora do efetivo contratual */}
-      {foraDoEfetivo > 0 && (
-        <p className="text-xs text-gray-400">
-          <span className="font-medium text-gray-500">{foraDoEfetivo}</span> funcionários (Jovem Aprendiz, Limpador de Vidros, Aux. Administrativo) não contam no efetivo contratual e são excluídos do Controle de Postos.
-        </p>
-      )}
 
       {/* ── LINHA 2: Alertas, Próximas Férias, Atestados ───────────────────── */}
       <section>
