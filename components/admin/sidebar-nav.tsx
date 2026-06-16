@@ -21,6 +21,7 @@ import {
   ClipboardList,
   BarChart3,
   ClipboardX,
+  UserX,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import { NAV_GROUPS } from './nav-config'
@@ -40,6 +41,7 @@ const ICONS: Record<string, React.ElementType> = {
   '/atestados':     Stethoscope,
   '/insalubridade': Biohazard,
   '/ocorrencias':   Siren,
+  '/desligamentos': UserX,
   '/pendencias':    ClipboardX,
   '/fechamento':    ClipboardList,
   '/relatorios':    BarChart3,

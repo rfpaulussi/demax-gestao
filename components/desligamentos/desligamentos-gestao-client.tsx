@@ -157,7 +157,7 @@ export function DesligamentosGestaoClient({ rows, dataInicio, dataFim }: Props) 
             <table className="w-full text-sm" style={{ minWidth: '1100px' }}>
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
-                  {['Funcionário','Matrícula','Posto','Secretaria','Supervisor','Admissão','Desligamento','Tempo de Casa','Tipo','Motivação',''].map(h => (
+                  {['Funcionário','Matrícula','Posto','Secretaria','Supervisor','Admissão','Desligamento','Tempo de Casa','TIPO','MOTIVAÇÃO',''].map(h => (
                     <th key={h} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">{h}</th>
                   ))}
                 </tr>
