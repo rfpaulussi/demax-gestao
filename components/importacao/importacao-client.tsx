@@ -109,8 +109,8 @@ function parseDataFlexivel(valor: string): string | null {
   }
 
   const serial = parseFloat(valor)
-  if (!isNaN(serial) && serial > 40000) {
-    const dias = Math.floor(serial)
+  if (!isNaN(serial) && serial > 30000) {
+    const dias = Math.round(serial)
     const data = new Date(Date.UTC(1899, 11, 30))
     data.setUTCDate(data.getUTCDate() + dias)
     const d = String(data.getUTCDate()).padStart(2, '0')
@@ -703,7 +703,6 @@ function TabEfetivo() {
       }
 
       const data_admissao     = parseDataFlexivel(getCol(row, 'ADMISSÃO', 'ADMISSAO'))
-      console.log('DEBUG admissao raw:', JSON.stringify(getCol(row, 'ADMISSÃO', 'ADMISSAO')), '→', data_admissao)
       const data_desligamento = parseDataFlexivel(getCol(row, 'DATA SAÍDA', 'DATA SAIDA'))
 
       const per1 = getCol(row, '1º PER.', '1 PER.', '1º PER', '1 PER')
