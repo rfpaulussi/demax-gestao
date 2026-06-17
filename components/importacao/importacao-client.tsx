@@ -100,6 +100,26 @@ function normalizarTexto(str: string): string {
     .replace(/Ã/g, 'Î').replace(/Ã/g, 'Ý')
 }
 
+function parseDataFlexivel(valor: string): string | null {
+  if (!valor || valor.trim() === '') return null
+
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(valor.trim())) {
+    const [d, m, a] = valor.trim().split('/')
+    return `${a}-${m}-${d}`
+  }
+
+  const serial = parseFloat(valor)
+  if (!isNaN(serial) && serial > 40000) {
+    const data = new Date((serial - 25569) * 86400 * 1000)
+    const d = String(data.getUTCDate()).padStart(2, '0')
+    const m = String(data.getUTCMonth() + 1).padStart(2, '0')
+    const a = data.getUTCFullYear()
+    return `${a}-${m}-${d}`
+  }
+
+  return null
+}
+
 function detectarDelimitador(linha: string): string {
   const tabs = (linha.match(/\t/g) || []).length
   const virgulas = (linha.match(/,/g) || []).length
@@ -680,8 +700,8 @@ function TabEfetivo() {
         status = 'afastado'
       }
 
-      const data_admissao     = parseBRDate(getCol(row, 'ADMISSÃO', 'ADMISSAO'))
-      const data_desligamento = parseBRDate(getCol(row, 'DATA SAÍDA', 'DATA SAIDA'))
+      const data_admissao     = parseDataFlexivel(getCol(row, 'ADMISSÃO', 'ADMISSAO'))
+      const data_desligamento = parseDataFlexivel(getCol(row, 'DATA SAÍDA', 'DATA SAIDA'))
 
       const per1 = getCol(row, '1º PER.', '1 PER.', '1º PER', '1 PER')
       const per2 = getCol(row, '2º PER.', '2 PER.', '2º PER', '2 PER')
