@@ -388,7 +388,7 @@ export async function importarFeriasHistoricasBulk(rows: FeriasImportRow[]): Pro
   const supabase = createClient()
   const { error } = await (supabase as AnyClient)
     .from('ferias')
-    .upsert(rows, { onConflict: 'funcionario_id,numero_periodo' })
+    .upsert(rows, { onConflict: 'funcionario_id,numero_periodo', ignoreDuplicates: false })
   if (error) return { imported: 0, errors: [error.message] }
   return { imported: rows.length, errors: [] }
 }
