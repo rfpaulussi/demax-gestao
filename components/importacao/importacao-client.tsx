@@ -196,11 +196,6 @@ function mesAnoToDate(s: string): string {
   return `${yyyy}-${(mm ?? '01').padStart(2, '0')}-01`
 }
 
-function parseBRDate(s: string): string | null {
-  const m = (s ?? '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-  if (!m) return null
-  return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
-}
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = []
@@ -213,7 +208,7 @@ function chunk<T>(arr: T[], size: number): T[][] {
 interface AlocacaoRow {
   mesAno: string; registro: string; nome: string; cargo: string
   status: string; supervisor: string; posto: string; secretaria: string
-  dataDemissao: string; admissao: string
+  dataDemissao: string; admissao: string; emFerias: string
 }
 
 function extractAlocacoes(rows: Record<string, unknown>[]): AlocacaoRow[] {
@@ -228,6 +223,7 @@ function extractAlocacoes(rows: Record<string, unknown>[]): AlocacaoRow[] {
     secretaria:   colByName(r, 'SECRETARIA (no mês)'),
     dataDemissao: colByName(r, 'Data Demissão'),
     admissao:     colByName(r, 'Admissão'),
+    emFerias:     colByName(r, 'Está de Férias Hoje?'),
     // 'Está de Férias Hoje?', 'É Insalubre?' e colunas extras são ignoradas silenciosamente
   })).filter(r => r.registro)
 }
@@ -267,7 +263,7 @@ function detectarEventos(rows: AlocacaoRow[]): EventoHistoricoInput[] {
     const first = sorted[0]
 
     // Admissão
-    const admData = parseBRDate(first.admissao) ?? mesAnoToDate(first.mesAno)
+    const admData = parseDataFlexivel(first.admissao ?? '') ?? mesAnoToDate(first.mesAno)
     eventos.push({
       matricula:   first.registro,
       tipo:        'admissao',
@@ -314,12 +310,22 @@ function detectarEventos(rows: AlocacaoRow[]): EventoHistoricoInput[] {
           dados_novos:      { status: curr.status },
         })
       }
+
+      if (curr.emFerias?.trim().toLowerCase() === 'sim') {
+        eventos.push({
+          matricula:        curr.registro,
+          tipo:             'ferias',
+          data_evento:      dataEvento,
+          descricao:        `Em férias em ${curr.mesAno}`,
+          dados_novos:      { em_ferias: true, mes_referencia: curr.mesAno },
+        })
+      }
     }
 
     // Desligamento
     const last = sorted[sorted.length - 1]
     if (last.dataDemissao) {
-      const demData = parseBRDate(last.dataDemissao) ?? mesAnoToDate(last.mesAno)
+      const demData = parseDataFlexivel(last.dataDemissao ?? '') ?? mesAnoToDate(last.mesAno)
       eventos.push({
         matricula:        last.registro,
         tipo:             'desligamento',
