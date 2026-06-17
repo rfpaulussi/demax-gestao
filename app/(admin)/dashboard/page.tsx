@@ -74,7 +74,7 @@ function KpiCardPrincipal({
   const inner = (
     <div
       className={cn(
-        'rounded-xl border border-gray-100 border-t-4 bg-white p-5 shadow-sm transition-shadow',
+        'rounded-xl border border-gray-100 border-t-4 bg-white p-4 shadow-sm transition-shadow min-h-[140px] flex flex-col justify-between',
         href && 'cursor-pointer hover:shadow-md',
         corBorda,
       )}
@@ -193,12 +193,11 @@ export default async function DashboardPage() {
   const deltaFerias    = deltaKPIs.emFerias   != null ? { valor: deltaKPIs.emFerias,   texto: 'vs ontem' } : null
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
 
       {/* ── Topbar ──────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="mb-1 text-xs uppercase tracking-widest text-gray-400">Operacional / Dashboard</p>
           <h1 className="text-2xl font-medium text-gray-900">Dashboard</h1>
         </div>
         <div className="flex items-center gap-3">
@@ -265,8 +264,8 @@ export default async function DashboardPage() {
         {/* Coluna direita — Indicadores 2×2 + Próximas Férias */}
         <div className="flex flex-col gap-4">
           {/* Mini KPIs 2×2 */}
-          <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-            <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
+          <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-400">
               Indicadores
             </p>
             <div className="grid grid-cols-2 gap-3">

@@ -15,7 +15,7 @@ export function EfetivoPorSecretaria({ secretarias }: EfetivoPorSecretariaProps)
       {secretarias.length === 0 ? (
         <p className="text-sm text-gray-400">Sem dados de secretaria.</p>
       ) : (
-        <ul className="max-h-80 space-y-4 overflow-y-auto">
+        <ul className="max-h-80 space-y-2.5 overflow-y-auto">
           {secretarias.map(({ nome, previsto, real, pct }) => {
             const isPleno = pct >= 100
             const barColor =
@@ -27,7 +27,7 @@ export function EfetivoPorSecretaria({ secretarias }: EfetivoPorSecretariaProps)
 
             return (
               <li key={nome}>
-                <div className="mb-1.5 flex items-center justify-between">
+                <div className="mb-1 flex items-center justify-between">
                   <p
                     className={cn(
                       'text-xs font-semibold uppercase tracking-widest',
@@ -43,7 +43,7 @@ export function EfetivoPorSecretaria({ secretarias }: EfetivoPorSecretariaProps)
                     </span>
                   </p>
                 </div>
-                <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-100">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
                   <div
                     className={cn('h-full rounded-full transition-all', barColor)}
                     style={{ width: `${Math.min(pct, 100)}%` }}
