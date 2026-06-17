@@ -671,7 +671,7 @@ function TabAdvertencias() {
 // ─── ABA 5: Efetivo ──────────────────────────────────────────
 
 function TabEfetivo() {
-  const [preview, setPreview]   = useState<Record<string, unknown>[]>([])
+  const [preview, setPreview]   = useState<EfetivoRow[]>([])
   const [rows, setRows]         = useState<EfetivoRow[]>([])
   const [processing, setProc]   = useState(false)
   const [progress, setProgress] = useState(0)
@@ -707,7 +707,7 @@ function TabEfetivo() {
       const per2 = getCol(row, '2º PER.', '2 PER.', '2º PER', '2 PER')
       let periodo_experiencia: EfetivoRow['periodo_experiencia'] = null
       if (per1 && per2 && data_admissao) {
-        const d1 = parseBRDate(per1)
+        const d1 = parseDataFlexivel(per1)
         if (d1) {
           const dias = Math.round((new Date(d1).getTime() - new Date(data_admissao).getTime()) / 86400000)
           periodo_experiencia = dias <= 30 ? '30+30' : '45+45'
@@ -717,7 +717,7 @@ function TabEfetivo() {
       parsed.push({ registro, nome, cargo, status, data_admissao, data_desligamento, periodo_experiencia })
     }
 
-    setPreview(raw.slice(0, 5))
+    setPreview(parsed.slice(0, 5))
     setRows(parsed)
   }
 
@@ -755,7 +755,15 @@ function TabEfetivo() {
 
       {preview.length > 0 && (
         <>
-          <PreviewTable rows={preview} />
+          <PreviewTable rows={preview.map(r => ({
+            Registro:       r.registro,
+            Nome:           r.nome,
+            Cargo:          r.cargo,
+            Status:         r.status,
+            Admissão:       r.data_admissao?.split('-').reverse().join('/') ?? '',
+            Desligamento:   r.data_desligamento?.split('-').reverse().join('/') ?? '',
+            'Período Exp.': r.periodo_experiencia ?? '',
+          }))} />
           <p className="text-xs text-gray-400">
             {rows.length} funcionário{rows.length !== 1 ? 's' : ''} prontos para importar
           </p>
