@@ -21,6 +21,7 @@ export function ModalAdmitirAdmin({ open, onClose, postos, funcoes }: Props) {
   const [ok, setOk]       = useState(false)
   const [pending, start]  = useTransition()
   const [postoSearch, setPostoSearch] = useState('')
+  const [periodoExp, setPeriodoExp] = useState<'30+30' | '45+45' | ''>('45+45')
   const formRef = useRef<HTMLFormElement>(null)
 
   const postosFiltrados = useMemo(() =>
@@ -35,7 +36,7 @@ export function ModalAdmitirAdmin({ open, onClose, postos, funcoes }: Props) {
 
   function handleClose() {
     if (pending) return
-    setErro(null); setOk(false); setPostoSearch('')
+    setErro(null); setOk(false); setPostoSearch(''); setPeriodoExp('45+45')
     formRef.current?.reset()
     onClose()
   }
@@ -64,7 +65,7 @@ export function ModalAdmitirAdmin({ open, onClose, postos, funcoes }: Props) {
             <p className="text-3xl">✓</p>
             <p className="mt-2 text-sm font-medium text-gray-700">Funcionário admitido com sucesso!</p>
             <div className="mt-4 flex justify-center gap-2">
-              <button type="button" onClick={() => { setOk(false); setErro(null); formRef.current?.reset() }}
+              <button type="button" onClick={() => { setOk(false); setErro(null); setPeriodoExp('45+45'); formRef.current?.reset() }}
                 className="rounded border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
                 Admitir outro
               </button>
@@ -123,6 +124,20 @@ export function ModalAdmitirAdmin({ open, onClose, postos, funcoes }: Props) {
             <div>
               <label className={labelClass}>Data de admissão *</label>
               <input name="data_admissao" type="date" required className={inputClass} />
+            </div>
+
+            <div>
+              <label className={labelClass}>Período de Experiência</label>
+              <select
+                name="periodo_experiencia"
+                value={periodoExp}
+                onChange={e => setPeriodoExp(e.target.value as '30+30' | '45+45' | '')}
+                className={inputClass}
+              >
+                <option value="">Nenhum</option>
+                <option value="30+30">30 + 30 dias</option>
+                <option value="45+45">45 + 45 dias</option>
+              </select>
             </div>
 
             {erro && (

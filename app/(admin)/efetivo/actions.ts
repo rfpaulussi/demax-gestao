@@ -431,12 +431,14 @@ export async function solicitarMudancaSupervisor(formData: FormData) {
 export async function admitirFuncionarioAdmin(formData: FormData): Promise<{ error?: string }> {
   const supabase = createClient()
 
-  const nome          = (formData.get('nome') as string)?.trim().toUpperCase()
-  const funcao_id     = formData.get('funcao_id') as string
-  const posto_id      = formData.get('posto_id') as string
-  const data_admissao = formData.get('data_admissao') as string
-  const registro      = (formData.get('registro') as string)?.trim() || null
-  const cpf           = (formData.get('cpf') as string)?.trim() || null
+  const nome               = (formData.get('nome') as string)?.trim().toUpperCase()
+  const funcao_id          = formData.get('funcao_id') as string
+  const posto_id           = formData.get('posto_id') as string
+  const data_admissao      = formData.get('data_admissao') as string
+  const registro           = (formData.get('registro') as string)?.trim() || null
+  const cpf                = (formData.get('cpf') as string)?.trim() || null
+  const periodoRaw         = (formData.get('periodo_experiencia') as string) || ''
+  const periodo_experiencia = (periodoRaw === '30+30' || periodoRaw === '45+45') ? periodoRaw : '45+45'
 
   if (!nome || !funcao_id || !posto_id || !data_admissao) {
     return { error: 'Nome, função, posto e data de admissão são obrigatórios' }
@@ -444,7 +446,7 @@ export async function admitirFuncionarioAdmin(formData: FormData): Promise<{ err
 
   const payload: Record<string, unknown> = {
     nome, funcao_id, posto_id, data_admissao, status: 'ativo',
-    periodo_experiencia: '45+45',
+    periodo_experiencia: periodoRaw === '' ? null : periodo_experiencia,
   }
   if (registro) payload.registro = registro
   if (cpf) payload.cpf = cpf
