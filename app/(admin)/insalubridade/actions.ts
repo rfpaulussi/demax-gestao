@@ -124,7 +124,7 @@ export async function buscarInsalubridades(
       })
     }
     const g = grouped.get(fid)!
-    g.total_dias += 1
+    g.total_dias += r.periodo_dias ?? 1
     g.registros.push(r)
     if (!g.origens.includes(r.origem)) g.origens.push(r.origem)
     if (g.status !== r.status) g.status = 'misto'
