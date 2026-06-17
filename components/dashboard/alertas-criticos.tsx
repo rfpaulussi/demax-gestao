@@ -24,7 +24,7 @@ export function AlertasCriticos({ alertas }: Props) {
           <p className="text-sm font-medium text-green-700">Nenhum alerta crítico.</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="max-h-64 overflow-y-auto space-y-2">
 
           {/* Postos em déficit */}
           {postosDeficit.slice(0, 5).map(p => (

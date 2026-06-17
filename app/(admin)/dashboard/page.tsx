@@ -256,64 +256,50 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {/* ── Row 2: Evolução + Alertas ────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <EvolucaoEfetivo dados={evolucao} />
-        </div>
+      {/* ── Row 2: Alertas | [Mini KPIs + Próximas Férias] ─────────────────── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+
+        {/* Coluna esquerda — Alertas Críticos */}
         <AlertasCriticos alertas={alertas} />
-      </div>
 
-      {/* ── Row 3: Férias+Atestados | Secretaria | Mini KPIs ────────────────── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-
-        {/* Férias + Atestados empilhados */}
-        <div className="space-y-4">
-          <ProximasFerias ferias={proximasFerias} />
-          <AtestadosRecentes atestados={atestados} />
-        </div>
-
-        {/* Efetivo por Secretaria */}
-        <EfetivoPorSecretaria secretarias={secretarias} />
-
-        {/* Mini KPIs 2×2 */}
-        <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-          <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
-            Indicadores
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <KpiMini
-              label="Aprovações Pend."
-              value={kpis.solicitacoesPendentes}
-              href="/aprovacoes"
-            />
-            <KpiMini
-              label="Coberturas Ativas"
-              value={kpis.coberturasAtivas}
-              href="/coberturas"
-            />
-            <KpiMini
-              label="Em Experiência"
-              value={experiencias.total}
-              href="/efetivo"
-            />
-            <KpiMini
-              label="Ocorrências Mês"
-              value={ocorrencias}
-              href="/ocorrencias"
-            />
-          </div>
-          {experiencias.vencendo7dias > 0 && (
-            <div className="mt-4 flex items-center gap-2 rounded-lg bg-orange-50 px-3 py-2">
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-orange-500" />
-              <p className="text-xs font-medium text-orange-700">
-                {experiencias.vencendo7dias} experiência{experiencias.vencendo7dias > 1 ? 's' : ''} vence{experiencias.vencendo7dias > 1 ? 'm' : ''} em 7 dias
-              </p>
+        {/* Coluna direita — Indicadores 2×2 + Próximas Férias */}
+        <div className="flex flex-col gap-4">
+          {/* Mini KPIs 2×2 */}
+          <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+            <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
+              Indicadores
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <KpiMini label="Aprovações Pend."  value={kpis.solicitacoesPendentes} href="/aprovacoes" />
+              <KpiMini label="Coberturas Ativas" value={kpis.coberturasAtivas}      href="/coberturas" />
+              <KpiMini label="Em Experiência"    value={experiencias.total}          href="/efetivo"    />
+              <KpiMini label="Ocorrências Mês"   value={ocorrencias}                 href="/ocorrencias" />
             </div>
-          )}
+            {experiencias.vencendo7dias > 0 && (
+              <div className="mt-4 flex items-center gap-2 rounded-lg bg-orange-50 px-3 py-2">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-orange-500" />
+                <p className="text-xs font-medium text-orange-700">
+                  {experiencias.vencendo7dias} experiência{experiencias.vencendo7dias > 1 ? 's' : ''} vence{experiencias.vencendo7dias > 1 ? 'm' : ''} em 7 dias
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Próximas Férias */}
+          <ProximasFerias ferias={proximasFerias} />
         </div>
 
       </div>
+
+      {/* ── Row 3: Evolução + Efetivo por Secretaria ────────────────────────── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <EvolucaoEfetivo dados={evolucao} />
+        <EfetivoPorSecretaria secretarias={secretarias} />
+      </div>
+
+      {/* ── Row 4: Atestados Recentes (largura total, horizontal) ───────────── */}
+      <AtestadosRecentes atestados={atestados} />
+
     </div>
   )
 }

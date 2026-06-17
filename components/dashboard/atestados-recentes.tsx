@@ -31,32 +31,25 @@ export function AtestadosRecentes({ atestados }: AtestadosRecentesProps) {
           <p className="text-sm text-gray-400">Nenhum atestado nos últimos 7 dias.</p>
         </div>
       ) : (
-        <ul className="divide-y divide-gray-50">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           {atestados.map(a => {
             const meta = [a.supervisorNome, a.secretaria].filter(Boolean).join(' · ')
             return (
-              <li key={a.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-medium text-indigo-700">
-                    {iniciais(a.funcionarioNome)}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-gray-900">{a.funcionarioNome}</p>
-                    {meta && <p className="truncate text-xs text-gray-400">{meta}</p>}
-                  </div>
+              <div key={a.id} className="flex items-start gap-2.5 rounded-lg border border-gray-100 bg-gray-50 p-3">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-xs font-medium text-indigo-700">
+                  {iniciais(a.funcionarioNome)}
                 </div>
-                <div className="ml-3 flex shrink-0 flex-col items-end gap-0.5">
-                  <span className="text-xs font-semibold text-gray-700">
-                    {a.duracao} dia{a.duracao > 1 ? 's' : ''}
-                  </span>
-                  <span className="text-xs text-gray-400">
-                    {formatDia(a.dataInicio)} → {formatDia(a.dataFim)}
-                  </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-gray-900">{a.funcionarioNome}</p>
+                  {meta && <p className="truncate text-xs text-gray-400">{meta}</p>}
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    {a.duracao} dia{a.duracao > 1 ? 's' : ''} · {formatDia(a.dataInicio)}→{formatDia(a.dataFim)}
+                  </p>
                 </div>
-              </li>
+              </div>
             )
           })}
-        </ul>
+        </div>
       )}
     </div>
   )

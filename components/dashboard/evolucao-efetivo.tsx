@@ -52,7 +52,7 @@ export function EvolucaoEfetivo({ dados }: EvolucaoEfetivoProps) {
           </ResponsiveContainer>
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={140}>
+        <ResponsiveContainer width="100%" height={220}>
           <BarChart data={meses} barSize={28}>
             <XAxis dataKey="label" fontSize={10} />
             <YAxis fontSize={10} width={35} />

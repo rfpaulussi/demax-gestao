@@ -41,7 +41,7 @@ export function ProximasFerias({ ferias }: ProximasFeriasProps) {
       </p>
 
       {ferias.length === 0 ? (
-        <p className="text-sm text-gray-400">Nenhuma férias nos próximos 7 dias.</p>
+        <p className="text-sm text-gray-400">Nenhuma férias agendada para os próximos 7 dias.</p>
       ) : (
         <ul className="max-h-80 divide-y divide-gray-50 overflow-y-auto">
           {ferias.slice(0, 7).map(f => {
