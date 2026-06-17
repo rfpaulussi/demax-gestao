@@ -18,6 +18,7 @@ export interface InsalubridadeCobertura {
   origem: InsalubridadeOrigem
   cobertura_id: string | null
   percentual: number
+  periodo_dias: number
   observacao: string | null
   status: InsalubridadeStatus
   criado_por: string | null
@@ -54,7 +55,7 @@ export interface FuncOpt {
 const INS_SELECT = `
   id, funcionario_id, mes, ano, data_cobertura,
   agente_ausente_id, agente_ausente_nome, posto_id,
-  origem, cobertura_id, percentual, observacao, status, created_at,
+  origem, cobertura_id, percentual, periodo_dias, observacao, status, created_at,
   funcionarios!funcionario_id (
     id, nome,
     funcoes!funcao_id ( nome ),
@@ -148,8 +149,10 @@ export async function criarInsalubridade(formData: FormData) {
   if (!funcionarioId || !dataCobertura) throw new Error('Campos obrigatórios ausentes: funcionario_id e data_cobertura')
 
   const [ano, mes] = dataCobertura.split('-').map(Number)
+  const periodoDias = parseInt(formData.get('periodo_dias') as string) || 1
 
-  const { error } = await supabase.from('insalubridade_coberturas').insert({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from('insalubridade_coberturas').insert({
     funcionario_id: funcionarioId,
     mes,
     ano,
@@ -159,6 +162,7 @@ export async function criarInsalubridade(formData: FormData) {
     posto_id: (formData.get('posto_id') as string) || null,
     origem: 'manual',
     percentual: 40,
+    periodo_dias: periodoDias,
     observacao: (formData.get('observacao') as string) || null,
     status: 'pendente',
   })

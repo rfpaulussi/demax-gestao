@@ -87,7 +87,7 @@ function pad2(n: number) { return String(n).padStart(2, '0') }
 
 function exportExcelInsalubridade(grupos: InsalubridadeGrupo[], mes: number, ano: number) {
   const wb = XLSX.utils.book_new()
-  const HEADERS = ['Funcionário','Função','Posto','Secretaria','Supervisor','Total Dias','%','Status','Origens']
+  const HEADERS = ['Funcionário','Função','Posto','Secretaria','Supervisor','Total Dias','Período (dias)','%','Status','Origens']
   const NC = HEADERS.length
 
   const rows: { data: (string | number)[]; style?: 'header' | 'totals' }[] = [
@@ -104,6 +104,7 @@ function exportExcelInsalubridade(grupos: InsalubridadeGrupo[], mes: number, ano
       g.secretaria ?? '—',
       g.supervisor_nome ?? '—',
       g.total_dias,
+      g.registros.reduce((s, r) => s + (r.periodo_dias ?? 1), 0),
       '40%',
       g.status.charAt(0).toUpperCase() + g.status.slice(1),
       g.origens.join(', '),
@@ -113,6 +114,7 @@ function exportExcelInsalubridade(grupos: InsalubridadeGrupo[], mes: number, ano
   rows.push({ data: [
     'TOTAL', '', '', '', '',
     grupos.reduce((s, g) => s + g.total_dias, 0),
+    grupos.reduce((s, g) => s + g.registros.reduce((rs, r) => rs + (r.periodo_dias ?? 1), 0), 0),
     '', '', '',
   ], style: 'totals' })
 
@@ -138,7 +140,7 @@ function exportExcelInsalubridade(grupos: InsalubridadeGrupo[], mes: number, ano
     }
   })
 
-  ws['!cols'] = [{ wch: 36 }, { wch: 20 }, { wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 6 }, { wch: 12 }, { wch: 18 }]
+  ws['!cols'] = [{ wch: 36 }, { wch: 20 }, { wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 6 }, { wch: 12 }, { wch: 18 }]
   XLSX.utils.book_append_sheet(wb, ws, 'Insalubridade')
   XLSX.writeFile(wb, `insalubridade-${pad2(mes)}-${ano}.xlsx`)
 }
@@ -278,7 +280,7 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos }
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="text-left">
-                            {['Data', 'Agente Ausente', 'Origem', 'Observação', ''].map(h => (
+                            {['Data', 'Período', 'Agente Ausente', 'Origem', 'Observação', ''].map(h => (
                               <th key={h} className="pb-2 pr-4 font-semibold uppercase tracking-widest text-gray-400">{h}</th>
                             ))}
                           </tr>
@@ -289,6 +291,7 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos }
                             return (
                               <tr key={r.id} className="text-gray-600">
                                 <td className="py-1.5 pr-4 font-medium text-gray-800">{fmt(r.data_cobertura)}</td>
+                                <td className="py-1.5 pr-4">{r.periodo_dias ?? 1} dia{(r.periodo_dias ?? 1) !== 1 ? 's' : ''}</td>
                                 <td className="py-1.5 pr-4">{r.agente_ausente_nome ?? '—'}</td>
                                 <td className="py-1.5 pr-4">
                                   <span className={cn('inline-flex rounded-full px-2 py-0.5 font-medium', chip.cls)}>

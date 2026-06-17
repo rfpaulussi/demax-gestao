@@ -125,11 +125,27 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos,
                   className={input}
                 >
                   <option value="">Selecione o posto...</option>
-                  {postos.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.nome}{p.secretaria ? ` — ${p.secretaria}` : ''}
-                    </option>
-                  ))}
+                  {Object.entries(
+                    postos.reduce<Record<string, typeof postos>>((acc, p) => {
+                      const sec = p.secretaria ?? 'Outros'
+                      if (!acc[sec]) acc[sec] = []
+                      acc[sec].push(p)
+                      return acc
+                    }, {})
+                  )
+                    .sort(([a], [b]) => {
+                      if (a === 'Outros') return 1
+                      if (b === 'Outros') return -1
+                      return a.localeCompare(b)
+                    })
+                    .map(([sec, lista]) => (
+                      <optgroup key={sec} label={sec}>
+                        {lista.sort((a, b) => a.nome.localeCompare(b.nome)).map(p => (
+                          <option key={p.id} value={p.id}>{p.nome}</option>
+                        ))}
+                      </optgroup>
+                    ))
+                  }
                 </select>
               </div>
             ) : (
@@ -260,6 +276,12 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos,
             <div>
               <label className={lbl}>Data da Cobertura *</label>
               <input type="date" name="data_cobertura" required defaultValue={defaultDate} className={input} />
+            </div>
+
+            {/* Período (dias) */}
+            <div>
+              <label className={lbl}>Período (dias) *</label>
+              <input type="number" name="periodo_dias" required min={1} defaultValue={1} className={input} />
             </div>
 
             {/* Observação */}
