@@ -10,6 +10,7 @@ import {
   importarEfetivo,
   importarFeriasHistoricasBulk,
   importarCoberturaInsalubridade,
+  importarInsalubridadeCoberturaMensal,
 } from '@/app/(admin)/importacao/actions'
 import type {
   ImportResult,
@@ -489,6 +490,151 @@ function TabAlocacoes() {
   )
 }
 
+// ─── Relatório Mensal Insalubridade ──────────────────────────
+
+type RelatorioMensalRow = {
+  registro: string
+  nome: string
+  mes: number
+  ano: number
+  data_cobertura: string
+  periodo_dias: number
+  agente_ausente_nome: string
+  funcao_agente: string
+  supervisor: string
+  observacao: string
+}
+
+function parsearRelatorioInsalubridade(tsv: string): RelatorioMensalRow[] {
+  const linhas = tsv.trim().split('\n').slice(1)
+  const result: RelatorioMensalRow[] = []
+  for (const linha of linhas) {
+    const cols = linha.split('\t')
+    if (cols.length < 13) continue
+    const [mesStr, anoStr] = cols[0].trim().split('/')
+    const [dd, mm, yyyy] = cols[8].trim().split('/')
+    if (!yyyy || !mm || !dd) continue
+    result.push({
+      registro:            cols[1].trim(),
+      nome:                cols[2].trim(),
+      mes:                 parseInt(mesStr),
+      ano:                 parseInt(anoStr),
+      data_cobertura:      `${yyyy}-${mm}-${dd}`,
+      periodo_dias:        parseInt(cols[9].trim()) || 1,
+      agente_ausente_nome: cols[6].trim(),
+      funcao_agente:       cols[7].trim().replace(/⚠.*$/, '').trim(),
+      supervisor:          cols[10].trim(),
+      observacao:          `[${cols[10].trim()}] ${cols[12].trim()}`,
+    })
+  }
+  return result
+}
+
+function RelatorioMensalSection() {
+  const [tsv, setTsv]         = useState('')
+  const [rows, setRows]       = useState<RelatorioMensalRow[]>([])
+  const [processing, setProc] = useState(false)
+  const [resultado, setRes]   = useState<{ inseridos: number; naoEncontrados: string[]; erros: string[] } | null>(null)
+
+  function handleProcessar() {
+    setRes(null)
+    setRows(parsearRelatorioInsalubridade(tsv))
+  }
+
+  async function handleImportar() {
+    if (!rows.length) return
+    setProc(true); setRes(null)
+    const r = await importarInsalubridadeCoberturaMensal(
+      rows.map(({ registro, mes, ano, data_cobertura, periodo_dias, agente_ausente_nome, observacao }) => ({
+        registro, mes, ano, data_cobertura, periodo_dias, agente_ausente_nome, observacao,
+      }))
+    )
+    setRes(r); setProc(false)
+  }
+
+  return (
+    <div className="space-y-4 pt-2">
+      <hr className="border-gray-100" />
+      <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Importar Relatório Mensal (TSV)</p>
+      <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm space-y-3">
+        <p className="text-xs text-gray-400">
+          Cole o relatório gerado pelo Apps Script. Cabeçalho esperado:{' '}
+          <span className="font-mono text-gray-600">Mês/Ano · Registro · Nome · Função (Efetivo) · Posto Atual · Dias no mês · Agente Ausente · Função Agente Ausente · Data Início · Período (dias) · Supervisor · Posto (formulário) · Motivo</span>
+        </p>
+        <textarea
+          value={tsv}
+          onChange={e => setTsv(e.target.value)}
+          placeholder="Cole o relatório mensal aqui..."
+          rows={8}
+          className="w-full rounded-lg border border-gray-200 p-3 font-mono text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-slate-300"
+        />
+        <button
+          onClick={handleProcessar}
+          disabled={!tsv.trim()}
+          className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
+        >
+          Processar
+        </button>
+      </div>
+
+      {rows.length > 0 && (
+        <>
+          <PreviewTable rows={rows.slice(0, 5).map(r => ({
+            Registro:         r.registro,
+            Nome:             r.nome,
+            Data:             r.data_cobertura,
+            'Período (dias)': r.periodo_dias,
+            'Agente Ausente': r.agente_ausente_nome,
+            Supervisor:       r.supervisor,
+          }))} />
+          <p className="text-xs text-gray-400">
+            {rows.length} registro{rows.length !== 1 ? 's' : ''} encontrado{rows.length !== 1 ? 's' : ''}
+          </p>
+          <button
+            onClick={handleImportar}
+            disabled={processing}
+            className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
+          >
+            {processing ? 'Importando…' : `Importar ${rows.length} registros`}
+          </button>
+        </>
+      )}
+
+      {resultado && (
+        <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm space-y-2">
+          <p className="text-sm font-semibold text-gray-700">
+            <span className="text-green-600">{resultado.inseridos} inserido{resultado.inseridos !== 1 ? 's' : ''}</span>
+            {resultado.naoEncontrados.length > 0 && (
+              <span className="ml-2 text-amber-600">
+                {resultado.naoEncontrados.length} não encontrado{resultado.naoEncontrados.length !== 1 ? 's' : ''}
+              </span>
+            )}
+            {resultado.erros.length > 0 && (
+              <span className="ml-2 text-red-500">
+                {resultado.erros.length} erro{resultado.erros.length !== 1 ? 's' : ''}
+              </span>
+            )}
+          </p>
+          {resultado.naoEncontrados.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-amber-700 mb-1">Registros não encontrados:</p>
+              <p className="font-mono text-xs text-amber-600">
+                {resultado.naoEncontrados.slice(0, 30).join(', ')}
+                {resultado.naoEncontrados.length > 30 ? ` … +${resultado.naoEncontrados.length - 30}` : ''}
+              </p>
+            </div>
+          )}
+          {resultado.erros.length > 0 && (
+            <ul className="max-h-32 overflow-y-auto space-y-0.5">
+              {resultado.erros.map((e, i) => <li key={i} className="text-xs text-red-600">{e}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── ABA 2: Coberturas Insalubres ────────────────────────────
 
 function TabCoberturas() {
@@ -547,6 +693,7 @@ function TabCoberturas() {
       )}
       {processing && <ProgressBar value={progress} />}
       {result && <ResultPanel result={result} />}
+      <RelatorioMensalSection />
     </div>
   )
 }

@@ -393,7 +393,69 @@ export async function importarFeriasHistoricasBulk(rows: FeriasImportRow[]): Pro
   return { imported: rows.length, errors: [] }
 }
 
-// ─── Action 6: Coberturas Insalubridade histórico ─────────────
+// ─── Action 6: Relatório Mensal → insalubridade_coberturas ───
+
+export async function importarInsalubridadeCoberturaMensal(
+  registros: {
+    registro: string
+    mes: number
+    ano: number
+    data_cobertura: string
+    periodo_dias: number
+    agente_ausente_nome: string
+    observacao: string
+  }[]
+): Promise<{ inseridos: number; naoEncontrados: string[]; erros: string[] }> {
+  const supabase = createClient()
+
+  const { data: funcsRaw } = await supabase
+    .from('funcionarios')
+    .select('id, registro, posto_id')
+    .range(0, 1499)
+  const funcs = (funcsRaw ?? []) as unknown as { id: string; registro: string | null; posto_id: string | null }[]
+  const funcMap = new Map<string, { id: string; posto_id: string | null }>()
+  for (const f of funcs) {
+    if (f.registro) funcMap.set(String(f.registro), { id: f.id, posto_id: f.posto_id })
+  }
+
+  const toInsert: Record<string, unknown>[] = []
+  const naoEncontrados: string[] = []
+
+  for (const item of registros) {
+    const func = funcMap.get(item.registro)
+    if (!func) { naoEncontrados.push(item.registro); continue }
+    toInsert.push({
+      funcionario_id:      func.id,
+      posto_id:            func.posto_id,
+      mes:                 item.mes,
+      ano:                 item.ano,
+      data_cobertura:      item.data_cobertura,
+      periodo_dias:        item.periodo_dias,
+      agente_ausente_nome: item.agente_ausente_nome,
+      agente_ausente_id:   null,
+      observacao:          item.observacao,
+      origem:              'cobertura',
+      status:              'pendente',
+      percentual:          null,
+      cobertura_id:        null,
+    })
+  }
+
+  if (toInsert.length === 0) return { inseridos: 0, naoEncontrados, erros: [] }
+
+  const erros: string[] = []
+  let inseridos = 0
+  for (let i = 0; i < toInsert.length; i += 50) {
+    const batch = toInsert.slice(i, i + 50)
+    const { error } = await (supabase as AnyClient).from('insalubridade_coberturas').insert(batch)
+    if (error) erros.push(error.message)
+    else inseridos += batch.length
+  }
+
+  return { inseridos, naoEncontrados, erros }
+}
+
+// ─── Action 7: Coberturas Insalubridade histórico ─────────────
 
 type CoberturaInsalubridadeRow = {
   mes_ano: string
