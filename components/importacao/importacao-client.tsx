@@ -811,6 +811,16 @@ function calcularNumeroPeriodo(admissao: string, periodoInicio: string): number 
 
 type FeriasPreviewRow = FeriasImportRow & { registro_num: string; nome: string }
 
+function calcularStatusFerias(data_inicio: string | null, limite_gozo: string | null): 'concluido' | 'agendado' | 'disponivel' | 'vencido' {
+  if (data_inicio) return 'concluido'
+  if (!limite_gozo) return 'disponivel'
+  const limite = new Date(limite_gozo)
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  if (limite < hoje) return 'vencido'
+  return 'disponivel'
+}
+
 function TabFerias() {
   const [preview, setPreview]   = useState<FeriasPreviewRow[]>([])
   const [rows, setRows]         = useState<FeriasImportRow[]>([])
@@ -865,7 +875,7 @@ function TabFerias() {
         ? Math.round((new Date(data_fim).getTime() - new Date(data_inicio).getTime()) / 86400000) + 1
         : null
 
-      const status: 'concluido' | 'agendado' = data_inicio ? 'concluido' : 'agendado'
+      const status = calcularStatusFerias(data_inicio, limite_gozo)
 
       const importRow: FeriasImportRow = {
         funcionario_id, numero_periodo,
