@@ -885,7 +885,13 @@ function TabFerias() {
   async function handleProcess() {
     if (!rows.length) return
     setProc(true); setProgress(0); setResult(null)
-    const batches = chunk(rows, 100)
+    const dedupMap = new Map<string, FeriasImportRow>()
+    for (const row of rows) {
+      const key = `${row.funcionario_id}__${row.numero_periodo}`
+      dedupMap.set(key, row)
+    }
+    const rowsDedup = Array.from(dedupMap.values())
+    const batches = chunk(rowsDedup, 100)
     let imported = 0; const errors: string[] = []
     for (let i = 0; i < batches.length; i++) {
       const r = await importarFeriasHistoricasBulk(batches[i])
