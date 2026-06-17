@@ -38,16 +38,13 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
   const [tipoDesligamento,   setTipoDesligamento]   = useState<TipoDesligamento | ''>(
     (funcionario.tipo_desligamento as TipoDesligamento) ?? ''
   )
-  const [periodoExp,         setPeriodoExp]         = useState<'30+30' | '45+45' | ''>(
+  const [periodoExp,   setPeriodoExp]   = useState<'30+30' | '45+45' | ''>(
     (funcionario.periodo_experiencia as '30+30' | '45+45') ?? ''
   )
-  const [faseExp,            setFaseExp]            = useState<'1' | '2' | 'concluido' | ''>(
-    (funcionario.fase_experiencia as '1' | '2' | 'concluido') ?? ''
-  )
-  const [dataFimFase1,       setDataFimFase1]       = useState(funcionario.data_fim_fase1 ?? '')
-  const [dataFimFase2,       setDataFimFase2]       = useState(funcionario.data_fim_fase2 ?? '')
-  const [erro,               setErro]               = useState<string | null>(null)
-  const [pending,            start]                 = useTransition()
+  const [dataFimFase1, setDataFimFase1] = useState('')
+  const [dataFimFase2, setDataFimFase2] = useState('')
+  const [erro,         setErro]         = useState<string | null>(null)
+  const [pending,      start]           = useTransition()
 
   useEffect(() => {
     if (dataAdmissao && periodoExp) {
@@ -58,18 +55,14 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
       fim1.setDate(fim1.getDate() + dias)
       setDataFimFase1(fim1.toISOString().split('T')[0])
 
-      if (faseExp && faseExp !== 'concluido') {
-        const fim2 = new Date(fim1)
-        fim2.setDate(fim2.getDate() + dias)
-        setDataFimFase2(fim2.toISOString().split('T')[0])
-      } else {
-        setDataFimFase2('')
-      }
+      const fim2 = new Date(fim1)
+      fim2.setDate(fim2.getDate() + dias)
+      setDataFimFase2(fim2.toISOString().split('T')[0])
     } else {
       setDataFimFase1('')
       setDataFimFase2('')
     }
-  }, [dataAdmissao, periodoExp, faseExp])
+  }, [dataAdmissao, periodoExp])
 
   function handleClose() {
     if (pending) return
@@ -106,9 +99,6 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
         motivo_desligamento: statusEnviado === 'ativo' ? null : motivoDesligamento || null,
         tipo_desligamento:   statusEnviado === 'ativo' ? null : tipoDesligamento || null,
         periodo_experiencia: periodoExp || null,
-        fase_experiencia:    periodoExp ? (faseExp || null) : null,
-        data_fim_fase1:      periodoExp ? (dataFimFase1 || null) : null,
-        data_fim_fase2:      periodoExp && faseExp === '2' ? (dataFimFase2 || null) : null,
       })
       if (!result.success) {
         setErro(result.error)
@@ -241,11 +231,7 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
               <label className={labelClass}>Período de Experiência</label>
               <select
                 value={periodoExp}
-                onChange={e => {
-                  setPeriodoExp(e.target.value as '30+30' | '45+45' | '')
-                  setFaseExp('')
-                  if (!e.target.value) { setDataFimFase1(''); setDataFimFase2('') }
-                }}
+                onChange={e => setPeriodoExp(e.target.value as '30+30' | '45+45' | '')}
                 className={inputClass}
               >
                 <option value="">Nenhum</option>
@@ -257,24 +243,13 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
             {periodoExp && (
               <>
                 <div>
-                  <label className={labelClass}>Fase Atual</label>
-                  <select value={faseExp || ''} onChange={e => setFaseExp(e.target.value as '1' | '2' | 'concluido' | '')} className={inputClass}>
-                    <option value="">Selecione...</option>
-                    <option value="1">Fase 1</option>
-                    <option value="2">Fase 2</option>
-                    <option value="concluido">Concluído</option>
-                  </select>
-                </div>
-                <div>
                   <label className={labelClass}>Fim da Fase 1</label>
                   <input type="date" value={dataFimFase1} disabled className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-400`} />
                 </div>
-                {(faseExp === '2' || faseExp === 'concluido') && (
-                  <div>
-                    <label className={labelClass}>Fim da Fase 2</label>
-                    <input type="date" value={dataFimFase2} disabled className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-400`} />
-                  </div>
-                )}
+                <div>
+                  <label className={labelClass}>Fim da Fase 2</label>
+                  <input type="date" value={dataFimFase2} disabled className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-400`} />
+                </div>
               </>
             )}
 

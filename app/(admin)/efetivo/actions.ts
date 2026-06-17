@@ -338,9 +338,6 @@ export async function editarFuncionario(
     motivo_desligamento: string | null
     tipo_desligamento: string | null
     periodo_experiencia?: '30+30' | '45+45' | null
-    fase_experiencia?: '1' | '2' | 'concluido' | null
-    data_fim_fase1?: string | null
-    data_fim_fase2?: string | null
   },
 ): Promise<ActionResult> {
   const auth = await getUser()
@@ -351,22 +348,9 @@ export async function editarFuncionario(
   const supabase = createClient()
 
   let periodoExperiencia = campos.periodo_experiencia ?? null
-  let faseExperiencia    = campos.fase_experiencia    ?? null
-  let dataFimFase1       = campos.data_fim_fase1      ?? null
-  let dataFimFase2       = campos.data_fim_fase2      ?? null
 
-  if (
-    campos.status === 'ativo' &&
-    !periodoExperiencia &&
-    campos.data_admissao &&
-    faseExperiencia !== 'concluido'
-  ) {
+  if (campos.status === 'ativo' && !periodoExperiencia && campos.data_admissao) {
     periodoExperiencia = '45+45'
-    faseExperiencia    = '1'
-    const admissao = new Date(campos.data_admissao + 'T00:00:00')
-    admissao.setDate(admissao.getDate() + 45)
-    dataFimFase1 = admissao.toISOString().split('T')[0]
-    dataFimFase2 = null
   }
 
   const updatePayload: Record<string, unknown> = {
@@ -379,9 +363,6 @@ export async function editarFuncionario(
     motivo_desligamento: campos.status === 'ativo' ? null : campos.motivo_desligamento || null,
     tipo_desligamento:   campos.status === 'ativo' ? null : campos.tipo_desligamento || null,
     periodo_experiencia: periodoExperiencia,
-    fase_experiencia:    periodoExperiencia ? faseExperiencia : null,
-    data_fim_fase1:      periodoExperiencia ? dataFimFase1 : null,
-    data_fim_fase2:      periodoExperiencia ? dataFimFase2 : null,
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -461,15 +442,9 @@ export async function admitirFuncionarioAdmin(formData: FormData): Promise<{ err
     return { error: 'Nome, função, posto e data de admissão são obrigatórios' }
   }
 
-  const admissaoDt = new Date(data_admissao + 'T00:00:00')
-  admissaoDt.setDate(admissaoDt.getDate() + 45)
-
   const payload: Record<string, unknown> = {
     nome, funcao_id, posto_id, data_admissao, status: 'ativo',
     periodo_experiencia: '45+45',
-    fase_experiencia:    '1',
-    data_fim_fase1:      admissaoDt.toISOString().split('T')[0],
-    data_fim_fase2:      null,
   }
   if (registro) payload.registro = registro
   if (cpf) payload.cpf = cpf
@@ -482,50 +457,3 @@ export async function admitirFuncionarioAdmin(formData: FormData): Promise<{ err
   return {}
 }
 
-export async function renovarFaseExperiencia(funcionarioId: string): Promise<ActionResult> {
-  const auth = await getUser()
-  if (!auth || auth.perfil.role !== 'admin') return { success: false, error: 'Acesso negado' }
-
-  const supabase = createClient()
-  const { data } = await supabase
-    .from('funcionarios')
-    .select('fase_experiencia, periodo_experiencia, data_fim_fase1')
-    .eq('id', funcionarioId)
-    .single()
-
-  if (!data || data.fase_experiencia !== '1') {
-    return { success: false, error: 'Funcionário não está na fase 1 de experiência' }
-  }
-  if (!data.data_fim_fase1) {
-    return { success: false, error: 'Data fim da fase 1 não definida' }
-  }
-
-  const base = new Date(data.data_fim_fase1 + 'T00:00:00')
-  const days = data.periodo_experiencia === '30+30' ? 30 : 45
-  base.setDate(base.getDate() + days)
-  const data_fim_fase2 = base.toISOString().split('T')[0]
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await supabase.from('funcionarios').update({ fase_experiencia: '2', data_fim_fase2 } as any).eq('id', funcionarioId)
-  if (error) return { success: false, error: error.message }
-
-  revalidatePath(`/efetivo/${funcionarioId}`)
-  revalidatePath('/efetivo')
-  revalidatePath('/dashboard')
-  return { success: true }
-}
-
-export async function encerrarExperiencia(funcionarioId: string): Promise<ActionResult> {
-  const auth = await getUser()
-  if (!auth || auth.perfil.role !== 'admin') return { success: false, error: 'Acesso negado' }
-
-  const supabase = createClient()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await supabase.from('funcionarios').update({ fase_experiencia: 'concluido' } as any).eq('id', funcionarioId)
-  if (error) return { success: false, error: error.message }
-
-  revalidatePath(`/efetivo/${funcionarioId}`)
-  revalidatePath('/efetivo')
-  revalidatePath('/dashboard')
-  return { success: true }
-}

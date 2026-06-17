@@ -135,7 +135,7 @@ export function FuncionariosTable({
                   const badge    = f.status ? STATUS_BADGE[f.status] : null
                   const rowStyle = f.status ? STATUS_ROW[f.status] : null
                   const supLabel = fmtSupervisor(f.supervisor_nome)
-                  const exp = calcularStatusExperiencia(f.periodo_experiencia, f.fase_experiencia, f.data_fim_fase1, f.data_fim_fase2)
+                  const exp = calcularStatusExperiencia(f.data_admissao, f.periodo_experiencia)
 
                   return (
                     <tr
@@ -165,11 +165,11 @@ export function FuncionariosTable({
                         {exp.emExperiencia && (
                           <span className={cn(
                             'mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
-                            exp.atencao
+                            exp.alertaCritico
                               ? 'bg-red-50 text-red-700 ring-red-200'
                               : 'bg-purple-50 text-purple-700 ring-purple-200',
                           )}>
-                            F{exp.fase}{exp.diasRestantes !== null ? ` · ${exp.diasRestantes}d` : ''}
+                            {exp.labelBadge}
                           </span>
                         )}
                       </td>

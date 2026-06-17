@@ -107,7 +107,7 @@ export default async function PerfilFuncionarioPage({
   }
 
   const statusBadge = f.status ? STATUS_BADGE[f.status] : null
-  const exp = calcularStatusExperiencia(f.periodo_experiencia, f.fase_experiencia, f.data_fim_fase1, f.data_fim_fase2)
+  const exp = calcularStatusExperiencia(f.data_admissao, f.periodo_experiencia)
 
   return (
     <div className="space-y-6">
@@ -164,7 +164,6 @@ export default async function PerfilFuncionarioPage({
       {/* Experiência banner */}
       {exp.emExperiencia && f.periodo_experiencia && (
         <BannerExperiencia
-          funcionarioId={id}
           exp={exp}
           periodo={f.periodo_experiencia}
         />
