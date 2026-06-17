@@ -278,6 +278,9 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
   const sorted = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1
     return [...filtered].sort((a, b) => {
+      const aAfastado = a.secretaria === 'AFASTADOS' ? 1 : 0
+      const bAfastado = b.secretaria === 'AFASTADOS' ? 1 : 0
+      if (aAfastado !== bAfastado) return aAfastado - bAfastado
       switch (sortCol) {
         case 'nome':
           return dir * a.nome.localeCompare(b.nome, undefined, { sensitivity: 'base' })
@@ -451,8 +454,9 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                   sorted.map(p => {
                     const st = getStatusPosto(p.efetivo_atual, p.efetivo_previsto)
                     const rowBg =
-                      st === 'vago'        ? 'bg-red-50' :
-                      !p.supervisor_nome   ? 'bg-amber-50' :
+                      p.secretaria === 'AFASTADOS' ? 'hover:bg-purple-50' :
+                      st === 'vago'                ? 'bg-red-50' :
+                      !p.supervisor_nome           ? 'bg-amber-50' :
                       'hover:bg-gray-50'
                     return (
                       <tr key={p.id} className={rowBg}>
@@ -471,9 +475,15 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                         <td className="px-4 py-3 text-center tabular-nums text-gray-600">{p.efetivo_previsto}</td>
                         <td className="px-4 py-3 text-center tabular-nums text-gray-600">{p.cota_insalubridade}</td>
                         <td className="px-4 py-3 text-center">
-                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CHIP[st]}`}>
-                            {STATUS_LABELS[st]}
-                          </span>
+                          {p.secretaria === 'AFASTADOS' ? (
+                            <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                              Afastamentos
+                            </span>
+                          ) : (
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CHIP[st]}`}>
+                              {STATUS_LABELS[st]}
+                            </span>
+                          )}
                         </td>
                       </tr>
                     )
