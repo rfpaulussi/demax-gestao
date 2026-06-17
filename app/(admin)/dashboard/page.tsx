@@ -1,10 +1,7 @@
 import Link from 'next/link'
-import {
-  Users, UserMinus, Umbrella, TrendingDown, ClipboardList, ArrowLeftRight, GraduationCap,
-  type LucideIcon,
-} from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { TipoSolicitacao } from '@/types'
+import { getUser } from '@/lib/auth/get-user'
 import {
   buscarKPIsDashboard,
   buscarAlertasDashboard,
@@ -12,8 +9,9 @@ import {
   buscarAtestadosRecentes,
   buscarEvolucaoEfetivo,
   buscarSecretariaData,
-  buscarAprovacoesData,
   buscarExperienciasDashboard,
+  buscarDeltaKPIs,
+  buscarOcorrenciasMes,
 } from './actions'
 import { AlertasCriticos } from '@/components/dashboard/alertas-criticos'
 import { ProximasFerias } from '@/components/dashboard/proximas-ferias'
@@ -21,229 +19,301 @@ import { AtestadosRecentes } from '@/components/dashboard/atestados-recentes'
 import { EvolucaoEfetivo } from '@/components/dashboard/evolucao-efetivo'
 import { EfetivoPorSecretaria } from '@/components/dashboard/efetivo-por-secretaria'
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Sparkline SVG ────────────────────────────────────────────────────────────
 
-function fmt(iso: string) {
-  const [y, m, d] = iso.split('T')[0].split('-')
-  return `${d}/${m}/${y}`
+function Sparkline({ data, color = '#3b82f6' }: { data: number[]; color?: string }) {
+  if (!data || data.length < 2) return <div className="h-11 w-[90px]" />
+  const w = 90, h = 44
+  const min = Math.min(...data)
+  const max = Math.max(...data)
+  const range = max - min || 1
+  const pts = data
+    .map((v, i) => {
+      const x = (i / (data.length - 1)) * w
+      const y = h - 4 - ((v - min) / range) * (h - 10)
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    .join(' ')
+  return (
+    <svg width={w} height={h} aria-hidden="true" className="opacity-80">
+      <polyline
+        points={pts}
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
 }
 
-// ─── TIPO_BADGE ───────────────────────────────────────────────────────────────
+// ─── KpiCardPrincipal ─────────────────────────────────────────────────────────
 
-const TIPO_BADGE: Record<TipoSolicitacao, { label: string; className: string }> = {
-  desligamento:       { label: 'Desligamento',      className: 'bg-red-50 text-red-700 ring-red-200'         },
-  transferencia:      { label: 'Transferência',      className: 'bg-blue-50 text-blue-700 ring-blue-200'       },
-  mudanca_funcao:     { label: 'Mudança Função',     className: 'bg-indigo-50 text-indigo-700 ring-indigo-200' },
-  promocao:           { label: 'Promoção',           className: 'bg-green-50 text-green-700 ring-green-200'    },
-  mudanca_supervisor:  { label: 'Mudança Supervisor',  className: 'bg-purple-50 text-purple-700 ring-purple-200'  },
-  alteracao_salario:   { label: 'Alteração Salarial',  className: 'bg-amber-50 text-amber-700 ring-amber-200'    },
-  afastamento:         { label: 'Afastamento',         className: 'bg-orange-50 text-orange-700 ring-orange-200' },
-  retorno_afastamento: { label: 'Retorno Afastamento', className: 'bg-teal-50 text-teal-700 ring-teal-200'       },
-  rescisao_indireta:   { label: 'Rescisão Indireta',   className: 'bg-rose-50 text-rose-700 ring-rose-200'       },
-  admissao:            { label: 'Admissão',            className: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
-}
-
-// ─── KpiCard ──────────────────────────────────────────────────────────────────
-
-function KpiCard({
+function KpiCardPrincipal({
   label,
-  value,
-  icon: Icon,
-  topColor,
-  iconBg,
+  valor,
+  corBorda,
+  delta,
+  aviso,
+  criticos,
+  sparklineData,
+  sparkColor,
   href,
-  subInfo,
 }: {
   label: string
-  value: number
-  icon: LucideIcon
-  topColor: string
-  iconBg: string
+  valor: number
+  corBorda: string
+  delta?: { valor: number; texto: string } | null
+  aviso?: string
+  criticos?: number
+  sparklineData?: number[]
+  sparkColor?: string
   href?: string
-  subInfo?: string
 }) {
-  const [iconClass, bgClass] = iconBg.split(' ')
   const inner = (
     <div
       className={cn(
         'rounded-xl border border-gray-100 border-t-4 bg-white p-5 shadow-sm transition-shadow',
         href && 'cursor-pointer hover:shadow-md',
-        topColor
+        corBorda,
       )}
     >
-      <div className={cn('inline-flex rounded-lg p-2.5', bgClass)}>
-        <Icon className={cn('h-5 w-5', iconClass)} />
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-3xl font-black tracking-tight text-gray-900">{valor}</p>
+          <p className="mt-0.5 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
+        </div>
+        {sparklineData && sparklineData.length >= 2 && (
+          <div className="flex-shrink-0">
+            <Sparkline data={sparklineData} color={sparkColor} />
+          </div>
+        )}
       </div>
-      <p className="mt-3 text-4xl font-black tracking-tight text-gray-900">{value}</p>
-      <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
-      {subInfo && <p className="mt-1 text-xs text-gray-500">{subInfo}</p>}
+      <div className="mt-3 flex flex-wrap items-center gap-2 min-h-[20px]">
+        {delta != null && (
+          <span
+            className={cn(
+              'text-xs font-semibold',
+              delta.valor > 0 ? 'text-green-600' : delta.valor < 0 ? 'text-red-600' : 'text-gray-400',
+            )}
+          >
+            {delta.valor > 0 ? '▲' : delta.valor < 0 ? '▼' : '–'}{' '}
+            {delta.valor !== 0 ? Math.abs(delta.valor) : ''} {delta.texto}
+          </span>
+        )}
+        {aviso && (
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+            ⚑ {aviso}
+          </span>
+        )}
+        {criticos != null && criticos > 0 && (
+          <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+            {criticos} críticos
+          </span>
+        )}
+      </div>
     </div>
   )
   if (href) return <Link href={href}>{inner}</Link>
   return inner
 }
 
-// ─── SectionTitle ─────────────────────────────────────────────────────────────
+// ─── KpiMini ──────────────────────────────────────────────────────────────────
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400">{children}</h2>
+function KpiMini({
+  label,
+  value,
+  href,
+}: {
+  label: string
+  value: number
+  href?: string
+}) {
+  const inner = (
+    <div
+      className={cn(
+        'rounded-lg border border-gray-100 bg-gray-50 p-4 transition-colors',
+        href && 'cursor-pointer hover:bg-gray-100',
+      )}
+    >
+      <p className="text-2xl font-black tracking-tight text-gray-900">{value}</p>
+      <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">{label}</p>
+    </div>
   )
+  if (href) return <Link href={href}>{inner}</Link>
+  return inner
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
-  const [kpis, alertas, proximasFerias, atestados, evolucao, secretarias, aprovacoes, experiencias] =
-    await Promise.all([
-      buscarKPIsDashboard(),
-      buscarAlertasDashboard(),
-      buscarProximasFerias(7),
-      buscarAtestadosRecentes(7),
-      buscarEvolucaoEfetivo(),
-      buscarSecretariaData(),
-      buscarAprovacoesData(),
-      buscarExperienciasDashboard(),
-    ])
+  const [
+    auth,
+    kpis,
+    alertas,
+    proximasFerias,
+    atestados,
+    evolucao,
+    secretarias,
+    experiencias,
+    deltaKPIs,
+    ocorrencias,
+  ] = await Promise.all([
+    getUser(),
+    buscarKPIsDashboard(),
+    buscarAlertasDashboard(),
+    buscarProximasFerias(7),
+    buscarAtestadosRecentes(7),
+    buscarEvolucaoEfetivo(),
+    buscarSecretariaData(),
+    buscarExperienciasDashboard(),
+    buscarDeltaKPIs(),
+    buscarOcorrenciasMes(),
+  ])
+
+  const nomeUsuario = (auth as unknown as { perfil?: { nome?: string | null } } | null)?.perfil?.nome ?? ''
+  const iniciais = nomeUsuario
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .reduce((acc: string[], p: string, i: number, arr: string[]) =>
+      i === 0 || i === arr.length - 1 ? [...acc, p[0].toUpperCase()] : acc, []
+    )
+    .join('')
+    .slice(0, 2) || '–'
+
+  const hist = deltaKPIs.historico
+  const sparkAtivos    = hist.slice(-7).map(h => h.ativos)
+  const sparkAfastados = hist.slice(-7).map(h => h.afastados)
+  const sparkFerias    = hist.slice(-7).map(h => h.em_ferias)
+
+  const deltaAtivos    = deltaKPIs.ativos    != null ? { valor: deltaKPIs.ativos,    texto: 'vs ontem' } : null
+  const deltaAfastados = deltaKPIs.afastados != null ? { valor: deltaKPIs.afastados, texto: 'vs ontem' } : null
+  const deltaFerias    = deltaKPIs.emFerias   != null ? { valor: deltaKPIs.emFerias,   texto: 'vs ontem' } : null
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
 
-      {/* ── LINHA 1: KPI Cards ──────────────────────────────────────────────── */}
-      <section className="space-y-3">
-        <SectionTitle>Visão geral</SectionTitle>
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-7">
-          <KpiCard
-            label="Ativos"
-            value={kpis.totalAtivos}
-            icon={Users}
-            topColor="border-t-blue-500"
-            iconBg="text-blue-600 bg-blue-50"
-            href="/efetivo?status=ativo"
-          />
-          <KpiCard
-            label="Afastados"
-            value={kpis.afastados}
-            icon={UserMinus}
-            topColor="border-t-amber-500"
-            iconBg="text-amber-600 bg-amber-50"
-            href="/efetivo?status=afastado"
-          />
-          <KpiCard
-            label="Em Férias"
-            value={kpis.emFerias}
-            icon={Umbrella}
-            topColor="border-t-green-500"
-            iconBg="text-green-600 bg-green-50"
-            href="/efetivo?status=ferias"
-            subInfo={
-              kpis.feriasTerminando30dias > 0
-                ? `⚑ ${kpis.feriasTerminando30dias} vencem em 30 dias`
-                : undefined
-            }
-          />
-          <KpiCard
-            label="Postos em Déficit"
-            value={kpis.deficit}
-            icon={TrendingDown}
-            topColor="border-t-red-500"
-            iconBg="text-red-600 bg-red-50"
-            subInfo={
-              kpis.postosCriticos > 0
-                ? `${kpis.postosCriticos} críticos (déficit ≥2)`
-                : undefined
-            }
-          />
-          <KpiCard
-            label="Aprovações Pend."
-            value={kpis.solicitacoesPendentes}
-            icon={ClipboardList}
-            topColor="border-t-purple-500"
-            iconBg="text-purple-600 bg-purple-50"
-            href="/aprovacoes"
-          />
-          <KpiCard
-            label="Coberturas Ativas"
-            value={kpis.coberturasAtivas}
-            icon={ArrowLeftRight}
-            topColor="border-t-indigo-500"
-            iconBg="text-indigo-600 bg-indigo-50"
-            href="/coberturas"
-          />
-          <KpiCard
-            label="Em Experiência"
-            value={experiencias.total}
-            icon={GraduationCap}
-            topColor="border-t-violet-500"
-            iconBg="text-violet-600 bg-violet-50"
-            href="/efetivo"
-            subInfo={
-              experiencias.vencendo7dias > 0
-                ? `⚑ ${experiencias.vencendo7dias} vencem em 7 dias`
-                : undefined
-            }
-          />
+      {/* ── Topbar ──────────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="mb-1 text-xs uppercase tracking-widest text-gray-400">Operacional / Dashboard</p>
+          <h1 className="text-2xl font-medium text-gray-900">Dashboard</h1>
         </div>
-      </section>
+        <div className="flex items-center gap-3">
+          <div className="flex overflow-hidden rounded-lg border border-gray-200">
+            <span className="bg-white px-3 py-1.5 text-xs text-gray-500">Hoje</span>
+            <span className="bg-white px-3 py-1.5 text-xs text-gray-500">7d</span>
+            <span className="bg-blue-600 px-3 py-1.5 text-xs text-white">30d</span>
+          </div>
+          {nomeUsuario && (
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-medium text-white">
+                {iniciais}
+              </div>
+              <span className="text-xs font-medium text-gray-800">{nomeUsuario.split(' ')[0]}</span>
+            </div>
+          )}
+        </div>
+      </div>
 
-      {/* ── LINHA 2: Alertas, Próximas Férias, Atestados ───────────────────── */}
-      <section>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <AlertasCriticos alertas={alertas} />
+      {/* ── Row 1: KPI Cards principais ─────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCardPrincipal
+          label="Efetivo Ativo"
+          valor={kpis.totalAtivos}
+          corBorda="border-t-blue-500"
+          delta={deltaAtivos}
+          sparklineData={sparkAtivos}
+          sparkColor="#3b82f6"
+          href="/efetivo?status=ativo"
+        />
+        <KpiCardPrincipal
+          label="Afastados"
+          valor={kpis.afastados}
+          corBorda="border-t-amber-500"
+          delta={deltaAfastados}
+          sparklineData={sparkAfastados}
+          sparkColor="#f59e0b"
+          href="/efetivo?status=afastado"
+        />
+        <KpiCardPrincipal
+          label="Em Férias"
+          valor={kpis.emFerias}
+          corBorda="border-t-green-500"
+          delta={deltaFerias}
+          aviso={kpis.feriasTerminando30dias > 0 ? `${kpis.feriasTerminando30dias} vencem em 30 dias` : undefined}
+          sparklineData={sparkFerias}
+          sparkColor="#22c55e"
+          href="/efetivo?status=ferias"
+        />
+        <KpiCardPrincipal
+          label="Postos em Déficit"
+          valor={kpis.deficit}
+          corBorda="border-t-red-500"
+          criticos={kpis.postosCriticos}
+        />
+      </div>
+
+      {/* ── Row 2: Evolução + Alertas ────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <EvolucaoEfetivo dados={evolucao} />
+        </div>
+        <AlertasCriticos alertas={alertas} />
+      </div>
+
+      {/* ── Row 3: Férias+Atestados | Secretaria | Mini KPIs ────────────────── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+
+        {/* Férias + Atestados empilhados */}
+        <div className="space-y-4">
           <ProximasFerias ferias={proximasFerias} />
           <AtestadosRecentes atestados={atestados} />
         </div>
-      </section>
 
-      {/* ── LINHA 3: Evolução do Efetivo + Efetivo por Secretaria ──────────── */}
-      <section>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <EvolucaoEfetivo dados={evolucao} />
-          <EfetivoPorSecretaria secretarias={secretarias} />
+        {/* Efetivo por Secretaria */}
+        <EfetivoPorSecretaria secretarias={secretarias} />
+
+        {/* Mini KPIs 2×2 */}
+        <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
+            Indicadores
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <KpiMini
+              label="Aprovações Pend."
+              value={kpis.solicitacoesPendentes}
+              href="/aprovacoes"
+            />
+            <KpiMini
+              label="Coberturas Ativas"
+              value={kpis.coberturasAtivas}
+              href="/coberturas"
+            />
+            <KpiMini
+              label="Em Experiência"
+              value={experiencias.total}
+              href="/efetivo"
+            />
+            <KpiMini
+              label="Ocorrências Mês"
+              value={ocorrencias}
+              href="/ocorrencias"
+            />
+          </div>
+          {experiencias.vencendo7dias > 0 && (
+            <div className="mt-4 flex items-center gap-2 rounded-lg bg-orange-50 px-3 py-2">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-orange-500" />
+              <p className="text-xs font-medium text-orange-700">
+                {experiencias.vencendo7dias} experiência{experiencias.vencendo7dias > 1 ? 's' : ''} vence{experiencias.vencendo7dias > 1 ? 'm' : ''} em 7 dias
+              </p>
+            </div>
+          )}
         </div>
-      </section>
 
-      {/* ── LINHA 4: Aprovações Pendentes (só se houver) ───────────────────── */}
-      {aprovacoes.length > 0 && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <SectionTitle>Aprovações pendentes</SectionTitle>
-            <Link href="/aprovacoes" className="text-xs font-semibold text-slate-600 hover:text-slate-900">
-              Ver todas →
-            </Link>
-          </div>
-          <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-            <ul className="divide-y divide-gray-50">
-              {aprovacoes.map(s => {
-                const tipo = s.tipo as TipoSolicitacao
-                const badge = TIPO_BADGE[tipo] ?? { label: s.tipo, className: 'bg-gray-50 text-gray-600 ring-gray-200' }
-                return (
-                  <li key={s.id} className="flex items-center justify-between px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={cn(
-                          'inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
-                          badge.className
-                        )}
-                      >
-                        {badge.label}
-                      </span>
-                      <p className="text-sm font-medium text-gray-900">{s.funcionarioNome}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-400">{s.supervisorNome ?? '—'}</p>
-                      {s.created_at && (
-                        <p className="text-xs text-gray-400">{fmt(s.created_at)}</p>
-                      )}
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        </section>
-      )}
-
+      </div>
     </div>
   )
 }

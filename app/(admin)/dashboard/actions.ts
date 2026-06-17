@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { addBusinessDays } from '@/lib/utils'
 import { calcularKPIsAtuais } from '@/lib/dashboard-kpis'
 import { FUNCOES_FORA_DO_EFETIVO } from '@/lib/constants'
+import { calcularStatusExperiencia } from '@/lib/experiencia'
 
 // ─── Tipos exportados ─────────────────────────────────────────────────────────
 
@@ -510,27 +511,63 @@ export async function buscarForaDoEfetivo(): Promise<number> {
 }
 
 export async function buscarExperienciasDashboard(): Promise<{ total: number; vencendo7dias: number }> {
-  const supabase = createClient()
-  const { data } = await supabase
-    .from('funcionarios')
-    .select('id, fase_experiencia, data_fim_fase1, data_fim_fase2')
-    .not('periodo_experiencia', 'is', null)
-    .not('fase_experiencia', 'is', null)
-    .neq('fase_experiencia', 'concluido')
-    .in('status', ['ativo', 'afastado', 'ferias'])
-    .range(0, 999)
+  try {
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('funcionarios')
+      .select('data_admissao, periodo_experiencia')
+      .not('periodo_experiencia', 'is', null)
+      .in('status', ['ativo', 'afastado', 'ferias'])
+      .range(0, 999)
 
-  if (!data) return { total: 0, vencendo7dias: 0 }
+    if (!data) return { total: 0, vencendo7dias: 0 }
 
-  const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
-  const em7 = new Date(hoje); em7.setDate(em7.getDate() + 7)
-  const hojeStr = hoje.toISOString().split('T')[0]
-  const em7Str  = em7.toISOString().split('T')[0]
-
-  let vencendo7dias = 0
-  for (const f of data as unknown as { fase_experiencia: string; data_fim_fase1: string | null; data_fim_fase2: string | null }[]) {
-    const dataFim = f.fase_experiencia === '1' ? f.data_fim_fase1 : f.data_fim_fase2
-    if (dataFim && dataFim >= hojeStr && dataFim <= em7Str) vencendo7dias++
+    let total = 0
+    let vencendo7dias = 0
+    for (const f of data) {
+      const exp = calcularStatusExperiencia(
+        f.data_admissao as string | null,
+        f.periodo_experiencia as '30+30' | '45+45' | null,
+      )
+      if (exp.emExperiencia) {
+        total++
+        if (exp.alertaCritico) vencendo7dias++
+      }
+    }
+    return { total, vencendo7dias }
+  } catch {
+    return { total: 0, vencendo7dias: 0 }
   }
-  return { total: data.length, vencendo7dias }
+}
+
+export async function buscarDeltaEfetivo(): Promise<{ ativos: number | null; afastados: number | null; em_ferias: number | null } | null> {
+  try {
+    const supabase = createClient()
+    const ontem = new Date()
+    ontem.setDate(ontem.getDate() - 1)
+    const ontemStr = ontem.toISOString().split('T')[0]
+    const { data } = await supabase
+      .from('snapshots_diarios')
+      .select('ativos, afastados, em_ferias')
+      .eq('data', ontemStr)
+      .single()
+    return data ?? null
+  } catch {
+    return null
+  }
+}
+
+export async function buscarOcorrenciasMes(): Promise<number> {
+  try {
+    const supabase = createClient()
+    const now = new Date()
+    const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+    const { count } = await supabase
+      .from('ocorrencias')
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', inicioMes)
+    return count ?? 0
+  } catch {
+    return 0
+  }
 }

@@ -1,33 +1,16 @@
 import Link from 'next/link'
-import { CheckCircle2 } from 'lucide-react'
+import { AlertCircle, Clock, Info, CheckCircle2 } from 'lucide-react'
 import type { AlertasDashboard } from '@/app/(admin)/dashboard/actions'
 
-interface AlertasCriticosProps {
+interface Props {
   alertas: AlertasDashboard
 }
 
-export function AlertasCriticos({ alertas }: AlertasCriticosProps) {
+export function AlertasCriticos({ alertas }: Props) {
   const { postosDeficit, funcSemPosto, feriasLimiteVencendo, catAlertas } = alertas
 
   const temAlertas =
     postosDeficit.length > 0 || funcSemPosto > 0 || feriasLimiteVencendo > 0 || catAlertas.length > 0
-
-  if (!temAlertas) {
-    return (
-      <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-        <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
-          Alertas Críticos
-        </p>
-        <div className="flex items-center gap-2.5 rounded-lg border border-green-100 bg-green-50 px-4 py-3">
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" />
-          <p className="text-sm font-medium text-green-700">Nenhum alerta crítico.</p>
-        </div>
-      </div>
-    )
-  }
-
-  const visiblePostos = postosDeficit.slice(0, 5)
-  const hasMore = postosDeficit.length > 5
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -35,94 +18,87 @@ export function AlertasCriticos({ alertas }: AlertasCriticosProps) {
         Alertas Críticos
       </p>
 
-      <div className="space-y-3">
-        {/* Bloco vermelho — postos em déficit */}
-        <div className="rounded-lg border-l-4 border-red-500 bg-red-50/30 px-4 py-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-red-600">
-            Postos em Déficit
-          </p>
-          {postosDeficit.length === 0 ? (
-            <p className="text-sm text-gray-500">✓ Nenhum posto em déficit</p>
-          ) : (
-            <>
-              <ul className="space-y-1">
-                {visiblePostos.map(p => (
-                  <li key={p.id} className="text-sm text-gray-700">
-                    • {p.nome} — falta{p.gap === 1 ? '' : 'm'} {p.gap} pessoa{p.gap > 1 ? 's' : ''}
-                  </li>
-                ))}
-              </ul>
-              {hasMore && (
-                <Link
-                  href="/efetivo"
-                  className="mt-2 inline-block text-xs font-semibold text-red-600 hover:text-red-800"
-                >
-                  ver todos →
-                </Link>
-              )}
-            </>
-          )}
+      {!temAlertas ? (
+        <div className="flex items-center gap-2.5 rounded-lg border border-green-100 bg-green-50 px-4 py-3">
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" />
+          <p className="text-sm font-medium text-green-700">Nenhum alerta crítico.</p>
         </div>
+      ) : (
+        <div className="space-y-2">
 
-        {/* Bloco âmbar — funcionários sem posto */}
-        {funcSemPosto > 0 && (
-          <div className="rounded-lg border-l-4 border-amber-400 bg-amber-50/30 px-4 py-3">
-            <p className="text-sm text-amber-700">
-              {funcSemPosto} funcionário{funcSemPosto > 1 ? 's' : ''}{' '}
-              ativo{funcSemPosto > 1 ? 's' : ''} sem posto alocado
-            </p>
-            <Link
-              href="/efetivo"
-              className="mt-1 inline-block text-xs font-semibold text-amber-600 hover:text-amber-800"
+          {/* Postos em déficit */}
+          {postosDeficit.slice(0, 5).map(p => (
+            <div
+              key={p.id}
+              className="flex items-start gap-3 rounded-lg border-l-[3px] border-red-500 bg-red-50 px-3 py-2.5"
             >
-              ver no efetivo →
-            </Link>
-          </div>
-        )}
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-red-800">Posto em déficit</p>
+                <p className="truncate text-xs text-red-700">
+                  {p.nome} — falta{p.gap === 1 ? '' : 'm'} {p.gap} pessoa{p.gap > 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+          ))}
 
-        {/* Bloco azul — férias com limite de gozo vencendo */}
-        {feriasLimiteVencendo > 0 && (
-          <div className="rounded-lg border-l-4 border-blue-500 bg-blue-50/30 px-4 py-3">
-            <p className="text-sm text-blue-700">
-              {feriasLimiteVencendo} funcionário{feriasLimiteVencendo > 1 ? 's' : ''} com limite de
-              gozo nos próximos 30 dias
-            </p>
-            <Link
-              href="/ferias"
-              className="mt-1 inline-block text-xs font-semibold text-blue-600 hover:text-blue-800"
-            >
-              ver nas férias →
+          {postosDeficit.length > 5 && (
+            <Link href="/efetivo" className="block text-right text-xs font-semibold text-red-600 hover:text-red-800">
+              +{postosDeficit.length - 5} postos → ver todos
             </Link>
-          </div>
-        )}
+          )}
 
-        {/* Bloco laranja — CAT pendente/em atraso */}
-        {catAlertas.length > 0 && (
-          <div className="rounded-lg border-l-4 border-amber-500 bg-orange-50/30 px-4 py-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-orange-600">
-              CAT — Acidente de Trabalho
-            </p>
-            <ul className="space-y-1">
-              {catAlertas.map(c => (
-                <li key={c.id} className="text-sm text-gray-700">
-                  {c.emAtraso ? '🔴' : '⚠'}{' '}
-                  <span className="font-medium">{c.funcionarioNome}</span>
-                  {' — '}
-                  {c.emAtraso
-                    ? `CAT em atraso — prazo era ${c.prazoLimite}`
-                    : `CAT pendente — prazo até ${c.prazoLimite}`}
-                </li>
-              ))}
-            </ul>
-            <Link
-              href="/atestados"
-              className="mt-2 inline-block text-xs font-semibold text-orange-600 hover:text-orange-800"
-            >
-              ver atestados →
+          {/* Funcionários sem posto */}
+          {funcSemPosto > 0 && (
+            <div className="flex items-start gap-3 rounded-lg border-l-[3px] border-amber-500 bg-amber-50 px-3 py-2.5">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+              <div>
+                <p className="text-xs font-semibold text-amber-800">Sem posto alocado</p>
+                <p className="text-xs text-amber-700">
+                  {funcSemPosto} funcionário{funcSemPosto > 1 ? 's' : ''} ativo{funcSemPosto > 1 ? 's' : ''} sem posto
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Limite de gozo férias */}
+          {feriasLimiteVencendo > 0 && (
+            <Link href="/ferias">
+              <div className="flex items-start gap-3 rounded-lg border-l-[3px] border-blue-500 bg-blue-50 px-3 py-2.5 hover:bg-blue-100 transition-colors">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+                <div>
+                  <p className="text-xs font-semibold text-blue-800">Limite de gozo vencendo</p>
+                  <p className="text-xs text-blue-700">
+                    {feriasLimiteVencendo} funcionário{feriasLimiteVencendo > 1 ? 's' : ''} nos próximos 30 dias
+                  </p>
+                </div>
+              </div>
             </Link>
-          </div>
-        )}
-      </div>
+          )}
+
+          {/* CAT — Acidente de Trabalho */}
+          {catAlertas.map(c => (
+            <Link href="/atestados" key={c.id}>
+              <div className={`flex items-start gap-3 rounded-lg border-l-[3px] px-3 py-2.5 hover:opacity-90 transition-opacity ${
+                c.emAtraso
+                  ? 'border-red-500 bg-red-50'
+                  : 'border-orange-500 bg-orange-50'
+              }`}>
+                <Clock className={`mt-0.5 h-4 w-4 shrink-0 ${c.emAtraso ? 'text-red-500' : 'text-orange-500'}`} />
+                <div className="min-w-0">
+                  <p className={`text-xs font-semibold ${c.emAtraso ? 'text-red-800' : 'text-orange-800'}`}>
+                    CAT {c.emAtraso ? 'em atraso' : 'pendente'}
+                  </p>
+                  <p className={`truncate text-xs ${c.emAtraso ? 'text-red-700' : 'text-orange-700'}`}>
+                    {c.funcionarioNome} — prazo {c.emAtraso ? 'era' : 'até'} {c.prazoLimite}
+                  </p>
+                </div>
+              </div>
+            </Link>
+          ))}
+
+        </div>
+      )}
     </div>
   )
 }

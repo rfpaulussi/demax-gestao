@@ -11,6 +11,13 @@ function formatNome(nome: string): string {
   return `${partes[0]} ${partes[partes.length - 1]}`
 }
 
+function iniciais(nome: string): string {
+  const partes = nome.trim().split(/\s+/).filter(Boolean)
+  if (partes.length === 0) return '?'
+  if (partes.length === 1) return partes[0][0].toUpperCase()
+  return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase()
+}
+
 function formatDia(iso: string): string {
   const [, m, d] = iso.split('T')[0].split('-')
   return `${d}/${m}`
@@ -42,13 +49,18 @@ export function ProximasFerias({ ferias }: ProximasFeriasProps) {
             const badgeLabel = STATUS_LABEL[f.status] ?? f.status
             return (
               <li key={f.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-gray-900">
-                    {formatNome(f.funcionarioNome)}
-                  </p>
-                  <p className="truncate text-xs text-gray-400">
-                    {[f.postoNome, f.secretaria].filter(Boolean).join(' · ')}
-                  </p>
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-medium text-blue-700">
+                    {iniciais(f.funcionarioNome)}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-gray-900">
+                      {formatNome(f.funcionarioNome)}
+                    </p>
+                    <p className="truncate text-xs text-gray-400">
+                      {[f.postoNome, f.secretaria].filter(Boolean).join(' · ')}
+                    </p>
+                  </div>
                 </div>
                 <div className="ml-3 flex shrink-0 flex-col items-end gap-1">
                   <span

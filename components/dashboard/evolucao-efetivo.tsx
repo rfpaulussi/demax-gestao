@@ -59,13 +59,14 @@ export function EvolucaoEfetivo({ dados }: EvolucaoEfetivoProps) {
             <Tooltip formatter={(v) => [v, 'Ativos']} />
             <ReferenceLine
               y={MINIMO_CONTRATUAL}
-              stroke="#ef4444"
-              strokeDasharray="3 3"
+              stroke="#dc2626"
+              strokeDasharray="4 3"
+              strokeOpacity={0.6}
               label={{
-                value: 'mín. contratual',
-                position: 'insideTopRight',
+                value: `${MINIMO_CONTRATUAL} mín. contratual`,
+                position: 'right',
                 fontSize: 10,
-                fill: '#ef4444',
+                fill: '#dc2626',
               }}
             />
             <Bar dataKey="total" radius={[4, 4, 0, 0]}>
