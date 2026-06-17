@@ -147,7 +147,14 @@ function KpiMini({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: { periodo?: string }
+}) {
+  const periodo = searchParams?.periodo ?? '30d'
+  const dias = periodo === 'hoje' ? 1 : periodo === '7d' ? 7 : 30
+
   const [
     auth,
     kpis,
@@ -163,13 +170,13 @@ export default async function DashboardPage() {
     getUser(),
     buscarKPIsDashboard(),
     buscarAlertasDashboard(),
-    buscarProximasFerias(7),
-    buscarAtestadosRecentes(7),
+    buscarProximasFerias(dias),
+    buscarAtestadosRecentes(dias),
     buscarEvolucaoEfetivo(),
     buscarSecretariaData(),
     buscarExperienciasDashboard(),
     buscarDeltaKPIs(),
-    buscarOcorrenciasMes(),
+    buscarOcorrenciasMes(dias),
   ])
 
   const nomeUsuario = (auth as unknown as { perfil?: { nome?: string | null } } | null)?.perfil?.nome ?? ''
@@ -202,9 +209,9 @@ export default async function DashboardPage() {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex overflow-hidden rounded-lg border border-gray-200">
-            <span className="bg-white px-3 py-1.5 text-xs text-gray-500">Hoje</span>
-            <span className="bg-white px-3 py-1.5 text-xs text-gray-500">7d</span>
-            <span className="bg-blue-600 px-3 py-1.5 text-xs text-white">30d</span>
+            <Link href="?periodo=hoje" className={cn('px-3 py-1.5 text-xs', periodo === 'hoje' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500')}>Hoje</Link>
+            <Link href="?periodo=7d"   className={cn('px-3 py-1.5 text-xs', periodo === '7d'   ? 'bg-blue-600 text-white' : 'bg-white text-gray-500')}>7d</Link>
+            <Link href="?periodo=30d"  className={cn('px-3 py-1.5 text-xs', periodo === '30d'  ? 'bg-blue-600 text-white' : 'bg-white text-gray-500')}>30d</Link>
           </div>
           {nomeUsuario && (
             <div className="flex items-center gap-2">

@@ -4,7 +4,6 @@ import { LogOut } from 'lucide-react'
 import { getUser } from '@/lib/auth/get-user'
 import { createClient } from '@/lib/supabase/server'
 import { SidebarNav } from '@/components/admin/sidebar-nav'
-import { AdminBreadcrumb } from '@/components/admin/breadcrumb'
 import { ROLE_LABELS } from '@/types'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -44,8 +43,6 @@ export default async function AdminLayout({
         <header className="sticky top-0 z-20 flex h-16 items-center border-b border-gray-200 bg-white px-4 md:px-6">
           {/* Spacer keeps header content from overlapping mobile hamburger */}
           <div className="w-10 shrink-0 md:hidden" aria-hidden />
-
-          <AdminBreadcrumb />
 
           <div className="ml-auto flex items-center gap-3">
             <div className="hidden text-right sm:block">

@@ -557,15 +557,14 @@ export async function buscarDeltaEfetivo(): Promise<{ ativos: number | null; afa
   }
 }
 
-export async function buscarOcorrenciasMes(): Promise<number> {
+export async function buscarOcorrenciasMes(dias = 30): Promise<number> {
   try {
     const supabase = createClient()
-    const now = new Date()
-    const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+    const desde = new Date(Date.now() - dias * 86_400_000).toISOString().split('T')[0]
     const { count } = await supabase
       .from('ocorrencias')
       .select('*', { count: 'exact', head: true })
-      .gte('created_at', inicioMes)
+      .gte('created_at', desde)
     return count ?? 0
   } catch {
     return 0
