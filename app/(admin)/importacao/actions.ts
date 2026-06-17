@@ -69,6 +69,20 @@ export interface EfetivoRow {
   periodo_experiencia: '30+30' | '45+45' | null
 }
 
+export interface FeriasImportRow {
+  funcionario_id: string
+  numero_periodo: number
+  periodo_inicio: string
+  periodo_fim: string | null
+  limite_gozo: string | null
+  dias_direito: number
+  data_inicio: string | null
+  data_fim: string | null
+  dias_utilizados: number | null
+  status: 'concluido' | 'agendada'
+  observacao: string
+}
+
 // ─── Helpers ──────────────────────────────────────────────────
 
 function parseBRDate(s: string): string | null {
@@ -366,4 +380,15 @@ export async function importarEfetivo(rows: EfetivoRow[]): Promise<ImportResult>
   }
 
   return { imported, errors }
+}
+
+// ─── Action 5: Férias históricas bulk ─────────────────────────
+
+export async function importarFeriasHistoricasBulk(rows: FeriasImportRow[]): Promise<ImportResult> {
+  const supabase = createClient()
+  const { error } = await (supabase as AnyClient)
+    .from('ferias')
+    .upsert(rows, { onConflict: 'funcionario_id,numero_periodo' })
+  if (error) return { imported: 0, errors: [error.message] }
+  return { imported: rows.length, errors: [] }
 }

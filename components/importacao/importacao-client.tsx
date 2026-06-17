@@ -8,6 +8,7 @@ import {
   importarMudancasFuncao,
   importarAdvertencias,
   importarEfetivo,
+  importarFeriasHistoricasBulk,
 } from '@/app/(admin)/importacao/actions'
 import type {
   ImportResult,
@@ -16,6 +17,7 @@ import type {
   MudancaFuncaoRow,
   AdvertenciaRow,
   EfetivoRow,
+  FeriasImportRow,
 } from '@/app/(admin)/importacao/actions'
 
 // ─── CSV utils ────────────────────────────────────────────────
@@ -795,11 +797,166 @@ function TabEfetivo() {
   )
 }
 
+// ─── ABA 5: Férias ───────────────────────────────────────────
+
+function calcularNumeroPeriodo(admissao: string, periodoInicio: string): number {
+  const adm = new Date(admissao)
+  const ini = new Date(periodoInicio)
+  let anos = ini.getFullYear() - adm.getFullYear()
+  const mesDia    = ini.getMonth() * 100 + ini.getDate()
+  const mesDiaAdm = adm.getMonth() * 100 + adm.getDate()
+  if (mesDia < mesDiaAdm) anos--
+  return anos + 1
+}
+
+type FeriasPreviewRow = FeriasImportRow & { registro_num: string; nome: string }
+
+function TabFerias() {
+  const [preview, setPreview]   = useState<FeriasPreviewRow[]>([])
+  const [rows, setRows]         = useState<FeriasImportRow[]>([])
+  const [notFound, setNotFound] = useState<string[]>([])
+  const [processing, setProc]   = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [result, setResult]     = useState<ImportResult | null>(null)
+  const [csvError, setCsvError] = useState<string | null>(null)
+
+  async function handleFile(file: File) {
+    setResult(null); setRows([]); setNotFound([]); setCsvError(null); setPreview([])
+    const raw = await parseCSVEfetivo(file)
+    if (!raw.length) { setCsvError('Arquivo vazio ou sem dados.'); return }
+
+    // Lookup funcionarios (client-side, uma vez)
+    const { createClient: createClientBrowser } = await import('@/lib/supabase/client')
+    const sb = createClientBrowser()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: funcsData } = await (sb as any).from('funcionarios').select('id, registro').range(0, 1999)
+    const funcMap = new Map<string, string>()
+    for (const func of (funcsData ?? []) as { id: string; registro: string | null }[]) {
+      if (func.registro) funcMap.set(String(func.registro), func.id)
+    }
+
+    const parsed: FeriasImportRow[] = []
+    const previews: FeriasPreviewRow[] = []
+    const missing: string[] = []
+
+    for (const row of raw) {
+      const registro = getCol(row, 'REGISTRO')
+      const nome     = getCol(row, 'NOME')
+      if (!registro) continue
+
+      const funcionario_id = funcMap.get(registro)
+      if (!funcionario_id) { missing.push(registro); continue }
+
+      const data_admissao  = parseDataFlexivel(getCol(row, 'DATA DE ADMISSÃO', 'DATA DE ADMISSAO'))
+      const periodo_inicio = parseDataFlexivel(getCol(row, 'PERÍODO AQUISITIVO INÍCIO', 'PERIODO AQUISITIVO INICIO', 'PERÍODO AQUISITIVO INICIO'))
+      if (!periodo_inicio) continue
+
+      const periodo_fim    = parseDataFlexivel(getCol(row, 'PERÍODO AQUISITIVO FIM', 'PERIODO AQUISITIVO FIM', 'PERÍODO AQUISITIVO FIM'))
+      const limite_gozo    = parseDataFlexivel(getCol(row, 'LIMITE PARA GOZO'))
+      const dias_direito   = parseInt(getCol(row, 'DIAS DE DIREITO')) || 30
+      const data_inicio    = parseDataFlexivel(getCol(row, 'Início Programado', 'INÍCIO PROGRAMADO', 'INICIO PROGRAMADO'))
+      const data_fim       = parseDataFlexivel(getCol(row, 'Fim Programado', 'FIM PROGRAMADO'))
+
+      const numero_periodo = data_admissao
+        ? Math.max(1, calcularNumeroPeriodo(data_admissao, periodo_inicio))
+        : 1
+
+      const dias_utilizados = data_inicio && data_fim
+        ? Math.round((new Date(data_fim).getTime() - new Date(data_inicio).getTime()) / 86400000) + 1
+        : null
+
+      const status: 'concluido' | 'agendada' = data_inicio ? 'concluido' : 'agendada'
+
+      const importRow: FeriasImportRow = {
+        funcionario_id, numero_periodo,
+        periodo_inicio, periodo_fim, limite_gozo,
+        dias_direito, data_inicio, data_fim, dias_utilizados,
+        status, observacao: 'Importação histórica',
+      }
+      parsed.push(importRow)
+      previews.push({ ...importRow, registro_num: registro, nome })
+    }
+
+    setNotFound(missing)
+    setPreview(previews.slice(0, 5))
+    setRows(parsed)
+  }
+
+  async function handleProcess() {
+    if (!rows.length) return
+    setProc(true); setProgress(0); setResult(null)
+    const batches = chunk(rows, 100)
+    let imported = 0; const errors: string[] = []
+    for (let i = 0; i < batches.length; i++) {
+      const r = await importarFeriasHistoricasBulk(batches[i])
+      imported += r.imported; errors.push(...r.errors)
+      setProgress(Math.round(((i + 1) / batches.length) * 100))
+    }
+    if (notFound.length > 0) {
+      errors.push(...notFound.map(r => `Registro ${r} não encontrado no sistema`))
+    }
+    setResult({ imported, errors }); setProc(false)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm space-y-3">
+        <p className="text-xs text-gray-400">
+          Arquivo CSV ou TSV. Colunas esperadas: <span className="font-mono text-gray-600">REGISTRO · NOME · DATA DE ADMISSÃO · PERÍODO AQUISITIVO INÍCIO · PERÍODO AQUISITIVO FIM · LIMITE PARA GOZO · DIAS DE DIREITO · Início Programado · Fim Programado</span>
+        </p>
+        <input type="file" accept=".csv,.tsv" className={inputFile}
+          onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
+      </div>
+
+      {csvError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+          <p className="text-sm font-semibold text-red-700">{csvError}</p>
+        </div>
+      )}
+
+      {notFound.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-700">
+            {notFound.length} registro{notFound.length !== 1 ? 's' : ''} não encontrado{notFound.length !== 1 ? 's' : ''} — serão ignorados:
+          </p>
+          <p className="mt-1 font-mono text-xs text-amber-600">
+            {notFound.slice(0, 20).join(', ')}{notFound.length > 20 ? ` … +${notFound.length - 20}` : ''}
+          </p>
+        </div>
+      )}
+
+      {preview.length > 0 && (
+        <>
+          <PreviewTable rows={preview.map(r => ({
+            Registro:      r.registro_num,
+            Nome:          r.nome,
+            'Per. Início': r.periodo_inicio.split('-').reverse().join('/'),
+            'Per. Fim':    r.periodo_fim?.split('-').reverse().join('/') ?? '',
+            'Dias Dir.':   r.dias_direito,
+            Status:        r.status,
+          }))} />
+          <p className="text-xs text-gray-400">
+            {rows.length} registro{rows.length !== 1 ? 's' : ''} de férias prontos para importar
+          </p>
+          <button onClick={handleProcess} disabled={processing || rows.length === 0}
+            className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40">
+            {processing ? 'Processando…' : `Importar ${rows.length} registros`}
+          </button>
+        </>
+      )}
+
+      {processing && <ProgressBar value={progress} />}
+      {result && <ResultPanel result={result} />}
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────
 
 const TABS = [
   { id: 'efetivo',      label: 'Efetivo'              },
   { id: 'alocacoes',    label: 'Alocações Mensais'    },
+  { id: 'ferias',       label: 'Férias'               },
   { id: 'coberturas',   label: 'Coberturas Insalubres' },
   { id: 'mudancas',     label: 'Mudanças de Função'   },
   { id: 'advertencias', label: 'Advertências'          },
@@ -832,6 +989,7 @@ export function ImportacaoClient() {
       {/* Tab panels — all rendered, hidden via CSS to preserve state */}
       <div className={active !== 'efetivo'      ? 'hidden' : ''}><TabEfetivo /></div>
       <div className={active !== 'alocacoes'    ? 'hidden' : ''}><TabAlocacoes /></div>
+      <div className={active !== 'ferias'       ? 'hidden' : ''}><TabFerias /></div>
       <div className={active !== 'coberturas'   ? 'hidden' : ''}><TabCoberturas /></div>
       <div className={active !== 'mudancas'     ? 'hidden' : ''}><TabMudancasFuncao /></div>
       <div className={active !== 'advertencias' ? 'hidden' : ''}><TabAdvertencias /></div>
