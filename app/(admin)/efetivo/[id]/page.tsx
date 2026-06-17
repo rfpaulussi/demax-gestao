@@ -41,7 +41,7 @@ export default async function PerfilFuncionarioPage({
   const { data: func } = await supabase
     .from('funcionarios')
     .select(`
-      id, nome, cpf, status, data_admissao,
+      id, nome, cpf, status, data_admissao, data_desligamento,
       periodo_experiencia, fase_experiencia, data_fim_fase1, data_fim_fase2,
       funcoes!funcao_id ( nome ),
       postos!posto_id ( id, nome, secretaria )
@@ -98,6 +98,7 @@ export default async function PerfilFuncionarioPage({
     cpf: string | null
     status: string | null
     data_admissao: string | null
+    data_desligamento: string | null
     periodo_experiencia: '30+30' | '45+45' | null
     fase_experiencia: '1' | '2' | 'concluido' | null
     data_fim_fase1: string | null
@@ -158,6 +159,12 @@ export default async function PerfilFuncionarioPage({
             <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Admissão</p>
             <p className="text-gray-900">{f.data_admissao ? fmt(f.data_admissao) : '—'}</p>
           </div>
+          {f.data_desligamento && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Desligamento</p>
+              <p className="text-red-600 font-medium">{fmt(f.data_desligamento)}</p>
+            </div>
+          )}
         </div>
       </div>
 
