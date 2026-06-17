@@ -110,7 +110,9 @@ function parseDataFlexivel(valor: string): string | null {
 
   const serial = parseFloat(valor)
   if (!isNaN(serial) && serial > 40000) {
-    const data = new Date((serial - 25569) * 86400 * 1000)
+    const dias = Math.floor(serial)
+    const data = new Date(Date.UTC(1899, 11, 30))
+    data.setUTCDate(data.getUTCDate() + dias)
     const d = String(data.getUTCDate()).padStart(2, '0')
     const m = String(data.getUTCMonth() + 1).padStart(2, '0')
     const a = data.getUTCFullYear()
