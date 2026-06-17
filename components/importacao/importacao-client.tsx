@@ -865,7 +865,7 @@ function TabFerias() {
         ? Math.round((new Date(data_fim).getTime() - new Date(data_inicio).getTime()) / 86400000) + 1
         : null
 
-      const status: 'concluido' | 'agendada' = data_inicio ? 'concluido' : 'agendada'
+      const status: 'concluido' | 'agendado' = data_inicio ? 'concluido' : 'agendado'
 
       const importRow: FeriasImportRow = {
         funcionario_id, numero_periodo,

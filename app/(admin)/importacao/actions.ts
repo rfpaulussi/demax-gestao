@@ -79,7 +79,7 @@ export interface FeriasImportRow {
   data_inicio: string | null
   data_fim: string | null
   dias_utilizados: number | null
-  status: 'concluido' | 'agendada'
+  status: 'concluido' | 'agendado'
   observacao: string
 }
 
