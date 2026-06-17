@@ -231,3 +231,51 @@ export async function buscarHistoricoAdvertencias(funcionario_id: string): Promi
     }
   })
 }
+
+export async function editarAdvertencia(data: {
+  id: string
+  funcionario_id: string
+  data_ocorrencia: string
+  horario_fato?: string | null
+  natureza?: string | null
+  relato?: string | null
+  descricao?: string | null
+  grau: string
+  dias_suspensao?: number | null
+  data_aplicacao?: string | null
+  registrado_por?: string | null
+  testemunha_1?: string | null
+  testemunha_2?: string | null
+  defesa_colaborador?: string | null
+}) {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('advertencias')
+    .update({
+      data_ocorrencia:    data.data_ocorrencia,
+      horario_fato:       data.horario_fato ?? null,
+      natureza:           data.natureza ?? null,
+      relato:             data.relato ?? null,
+      descricao:          data.descricao ?? null,
+      grau:               data.grau as AdvertenciaGrau,
+      dias_suspensao:     data.grau === 'suspensao' ? (data.dias_suspensao ?? null) : null,
+      data_aplicacao:     data.data_aplicacao ?? null,
+      registrado_por:     data.registrado_por ?? null,
+      testemunha_1:       data.testemunha_1 ?? null,
+      testemunha_2:       data.testemunha_2 ?? null,
+      defesa_colaborador: data.defesa_colaborador ?? null,
+    })
+    .eq('id', data.id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/advertencias')
+}
+
+export async function excluirAdvertencia(id: string) {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('advertencias')
+    .delete()
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/advertencias')
+}

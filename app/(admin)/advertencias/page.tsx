@@ -129,7 +129,7 @@ export default async function AdvertenciasPage({
       </form>
 
       {/* Table */}
-      <AdvertenciasTable advertencias={filtered} reincidencias={reincidencias} />
+      <AdvertenciasTable advertencias={filtered} reincidencias={reincidencias} supervisores={supervisores} />
 
     </div>
   )

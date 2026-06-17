@@ -2,3 +2,4 @@
 export { ModalAdvertencia } from './modal-advertencia'
 export { NovaAdvertenciaBtn } from './nova-advertencia-btn'
 export { downloadAdvertenciaPDF } from './advertencia-pdf'
+export { ModalEditarAdvertencia } from './modal-editar-advertencia'
