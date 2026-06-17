@@ -128,25 +128,32 @@ function detectarDelimitador(linha: string): string {
   return tabs >= virgulas ? '\t' : ','
 }
 
-function parseCSVEfetivo(file: File): Promise<Record<string, unknown>[]> {
+function parseCSVEfetivo(file: File): Promise<Record<string, string>[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => {
       try {
         const raw = e.target?.result as string
         const text = normalizarTexto(raw)
-        const firstLine = text.split(/\r?\n/).find(l => l.trim() !== '') ?? ''
+        const lines = text.split(/\r?\n/).filter(l => l.trim() !== '')
+        if (lines.length < 2) { resolve([]); return }
+
+        const firstLine = lines[0]
         const sep = detectarDelimitador(firstLine)
-        const wb = XLSX.read(text, { type: 'string', raw: false, FS: sep })
-        const ws = wb.Sheets[wb.SheetNames[0]]
-        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, unknown>[]
-        resolve(rows.map(row => {
-          const clean: Record<string, unknown> = {}
-          for (const [k, v] of Object.entries(row)) {
-            clean[k.trim()] = typeof v === 'string' ? v.trim() : v
-          }
-          return clean
-        }))
+
+        const headers = firstLine.split(sep).map(h => h.trim())
+        const rows: Record<string, string>[] = []
+
+        for (let i = 1; i < lines.length; i++) {
+          const cols = lines[i].split(sep)
+          const row: Record<string, string> = {}
+          headers.forEach((h, idx) => {
+            row[h] = (cols[idx] ?? '').trim()
+          })
+          rows.push(row)
+        }
+
+        resolve(rows)
       } catch (err) {
         reject(err)
       }
