@@ -59,6 +59,16 @@ export interface AdvertenciaRow {
   link_pdf: string
 }
 
+export interface EfetivoRow {
+  registro: string
+  nome: string
+  cargo: string
+  status: 'ativo' | 'afastado' | 'desligado'
+  data_admissao: string | null
+  data_desligamento: string | null
+  periodo_experiencia: '30+30' | '45+45' | null
+}
+
 // ─── Helpers ──────────────────────────────────────────────────
 
 function parseBRDate(s: string): string | null {
@@ -304,5 +314,56 @@ export async function importarAdvertencias(
     if (e) errors.push(`Mat. ${rec.funcionario_id}: ${e.message}`)
     else imported++
   }
+  return { imported, errors }
+}
+
+// ─── Action 5: Efetivo ────────────────────────────────────────
+
+export async function importarEfetivo(rows: EfetivoRow[]): Promise<ImportResult> {
+  const supabase = createClient()
+  let imported = 0
+  const errors: string[] = []
+
+  for (const row of rows) {
+    try {
+      let funcao_id: string | null = null
+      if (row.cargo) {
+        const { data: funcaoExistente } = await supabase
+          .from('funcoes')
+          .select('id')
+          .ilike('nome', row.cargo.trim())
+          .maybeSingle()
+
+        if (funcaoExistente) {
+          funcao_id = funcaoExistente.id
+        } else {
+          const { data: novaFuncao } = await supabase
+            .from('funcoes')
+            .insert({ nome: row.cargo.trim(), insalubridade_perc: 0, periculosidade_perc: 0, salario_base: 0, insalubridade_valor: 0, periculosidade_valor: 0 })
+            .select('id')
+            .single()
+          if (novaFuncao) funcao_id = novaFuncao.id
+        }
+      }
+
+      const { error } = await supabase
+        .from('funcionarios')
+        .upsert({
+          registro: row.registro,
+          nome: row.nome,
+          funcao_id,
+          status: row.status,
+          data_admissao: row.data_admissao,
+          data_desligamento: row.data_desligamento,
+          periodo_experiencia: row.periodo_experiencia,
+        }, { onConflict: 'registro' })
+
+      if (error) errors.push(`${row.registro} — ${error.message}`)
+      else imported++
+    } catch {
+      errors.push(`${row.registro} — erro inesperado`)
+    }
+  }
+
   return { imported, errors }
 }

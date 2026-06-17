@@ -7,6 +7,7 @@ import {
   importarCoberturas,
   importarMudancasFuncao,
   importarAdvertencias,
+  importarEfetivo,
 } from '@/app/(admin)/importacao/actions'
 import type {
   ImportResult,
@@ -14,6 +15,7 @@ import type {
   CoberturaCsvRow,
   MudancaFuncaoRow,
   AdvertenciaRow,
+  EfetivoRow,
 } from '@/app/(admin)/importacao/actions'
 
 // ─── CSV utils ────────────────────────────────────────────────
@@ -597,19 +599,124 @@ function TabAdvertencias() {
   )
 }
 
+// ─── ABA 5: Efetivo ──────────────────────────────────────────
+
+function TabEfetivo() {
+  const [preview, setPreview]   = useState<Record<string, unknown>[]>([])
+  const [rows, setRows]         = useState<EfetivoRow[]>([])
+  const [processing, setProc]   = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [result, setResult]     = useState<ImportResult | null>(null)
+  const [csvError, setCsvError] = useState<string | null>(null)
+
+  async function handleFile(f: File) {
+    setResult(null); setRows([]); setCsvError(null); setPreview([])
+    const raw = await parseCSV(f)
+    if (!raw.length) { setCsvError('Arquivo vazio ou sem dados.'); return }
+
+    const parsed: EfetivoRow[] = []
+    for (const row of raw) {
+      const registro = getCol(row, 'REGISTRO')
+      const nome     = getCol(row, 'NOME')
+      if (!registro || !nome) continue
+
+      const cargo      = getCol(row, 'CARGO')
+      const funcaoRaw  = getCol(row, 'FUNÇÃO', 'FUNCAO')
+      const funcaoNorm = funcaoRaw.toUpperCase().trim()
+
+      let status: EfetivoRow['status'] = 'ativo'
+      if (funcaoNorm === 'INATIVO' || funcaoNorm === 'RESCISÃO DE CONTRATO' || funcaoNorm === 'RESCISAO DE CONTRATO') {
+        status = 'desligado'
+      } else if (funcaoNorm === 'AFASTADO') {
+        status = 'afastado'
+      }
+
+      const data_admissao     = parseBRDate(getCol(row, 'ADMISSÃO', 'ADMISSAO'))
+      const data_desligamento = parseBRDate(getCol(row, 'DATA SAÍDA', 'DATA SAIDA'))
+
+      const per1 = getCol(row, '1º PER.', '1 PER.', '1º PER', '1 PER')
+      const per2 = getCol(row, '2º PER.', '2 PER.', '2º PER', '2 PER')
+      let periodo_experiencia: EfetivoRow['periodo_experiencia'] = null
+      if (per1 && per2 && data_admissao) {
+        const d1 = parseBRDate(per1)
+        if (d1) {
+          const dias = Math.round((new Date(d1).getTime() - new Date(data_admissao).getTime()) / 86400000)
+          periodo_experiencia = dias <= 30 ? '30+30' : '45+45'
+        }
+      }
+
+      parsed.push({ registro, nome, cargo, status, data_admissao, data_desligamento, periodo_experiencia })
+    }
+
+    setPreview(raw.slice(0, 5))
+    setRows(parsed)
+  }
+
+  async function handleProcess() {
+    if (!rows.length) return
+    setProc(true); setProgress(0); setResult(null)
+    const batches = chunk(rows, 100)
+    let imported = 0; const errors: string[] = []
+    for (let i = 0; i < batches.length; i++) {
+      const r = await importarEfetivo(batches[i])
+      imported += r.imported; errors.push(...r.errors)
+      setProgress(Math.round(((i + 1) / batches.length) * 100))
+    }
+    setResult({ imported, errors }); setProc(false)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm space-y-3">
+        <p className="text-xs text-gray-400">
+          Colunas esperadas: <span className="font-mono text-gray-600">REGISTRO · NOME · CARGO · FUNÇÃO · ADMISSÃO · DATA SAÍDA · 1º PER. · 2º PER.</span>
+        </p>
+        <p className="text-xs text-gray-400">
+          <strong>FUNÇÃO</strong>: ATIVO → ativo | INATIVO / RESCISÃO DE CONTRATO → desligado | AFASTADO → afastado
+        </p>
+        <input type="file" accept=".csv,.tsv,.txt" className={inputFile}
+          onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
+      </div>
+
+      {csvError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+          <p className="text-sm font-semibold text-red-700">{csvError}</p>
+        </div>
+      )}
+
+      {preview.length > 0 && (
+        <>
+          <PreviewTable rows={preview} />
+          <p className="text-xs text-gray-400">
+            {rows.length} funcionário{rows.length !== 1 ? 's' : ''} prontos para importar
+          </p>
+          <button onClick={handleProcess} disabled={processing || rows.length === 0}
+            className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40">
+            {processing ? 'Processando…' : `Importar ${rows.length} funcionários`}
+          </button>
+        </>
+      )}
+
+      {processing && <ProgressBar value={progress} />}
+      {result && <ResultPanel result={result} />}
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────
 
 const TABS = [
-  { id: 'alocacoes',    label: 'Alocações Mensais'  },
+  { id: 'efetivo',      label: 'Efetivo'              },
+  { id: 'alocacoes',    label: 'Alocações Mensais'    },
   { id: 'coberturas',   label: 'Coberturas Insalubres' },
-  { id: 'mudancas',     label: 'Mudanças de Função' },
-  { id: 'advertencias', label: 'Advertências'        },
+  { id: 'mudancas',     label: 'Mudanças de Função'   },
+  { id: 'advertencias', label: 'Advertências'          },
 ] as const
 
 type TabId = typeof TABS[number]['id']
 
 export function ImportacaoClient() {
-  const [active, setActive] = useState<TabId>('alocacoes')
+  const [active, setActive] = useState<TabId>('efetivo')
 
   return (
     <div className="space-y-4">
@@ -631,6 +738,7 @@ export function ImportacaoClient() {
       </div>
 
       {/* Tab panels — all rendered, hidden via CSS to preserve state */}
+      <div className={active !== 'efetivo'      ? 'hidden' : ''}><TabEfetivo /></div>
       <div className={active !== 'alocacoes'    ? 'hidden' : ''}><TabAlocacoes /></div>
       <div className={active !== 'coberturas'   ? 'hidden' : ''}><TabCoberturas /></div>
       <div className={active !== 'mudancas'     ? 'hidden' : ''}><TabMudancasFuncao /></div>
