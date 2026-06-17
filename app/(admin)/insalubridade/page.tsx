@@ -147,6 +147,7 @@ export default async function InsalubridadePage({
         ano={ano}
         funcionariosOpt={funcionariosOpt}
         postos={postos}
+        isAdmin={auth?.perfil.role === 'admin'}
       />
 
     </div>

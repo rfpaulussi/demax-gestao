@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { ChevronDown, ChevronRight, FileSpreadsheet, FileText } from 'lucide-react'
 import * as XLSX from 'xlsx-js-style'
-import { marcarEnviado, removerDia } from '@/app/(admin)/insalubridade/actions'
+import { marcarEnviado, removerDia, editarCobertura, excluirCobertura } from '@/app/(admin)/insalubridade/actions'
 import { ModalNovaInsalubridade } from './modal-nova-insalubridade'
 import { downloadDeclaracaoPDF, downloadDeclaracaoPDFLote } from './declaracao-insalubridade-pdf'
 import type { InsalubridadeGrupo, InsalubridadeCobertura, FuncOpt } from '@/app/(admin)/insalubridade/actions'
@@ -153,13 +154,51 @@ interface Props {
   ano: number
   funcionariosOpt: FuncOpt[]
   postos: { id: string; nome: string; secretaria: string | null }[]
+  isAdmin: boolean
 }
 
-export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos }: Props) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const [showModal, setShowModal] = useState(false)
+type EditForm = {
+  data_cobertura: string
+  periodo_dias: number
+  agente_ausente_nome: string
+  observacao: string
+}
+
+export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, isAdmin }: Props) {
+  const router = useRouter()
+  const [expanded, setExpanded]       = useState<Set<string>>(new Set())
+  const [showModal, setShowModal]     = useState(false)
   const [loadingXlsx, setLoadingXlsx] = useState(false)
   const [loadingLote, setLoadingLote] = useState(false)
+  const [editandoId, setEditandoId]   = useState<string | null>(null)
+  const [editForm, setEditForm]       = useState<EditForm | null>(null)
+  const [salvando, setSalvando]       = useState(false)
+
+  function iniciarEdicao(r: InsalubridadeCobertura) {
+    setEditandoId(r.id)
+    setEditForm({
+      data_cobertura:     r.data_cobertura.split('T')[0],
+      periodo_dias:       r.periodo_dias ?? 1,
+      agente_ausente_nome: r.agente_ausente_nome ?? '',
+      observacao:         r.observacao ?? '',
+    })
+  }
+
+  async function handleSalvar() {
+    if (!editandoId || !editForm) return
+    setSalvando(true)
+    const result = await editarCobertura(editandoId, editForm)
+    setSalvando(false)
+    if (result.error) alert(result.error)
+    else { setEditandoId(null); setEditForm(null); router.refresh() }
+  }
+
+  async function handleExcluir(id: string) {
+    if (!window.confirm('Excluir esta cobertura? Esta ação não pode ser desfeita.')) return
+    const result = await excluirCobertura(id)
+    if (result.error) alert(result.error)
+    else router.refresh()
+  }
 
   async function handleExcel() {
     setLoadingXlsx(true)
@@ -288,21 +327,104 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos }
                         <tbody className="divide-y divide-gray-100">
                           {grupo.registros.map((r: InsalubridadeCobertura) => {
                             const chip = ORIGEM_CHIP[r.origem]
+                            const isEditing = editandoId === r.id
                             return (
-                              <tr key={r.id} className="text-gray-600">
-                                <td className="py-1.5 pr-4 font-medium text-gray-800">{fmt(r.data_cobertura)}</td>
-                                <td className="py-1.5 pr-4">{r.periodo_dias ?? 1} dia{(r.periodo_dias ?? 1) !== 1 ? 's' : ''}</td>
-                                <td className="py-1.5 pr-4">{r.agente_ausente_nome ?? '—'}</td>
-                                <td className="py-1.5 pr-4">
-                                  <span className={cn('inline-flex rounded-full px-2 py-0.5 font-medium', chip.cls)}>
-                                    {chip.label}
-                                  </span>
-                                </td>
-                                <td className="py-1.5 pr-4">{r.observacao ?? '—'}</td>
-                                <td className="py-1.5">
-                                  {r.origem === 'manual' && <RemoverBtn id={r.id} />}
-                                </td>
-                              </tr>
+                              <>
+                                <tr key={r.id} className="text-gray-600">
+                                  <td className="py-1.5 pr-4 font-medium text-gray-800">{fmt(r.data_cobertura)}</td>
+                                  <td className="py-1.5 pr-4">{r.periodo_dias ?? 1} dia{(r.periodo_dias ?? 1) !== 1 ? 's' : ''}</td>
+                                  <td className="py-1.5 pr-4">{r.agente_ausente_nome ?? '—'}</td>
+                                  <td className="py-1.5 pr-4">
+                                    <span className={cn('inline-flex rounded-full px-2 py-0.5 font-medium', chip.cls)}>
+                                      {chip.label}
+                                    </span>
+                                  </td>
+                                  <td className="py-1.5 pr-4">{r.observacao ?? '—'}</td>
+                                  <td className="py-1.5">
+                                    <div className="flex items-center gap-2">
+                                      {r.origem === 'manual' && !isAdmin && <RemoverBtn id={r.id} />}
+                                      {isAdmin && (
+                                        <>
+                                          <button
+                                            onClick={() => isEditing ? setEditandoId(null) : iniciarEdicao(r)}
+                                            className="text-xs text-slate-600 hover:text-slate-900"
+                                          >
+                                            {isEditing ? 'Cancelar' : 'Editar'}
+                                          </button>
+                                          <button
+                                            onClick={() => handleExcluir(r.id)}
+                                            className="text-xs text-red-500 hover:text-red-700"
+                                          >
+                                            Excluir
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                                {isEditing && editForm && (
+                                  <tr key={`edit-${r.id}`}>
+                                    <td colSpan={6} className="pb-3 pt-1">
+                                      <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-2">
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <div>
+                                            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Data</p>
+                                            <input
+                                              type="date"
+                                              value={editForm.data_cobertura}
+                                              onChange={e => setEditForm(f => f && ({ ...f, data_cobertura: e.target.value }))}
+                                              className="flex h-8 w-full rounded-md border border-gray-200 px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400"
+                                            />
+                                          </div>
+                                          <div>
+                                            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Período (dias)</p>
+                                            <input
+                                              type="number"
+                                              min={1}
+                                              value={editForm.periodo_dias}
+                                              onChange={e => setEditForm(f => f && ({ ...f, periodo_dias: parseInt(e.target.value) || 1 }))}
+                                              className="flex h-8 w-full rounded-md border border-gray-200 px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400"
+                                            />
+                                          </div>
+                                          <div>
+                                            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Agente Ausente</p>
+                                            <input
+                                              type="text"
+                                              value={editForm.agente_ausente_nome}
+                                              onChange={e => setEditForm(f => f && ({ ...f, agente_ausente_nome: e.target.value }))}
+                                              className="flex h-8 w-full rounded-md border border-gray-200 px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400"
+                                            />
+                                          </div>
+                                          <div>
+                                            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Observação</p>
+                                            <input
+                                              type="text"
+                                              value={editForm.observacao}
+                                              onChange={e => setEditForm(f => f && ({ ...f, observacao: e.target.value }))}
+                                              className="flex h-8 w-full rounded-md border border-gray-200 px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400"
+                                            />
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-2 pt-1">
+                                          <button
+                                            onClick={handleSalvar}
+                                            disabled={salvando}
+                                            className="flex h-7 items-center rounded-md bg-slate-900 px-3 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+                                          >
+                                            {salvando ? 'Salvando…' : 'Salvar'}
+                                          </button>
+                                          <button
+                                            onClick={() => { setEditandoId(null); setEditForm(null) }}
+                                            className="flex h-7 items-center rounded-md border border-gray-200 px-3 text-xs font-medium text-gray-500 hover:bg-gray-50"
+                                          >
+                                            Cancelar
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </>
                             )
                           })}
                         </tbody>

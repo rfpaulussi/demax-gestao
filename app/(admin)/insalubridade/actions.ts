@@ -273,6 +273,42 @@ export async function removerDia(id: string) {
   revalidatePath('/insalubridade')
 }
 
+export async function editarCobertura(
+  id: string,
+  dados: {
+    data_cobertura: string
+    periodo_dias: number
+    agente_ausente_nome: string
+    observacao: string
+  }
+): Promise<{ error?: string }> {
+  const supabase = createClient()
+  const [ano, mes] = dados.data_cobertura.split('-').map(Number)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from('insalubridade_coberturas')
+    .update({
+      data_cobertura:      dados.data_cobertura,
+      mes,
+      ano,
+      periodo_dias:        dados.periodo_dias,
+      agente_ausente_nome: dados.agente_ausente_nome || null,
+      observacao:          dados.observacao || null,
+    })
+    .eq('id', id)
+  if (error) return { error: error.message }
+  revalidatePath('/insalubridade')
+  return {}
+}
+
+export async function excluirCobertura(id: string): Promise<{ error?: string }> {
+  const supabase = createClient()
+  const { error } = await supabase.from('insalubridade_coberturas').delete().eq('id', id)
+  if (error) return { error: error.message }
+  revalidatePath('/insalubridade')
+  return {}
+}
+
 export async function buscarFuncionariosParaDeclaracao(): Promise<FuncOpt[]> {
   const supabase = createClient()
   const { data } = await supabase
