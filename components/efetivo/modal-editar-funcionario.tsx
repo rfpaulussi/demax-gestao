@@ -221,7 +221,8 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
                 value={periodoExp}
                 onChange={e => {
                   setPeriodoExp(e.target.value as '30+30' | '45+45' | '')
-                  if (!e.target.value) { setFaseExp(''); setDataFimFase1(''); setDataFimFase2('') }
+                  setFaseExp('')
+                  if (!e.target.value) { setDataFimFase1(''); setDataFimFase2('') }
                 }}
                 className={inputClass}
               >
@@ -235,7 +236,7 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
               <>
                 <div>
                   <label className={labelClass}>Fase Atual</label>
-                  <select value={faseExp} onChange={e => setFaseExp(e.target.value as '1' | '2' | 'concluido' | '')} className={inputClass}>
+                  <select value={faseExp || ''} onChange={e => setFaseExp(e.target.value as '1' | '2' | 'concluido' | '')} className={inputClass}>
                     <option value="">Selecione...</option>
                     <option value="1">Fase 1</option>
                     <option value="2">Fase 2</option>
