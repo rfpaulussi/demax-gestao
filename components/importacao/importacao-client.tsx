@@ -703,6 +703,7 @@ function TabEfetivo() {
       }
 
       const data_admissao     = parseDataFlexivel(getCol(row, 'ADMISSÃO', 'ADMISSAO'))
+      console.log('DEBUG admissao raw:', JSON.stringify(getCol(row, 'ADMISSÃO', 'ADMISSAO')), '→', data_admissao)
       const data_desligamento = parseDataFlexivel(getCol(row, 'DATA SAÍDA', 'DATA SAIDA'))
 
       const per1 = getCol(row, '1º PER.', '1 PER.', '1º PER', '1 PER')
