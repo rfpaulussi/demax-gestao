@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { editarFuncionario } from '@/app/(admin)/efetivo/actions'
 import type { FuncionarioRow } from './funcionarios-table'
@@ -48,6 +48,28 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
   const [dataFimFase2,       setDataFimFase2]       = useState(funcionario.data_fim_fase2 ?? '')
   const [erro,               setErro]               = useState<string | null>(null)
   const [pending,            start]                 = useTransition()
+
+  useEffect(() => {
+    if (dataAdmissao && periodoExp) {
+      const dias = periodoExp === '30+30' ? 30 : 45
+      const admissao = new Date(dataAdmissao + 'T00:00:00')
+
+      const fim1 = new Date(admissao)
+      fim1.setDate(fim1.getDate() + dias)
+      setDataFimFase1(fim1.toISOString().split('T')[0])
+
+      if (faseExp && faseExp !== 'concluido') {
+        const fim2 = new Date(fim1)
+        fim2.setDate(fim2.getDate() + dias)
+        setDataFimFase2(fim2.toISOString().split('T')[0])
+      } else {
+        setDataFimFase2('')
+      }
+    } else {
+      setDataFimFase1('')
+      setDataFimFase2('')
+    }
+  }, [dataAdmissao, periodoExp, faseExp])
 
   function handleClose() {
     if (pending) return
@@ -245,12 +267,12 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
                 </div>
                 <div>
                   <label className={labelClass}>Fim da Fase 1</label>
-                  <input type="date" value={dataFimFase1} onChange={e => setDataFimFase1(e.target.value)} className={inputClass} />
+                  <input type="date" value={dataFimFase1} disabled className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-400`} />
                 </div>
                 {(faseExp === '2' || faseExp === 'concluido') && (
                   <div>
                     <label className={labelClass}>Fim da Fase 2</label>
-                    <input type="date" value={dataFimFase2} onChange={e => setDataFimFase2(e.target.value)} className={inputClass} />
+                    <input type="date" value={dataFimFase2} disabled className={`${inputClass} cursor-not-allowed bg-gray-50 text-gray-400`} />
                   </div>
                 )}
               </>
