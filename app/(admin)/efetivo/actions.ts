@@ -350,6 +350,25 @@ export async function editarFuncionario(
 
   const supabase = createClient()
 
+  let periodoExperiencia = campos.periodo_experiencia ?? null
+  let faseExperiencia    = campos.fase_experiencia    ?? null
+  let dataFimFase1       = campos.data_fim_fase1      ?? null
+  let dataFimFase2       = campos.data_fim_fase2      ?? null
+
+  if (
+    campos.status === 'ativo' &&
+    !periodoExperiencia &&
+    campos.data_admissao &&
+    faseExperiencia !== 'concluido'
+  ) {
+    periodoExperiencia = '45+45'
+    faseExperiencia    = '1'
+    const admissao = new Date(campos.data_admissao + 'T00:00:00')
+    admissao.setDate(admissao.getDate() + 45)
+    dataFimFase1 = admissao.toISOString().split('T')[0]
+    dataFimFase2 = null
+  }
+
   const updatePayload: Record<string, unknown> = {
     nome:                campos.nome,
     funcao_id:           campos.funcao_id || null,
@@ -359,10 +378,10 @@ export async function editarFuncionario(
     data_desligamento:   campos.status === 'ativo' ? null : campos.data_desligamento || null,
     motivo_desligamento: campos.status === 'ativo' ? null : campos.motivo_desligamento || null,
     tipo_desligamento:   campos.status === 'ativo' ? null : campos.tipo_desligamento || null,
-    periodo_experiencia: campos.periodo_experiencia ?? null,
-    fase_experiencia:    campos.periodo_experiencia ? (campos.fase_experiencia ?? null) : null,
-    data_fim_fase1:      campos.periodo_experiencia ? (campos.data_fim_fase1 ?? null) : null,
-    data_fim_fase2:      campos.periodo_experiencia ? (campos.data_fim_fase2 ?? null) : null,
+    periodo_experiencia: periodoExperiencia,
+    fase_experiencia:    periodoExperiencia ? faseExperiencia : null,
+    data_fim_fase1:      periodoExperiencia ? dataFimFase1 : null,
+    data_fim_fase2:      periodoExperiencia ? dataFimFase2 : null,
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -442,7 +461,16 @@ export async function admitirFuncionarioAdmin(formData: FormData): Promise<{ err
     return { error: 'Nome, função, posto e data de admissão são obrigatórios' }
   }
 
-  const payload: Record<string, unknown> = { nome, funcao_id, posto_id, data_admissao, status: 'ativo' }
+  const admissaoDt = new Date(data_admissao + 'T00:00:00')
+  admissaoDt.setDate(admissaoDt.getDate() + 45)
+
+  const payload: Record<string, unknown> = {
+    nome, funcao_id, posto_id, data_admissao, status: 'ativo',
+    periodo_experiencia: '45+45',
+    fase_experiencia:    '1',
+    data_fim_fase1:      admissaoDt.toISOString().split('T')[0],
+    data_fim_fase2:      null,
+  }
   if (registro) payload.registro = registro
   if (cpf) payload.cpf = cpf
 
