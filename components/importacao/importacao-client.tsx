@@ -85,6 +85,55 @@ function parseCSVFindHeader(
   })
 }
 
+function normalizarTexto(str: string): string {
+  return str
+    .replace(/Ã§/g, 'ç').replace(/Ã‡/g, 'Ç')
+    .replace(/Ã£/g, 'ã').replace(/Ãƒ/g, 'Ã')
+    .replace(/Ã¡/g, 'á').replace(/Ã /g, 'à')
+    .replace(/Ã¢/g, 'â').replace(/Ã‚/g, 'Â')
+    .replace(/Ã©/g, 'é').replace(/Ã¨/g, 'è')
+    .replace(/Ãª/g, 'ê').replace(/ÃŠ/g, 'Ê')
+    .replace(/Ã­/g, 'í').replace(/Ã³/g, 'ó')
+    .replace(/Ã´/g, 'ô').replace(/Ã"/g, 'Ô')
+    .replace(/Ãµ/g, 'õ').replace(/Ã•/g, 'Õ')
+    .replace(/Ãº/g, 'ú').replace(/Ã¼/g, 'ü')
+    .replace(/Ã/g, 'Î').replace(/Ã/g, 'Ý')
+}
+
+function detectarDelimitador(linha: string): string {
+  const tabs = (linha.match(/\t/g) || []).length
+  const virgulas = (linha.match(/,/g) || []).length
+  return tabs >= virgulas ? '\t' : ','
+}
+
+function parseCSVEfetivo(file: File): Promise<Record<string, unknown>[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const raw = e.target?.result as string
+        const text = normalizarTexto(raw)
+        const firstLine = text.split(/\r?\n/).find(l => l.trim() !== '') ?? ''
+        const sep = detectarDelimitador(firstLine)
+        const wb = XLSX.read(text, { type: 'string', raw: false, FS: sep })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, unknown>[]
+        resolve(rows.map(row => {
+          const clean: Record<string, unknown> = {}
+          for (const [k, v] of Object.entries(row)) {
+            clean[k.trim()] = typeof v === 'string' ? v.trim() : v
+          }
+          return clean
+        }))
+      } catch (err) {
+        reject(err)
+      }
+    }
+    reader.onerror = reject
+    reader.readAsText(file, 'UTF-8')
+  })
+}
+
 function getCol(row: Record<string, unknown>, ...keys: string[]): string {
   const normalized: Record<string, string> = {}
   for (const [k, v] of Object.entries(row)) {
@@ -611,7 +660,7 @@ function TabEfetivo() {
 
   async function handleFile(f: File) {
     setResult(null); setRows([]); setCsvError(null); setPreview([])
-    const raw = await parseCSV(f)
+    const raw = await parseCSVEfetivo(f)
     if (!raw.length) { setCsvError('Arquivo vazio ou sem dados.'); return }
 
     const parsed: EfetivoRow[] = []
@@ -669,12 +718,12 @@ function TabEfetivo() {
     <div className="space-y-4">
       <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm space-y-3">
         <p className="text-xs text-gray-400">
-          Colunas esperadas: <span className="font-mono text-gray-600">REGISTRO · NOME · CARGO · FUNÇÃO · ADMISSÃO · DATA SAÍDA · 1º PER. · 2º PER.</span>
+          Arquivo CSV ou TSV. Colunas esperadas: <span className="font-mono text-gray-600">REGISTRO · NOME · CARGO · FUNÇÃO · ADMISSÃO · DATA SAÍDA · 1º PER. · 2º PER.</span>
         </p>
         <p className="text-xs text-gray-400">
           <strong>FUNÇÃO</strong>: ATIVO → ativo | INATIVO / RESCISÃO DE CONTRATO → desligado | AFASTADO → afastado
         </p>
-        <input type="file" accept=".csv,.tsv,.txt" className={inputFile}
+        <input type="file" accept=".csv,.tsv" className={inputFile}
           onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
       </div>
 
