@@ -337,6 +337,10 @@ export async function editarFuncionario(
     data_desligamento: string | null
     motivo_desligamento: string | null
     tipo_desligamento: string | null
+    periodo_experiencia?: '30+30' | '45+45' | null
+    fase_experiencia?: '1' | '2' | 'concluido' | null
+    data_fim_fase1?: string | null
+    data_fim_fase2?: string | null
   },
 ): Promise<ActionResult> {
   const auth = await getUser()
@@ -355,6 +359,10 @@ export async function editarFuncionario(
     data_desligamento:   campos.status === 'ativo' ? null : campos.data_desligamento || null,
     motivo_desligamento: campos.status === 'ativo' ? null : campos.motivo_desligamento || null,
     tipo_desligamento:   campos.status === 'ativo' ? null : campos.tipo_desligamento || null,
+    periodo_experiencia: campos.periodo_experiencia ?? null,
+    fase_experiencia:    campos.periodo_experiencia ? (campos.fase_experiencia ?? null) : null,
+    data_fim_fase1:      campos.periodo_experiencia ? (campos.data_fim_fase1 ?? null) : null,
+    data_fim_fase2:      campos.periodo_experiencia ? (campos.data_fim_fase2 ?? null) : null,
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -444,4 +452,52 @@ export async function admitirFuncionarioAdmin(formData: FormData): Promise<{ err
   if (error) return { error: error.message }
   revalidatePath('/efetivo')
   return {}
+}
+
+export async function renovarFaseExperiencia(funcionarioId: string): Promise<ActionResult> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role !== 'admin') return { success: false, error: 'Acesso negado' }
+
+  const supabase = createClient()
+  const { data } = await supabase
+    .from('funcionarios')
+    .select('fase_experiencia, periodo_experiencia, data_fim_fase1')
+    .eq('id', funcionarioId)
+    .single()
+
+  if (!data || data.fase_experiencia !== '1') {
+    return { success: false, error: 'Funcionário não está na fase 1 de experiência' }
+  }
+  if (!data.data_fim_fase1) {
+    return { success: false, error: 'Data fim da fase 1 não definida' }
+  }
+
+  const base = new Date(data.data_fim_fase1 + 'T00:00:00')
+  const days = data.periodo_experiencia === '30+30' ? 30 : 45
+  base.setDate(base.getDate() + days)
+  const data_fim_fase2 = base.toISOString().split('T')[0]
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await supabase.from('funcionarios').update({ fase_experiencia: '2', data_fim_fase2 } as any).eq('id', funcionarioId)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath(`/efetivo/${funcionarioId}`)
+  revalidatePath('/efetivo')
+  revalidatePath('/dashboard')
+  return { success: true }
+}
+
+export async function encerrarExperiencia(funcionarioId: string): Promise<ActionResult> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role !== 'admin') return { success: false, error: 'Acesso negado' }
+
+  const supabase = createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await supabase.from('funcionarios').update({ fase_experiencia: 'concluido' } as any).eq('id', funcionarioId)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath(`/efetivo/${funcionarioId}`)
+  revalidatePath('/efetivo')
+  revalidatePath('/dashboard')
+  return { success: true }
 }

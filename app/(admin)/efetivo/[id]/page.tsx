@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { cn } from '@/lib/utils'
+import { calcularStatusExperiencia } from '@/lib/experiencia'
+import { BannerExperiencia } from '@/components/efetivo/banner-experiencia'
 import { PerfilTabs } from '@/components/efetivo/perfil-tabs'
 import type { MovimentacaoItem, AdvertenciaItem, SolicitacaoItem } from '@/components/efetivo/perfil-tabs'
 import type { FuncionarioParaPDF } from '@/components/efetivo/movimentacao-pdf'
@@ -40,6 +42,7 @@ export default async function PerfilFuncionarioPage({
     .from('funcionarios')
     .select(`
       id, nome, cpf, status, data_admissao,
+      periodo_experiencia, fase_experiencia, data_fim_fase1, data_fim_fase2,
       funcoes!funcao_id ( nome ),
       postos!posto_id ( id, nome, secretaria )
     `)
@@ -95,11 +98,16 @@ export default async function PerfilFuncionarioPage({
     cpf: string | null
     status: string | null
     data_admissao: string | null
+    periodo_experiencia: '30+30' | '45+45' | null
+    fase_experiencia: '1' | '2' | 'concluido' | null
+    data_fim_fase1: string | null
+    data_fim_fase2: string | null
     funcoes: { nome: string } | null
     postos: { nome: string; secretaria: string | null } | null
   }
 
   const statusBadge = f.status ? STATUS_BADGE[f.status] : null
+  const exp = calcularStatusExperiencia(f.periodo_experiencia, f.fase_experiencia, f.data_fim_fase1, f.data_fim_fase2)
 
   return (
     <div className="space-y-6">
@@ -152,6 +160,15 @@ export default async function PerfilFuncionarioPage({
           </div>
         </div>
       </div>
+
+      {/* Experiência banner */}
+      {exp.emExperiencia && f.periodo_experiencia && (
+        <BannerExperiencia
+          funcionarioId={id}
+          exp={exp}
+          periodo={f.periodo_experiencia}
+        />
+      )}
 
       {/* Tabs */}
       <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">

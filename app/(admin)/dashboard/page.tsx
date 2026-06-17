@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import {
-  Users, UserMinus, Umbrella, TrendingDown, ClipboardList, ArrowLeftRight,
+  Users, UserMinus, Umbrella, TrendingDown, ClipboardList, ArrowLeftRight, GraduationCap,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -13,6 +13,7 @@ import {
   buscarEvolucaoEfetivo,
   buscarSecretariaData,
   buscarAprovacoesData,
+  buscarExperienciasDashboard,
 } from './actions'
 import { AlertasCriticos } from '@/components/dashboard/alertas-criticos'
 import { ProximasFerias } from '@/components/dashboard/proximas-ferias'
@@ -93,7 +94,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage() {
-  const [kpis, alertas, proximasFerias, atestados, evolucao, secretarias, aprovacoes] =
+  const [kpis, alertas, proximasFerias, atestados, evolucao, secretarias, aprovacoes, experiencias] =
     await Promise.all([
       buscarKPIsDashboard(),
       buscarAlertasDashboard(),
@@ -102,6 +103,7 @@ export default async function DashboardPage() {
       buscarEvolucaoEfetivo(),
       buscarSecretariaData(),
       buscarAprovacoesData(),
+      buscarExperienciasDashboard(),
     ])
 
   return (
@@ -110,7 +112,7 @@ export default async function DashboardPage() {
       {/* ── LINHA 1: KPI Cards ──────────────────────────────────────────────── */}
       <section className="space-y-3">
         <SectionTitle>Visão geral</SectionTitle>
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-7">
           <KpiCard
             label="Ativos"
             value={kpis.totalAtivos}
@@ -167,6 +169,19 @@ export default async function DashboardPage() {
             topColor="border-t-indigo-500"
             iconBg="text-indigo-600 bg-indigo-50"
             href="/coberturas"
+          />
+          <KpiCard
+            label="Em Experiência"
+            value={experiencias.total}
+            icon={GraduationCap}
+            topColor="border-t-violet-500"
+            iconBg="text-violet-600 bg-violet-50"
+            href="/efetivo"
+            subInfo={
+              experiencias.vencendo7dias > 0
+                ? `⚑ ${experiencias.vencendo7dias} vencem em 7 dias`
+                : undefined
+            }
           />
         </div>
       </section>

@@ -56,6 +56,7 @@ export default async function EfetivoPage() {
       .select(`
         id, nome, registro, cpf, status, motivo_afastamento, data_admissao, posto_id,
         data_desligamento, motivo_desligamento,
+        periodo_experiencia, fase_experiencia, data_fim_fase1, data_fim_fase2,
         funcoes!funcao_id ( id, nome ),
         postos!posto_id ( id, nome, secretaria )
       `)

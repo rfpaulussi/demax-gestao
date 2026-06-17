@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { FileMinus, UserMinus, ArrowUpRight, ClipboardList, Clock, Pencil } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { calcularStatusExperiencia } from '@/lib/experiencia'
 import { ModalAtestado } from './modal-atestado'
 import { ModalAfastar } from './modal-afastar'
 import { ModalNovaSolicitacao } from './modal-nova-solicitacao'
@@ -23,6 +24,10 @@ export type FuncionarioRow = {
   motivo_desligamento: string | null
   tipo_desligamento: string | null
   posto_id: string | null
+  periodo_experiencia: '30+30' | '45+45' | null
+  fase_experiencia: '1' | '2' | 'concluido' | null
+  data_fim_fase1: string | null
+  data_fim_fase2: string | null
   funcoes: { id: string; nome: string } | null
   postos: { id: string; nome: string; secretaria: string | null } | null
   supervisor_nome?: string | null
@@ -130,6 +135,7 @@ export function FuncionariosTable({
                   const badge    = f.status ? STATUS_BADGE[f.status] : null
                   const rowStyle = f.status ? STATUS_ROW[f.status] : null
                   const supLabel = fmtSupervisor(f.supervisor_nome)
+                  const exp = calcularStatusExperiencia(f.periodo_experiencia, f.fase_experiencia, f.data_fim_fase1, f.data_fim_fase2)
 
                   return (
                     <tr
@@ -154,6 +160,16 @@ export function FuncionariosTable({
                         {f.cpf && (
                           <span className="block text-xs font-normal text-gray-400">
                             ***.***.***-**
+                          </span>
+                        )}
+                        {exp.emExperiencia && (
+                          <span className={cn(
+                            'mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
+                            exp.atencao
+                              ? 'bg-red-50 text-red-700 ring-red-200'
+                              : 'bg-purple-50 text-purple-700 ring-purple-200',
+                          )}>
+                            F{exp.fase}{exp.diasRestantes !== null ? ` · ${exp.diasRestantes}d` : ''}
                           </span>
                         )}
                       </td>

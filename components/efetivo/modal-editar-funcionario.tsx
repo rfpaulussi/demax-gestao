@@ -35,9 +35,17 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
   )
   const [dataDesligamento,   setDataDesligamento]   = useState(funcionario.data_desligamento ?? '')
   const [motivoDesligamento, setMotivoDesligamento] = useState(funcionario.motivo_desligamento ?? '')
-  const [tipoDesligamento, setTipoDesligamento] = useState<TipoDesligamento | ''>(
+  const [tipoDesligamento,   setTipoDesligamento]   = useState<TipoDesligamento | ''>(
     (funcionario.tipo_desligamento as TipoDesligamento) ?? ''
   )
+  const [periodoExp,         setPeriodoExp]         = useState<'30+30' | '45+45' | ''>(
+    (funcionario.periodo_experiencia as '30+30' | '45+45') ?? ''
+  )
+  const [faseExp,            setFaseExp]            = useState<'1' | '2' | 'concluido' | ''>(
+    (funcionario.fase_experiencia as '1' | '2' | 'concluido') ?? ''
+  )
+  const [dataFimFase1,       setDataFimFase1]       = useState(funcionario.data_fim_fase1 ?? '')
+  const [dataFimFase2,       setDataFimFase2]       = useState(funcionario.data_fim_fase2 ?? '')
   const [erro,               setErro]               = useState<string | null>(null)
   const [pending,            start]                 = useTransition()
 
@@ -75,6 +83,10 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
         data_desligamento:   statusEnviado === 'ativo' ? null : dataDesligamento || null,
         motivo_desligamento: statusEnviado === 'ativo' ? null : motivoDesligamento || null,
         tipo_desligamento:   statusEnviado === 'ativo' ? null : tipoDesligamento || null,
+        periodo_experiencia: periodoExp || null,
+        fase_experiencia:    periodoExp ? (faseExp || null) : null,
+        data_fim_fase1:      periodoExp ? (dataFimFase1 || null) : null,
+        data_fim_fase2:      periodoExp && faseExp === '2' ? (dataFimFase2 || null) : null,
       })
       if (!result.success) {
         setErro(result.error)
@@ -200,6 +212,46 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
                     ))}
                   </select>
                 </div>
+              </>
+            )}
+
+            <div>
+              <label className={labelClass}>Período de Experiência</label>
+              <select
+                value={periodoExp}
+                onChange={e => {
+                  setPeriodoExp(e.target.value as '30+30' | '45+45' | '')
+                  if (!e.target.value) { setFaseExp(''); setDataFimFase1(''); setDataFimFase2('') }
+                }}
+                className={inputClass}
+              >
+                <option value="">Nenhum</option>
+                <option value="30+30">30 + 30 dias</option>
+                <option value="45+45">45 + 45 dias</option>
+              </select>
+            </div>
+
+            {periodoExp && (
+              <>
+                <div>
+                  <label className={labelClass}>Fase Atual</label>
+                  <select value={faseExp} onChange={e => setFaseExp(e.target.value as '1' | '2' | 'concluido' | '')} className={inputClass}>
+                    <option value="">Selecione...</option>
+                    <option value="1">Fase 1</option>
+                    <option value="2">Fase 2</option>
+                    <option value="concluido">Concluído</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Fim da Fase 1</label>
+                  <input type="date" value={dataFimFase1} onChange={e => setDataFimFase1(e.target.value)} className={inputClass} />
+                </div>
+                {(faseExp === '2' || faseExp === 'concluido') && (
+                  <div>
+                    <label className={labelClass}>Fim da Fase 2</label>
+                    <input type="date" value={dataFimFase2} onChange={e => setDataFimFase2(e.target.value)} className={inputClass} />
+                  </div>
+                )}
               </>
             )}
 

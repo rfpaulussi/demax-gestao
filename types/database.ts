@@ -302,6 +302,10 @@ export type Database = {
           tipo_desligamento: 'voluntaria' | 'demissao' | 'reprova_experiencia' | 'judicial' | 'outros' | null
           motivo_desligamento: string | null
           motivo_afastamento: string | null
+          periodo_experiencia: '30+30' | '45+45' | null
+          fase_experiencia: '1' | '2' | 'concluido' | null
+          data_fim_fase1: string | null
+          data_fim_fase2: string | null
         }
         Insert: {
           id?: string
@@ -319,6 +323,10 @@ export type Database = {
           tipo_desligamento?: 'voluntaria' | 'demissao' | 'reprova_experiencia' | 'judicial' | 'outros' | null
           motivo_desligamento?: string | null
           motivo_afastamento?: string | null
+          periodo_experiencia?: '30+30' | '45+45' | null
+          fase_experiencia?: '1' | '2' | 'concluido' | null
+          data_fim_fase1?: string | null
+          data_fim_fase2?: string | null
         }
         Update: {
           id?: string
@@ -335,6 +343,10 @@ export type Database = {
           tipo_desligamento?: 'voluntaria' | 'demissao' | 'reprova_experiencia' | 'judicial' | 'outros' | null
           motivo_desligamento?: string | null
           motivo_afastamento?: string | null
+          periodo_experiencia?: '30+30' | '45+45' | null
+          fase_experiencia?: '1' | '2' | 'concluido' | null
+          data_fim_fase1?: string | null
+          data_fim_fase2?: string | null
         }
         Relationships: []
       }

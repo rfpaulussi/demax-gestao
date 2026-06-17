@@ -58,7 +58,8 @@
       "Bash(find lib *)",
       "Bash(dir lib *)",
       "PowerShell(git *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "PowerShell(admin *)"
     ]
   }
 }

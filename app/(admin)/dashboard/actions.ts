@@ -508,3 +508,29 @@ export async function buscarForaDoEfetivo(): Promise<number> {
     .in('funcao_id', ids)
   return count ?? 0
 }
+
+export async function buscarExperienciasDashboard(): Promise<{ total: number; vencendo7dias: number }> {
+  const supabase = createClient()
+  const { data } = await supabase
+    .from('funcionarios')
+    .select('id, fase_experiencia, data_fim_fase1, data_fim_fase2')
+    .not('periodo_experiencia', 'is', null)
+    .not('fase_experiencia', 'is', null)
+    .neq('fase_experiencia', 'concluido')
+    .in('status', ['ativo', 'afastado', 'ferias'])
+    .range(0, 999)
+
+  if (!data) return { total: 0, vencendo7dias: 0 }
+
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
+  const em7 = new Date(hoje); em7.setDate(em7.getDate() + 7)
+  const hojeStr = hoje.toISOString().split('T')[0]
+  const em7Str  = em7.toISOString().split('T')[0]
+
+  let vencendo7dias = 0
+  for (const f of data as unknown as { fase_experiencia: string; data_fim_fase1: string | null; data_fim_fase2: string | null }[]) {
+    const dataFim = f.fase_experiencia === '1' ? f.data_fim_fase1 : f.data_fim_fase2
+    if (dataFim && dataFim >= hojeStr && dataFim <= em7Str) vencendo7dias++
+  }
+  return { total: data.length, vencendo7dias }
+}
