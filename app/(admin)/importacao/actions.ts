@@ -392,3 +392,42 @@ export async function importarFeriasHistoricasBulk(rows: FeriasImportRow[]): Pro
   if (error) return { imported: 0, errors: [error.message] }
   return { imported: rows.length, errors: [] }
 }
+
+// ─── Action 6: Coberturas Insalubridade histórico ─────────────
+
+type CoberturaInsalubridadeRow = {
+  mes_ano: string
+  registro: string
+  nome_colaborador: string
+  funcao_colaborador: string
+  posto_atual: string
+  dias_no_mes: number
+  agente_ausente: string
+  funcao_agente_ausente: string
+  data_inicio: string
+  periodo_dias: number
+  supervisor: string
+  posto_formulario: string
+  motivo: string
+  contrato_id: string
+  origem: string
+}
+
+export async function importarCoberturaInsalubridade(
+  registros: CoberturaInsalubridadeRow[]
+): Promise<{ inseridos: number; erros: string[] }> {
+  const supabase = createClient()
+  const batches: CoberturaInsalubridadeRow[][] = []
+  for (let i = 0; i < registros.length; i += 100) batches.push(registros.slice(i, i + 100))
+
+  let inseridos = 0
+  const erros: string[] = []
+  for (const batch of batches) {
+    const { error } = await (supabase as AnyClient)
+      .from('coberturas_insalubridade')
+      .insert(batch)
+    if (error) erros.push(error.message)
+    else inseridos += batch.length
+  }
+  return { inseridos, erros }
+}

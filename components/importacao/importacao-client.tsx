@@ -9,6 +9,7 @@ import {
   importarAdvertencias,
   importarEfetivo,
   importarFeriasHistoricasBulk,
+  importarCoberturaInsalubridade,
 } from '@/app/(admin)/importacao/actions'
 import type {
   ImportResult,
@@ -967,15 +968,161 @@ function TabFerias() {
   )
 }
 
+// ─── ABA 7: Coberturas Insalubridade (histórico TSV) ─────────
+
+type CoberturaInsalubridadePreview = {
+  mes_ano: string
+  registro: string
+  nome_colaborador: string
+  funcao_colaborador: string
+  posto_atual: string
+  dias_no_mes: number
+  agente_ausente: string
+  funcao_agente_ausente: string
+  data_inicio: string
+  periodo_dias: number
+  supervisor: string
+  posto_formulario: string
+  motivo: string
+  contrato_id: string
+  origem: string
+}
+
+function parsearCoberturaInsalubridade(tsv: string): {
+  resultado: CoberturaInsalubridadePreview[]
+  duplicatas: string[]
+} {
+  const linhas = tsv.trim().split('\n')
+  const dados = linhas.slice(1)
+
+  const seen = new Set<string>()
+  const resultado: CoberturaInsalubridadePreview[] = []
+  const duplicatas: string[] = []
+
+  for (const linha of dados) {
+    const cols = linha.split('\t')
+    if (cols.length < 13) continue
+
+    const mesAnoRaw = cols[0].trim()
+    const [m, a] = mesAnoRaw.split('/')
+    const mes_ano = `${m.padStart(2, '0')}/${a}`
+
+    const dataRaw = cols[8].trim()
+    const [dd, mm, yyyy] = dataRaw.split('/')
+    const data_inicio = `${yyyy}-${mm}-${dd}`
+
+    const chave = `${mes_ano}__${cols[1].trim()}__${data_inicio}__${cols[6].trim()}`
+    if (seen.has(chave)) { duplicatas.push(chave); continue }
+    seen.add(chave)
+
+    resultado.push({
+      mes_ano,
+      registro:              cols[1].trim(),
+      nome_colaborador:      cols[2].trim(),
+      funcao_colaborador:    cols[3].trim(),
+      posto_atual:           cols[4].trim(),
+      dias_no_mes:           parseInt(cols[5].trim()) || 0,
+      agente_ausente:        cols[6].trim(),
+      funcao_agente_ausente: cols[7].trim(),
+      data_inicio,
+      periodo_dias:          parseInt(cols[9].trim()) || 0,
+      supervisor:            cols[10].trim(),
+      posto_formulario:      cols[11].trim(),
+      motivo:                cols[12].trim(),
+      contrato_id:           'c73a81ae-0104-4c05-b7d6-e6266f6be1b2',
+      origem:                'historico',
+    })
+  }
+  return { resultado, duplicatas }
+}
+
+function TabCoberturaInsalubridade() {
+  const [tsv, setTsv]           = useState('')
+  const [rows, setRows]         = useState<CoberturaInsalubridadePreview[]>([])
+  const [dupCount, setDupCount] = useState(0)
+  const [processing, setProc]   = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [result, setResult]     = useState<ImportResult | null>(null)
+
+  function handleProcessar() {
+    setResult(null)
+    const { resultado, duplicatas } = parsearCoberturaInsalubridade(tsv)
+    setRows(resultado)
+    setDupCount(duplicatas.length)
+  }
+
+  async function handleImportar() {
+    if (!rows.length) return
+    setProc(true); setProgress(0); setResult(null)
+    const r = await importarCoberturaInsalubridade(rows)
+    setProgress(100)
+    setResult({ imported: r.inseridos, errors: r.erros })
+    setProc(false)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm space-y-3">
+        <p className="text-xs text-gray-400">
+          Cole o TSV abaixo. Cabeçalho esperado: <span className="font-mono text-gray-600">Mês/Ano · Registro · Nome · Função (Efetivo) · Posto Atual · Dias no mês · Agente Ausente · Função Agente Ausente · Data Início · Período (dias) · Supervisor · Posto (formulário) · Motivo</span>
+        </p>
+        <textarea
+          value={tsv}
+          onChange={e => setTsv(e.target.value)}
+          placeholder="Cole o conteúdo do TSV aqui…"
+          rows={8}
+          className="w-full rounded-lg border border-gray-200 p-3 font-mono text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-slate-300"
+        />
+        <button
+          onClick={handleProcessar}
+          disabled={!tsv.trim()}
+          className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
+        >
+          Processar TSV
+        </button>
+      </div>
+
+      {rows.length > 0 && (
+        <>
+          <PreviewTable rows={rows.slice(0, 5).map(r => ({
+            'Mês/Ano':       r.mes_ano,
+            'Registro':      r.registro,
+            'Nome':          r.nome_colaborador,
+            'Dias/Mês':      r.dias_no_mes,
+            'Agente Ausente':r.agente_ausente,
+            'Data Início':   r.data_inicio,
+            'Supervisor':    r.supervisor,
+          }))} />
+          <p className="text-xs text-gray-400">
+            {rows.length} registro{rows.length !== 1 ? 's' : ''} encontrado{rows.length !== 1 ? 's' : ''}
+            {dupCount > 0 && ` (${dupCount} duplicata${dupCount !== 1 ? 's' : ''} removida${dupCount !== 1 ? 's' : ''})`}
+          </p>
+          <button
+            onClick={handleImportar}
+            disabled={processing}
+            className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
+          >
+            {processing ? 'Importando…' : `Importar ${rows.length} registros`}
+          </button>
+        </>
+      )}
+
+      {processing && <ProgressBar value={progress} />}
+      {result && <ResultPanel result={result} />}
+    </div>
+  )
+}
+
 // ─── Main component ───────────────────────────────────────────
 
 const TABS = [
-  { id: 'efetivo',      label: 'Efetivo'              },
-  { id: 'alocacoes',    label: 'Alocações Mensais'    },
-  { id: 'ferias',       label: 'Férias'               },
-  { id: 'coberturas',   label: 'Coberturas Insalubres' },
-  { id: 'mudancas',     label: 'Mudanças de Função'   },
-  { id: 'advertencias', label: 'Advertências'          },
+  { id: 'efetivo',                   label: 'Efetivo'                    },
+  { id: 'alocacoes',                 label: 'Alocações Mensais'          },
+  { id: 'ferias',                    label: 'Férias'                     },
+  { id: 'coberturas',                label: 'Coberturas Insalubres'      },
+  { id: 'coberturas-insalubridade',  label: 'Coberturas Insalubridade'   },
+  { id: 'mudancas',                  label: 'Mudanças de Função'         },
+  { id: 'advertencias',              label: 'Advertências'               },
 ] as const
 
 type TabId = typeof TABS[number]['id']
@@ -1006,8 +1153,9 @@ export function ImportacaoClient() {
       <div className={active !== 'efetivo'      ? 'hidden' : ''}><TabEfetivo /></div>
       <div className={active !== 'alocacoes'    ? 'hidden' : ''}><TabAlocacoes /></div>
       <div className={active !== 'ferias'       ? 'hidden' : ''}><TabFerias /></div>
-      <div className={active !== 'coberturas'   ? 'hidden' : ''}><TabCoberturas /></div>
-      <div className={active !== 'mudancas'     ? 'hidden' : ''}><TabMudancasFuncao /></div>
+      <div className={active !== 'coberturas'                 ? 'hidden' : ''}><TabCoberturas /></div>
+      <div className={active !== 'coberturas-insalubridade'  ? 'hidden' : ''}><TabCoberturaInsalubridade /></div>
+      <div className={active !== 'mudancas'                  ? 'hidden' : ''}><TabMudancasFuncao /></div>
       <div className={active !== 'advertencias' ? 'hidden' : ''}><TabAdvertencias /></div>
     </div>
   )
