@@ -86,6 +86,7 @@ export function FuncionariosTable({
   sortDir,
   onSort,
   isAdmin,
+  faltasAtivas,
 }: {
   funcionarios: FuncionarioRow[]
   postos: { id: string; nome: string; secretaria: string | null }[]
@@ -95,6 +96,7 @@ export function FuncionariosTable({
   sortDir?: 'asc' | 'desc'
   onSort?: (col: string) => void
   isAdmin?: boolean
+  faltasAtivas?: Record<string, boolean>
 }) {
   const [atestadoFuncionario, setAtestadoFuncionario]     = useState<FuncionarioRow | null>(null)
   const [afastarFuncionario, setAfastarFuncionario]       = useState<FuncionarioRow | null>(null)
@@ -202,6 +204,11 @@ export function FuncionariosTable({
                             {f.status === 'afastado' && !f.origem_ocupacional_cat && f.motivo_afastamento && (
                               <span className="text-[10px] text-gray-400 pl-0.5">
                                 {f.motivo_afastamento === 'inss' ? 'INSS' : 'Temporário'}
+                              </span>
+                            )}
+                            {faltasAtivas?.[f.id] && (
+                              <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
+                                Falta
                               </span>
                             )}
                           </div>

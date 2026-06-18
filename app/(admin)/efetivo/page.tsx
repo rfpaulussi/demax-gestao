@@ -24,6 +24,9 @@ function CounterCard({
   )
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyQ = { from: (t: string) => any }
+
 // ─── types ────────────────────────────────────────────────────────────────────
 
 type ConfigRow = {
@@ -110,6 +113,20 @@ export default async function EfetivoPage() {
     }
   }
 
+  // Faltas ativas hoje (para badge na tabela)
+  const hoje = new Date().toISOString().split('T')[0]
+  const { data: faltasRaw } = await (supabase as unknown as AnyQ)
+    .from('faltas')
+    .select('funcionario_id, data_falta, data_fim')
+    .lte('data_falta', hoje)
+    .or(`data_fim.is.null,data_fim.gte.${hoje}`)
+  type FaltaHoje = { funcionario_id: string; data_falta: string; data_fim: string | null }
+  const faltasAtivas: Record<string, boolean> = {}
+  for (const f of (faltasRaw ?? []) as FaltaHoje[]) {
+    if (f.data_fim === null && f.data_falta !== hoje) continue
+    faltasAtivas[f.funcionario_id] = true
+  }
+
   // Enrich ALL funcionarios with supervisor_nome + supervisor_id + origem_ocupacional_cat
   const funcionarios = rawFuncs.map(f => {
     const sup = f.posto_id ? postoSupervisorMap.get(f.posto_id) : undefined
@@ -155,6 +172,7 @@ export default async function EfetivoPage() {
         funcoes={funcoes}
         cids={cids}
         isAdmin={isAdmin}
+        faltasAtivas={faltasAtivas}
       />
     </div>
   )

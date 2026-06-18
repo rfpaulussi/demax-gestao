@@ -59,7 +59,10 @@
       "Bash(dir lib *)",
       "PowerShell(git *)",
       "Bash(npm install *)",
-      "PowerShell(admin *)"
+      "PowerShell(admin *)",
+      "PowerShell(cd \"C:\\\\Users\\\\Rodolfo\\\\projetos-claude\\\\demax-gestao\" ; git add components/admin/nav-config.ts app/\\(admin\\)/insalubridade/page.tsx components/coberturas/modal-nova-cobertura.tsx app/\\(admin\\)/coberturas/actions.ts app/\\(admin\\)/ocorrencias/actions.ts app/\\(admin\\)/ocorrencias/page.tsx components/ocorrencias/ocorrencias-client.tsx)",
+      "Bash(Select-String -Pattern \"error|Error|warn|✓|✗|Failed|compiled|Route\")",
+      "Bash(Select-Object -Last 30)"
     ]
   }
 }

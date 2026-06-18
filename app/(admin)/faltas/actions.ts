@@ -269,7 +269,7 @@ export async function buscarFuncionariosParaFalta(): Promise<FuncOpt[]> {
   const { data, error } = await supabase
     .from('funcionarios')
     .select(`id, nome, postos!posto_id(id, nome, secretaria), funcoes!funcionarios_funcao_id_fkey(nome)`)
-    .eq('status', 'ativo')
+    .neq('status', 'desligado')
     .order('nome')
   if (error) throw error
   return (data ?? []) as unknown as FuncOpt[]

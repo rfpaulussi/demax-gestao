@@ -6,6 +6,9 @@ import { getUser } from '@/lib/auth/get-user'
 
 type ActionResult = { success: true } | { success: false; error: string }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyClient = { from: (table: string) => any }
+
 async function assertAuth(): Promise<{ success: true; userId: string } | { success: false; error: string }> {
   const auth = await getUser()
   if (!auth) return { success: false, error: 'Não autenticado' }
@@ -57,23 +60,28 @@ export async function registrarCobertura(formData: FormData): Promise<ActionResu
   const postoOrigemId = substituto?.posto_id ?? null
   const urgencia      = calcUrgencia(dataPrevRetorno)
 
-  const { error } = await supabase.from('coberturas_temporarias').insert({
-    funcionario_id:        substitutoId,
-    posto_destino_id:      postoDestinoId,
-    posto_origem_id:       postoOrigemId,
-    tipo_motivo:           tipoMotivo,
-    motivo,
-    data_inicio:           dataInicio,
-    data_prev_retorno:     dataPrevRetorno,
-    urgencia,
-    status:                'ativa',
-    supervisor_origem_id:  guard.userId,
-    supervisor_destino_id: supervisorDestinoId,
-    funcionario_ausente_id: ausenteId,
-    tipo_cobertura:        tipoCobertura,
-  } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+  const { data: cobData, error } = await (supabase as unknown as AnyClient)
+    .from('coberturas_temporarias')
+    .insert({
+      funcionario_id:         substitutoId,
+      posto_destino_id:       postoDestinoId,
+      posto_origem_id:        postoOrigemId,
+      tipo_motivo:            tipoMotivo,
+      motivo,
+      data_inicio:            dataInicio,
+      data_prev_retorno:      dataPrevRetorno,
+      urgencia,
+      status:                 'ativa',
+      supervisor_origem_id:   guard.userId,
+      supervisor_destino_id:  supervisorDestinoId,
+      funcionario_ausente_id: ausenteId,
+      tipo_cobertura:         tipoCobertura,
+    })
+    .select('id')
+    .single()
 
   if (error) return { success: false, error: error.message }
+  const coberturaId = (cobData as { id: string } | null)?.id ?? null
 
   const { error: errSubstituto } = await supabase
     .from('funcionarios')
@@ -81,12 +89,38 @@ export async function registrarCobertura(formData: FormData): Promise<ActionResu
     .eq('id', substitutoId)
   if (errSubstituto) console.error('[coberturas] registrarCobertura: atualizar posto do substituto:', errSubstituto.message)
 
+  const isFalta = tipoMotivo === 'falta_justificada' || tipoMotivo === 'falta_injustificada'
+
   if (ausenteId) {
-    const { error: errAusente } = await supabase
-      .from('funcionarios')
-      .update({ status: 'afastado' })
-      .eq('id', ausenteId)
-    if (errAusente) console.error('[coberturas] registrarCobertura: marcar ausente como afastado:', errAusente.message)
+    const dias = dataInicio && dataPrevRetorno
+      ? Math.round((new Date(dataPrevRetorno + 'T12:00:00').getTime() - new Date(dataInicio + 'T12:00:00').getTime()) / 86400000) + 1
+      : 1
+
+    const shouldAfastar = !isFalta || dias >= 4
+    if (shouldAfastar) {
+      const { error: errAusente } = await supabase
+        .from('funcionarios')
+        .update({ status: 'afastado' })
+        .eq('id', ausenteId)
+      if (errAusente) console.error('[coberturas] registrarCobertura: marcar ausente como afastado:', errAusente.message)
+    }
+
+    if (isFalta) {
+      const { error: errFalta } = await (supabase as unknown as AnyClient)
+        .from('faltas')
+        .insert({
+          funcionario_id: ausenteId,
+          data_falta:     dataInicio,
+          data_fim:       dataPrevRetorno,
+          tipo:           tipoMotivo,
+          dias,
+          observacao:     motivo,
+          origem:         'cobertura',
+          cobertura_id:   coberturaId,
+          registrado_por: guard.userId,
+        })
+      if (errFalta) console.error('[coberturas] registrarCobertura: inserir falta:', errFalta.message)
+    }
   }
 
   revalidatePath('/coberturas')

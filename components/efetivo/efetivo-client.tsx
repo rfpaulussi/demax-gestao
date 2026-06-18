@@ -38,9 +38,10 @@ interface Props {
   funcoes: { id: string; nome: string }[]
   cids: { codigo: string; descricao: string }[]
   isAdmin?: boolean
+  faltasAtivas?: Record<string, boolean>
 }
 
-export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cids, isAdmin }: Props) {
+export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cids, isAdmin, faltasAtivas }: Props) {
   const [values, setValues] = useState<FiltrosValues>({
     busca: '', status: '', secretaria: '', supervisor: '',
   })
@@ -179,6 +180,7 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
         sortDir={sortDir}
         onSort={toggleSort}
         isAdmin={isAdmin}
+        faltasAtivas={faltasAtivas}
       />
       <ModalAdmitirAdmin
         open={admitirOpen}
