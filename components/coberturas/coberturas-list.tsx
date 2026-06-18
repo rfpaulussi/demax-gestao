@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, CalendarClock, ArrowRight, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -12,6 +12,8 @@ import { ModalEncerrarCobertura } from './modal-encerrar-cobertura'
 export type CoberturaRow = {
   id: string
   motivo: string | null
+  tipo_motivo: string | null
+  funcionario_ausente_id: string | null
   data_inicio: string | null
   data_prev_retorno: string | null
   data_retorno_real: string | null
@@ -56,13 +58,23 @@ function fmt(iso: string | null) {
 function CoberturaCard({
   c,
   onEncerrar,
+  faltaRegistrada,
 }: {
   c: CoberturaRow
   onEncerrar?: (c: CoberturaRow) => void
+  faltaRegistrada?: boolean | null
 }) {
   const urg = calcUrgencia(c.data_prev_retorno)
   const cfg = URG[urg]
   const encerrada = c.status === 'encerrada'
+
+  const isFaltaMotivo    = c.tipo_motivo === 'falta_justificada' || c.tipo_motivo === 'falta_injustificada'
+  const isAtestadoMotivo = c.tipo_motivo === 'atestado_medico'
+  const showStatusBadge  = !encerrada && (isFaltaMotivo || isAtestadoMotivo) && Boolean(c.funcionario_ausente_id) && faltaRegistrada !== null && faltaRegistrada !== undefined
+
+  const statusBadgeLabel = faltaRegistrada
+    ? (isAtestadoMotivo ? '✓ Atestado registrado' : '✓ Falta registrada')
+    : (isAtestadoMotivo ? '⚠ Atestado pendente'  : '⚠ Falta pendente')
 
   return (
     <div
@@ -115,6 +127,20 @@ function CoberturaCard({
         <p className="mt-2 line-clamp-2 text-xs text-gray-500">{c.motivo}</p>
       )}
 
+      {/* Badge falta/atestado registrado */}
+      {showStatusBadge && (
+        <div className="mt-2">
+          <span className={cn(
+            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
+            faltaRegistrada
+              ? 'bg-green-50 text-green-700 ring-green-200'
+              : 'bg-amber-50 text-amber-700 ring-amber-200',
+          )}>
+            {statusBadgeLabel}
+          </span>
+        </div>
+      )}
+
       {/* Datas */}
       <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-400">
         <span>
@@ -135,7 +161,6 @@ function CoberturaCard({
         )}
       </div>
 
-      {/* Action — fix: mt-auto sem conflito com mt-4 */}
       {onEncerrar && (
         <div className="mt-auto border-t border-gray-100 pt-4">
           <Button
@@ -168,22 +193,30 @@ export function CoberturasList({
   coberturas,
   historico = [],
   supervisores = [],
+  faltasStatus = {},
 }: {
   coberturas: CoberturaRow[]
   historico?: CoberturaRow[]
   supervisores?: { id: string; nome: string }[]
+  faltasStatus?: Record<string, boolean>
 }) {
   const [novaOpen, setNovaOpen]     = useState(false)
   const [encerrando, setEncerrando] = useState<CoberturaRow | null>(null)
   const [urgFilter, setUrgFilter]   = useState<UrgFilter>('all')
   const [historicoOpen, setHistoricoOpen] = useState(false)
+  const [toastMsg, setToastMsg]     = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!toastMsg) return
+    const t = setTimeout(() => setToastMsg(null), 4500)
+    return () => clearTimeout(t)
+  }, [toastMsg])
 
   const filtered =
     urgFilter === 'all'
       ? coberturas
       : coberturas.filter(c => calcUrgencia(c.data_prev_retorno) === urgFilter)
 
-  // Only show urgência filter pills that have at least one entry
   const urgCounts = coberturas.reduce<Record<UrgKey, number>>(
     (acc, c) => {
       const k = calcUrgencia(c.data_prev_retorno)
@@ -245,7 +278,16 @@ export function CoberturasList({
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map(c => (
-            <CoberturaCard key={c.id} c={c} onEncerrar={setEncerrando} />
+            <CoberturaCard
+              key={c.id}
+              c={c}
+              onEncerrar={setEncerrando}
+              faltaRegistrada={
+                (c.tipo_motivo === 'falta_justificada' || c.tipo_motivo === 'falta_injustificada' || c.tipo_motivo === 'atestado_medico') && c.funcionario_ausente_id
+                  ? (faltasStatus[c.id] ?? false)
+                  : null
+              }
+            />
           ))}
         </div>
       )}
@@ -280,7 +322,12 @@ export function CoberturasList({
       )}
 
       {/* Modals */}
-      <ModalNovaCobertura open={novaOpen} onClose={() => setNovaOpen(false)} supervisores={supervisores} />
+      <ModalNovaCobertura
+        open={novaOpen}
+        onClose={() => setNovaOpen(false)}
+        supervisores={supervisores}
+        onSuccess={msg => { setNovaOpen(false); setToastMsg(msg) }}
+      />
 
       {encerrando && (
         <ModalEncerrarCobertura
@@ -288,6 +335,13 @@ export function CoberturasList({
           onClose={() => setEncerrando(null)}
           cobertura={encerrando}
         />
+      )}
+
+      {/* Toast */}
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm rounded-xl border border-green-200 bg-green-50 px-4 py-3 shadow-lg">
+          <p className="text-sm font-medium text-green-800">{toastMsg}</p>
+        </div>
       )}
     </>
   )

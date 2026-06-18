@@ -4,6 +4,10 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getUser } from '@/lib/auth/get-user'
 
+export type RegisterResult =
+  | { success: false; error: string }
+  | { success: true; faltaMsg?: string; atestadoMsg?: string; ultrapassaMes?: boolean }
+
 type ActionResult = { success: true } | { success: false; error: string }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -27,30 +31,36 @@ function calcUrgencia(dataPrevRetorno: string | null): 'baixa' | 'media' | 'alta
   return 'baixa'
 }
 
-export async function registrarCobertura(formData: FormData): Promise<ActionResult> {
+function fmtDateBR(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+
+export async function registrarCobertura(formData: FormData): Promise<RegisterResult> {
   const guard = await assertAuth()
   if (!guard.success) return guard
 
   const supabase = createClient()
 
-  // Bug fix: modal envia 'substituto_id', não 'funcionario_id'
-  const substitutoId       = formData.get('substituto_id') as string
-  const postoDestinoId     = formData.get('posto_destino_id') as string
-  const tipoMotivo         = (formData.get('tipo_motivo') as string) || null
-  const motivo             = (formData.get('motivo') as string) || null
-  const dataInicio         = formData.get('data_inicio') as string
-  // Bug fix: modal envia 'data_fim', não 'data_prev_retorno'
-  const dataPrevRetorno    = (formData.get('data_fim') as string) || null
-  // Bug fix: modal envia 'funcionario_ausente_id', não 'ausente_id'
-  const ausenteId          = (formData.get('funcionario_ausente_id') as string) || null
+  const substitutoId        = formData.get('substituto_id') as string
+  const postoDestinoId      = formData.get('posto_destino_id') as string
+  const tipoMotivo          = (formData.get('tipo_motivo') as string) || null
+  const motivo              = (formData.get('motivo') as string) || null
+  const dataInicio          = formData.get('data_inicio') as string
+  const dataPrevRetorno     = (formData.get('data_fim') as string) || null
+  const ausenteId           = (formData.get('funcionario_ausente_id') as string) || null
   const supervisorDestinoId = (formData.get('supervisor_id') as string) || null
-  const tipoCobertura      = (formData.get('tipo_cobertura') as string) || null
+  const tipoCobertura       = (formData.get('tipo_cobertura') as string) || null
+  const ausenteNome         = (formData.get('funcionario_ausente_nome') as string) || 'funcionário'
+  const lancarFalta         = formData.get('lancar_falta') !== 'false'
+  const registrarAtestado   = formData.get('registrar_atestado') !== 'false'
+  const atestadoMotivo      = (formData.get('atestado_motivo') as string) || null
 
   if (!substitutoId || !postoDestinoId || !dataInicio) {
     return { success: false, error: 'Campos obrigatórios faltando' }
   }
 
-  // Fetch posto atual do substituto para usar como posto_origem
   const { data: substituto } = await supabase
     .from('funcionarios')
     .select('posto_id')
@@ -89,44 +99,120 @@ export async function registrarCobertura(formData: FormData): Promise<ActionResu
     .eq('id', substitutoId)
   if (errSubstituto) console.error('[coberturas] registrarCobertura: atualizar posto do substituto:', errSubstituto.message)
 
-  const isFalta = tipoMotivo === 'falta_justificada' || tipoMotivo === 'falta_injustificada'
+  const isFalta    = tipoMotivo === 'falta_justificada' || tipoMotivo === 'falta_injustificada'
+  const isAtestado = tipoMotivo === 'atestado_medico'
+
+  // Cross-month check
+  const eom = (() => {
+    const [y, m] = dataInicio.split('-').map(Number)
+    return new Date(y, m, 0).toISOString().split('T')[0]
+  })()
+  const ultrapassaMes = Boolean(dataPrevRetorno && dataPrevRetorno > eom)
+
+  let faltaMsg: string | undefined
+  let atestadoMsg: string | undefined
 
   if (ausenteId) {
-    const dias = dataInicio && dataPrevRetorno
+    const dias = dataPrevRetorno
       ? Math.round((new Date(dataPrevRetorno + 'T12:00:00').getTime() - new Date(dataInicio + 'T12:00:00').getTime()) / 86400000) + 1
       : 1
 
-    const shouldAfastar = !isFalta || dias >= 4
-    if (shouldAfastar) {
+    if (isAtestado && registrarAtestado) {
+      // Check existing afastamento overlapping this period
+      const { data: existingAfast } = await supabase
+        .from('afastamentos')
+        .select('id')
+        .eq('funcionario_id', ausenteId)
+        .lte('data_inicio', dataPrevRetorno ?? dataInicio)
+        .or(`data_fim_prevista.is.null,data_fim_prevista.gte.${dataInicio}`)
+        .maybeSingle()
+
+      if (existingAfast) {
+        atestadoMsg = `Atestado de ${ausenteNome} já estava registrado.`
+      } else {
+        const { error: errAfast } = await supabase.from('afastamentos').insert({
+          funcionario_id:    ausenteId,
+          data_inicio:       dataInicio,
+          data_fim_prevista: dataPrevRetorno,
+          motivo:            atestadoMotivo,
+        } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+        if (errAfast) {
+          console.error('[coberturas] registrarCobertura: inserir afastamento:', errAfast.message)
+        } else {
+          // Inserir também em atestados (posto_id e registrado_por são obrigatórios)
+          const { error: errAtest } = await supabase.from('atestados').insert({
+            funcionario_id: ausenteId,
+            posto_id:       postoDestinoId,
+            data_inicio:    dataInicio,
+            data_fim:       dataPrevRetorno ?? dataInicio,
+            motivo:         atestadoMotivo || motivo || null,
+            registrado_por: guard.userId,
+          } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+          await supabase.from('funcionarios').update({ status: 'afastado' }).eq('id', ausenteId)
+          if (errAtest) {
+            console.error('[coberturas] registrarCobertura: inserir atestado:', errAtest.message)
+            atestadoMsg = `⚠ Afastamento de ${ausenteNome} registrado mas atestado não foi salvo — registre manualmente em Atestados.`
+          } else {
+            atestadoMsg = `Atestado de ${ausenteNome} registrado.`
+          }
+        }
+      }
+    } else if (isFalta) {
+      if (dias >= 4) {
+        const { error: errAusente } = await supabase
+          .from('funcionarios')
+          .update({ status: 'afastado' })
+          .eq('id', ausenteId)
+        if (errAusente) console.error('[coberturas] registrarCobertura: marcar ausente como afastado:', errAusente.message)
+      }
+
+      if (lancarFalta && coberturaId) {
+        const { data: existingFalta } = await (supabase as unknown as AnyClient)
+          .from('faltas')
+          .select('id')
+          .eq('cobertura_id', coberturaId)
+          .maybeSingle()
+
+        if (existingFalta) {
+          faltaMsg = `Falta de ${ausenteNome} já estava registrada.`
+        } else {
+          const { error: errFalta } = await (supabase as unknown as AnyClient)
+            .from('faltas')
+            .insert({
+              funcionario_id: ausenteId,
+              data_falta:     dataInicio,
+              data_fim:       dataPrevRetorno,
+              tipo:           tipoMotivo,
+              dias,
+              observacao:     motivo,
+              origem:         'cobertura',
+              cobertura_id:   coberturaId,
+              registrado_por: guard.userId,
+            })
+          if (errFalta) {
+            console.error('[coberturas] registrarCobertura: inserir falta:', errFalta.message)
+          } else {
+            const periodoLabel = dataPrevRetorno && dataPrevRetorno !== dataInicio
+              ? ` para ${fmtDateBR(dataInicio)} a ${fmtDateBR(dataPrevRetorno)}`
+              : ` para ${fmtDateBR(dataInicio)}`
+            faltaMsg = `Falta de ${ausenteNome} registrada${periodoLabel}.`
+          }
+        }
+      }
+    } else {
+      // ferias, licenca, folga, outros — sempre afastar
       const { error: errAusente } = await supabase
         .from('funcionarios')
         .update({ status: 'afastado' })
         .eq('id', ausenteId)
       if (errAusente) console.error('[coberturas] registrarCobertura: marcar ausente como afastado:', errAusente.message)
     }
-
-    if (isFalta) {
-      const { error: errFalta } = await (supabase as unknown as AnyClient)
-        .from('faltas')
-        .insert({
-          funcionario_id: ausenteId,
-          data_falta:     dataInicio,
-          data_fim:       dataPrevRetorno,
-          tipo:           tipoMotivo,
-          dias,
-          observacao:     motivo,
-          origem:         'cobertura',
-          cobertura_id:   coberturaId,
-          registrado_por: guard.userId,
-        })
-      if (errFalta) console.error('[coberturas] registrarCobertura: inserir falta:', errFalta.message)
-    }
   }
 
   revalidatePath('/coberturas')
   revalidatePath('/efetivo')
   revalidatePath('/dashboard')
-  return { success: true }
+  return { success: true, faltaMsg, atestadoMsg, ultrapassaMes }
 }
 
 export async function encerrarCobertura(id: string): Promise<ActionResult> {
@@ -236,7 +322,7 @@ export async function buscarFuncionariosAtivosNoPostoSemAfastamento(
       .select('funcionario_id')
       .in('funcionario_id', ids)
       .lte('data_inicio', hoje)
-      .or(`data_fim.is.null,data_fim.gte.${hoje}`),
+      .or(`data_fim_prevista.is.null,data_fim_prevista.gte.${hoje}`),
     supabase
       .from('faltas')
       .select('funcionario_id')

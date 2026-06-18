@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { createClient } from '@/lib/supabase/client'
-import { registrarCobertura, buscarFuncionariosAtivosNoPostoSemAfastamento } from '@/app/(admin)/coberturas/actions'
+import { registrarCobertura } from '@/app/(admin)/coberturas/actions'
 
 interface Funcionario {
   id: string
@@ -33,6 +33,7 @@ interface Props {
   open: boolean
   onClose: () => void
   supervisores?: Supervisor[]
+  onSuccess?: (msg: string) => void
 }
 
 const AVATAR_COLORS = [
@@ -55,6 +56,12 @@ function endOfMonth(dateStr: string): string {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]
 }
 
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+
 const MESES = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 
@@ -67,7 +74,7 @@ function nextMonthLabel(dateStr: string): string {
 const fieldLabel = 'mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500'
 const inputCls = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-300'
 
-export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) {
+export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess }: Props) {
   const [busca, setBusca]                   = useState('')
   const [resultadosBusca, setResultadosBusca] = useState<Funcionario[]>([])
   const [substituto, setSubstituto]         = useState<Funcionario | null>(null)
@@ -93,8 +100,25 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
   const [dataInicioAusencia, setDataInicioAusencia] = useState('')
   const [dataFimAusencia, setDataFimAusencia]       = useState('')
 
+  // falta / atestado inline
+  const [lancarFalta, setLancarFalta]           = useState(true)
+  const [registrarAtestado, setRegistrarAtestado] = useState(true)
+  const [atestadoMotivo, setAtestadoMotivo]     = useState('')
+
   const [pending, setPending] = useState(false)
+  const [erro, setErro]       = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Computed flags
+  const isFaltaMotivo    = tipoMotivo === 'falta_justificada' || tipoMotivo === 'falta_injustificada'
+  const isAtestadoMotivo = tipoMotivo === 'atestado_medico'
+  const temAusente       = tipoCobertura === 'substituicao' && Boolean(funcionarioAusenteId)
+  const showFaltaBanner    = isFaltaMotivo && temAusente
+  const showAtestadoBanner = isAtestadoMotivo && temAusente
+
+  const ausenteNomeAtual = temAusente
+    ? (funcionariosAusentes.find(f => f.id === funcionarioAusenteId)?.nome ?? 'funcionário')
+    : 'funcionário'
 
   // Contagem de postos por supervisor
   useEffect(() => {
@@ -134,12 +158,14 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
       })
   }, [supervisorId])
 
-  // Funcionários do posto destino (filtrados por afastamento/falta)
+  // Funcionários do posto destino
   useEffect(() => {
     if (!postoId) { setSecretaria(''); setFuncionariosAusentes([]); return }
     const posto = postos.find(p => p.id === postoId)
     setSecretaria(posto?.secretaria ?? '')
-    buscarFuncionariosAtivosNoPostoSemAfastamento(postoId).then(setFuncionariosAusentes)
+    import('@/app/(admin)/coberturas/actions').then(({ buscarFuncionariosAtivosNoPostoSemAfastamento }) => {
+      buscarFuncionariosAtivosNoPostoSemAfastamento(postoId).then(setFuncionariosAusentes)
+    })
   }, [postoId, postos])
 
   // Busca de substituto com debounce
@@ -182,12 +208,18 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
     setTipoMotivo(''); setMotivo(''); setApenasUmDia(false); setDataInicio(''); setDataFim('')
     setTipoCobertura('reforco'); setFuncionariosAusentes([])
     setFuncionarioAusenteId(''); setDataInicioAusencia(''); setDataFimAusencia('')
+    setLancarFalta(true); setRegistrarAtestado(true); setAtestadoMotivo('')
+    setErro(null)
     onClose()
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!substituto || !postoId) return
+    setErro(null)
+
+    const savedDataInicio = dataInicio
+
     const fd = new FormData()
     fd.set('substituto_id', substituto.id)
     fd.set('supervisor_id', supervisorId)
@@ -197,14 +229,34 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
     fd.set('data_inicio', dataInicio)
     fd.set('data_fim', apenasUmDia ? dataInicio : dataFim)
     fd.set('tipo_cobertura', tipoCobertura)
+    fd.set('lancar_falta', lancarFalta ? 'true' : 'false')
+    fd.set('registrar_atestado', registrarAtestado ? 'true' : 'false')
+    fd.set('atestado_motivo', atestadoMotivo)
     if (tipoCobertura === 'substituicao') {
       fd.set('funcionario_ausente_id', funcionarioAusenteId)
       fd.set('data_inicio_ausencia', dataInicioAusencia)
       fd.set('data_fim_ausencia', dataFimAusencia)
+      fd.set('funcionario_ausente_nome', ausenteNomeAtual)
     }
+
     setPending(true)
-    try { await registrarCobertura(fd); handleClose() }
-    finally { setPending(false) }
+    try {
+      const result = await registrarCobertura(fd)
+      if (!result.success) {
+        setErro(result.error)
+        return
+      }
+      let msg = '✓ Cobertura salva.'
+      if (result.faltaMsg)    msg += ' ' + result.faltaMsg
+      if (result.atestadoMsg) msg += ' ' + result.atestadoMsg
+      if (result.ultrapassaMes && savedDataInicio) {
+        msg += ` Lembre-se de registrar a continuação em ${nextMonthLabel(savedDataInicio)}.`
+      }
+      onSuccess?.(msg)
+      handleClose()
+    } finally {
+      setPending(false)
+    }
   }
 
   // Computed
@@ -416,14 +468,87 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
                       <option value="outros">Outros</option>
                     </select>
                   </div>
-                  {tipoMotivo === 'atestado_medico' && (
-                    <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-                      💡 Lembre-se de registrar o atestado no módulo <span className="font-semibold">Atestados</span> após salvar.
+
+                  {/* Banner falta interativo */}
+                  {showFaltaBanner ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-xs text-amber-800 space-y-2">
+                      <p className="font-semibold">
+                        ⚠️ Deseja registrar a falta de <span className="font-bold">{ausenteNomeAtual}</span> automaticamente?
+                      </p>
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={lancarFalta}
+                          onChange={e => setLancarFalta(e.target.checked)}
+                          className="h-3.5 w-3.5 rounded border-amber-300 text-amber-600"
+                        />
+                        <span>Lançar falta ao salvar</span>
+                      </label>
+                      {lancarFalta && dataInicio && (
+                        <p className="text-amber-700">
+                          Período:{' '}
+                          <span className="font-semibold">
+                            {fmtDate(dataInicio)} a {fmtDate(apenasUmDia ? dataInicio : dataFim || dataInicio)}
+                          </span>
+                          {diasCobertura !== null && (
+                            <span className="ml-1">({diasCobertura} dia{diasCobertura !== 1 ? 's' : ''})</span>
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  ) : isFaltaMotivo && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      💡 Selecione o funcionário ausente abaixo para lançar a falta automaticamente.
                     </div>
                   )}
-                  {(tipoMotivo === 'falta_justificada' || tipoMotivo === 'falta_injustificada') && (
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                      💡 Lembre-se de registrar a falta no módulo <span className="font-semibold">Faltas</span> após salvar.
+
+                  {/* Banner atestado interativo */}
+                  {showAtestadoBanner ? (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-3 text-xs text-blue-800 space-y-2">
+                      <p className="font-semibold">
+                        💡 Deseja registrar o atestado de <span className="font-bold">{ausenteNomeAtual}</span> automaticamente?
+                      </p>
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={registrarAtestado}
+                          onChange={e => setRegistrarAtestado(e.target.checked)}
+                          className="h-3.5 w-3.5 rounded border-blue-300 text-blue-600"
+                        />
+                        <span>Registrar atestado ao salvar</span>
+                      </label>
+                      {registrarAtestado && (
+                        <div className="space-y-2 border-t border-blue-200 pt-2">
+                          <div className="flex gap-2">
+                            <div className="flex-1">
+                              <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-blue-600">Data Início</p>
+                              <div className="rounded border border-blue-200 bg-white px-2 py-1 text-xs text-blue-800">
+                                {fmtDate(dataInicio) || '—'}
+                              </div>
+                            </div>
+                            <div className="flex-1">
+                              <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-blue-600">Data Fim</p>
+                              <div className="rounded border border-blue-200 bg-white px-2 py-1 text-xs text-blue-800">
+                                {fmtDate(apenasUmDia ? dataInicio : dataFim) || '—'}
+                              </div>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-blue-600">Motivo (opcional)</p>
+                            <textarea
+                              value={atestadoMotivo}
+                              onChange={e => setAtestadoMotivo(e.target.value)}
+                              rows={2}
+                              placeholder="Observações do atestado..."
+                              className="w-full rounded border border-blue-200 bg-white px-2 py-1 text-xs text-blue-800 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : isAtestadoMotivo && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                      💡 Selecione o funcionário ausente abaixo para registrar o atestado automaticamente.
                     </div>
                   )}
                 </div>
@@ -568,6 +693,13 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
                 </div>
               )}
             </div>
+
+            {/* Erro */}
+            {erro && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {erro}
+              </div>
+            )}
 
             {/* ── AÇÕES ── */}
             <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">

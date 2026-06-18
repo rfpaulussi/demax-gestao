@@ -24,6 +24,9 @@ function KpiCard({
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyQ = { from: (t: string) => any }
+
 function calcUrgKey(dataPrevRetorno: string | null): 'red' | 'orange' | 'purple' | 'gray' {
   if (!dataPrevRetorno) return 'gray'
   const hoje = new Date()
@@ -39,7 +42,8 @@ function calcUrgKey(dataPrevRetorno: string | null): 'red' | 'orange' | 'purple'
 // ─── page ─────────────────────────────────────────────────────────────────────
 
 const COB_SELECT = `
-  id, motivo, data_inicio, data_prev_retorno, data_retorno_real, urgencia, status,
+  id, motivo, tipo_motivo, funcionario_ausente_id,
+  data_inicio, data_prev_retorno, data_retorno_real, urgencia, status,
   funcionarios!funcionario_id ( id, nome, posto_id ),
   posto_destino:postos!posto_destino_id ( id, nome, secretaria ),
   posto_origem:postos!posto_origem_id  ( id, nome, secretaria )
@@ -68,6 +72,52 @@ export default async function CoberturasPage() {
   const coberturas = (ativasRaw ?? []) as unknown as CoberturaRow[]
   const historico  = (encerradasRaw ?? []) as unknown as CoberturaRow[]
 
+  // ─── Build faltasStatus map for active coberturas ─────────────────────────
+
+  const faltasStatus: Record<string, boolean> = {}
+
+  // Coberturas de falta: check by cobertura_id in faltas
+  const faltaCoberturas = coberturas.filter(
+    c => (c.tipo_motivo === 'falta_justificada' || c.tipo_motivo === 'falta_injustificada') && c.funcionario_ausente_id
+  )
+  if (faltaCoberturas.length > 0) {
+    const ids = faltaCoberturas.map(c => c.id)
+    for (const c of faltaCoberturas) faltasStatus[c.id] = false
+    const { data: faltasData } = await (supabase as unknown as AnyQ)
+      .from('faltas')
+      .select('cobertura_id')
+      .in('cobertura_id', ids)
+    for (const f of (faltasData ?? []) as { cobertura_id: string }[]) {
+      faltasStatus[f.cobertura_id] = true
+    }
+  }
+
+  // Coberturas de atestado: check by employee + period overlap in afastamentos
+  const atestadoCoberturas = coberturas.filter(
+    c => c.tipo_motivo === 'atestado_medico' && c.funcionario_ausente_id
+  )
+  if (atestadoCoberturas.length > 0) {
+    const ausenteIds = atestadoCoberturas.map(c => c.funcionario_ausente_id!)
+    for (const c of atestadoCoberturas) faltasStatus[c.id] = false
+    const { data: afastData } = await supabase
+      .from('afastamentos')
+      .select('funcionario_id, data_inicio, data_fim_prevista')
+      .in('funcionario_id', ausenteIds)
+    type AfastRow = { funcionario_id: string; data_inicio: string; data_fim_prevista: string | null }
+    for (const c of atestadoCoberturas) {
+      const cobInicio = c.data_inicio ?? ''
+      const cobFim    = c.data_prev_retorno ?? cobInicio
+      const hasMatch  = (afastData ?? []).some((a: AfastRow) =>
+        a.funcionario_id === c.funcionario_ausente_id &&
+        a.data_inicio <= cobFim &&
+        (!a.data_fim_prevista || a.data_fim_prevista >= cobInicio)
+      )
+      if (hasMatch) faltasStatus[c.id] = true
+    }
+  }
+
+  // ─── KPIs ─────────────────────────────────────────────────────────────────
+
   const urgente = coberturas.filter(c => calcUrgKey(c.data_prev_retorno) === 'red').length
   const atencao = coberturas.filter(c => calcUrgKey(c.data_prev_retorno) === 'orange').length
 
@@ -86,7 +136,12 @@ export default async function CoberturasPage() {
         <KpiCard label="Encerradas"   value={historico.length}  topColor="border-t-gray-400"   />
       </div>
 
-      <CoberturasList coberturas={coberturas} historico={historico} supervisores={supervisores} />
+      <CoberturasList
+        coberturas={coberturas}
+        historico={historico}
+        supervisores={supervisores}
+        faltasStatus={faltasStatus}
+      />
     </div>
   )
 }
