@@ -1,11 +1,13 @@
+import { getUser } from '@/lib/auth/get-user'
 import { getOcorrenciasData, getPostosSimples, getSupervisoresSimples } from './actions'
 import { OcorrenciasClient } from '@/components/ocorrencias/ocorrencias-client'
 
 export default async function OcorrenciasPage() {
-  const [ocorrencias, postos, supervisores] = await Promise.all([
+  const [ocorrencias, postos, supervisores, auth] = await Promise.all([
     getOcorrenciasData(),
     getPostosSimples(),
     getSupervisoresSimples(),
+    getUser(),
   ])
 
   return (
@@ -19,6 +21,8 @@ export default async function OcorrenciasPage() {
         ocorrencias={ocorrencias}
         postos={postos}
         supervisores={supervisores}
+        currentUserId={auth?.user.id ?? null}
+        isAdmin={auth?.perfil.role === 'admin'}
       />
     </div>
   )

@@ -23,7 +23,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/advertencias',  label: 'Advertências'  },
       { href: '/faltas',        label: 'Faltas'        },
       { href: '/atestados',     label: 'Atestados'     },
-      { href: '/insalubridade', label: 'Insalubridade' },
+      { href: '/insalubridade', label: 'Cobertura Insalubre' },
       { href: '/ocorrencias',   label: 'Ocorrências'   },
     ],
   },

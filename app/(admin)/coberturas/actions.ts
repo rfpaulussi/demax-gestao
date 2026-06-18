@@ -174,6 +174,47 @@ export async function encerrarCoberturasVencidas(): Promise<{ encerradas: number
   return { encerradas: vencidas.length }
 }
 
+export async function buscarFuncionariosAtivosNoPostoSemAfastamento(
+  postoId: string
+): Promise<{ id: string; nome: string; funcao: string | null }[]> {
+  const supabase = createClient()
+  const hoje = new Date().toISOString().split('T')[0]
+
+  const { data: funcionarios } = await supabase
+    .from('funcionarios')
+    .select('id, nome')
+    .eq('posto_id', postoId)
+    .eq('status', 'ativo')
+    .order('nome')
+
+  if (!funcionarios?.length) return []
+
+  const ids = funcionarios.map(f => f.id)
+
+  const [{ data: comAfastamento }, { data: comFalta }] = await Promise.all([
+    supabase
+      .from('afastamentos')
+      .select('funcionario_id')
+      .in('funcionario_id', ids)
+      .lte('data_inicio', hoje)
+      .or(`data_fim.is.null,data_fim.gte.${hoje}`),
+    supabase
+      .from('faltas')
+      .select('funcionario_id')
+      .in('funcionario_id', ids)
+      .eq('data_falta', hoje),
+  ])
+
+  const excluir = new Set([
+    ...(comAfastamento ?? []).map((r: { funcionario_id: string }) => r.funcionario_id),
+    ...(comFalta ?? []).map((r: { funcionario_id: string }) => r.funcionario_id),
+  ])
+
+  return funcionarios
+    .filter(f => !excluir.has(f.id))
+    .map(f => ({ id: f.id, nome: f.nome, funcao: null }))
+}
+
 export async function buscarTodosSupervisores(): Promise<{ id: string; nome: string }[]> {
   const supabase = createClient()
   const { data } = await supabase

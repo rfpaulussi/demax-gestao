@@ -87,7 +87,7 @@ export default async function InsalubridadePage({
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-lg font-bold text-gray-900">Insalubridade</h1>
+          <h1 className="text-lg font-bold text-gray-900">Cobertura Insalubre</h1>
           <p className="text-sm text-gray-400">Coberturas insalubres — {MESES[mes]} {ano}</p>
         </div>
         <ImportarCoberturasBtn mes={mes} ano={ano} />

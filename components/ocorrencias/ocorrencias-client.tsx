@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import type { OcorrenciaRow, PostoSimples, SupervisorSimples } from '@/app/(admin)/ocorrencias/actions'
-import { createOcorrencia, updateStatusOcorrencia } from '@/app/(admin)/ocorrencias/actions'
+import { createOcorrencia, updateStatusOcorrencia, criarAlerta, resolverAlerta } from '@/app/(admin)/ocorrencias/actions'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -11,33 +11,34 @@ type SortDir = 'asc' | 'desc'
 
 // ─── lookups ──────────────────────────────────────────────────────────────────
 
-const GRAVIDADE_CHIP: Record<OcorrenciaRow['gravidade'], string> = {
+const GRAVIDADE_CHIP: Record<string, string> = {
   baixa:   'bg-gray-100 text-gray-600',
   media:   'bg-amber-100 text-amber-700',
   alta:    'bg-orange-100 text-orange-700',
   critica: 'bg-red-100 text-red-700 font-bold',
 }
 
-const GRAVIDADE_LABEL: Record<OcorrenciaRow['gravidade'], string> = {
+const GRAVIDADE_LABEL: Record<string, string> = {
   baixa: 'Baixa', media: 'Média', alta: 'Alta', critica: 'Crítica',
 }
 
-const STATUS_CHIP: Record<OcorrenciaRow['status'], string> = {
+const STATUS_CHIP: Record<string, string> = {
   aberta:     'bg-red-100 text-red-700',
   em_analise: 'bg-amber-100 text-amber-700',
   encerrada:  'bg-green-100 text-green-700',
+  resolvido:  'bg-green-100 text-green-700',
 }
 
-const STATUS_LABEL: Record<OcorrenciaRow['status'], string> = {
-  aberta: 'Aberta', em_analise: 'Em Análise', encerrada: 'Encerrada',
+const STATUS_LABEL: Record<string, string> = {
+  aberta: 'Aberta', em_analise: 'Em Análise', encerrada: 'Encerrada', resolvido: 'Resolvido',
 }
 
-const GRAVIDADE_ORDER: Record<OcorrenciaRow['gravidade'], number> = {
+const GRAVIDADE_ORDER: Record<string, number> = {
   baixa: 0, media: 1, alta: 2, critica: 3,
 }
 
-const STATUS_ORDER: Record<OcorrenciaRow['status'], number> = {
-  aberta: 0, em_analise: 1, encerrada: 2,
+const STATUS_ORDER: Record<string, number> = {
+  aberta: 0, em_analise: 1, encerrada: 2, resolvido: 3,
 }
 
 // ─── KPI card ─────────────────────────────────────────────────────────────────
@@ -76,10 +77,14 @@ export function OcorrenciasClient({
   ocorrencias,
   postos,
   supervisores,
+  currentUserId,
+  isAdmin,
 }: {
   ocorrencias: OcorrenciaRow[]
   postos: PostoSimples[]
   supervisores: SupervisorSimples[]
+  currentUserId: string | null
+  isAdmin: boolean
 }) {
   const [filtSecretaria, setFiltSecretaria] = useState('')
   const [filtSupervisor, setFiltSupervisor] = useState('')
@@ -87,45 +92,62 @@ export function OcorrenciasClient({
   const [filtStatus,     setFiltStatus]     = useState('')
   const [sortCol, setSortCol]               = useState<SortCol>('data_ocorrencia')
   const [sortDir, setSortDir]               = useState<SortDir>('desc')
-  const [modalOpen,  setModalOpen]          = useState(false)
-  const [formError,  setFormError]          = useState<string | null>(null)
-  const [isPending,  startTransition]       = useTransition()
+
+  const [modalOpen,       setModalOpen]       = useState(false)
+  const [alertaModalOpen, setAlertaModalOpen] = useState(false)
+  const [formError,       setFormError]       = useState<string | null>(null)
+  const [alertaError,     setAlertaError]     = useState<string | null>(null)
+  const [alertaTitulo,    setAlertaTitulo]    = useState('')
+  const [alertaDescricao, setAlertaDescricao] = useState('')
+  const [alertaLembrete,  setAlertaLembrete]  = useState('')
+
+  const [isPending, startTransition] = useTransition()
+
+  // ── Visibilidade: supervisores veem apenas seus próprios alertas ────────────
+
+  const visiveis = useMemo(() => {
+    if (isAdmin) return ocorrencias
+    return ocorrencias.filter(o => {
+      if (o.tipo === 'alerta') return o.supervisor_id === currentUserId
+      return true
+    })
+  }, [ocorrencias, isAdmin, currentUserId])
 
   // ── filter options ─────────────────────────────────────────────────────────
 
   const secretarias = useMemo(
-    () => Array.from(new Set(ocorrencias.map(o => o.secretaria).filter(Boolean))).sort(),
-    [ocorrencias],
+    () => Array.from(new Set(visiveis.map(o => o.secretaria).filter(Boolean))).sort(),
+    [visiveis],
   )
 
   const supervisoresUnicos = useMemo(
     () =>
       Array.from(
-        new Set(ocorrencias.map(o => o.supervisor_nome).filter((s): s is string => Boolean(s))),
+        new Set(visiveis.map(o => o.supervisor_nome).filter((s): s is string => Boolean(s))),
       ).sort(),
-    [ocorrencias],
+    [visiveis],
   )
 
   // ── KPIs ───────────────────────────────────────────────────────────────────
 
   const kpis = useMemo(() => ({
-    total:      ocorrencias.length,
-    abertas:    ocorrencias.filter(o => o.status === 'aberta').length,
-    emAnalise:  ocorrencias.filter(o => o.status === 'em_analise').length,
-    encerradas: ocorrencias.filter(o => o.status === 'encerrada').length,
-    criticas:   ocorrencias.filter(o => o.gravidade === 'critica').length,
-  }), [ocorrencias])
+    total:         visiveis.length,
+    abertas:       visiveis.filter(o => o.status === 'aberta').length,
+    emAnalise:     visiveis.filter(o => o.status === 'em_analise').length,
+    encerradas:    visiveis.filter(o => o.status === 'encerrada' || o.status === 'resolvido').length,
+    criticasAlertas: visiveis.filter(o => o.gravidade === 'critica' || o.tipo === 'alerta').length,
+  }), [visiveis])
 
   // ── filter ─────────────────────────────────────────────────────────────────
 
   const filtered = useMemo(() => {
-    let list = ocorrencias
+    let list = visiveis
     if (filtSecretaria) list = list.filter(o => o.secretaria === filtSecretaria)
     if (filtSupervisor) list = list.filter(o => o.supervisor_nome === filtSupervisor)
     if (filtGravidade)  list = list.filter(o => o.gravidade === filtGravidade)
     if (filtStatus)     list = list.filter(o => o.status === filtStatus)
     return list
-  }, [ocorrencias, filtSecretaria, filtSupervisor, filtGravidade, filtStatus])
+  }, [visiveis, filtSecretaria, filtSupervisor, filtGravidade, filtStatus])
 
   // ── sort ───────────────────────────────────────────────────────────────────
 
@@ -146,9 +168,9 @@ export function OcorrenciasClient({
           return dir * a.supervisor_nome.localeCompare(b.supervisor_nome, undefined, { sensitivity: 'base' })
         }
         case 'gravidade':
-          return dir * (GRAVIDADE_ORDER[a.gravidade] - GRAVIDADE_ORDER[b.gravidade])
+          return dir * ((GRAVIDADE_ORDER[a.gravidade] ?? 0) - (GRAVIDADE_ORDER[b.gravidade] ?? 0))
         case 'status':
-          return dir * (STATUS_ORDER[a.status] - STATUS_ORDER[b.status])
+          return dir * ((STATUS_ORDER[a.status] ?? 0) - (STATUS_ORDER[b.status] ?? 0))
         default:
           return 0
       }
@@ -167,6 +189,10 @@ export function OcorrenciasClient({
     startTransition(async () => { await updateStatusOcorrencia(fd) })
   }
 
+  function handleResolverAlerta(id: string) {
+    startTransition(async () => { await resolverAlerta(id) })
+  }
+
   function handleCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setFormError(null)
@@ -178,6 +204,20 @@ export function OcorrenciasClient({
     })
   }
 
+  function handleCriarAlerta(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setAlertaError(null)
+    startTransition(async () => {
+      const result = await criarAlerta(alertaTitulo, alertaDescricao, alertaLembrete || null)
+      if (result.success) {
+        setAlertaModalOpen(false)
+        setAlertaTitulo(''); setAlertaDescricao(''); setAlertaLembrete('')
+      } else {
+        setAlertaError(result.error)
+      }
+    })
+  }
+
   const today = new Date().toISOString().split('T')[0]
 
   // ── render ─────────────────────────────────────────────────────────────────
@@ -186,14 +226,14 @@ export function OcorrenciasClient({
     <div className="space-y-6">
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <CounterCard label="Total"      value={kpis.total}      topColor="border-t-gray-400"   />
-        <CounterCard label="Abertas"    value={kpis.abertas}    topColor="border-t-red-500"    />
-        <CounterCard label="Em Análise" value={kpis.emAnalise}  topColor="border-t-amber-500"  />
-        <CounterCard label="Encerradas" value={kpis.encerradas} topColor="border-t-green-500"  />
-        <CounterCard label="Críticas"   value={kpis.criticas}   topColor="border-t-purple-500" />
+        <CounterCard label="Total"              value={kpis.total}           topColor="border-t-gray-400"   />
+        <CounterCard label="Abertas"            value={kpis.abertas}         topColor="border-t-red-500"    />
+        <CounterCard label="Em Análise"         value={kpis.emAnalise}       topColor="border-t-amber-500"  />
+        <CounterCard label="Encerradas"         value={kpis.encerradas}      topColor="border-t-green-500"  />
+        <CounterCard label="Críticas / Alertas" value={kpis.criticasAlertas} topColor="border-t-purple-500" />
       </div>
 
-      {/* Filtros + botão */}
+      {/* Filtros + botões */}
       <div className="flex flex-wrap items-center gap-3">
         <select
           value={filtSecretaria}
@@ -234,14 +274,23 @@ export function OcorrenciasClient({
           <option value="aberta">Aberta</option>
           <option value="em_analise">Em Análise</option>
           <option value="encerrada">Encerrada</option>
+          <option value="resolvido">Resolvido</option>
         </select>
 
-        <button
-          onClick={() => { setFormError(null); setModalOpen(true) }}
-          className="ml-auto h-9 rounded-lg bg-slate-900 px-4 text-xs font-semibold uppercase tracking-widest text-white hover:bg-slate-700"
-        >
-          Nova Ocorrência
-        </button>
+        <div className="ml-auto flex gap-2">
+          <button
+            onClick={() => { setAlertaError(null); setAlertaTitulo(''); setAlertaDescricao(''); setAlertaLembrete(''); setAlertaModalOpen(true) }}
+            className="h-9 rounded-lg border border-purple-200 bg-purple-50 px-4 text-xs font-semibold uppercase tracking-widest text-purple-700 hover:bg-purple-100"
+          >
+            🔔 Novo Alerta
+          </button>
+          <button
+            onClick={() => { setFormError(null); setModalOpen(true) }}
+            className="h-9 rounded-lg bg-slate-900 px-4 text-xs font-semibold uppercase tracking-widest text-white hover:bg-slate-700"
+          >
+            Nova Ocorrência
+          </button>
+        </div>
       </div>
 
       {/* Tabela */}
@@ -277,8 +326,10 @@ export function OcorrenciasClient({
                 </tr>
               ) : (
                 sorted.map(o => {
-                  const rowBg =
-                    o.gravidade === 'critica' && o.status === 'aberta'
+                  const isAlerta = o.tipo === 'alerta'
+                  const rowBg = isAlerta
+                    ? 'bg-purple-50 hover:bg-purple-100/50'
+                    : o.gravidade === 'critica' && o.status === 'aberta'
                       ? 'bg-red-50'
                       : o.gravidade === 'critica' && o.status === 'em_analise'
                         ? 'bg-amber-50'
@@ -290,21 +341,45 @@ export function OcorrenciasClient({
                           ? new Date(o.data_ocorrencia + 'T12:00:00').toLocaleDateString('pt-BR')
                           : '—'}
                       </td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{o.posto_nome}</td>
-                      <td className="px-4 py-3 text-gray-600">{o.secretaria || '—'}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">
+                        {isAlerta ? (
+                          <span className="flex items-center gap-1.5">
+                            <span>🔔</span>
+                            <span className="truncate max-w-[180px]">{o.titulo ?? o.descricao}</span>
+                          </span>
+                        ) : o.posto_nome}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {isAlerta ? '—' : (o.secretaria || '—')}
+                      </td>
                       <td className="px-4 py-3 text-gray-600">{o.supervisor_nome ?? '—'}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${GRAVIDADE_CHIP[o.gravidade]}`}>
-                          {GRAVIDADE_LABEL[o.gravidade]}
+                        {isAlerta ? (
+                          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-purple-100 text-purple-700 font-semibold">
+                            Alerta
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs ${GRAVIDADE_CHIP[o.gravidade] ?? ''}`}>
+                            {GRAVIDADE_LABEL[o.gravidade] ?? o.gravidade}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CHIP[o.status] ?? ''}`}>
+                          {STATUS_LABEL[o.status] ?? o.status}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CHIP[o.status]}`}>
-                          {STATUS_LABEL[o.status]}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {o.status === 'aberta' && (
+                        {isAlerta && o.status === 'aberta' && (
+                          <button
+                            disabled={isPending}
+                            onClick={() => handleResolverAlerta(o.id)}
+                            className="rounded-lg bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700 hover:bg-purple-200 disabled:opacity-50"
+                          >
+                            Resolver
+                          </button>
+                        )}
+                        {!isAlerta && o.status === 'aberta' && (
                           <button
                             disabled={isPending}
                             onClick={() => handleStatusUpdate(o.id, 'em_analise')}
@@ -313,7 +388,7 @@ export function OcorrenciasClient({
                             Em Análise
                           </button>
                         )}
-                        {o.status === 'em_analise' && (
+                        {!isAlerta && o.status === 'em_analise' && (
                           <button
                             disabled={isPending}
                             onClick={() => handleStatusUpdate(o.id, 'encerrada')}
@@ -415,9 +490,7 @@ export function OcorrenciasClient({
                 />
               </div>
 
-              {formError && (
-                <p className="text-xs text-red-500">{formError}</p>
-              )}
+              {formError && <p className="text-xs text-red-500">{formError}</p>}
 
               <div className="flex justify-end gap-3 pt-2">
                 <button
@@ -433,6 +506,86 @@ export function OcorrenciasClient({
                   className="h-9 rounded-lg bg-slate-900 px-4 text-xs font-semibold uppercase tracking-widest text-white hover:bg-slate-700 disabled:opacity-50"
                 >
                   {isPending ? 'Salvando…' : 'Salvar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Novo Alerta */}
+      {alertaModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-sm font-bold uppercase tracking-widest text-gray-900">
+                🔔 Novo Alerta
+              </h2>
+              <button
+                onClick={() => setAlertaModalOpen(false)}
+                className="text-lg leading-none text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCriarAlerta} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                  Título
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={alertaTitulo}
+                  onChange={e => setAlertaTitulo(e.target.value)}
+                  placeholder="Título do alerta…"
+                  className={inputClass}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                  Descrição
+                </label>
+                <textarea
+                  required
+                  value={alertaDescricao}
+                  onChange={e => setAlertaDescricao(e.target.value)}
+                  rows={3}
+                  placeholder="Descreva o alerta…"
+                  className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                  Data Lembrete <span className="normal-case font-normal text-gray-400">(opcional)</span>
+                </label>
+                <input
+                  type="date"
+                  value={alertaLembrete}
+                  onChange={e => setAlertaLembrete(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+
+              {alertaError && <p className="text-xs text-red-500">{alertaError}</p>}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAlertaModalOpen(false)}
+                  className="h-9 rounded-lg border border-gray-200 px-4 text-xs font-semibold uppercase tracking-widest text-gray-500 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isPending}
+                  className="h-9 rounded-lg bg-purple-700 px-4 text-xs font-semibold uppercase tracking-widest text-white hover:bg-purple-800 disabled:opacity-50"
+                >
+                  {isPending ? 'Salvando…' : 'Criar Alerta'}
                 </button>
               </div>
             </form>
