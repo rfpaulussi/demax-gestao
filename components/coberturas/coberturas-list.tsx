@@ -14,6 +14,7 @@ export type CoberturaRow = {
   motivo: string | null
   tipo_motivo: string | null
   funcionario_ausente_id: string | null
+  ausente_nome: string | null
   data_inicio: string | null
   data_prev_retorno: string | null
   data_retorno_real: string | null
@@ -121,6 +122,12 @@ function CoberturaCard({
           de {c.posto_origem.nome}
         </p>
       )}
+      {/* Ausente */}
+      {c.ausente_nome && (
+        <p className="mt-0.5 text-xs text-gray-400">
+          Ausente: <span className="font-medium text-gray-600">{c.ausente_nome}</span>
+        </p>
+      )}
 
       {/* Motivo */}
       {c.motivo && (
@@ -193,11 +200,13 @@ export function CoberturasList({
   coberturas,
   historico = [],
   supervisores = [],
+  cids = [],
   faltasStatus = {},
 }: {
   coberturas: CoberturaRow[]
   historico?: CoberturaRow[]
   supervisores?: { id: string; nome: string }[]
+  cids?: { codigo: string; descricao: string }[]
   faltasStatus?: Record<string, boolean>
 }) {
   const [novaOpen, setNovaOpen]     = useState(false)
@@ -326,6 +335,7 @@ export function CoberturasList({
         open={novaOpen}
         onClose={() => setNovaOpen(false)}
         supervisores={supervisores}
+        cids={cids}
         onSuccess={msg => { setNovaOpen(false); setToastMsg(msg) }}
       />
 

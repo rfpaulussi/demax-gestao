@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { createClient } from '@/lib/supabase/client'
 import { registrarCobertura } from '@/app/(admin)/coberturas/actions'
+import { cn } from '@/lib/utils'
 
 interface Funcionario {
   id: string
@@ -29,12 +30,17 @@ interface Posto {
   secretaria: string | null
 }
 
+type CidOpt = { codigo: string; descricao: string }
+
 interface Props {
   open: boolean
   onClose: () => void
   supervisores?: Supervisor[]
+  cids?: CidOpt[]
   onSuccess?: (msg: string) => void
 }
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
 
 const AVATAR_COLORS = [
   'bg-indigo-500', 'bg-purple-500', 'bg-pink-500',
@@ -71,40 +77,64 @@ function nextMonthLabel(dateStr: string): string {
   return `${MESES[next.getMonth() + 1]}/${next.getFullYear()}`
 }
 
+const TIPO_MOTIVO_INFO: Record<string, { label: string; className: string }> = {
+  atestado_medico:     { label: 'Atestado médico',     className: 'bg-blue-50 text-blue-700 ring-blue-200'      },
+  falta_justificada:   { label: 'Falta justificada',   className: 'bg-amber-50 text-amber-700 ring-amber-200'   },
+  falta_injustificada: { label: 'Falta injustificada', className: 'bg-amber-50 text-amber-700 ring-amber-200'   },
+  ferias:              { label: 'Férias',               className: 'bg-orange-50 text-orange-700 ring-orange-200' },
+  licenca:             { label: 'Licença',              className: 'bg-purple-50 text-purple-700 ring-purple-200' },
+  folga:               { label: 'Folga',                className: 'bg-gray-100 text-gray-600 ring-gray-200'     },
+  outros:              { label: 'Outros',               className: 'bg-gray-100 text-gray-600 ring-gray-200'     },
+}
+
 const fieldLabel = 'mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500'
-const inputCls = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-300'
+const inputCls   = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-300'
 
-export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess }: Props) {
-  const [busca, setBusca]                   = useState('')
+// ─── component ────────────────────────────────────────────────────────────────
+
+export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = [], onSuccess }: Props) {
+  // substituto
+  const [busca, setBusca]                     = useState('')
   const [resultadosBusca, setResultadosBusca] = useState<Funcionario[]>([])
-  const [substituto, setSubstituto]         = useState<Funcionario | null>(null)
+  const [substituto, setSubstituto]           = useState<Funcionario | null>(null)
 
-  const [supervisorId, setSupervisorId]         = useState('')
-  const [supervisorCounts, setSupervisorCounts] = useState<Record<string, number>>({})
-  const [postos, setPostos]                     = useState<Posto[]>([])
-  const [postoId, setPostoId]                   = useState('')
-  const [postoSearch, setPostoSearch]           = useState('')
-  const [postoDropdownOpen, setPostoDropdownOpen] = useState(false)
-  const [postoSelecionado, setPostoSelecionado] = useState<Posto | null>(null)
-  const [secretaria, setSecretaria]             = useState('')
-  const [tipoMotivo, setTipoMotivo]             = useState('')
-  const [motivo, setMotivo]                     = useState('')
+  // destino
+  const [supervisorId, setSupervisorId]             = useState('')
+  const [supervisorCounts, setSupervisorCounts]     = useState<Record<string, number>>({})
+  const [postos, setPostos]                         = useState<Posto[]>([])
+  const [postoId, setPostoId]                       = useState('')
+  const [postoSearch, setPostoSearch]               = useState('')
+  const [postoDropdownOpen, setPostoDropdownOpen]   = useState(false)
+  const [postoSelecionado, setPostoSelecionado]     = useState<Posto | null>(null)
+  const [secretaria, setSecretaria]                 = useState('')
+  const [tipoMotivo, setTipoMotivo]                 = useState('')
+  const [motivo, setMotivo]                         = useState('')
 
+  // período cobertura
   const [apenasUmDia, setApenasUmDia] = useState(false)
   const [dataInicio, setDataInicio]   = useState('')
   const [dataFim, setDataFim]         = useState('')
 
-  const [tipoCobertura, setTipoCobertura]           = useState<'reforco' | 'substituicao'>('reforco')
+  // ausente
+  const [tipoCobertura, setTipoCobertura]               = useState<'reforco' | 'substituicao'>('reforco')
   const [funcionariosAusentes, setFuncionariosAusentes] = useState<FuncionarioAusente[]>([])
   const [funcionarioAusenteId, setFuncionarioAusenteId] = useState('')
-  const [dataInicioAusencia, setDataInicioAusencia] = useState('')
-  const [dataFimAusencia, setDataFimAusencia]       = useState('')
+  const [dataInicioAusencia, setDataInicioAusencia]     = useState('')
+  const [dataFimAusencia, setDataFimAusencia]           = useState('')
 
-  // falta / atestado inline
-  const [lancarFalta, setLancarFalta]           = useState(true)
-  const [registrarAtestado, setRegistrarAtestado] = useState(true)
-  const [atestadoMotivo, setAtestadoMotivo]     = useState('')
+  // falta inline
+  const [lancarFalta, setLancarFalta] = useState(true)
 
+  // atestado inline
+  const [registrarAtestado, setRegistrarAtestado]   = useState(true)
+  const [atestadoDataInicio, setAtestadoDataInicio] = useState('')
+  const [atestadoDataFim, setAtestadoDataFim]       = useState('')
+  const [atestadoMotivo, setAtestadoMotivo]         = useState('')
+  const [cidBusca, setCidBusca]                     = useState('')
+  const [cidCodigo, setCidCodigo]                   = useState('')
+  const [cidAberto, setCidAberto]                   = useState(false)
+
+  // form
   const [pending, setPending] = useState(false)
   const [erro, setErro]       = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -119,6 +149,16 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
   const ausenteNomeAtual = temAusente
     ? (funcionariosAusentes.find(f => f.id === funcionarioAusenteId)?.nome ?? 'funcionário')
     : 'funcionário'
+
+  const cidsFiltrados = cids.filter(c =>
+    !cidBusca ||
+    c.codigo.toLowerCase().includes(cidBusca.toLowerCase()) ||
+    c.descricao.toLowerCase().includes(cidBusca.toLowerCase()),
+  )
+
+  // Sync atestado dates with ausência dates when they change
+  useEffect(() => { setAtestadoDataInicio(dataInicioAusencia) }, [dataInicioAusencia])
+  useEffect(() => { setAtestadoDataFim(dataFimAusencia) }, [dataFimAusencia])
 
   // Contagem de postos por supervisor
   useEffect(() => {
@@ -151,10 +191,7 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
           .filter(r => r.postos != null)
           .map(r => ({ id: r.postos!.id, nome: r.postos!.nome, secretaria: r.postos!.secretaria }))
         setPostos(lista)
-        setPostoId('')
-        setPostoSearch('')
-        setPostoSelecionado(null)
-        setSecretaria('')
+        setPostoId(''); setPostoSearch(''); setPostoSelecionado(null); setSecretaria('')
       })
   }, [supervisorId])
 
@@ -208,7 +245,9 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
     setTipoMotivo(''); setMotivo(''); setApenasUmDia(false); setDataInicio(''); setDataFim('')
     setTipoCobertura('reforco'); setFuncionariosAusentes([])
     setFuncionarioAusenteId(''); setDataInicioAusencia(''); setDataFimAusencia('')
-    setLancarFalta(true); setRegistrarAtestado(true); setAtestadoMotivo('')
+    setLancarFalta(true); setRegistrarAtestado(true)
+    setAtestadoDataInicio(''); setAtestadoDataFim(''); setAtestadoMotivo('')
+    setCidBusca(''); setCidCodigo(''); setCidAberto(false)
     setErro(null)
     onClose()
   }
@@ -232,6 +271,9 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
     fd.set('lancar_falta', lancarFalta ? 'true' : 'false')
     fd.set('registrar_atestado', registrarAtestado ? 'true' : 'false')
     fd.set('atestado_motivo', atestadoMotivo)
+    fd.set('atestado_data_inicio', atestadoDataInicio)
+    fd.set('atestado_data_fim', atestadoDataFim)
+    fd.set('atestado_cid_codigo', cidCodigo)
     if (tipoCobertura === 'substituicao') {
       fd.set('funcionario_ausente_id', funcionarioAusenteId)
       fd.set('data_inicio_ausencia', dataInicioAusencia)
@@ -242,10 +284,7 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
     setPending(true)
     try {
       const result = await registrarCobertura(fd)
-      if (!result.success) {
-        setErro(result.error)
-        return
-      }
+      if (!result.success) { setErro(result.error); return }
       let msg = '✓ Cobertura salva.'
       if (result.faltaMsg)    msg += ' ' + result.faltaMsg
       if (result.atestadoMsg) msg += ' ' + result.atestadoMsg
@@ -270,10 +309,11 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
     return diff > 0 ? diff : null
   })()
 
-  const fimMes = dataInicio ? endOfMonth(dataInicio) : null
+  const fimMes        = dataInicio ? endOfMonth(dataInicio) : null
   const ultrapassaMes = !apenasUmDia && dataFim && fimMes && dataFim > fimMes
-
   const supervisorAtual = supervisores.find(s => s.id === supervisorId)
+  const tipoMotivoBadge = tipoMotivo ? TIPO_MOTIVO_INFO[tipoMotivo] : null
+  const needsCid = showAtestadoBanner && registrarAtestado && !cidCodigo
 
   return (
     <Dialog.Root open={open} onOpenChange={isOpen => { if (!isOpen) handleClose() }}>
@@ -356,6 +396,18 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
                     </button>
                   </div>
                 )}
+
+                {/* Badge tipo motivo */}
+                {tipoMotivoBadge && (
+                  <div>
+                    <span className={cn(
+                      'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset',
+                      tipoMotivoBadge.className,
+                    )}>
+                      {tipoMotivoBadge.label}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* ── COLUNA DIREITA: DESTINO ── */}
@@ -365,17 +417,11 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
                 {/* Supervisor */}
                 <div>
                   <label className={fieldLabel}>Supervisor Destino</label>
-                  <select
-                    value={supervisorId}
-                    onChange={e => setSupervisorId(e.target.value)}
-                    required
-                    className={inputCls}
-                  >
+                  <select value={supervisorId} onChange={e => setSupervisorId(e.target.value)} required className={inputCls}>
                     <option value="">Selecione...</option>
                     {supervisores.map(s => (
                       <option key={s.id} value={s.id}>
-                        {s.nome}
-                        {supervisorCounts[s.id] ? ` (${supervisorCounts[s.id]} postos)` : ''}
+                        {s.nome}{supervisorCounts[s.id] ? ` (${supervisorCounts[s.id]} postos)` : ''}
                       </option>
                     ))}
                   </select>
@@ -390,12 +436,7 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
                       placeholder={!supervisorId ? 'Selecione um supervisor primeiro...' : 'Buscar posto...'}
                       value={postoSearch}
                       disabled={!supervisorId}
-                      onChange={e => {
-                        setPostoSearch(e.target.value)
-                        setPostoDropdownOpen(true)
-                        setPostoSelecionado(null)
-                        setPostoId('')
-                      }}
+                      onChange={e => { setPostoSearch(e.target.value); setPostoDropdownOpen(true); setPostoSelecionado(null); setPostoId('') }}
                       onFocus={() => { if (supervisorId) setPostoDropdownOpen(true) }}
                       className={`${inputCls} disabled:bg-gray-50 disabled:text-gray-400`}
                       autoComplete="off"
@@ -403,15 +444,10 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
                     {postoDropdownOpen && supervisorId && postoSearch.length > 0 && (
                       <div className="absolute z-50 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg">
                         {postos
-                          .filter(p => {
-                            const q = postoSearch.toLowerCase()
-                            return p.nome.toLowerCase().includes(q) || (p.secretaria ?? '').toLowerCase().includes(q)
-                          })
+                          .filter(p => { const q = postoSearch.toLowerCase(); return p.nome.toLowerCase().includes(q) || (p.secretaria ?? '').toLowerCase().includes(q) })
                           .slice(0, 30)
                           .map(p => (
-                            <button
-                              key={p.id}
-                              type="button"
+                            <button key={p.id} type="button"
                               onClick={() => { setPostoSelecionado(p); setPostoSearch(p.nome); setPostoId(p.id); setPostoDropdownOpen(false) }}
                               className="flex w-full flex-col px-3 py-2 text-left hover:bg-slate-50"
                             >
@@ -419,10 +455,7 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
                               {p.secretaria && <span className="text-xs text-gray-400">{p.secretaria}</span>}
                             </button>
                           ))}
-                        {postos.filter(p => {
-                          const q = postoSearch.toLowerCase()
-                          return p.nome.toLowerCase().includes(q) || (p.secretaria ?? '').toLowerCase().includes(q)
-                        }).length === 0 && (
+                        {postos.filter(p => { const q = postoSearch.toLowerCase(); return p.nome.toLowerCase().includes(q) || (p.secretaria ?? '').toLowerCase().includes(q) }).length === 0 && (
                           <p className="px-3 py-2 text-sm text-gray-400">Nenhum posto encontrado.</p>
                         )}
                       </div>
@@ -440,24 +473,15 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
                 {/* Secretaria */}
                 <div>
                   <label className={fieldLabel}>Secretaria Destino</label>
-                  <input
-                    type="text"
-                    readOnly
-                    value={secretaria || '—'}
-                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500"
-                  />
+                  <input type="text" readOnly value={secretaria || '—'}
+                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500" />
                 </div>
 
                 {/* Tipo do Motivo */}
                 <div className="space-y-2">
                   <div>
                     <label className={fieldLabel}>Tipo do Motivo</label>
-                    <select
-                      required
-                      value={tipoMotivo}
-                      onChange={e => setTipoMotivo(e.target.value)}
-                      className={inputCls}
-                    >
+                    <select required value={tipoMotivo} onChange={e => setTipoMotivo(e.target.value)} className={inputCls}>
                       <option value="">Selecione...</option>
                       <option value="atestado_medico">Atestado médico</option>
                       <option value="falta_justificada">Falta justificada</option>
@@ -476,12 +500,8 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
                         ⚠️ Deseja registrar a falta de <span className="font-bold">{ausenteNomeAtual}</span> automaticamente?
                       </p>
                       <label className="flex cursor-pointer items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={lancarFalta}
-                          onChange={e => setLancarFalta(e.target.checked)}
-                          className="h-3.5 w-3.5 rounded border-amber-300 text-amber-600"
-                        />
+                        <input type="checkbox" checked={lancarFalta} onChange={e => setLancarFalta(e.target.checked)}
+                          className="h-3.5 w-3.5 rounded border-amber-300 text-amber-600" />
                         <span>Lançar falta ao salvar</span>
                       </label>
                       {lancarFalta && dataInicio && (
@@ -509,39 +529,79 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
                         💡 Deseja registrar o atestado de <span className="font-bold">{ausenteNomeAtual}</span> automaticamente?
                       </p>
                       <label className="flex cursor-pointer items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={registrarAtestado}
-                          onChange={e => setRegistrarAtestado(e.target.checked)}
-                          className="h-3.5 w-3.5 rounded border-blue-300 text-blue-600"
-                        />
+                        <input type="checkbox" checked={registrarAtestado} onChange={e => setRegistrarAtestado(e.target.checked)}
+                          className="h-3.5 w-3.5 rounded border-blue-300 text-blue-600" />
                         <span>Registrar atestado ao salvar</span>
                       </label>
                       {registrarAtestado && (
                         <div className="space-y-2 border-t border-blue-200 pt-2">
+                          {/* Datas editáveis — pré-preenchidas com datas de ausência */}
                           <div className="flex gap-2">
                             <div className="flex-1">
-                              <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-blue-600">Data Início</p>
-                              <div className="rounded border border-blue-200 bg-white px-2 py-1 text-xs text-blue-800">
-                                {fmtDate(dataInicio) || '—'}
-                              </div>
+                              <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-blue-600">
+                                Data Início <span className="normal-case font-normal text-blue-400">do atestado</span>
+                              </p>
+                              <input type="date" value={atestadoDataInicio} onChange={e => setAtestadoDataInicio(e.target.value)}
+                                className="w-full rounded border border-blue-200 bg-white px-2 py-1 text-xs text-blue-800 focus:outline-none focus:ring-1 focus:ring-blue-400" />
                             </div>
                             <div className="flex-1">
-                              <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-blue-600">Data Fim</p>
-                              <div className="rounded border border-blue-200 bg-white px-2 py-1 text-xs text-blue-800">
-                                {fmtDate(apenasUmDia ? dataInicio : dataFim) || '—'}
-                              </div>
+                              <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-blue-600">
+                                Data Fim <span className="normal-case font-normal text-blue-400">do atestado</span>
+                              </p>
+                              <input type="date" value={atestadoDataFim} onChange={e => setAtestadoDataFim(e.target.value)}
+                                className="w-full rounded border border-blue-200 bg-white px-2 py-1 text-xs text-blue-800 focus:outline-none focus:ring-1 focus:ring-blue-400" />
                             </div>
                           </div>
+
+                          {/* CID obrigatório */}
                           <div>
-                            <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-blue-600">Motivo (opcional)</p>
-                            <textarea
-                              value={atestadoMotivo}
-                              onChange={e => setAtestadoMotivo(e.target.value)}
-                              rows={2}
+                            <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-blue-600">
+                              CID <span className="text-red-500">*</span>
+                            </p>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={cidBusca}
+                                onChange={e => { setCidBusca(e.target.value); setCidCodigo(''); setCidAberto(true) }}
+                                onFocus={() => setCidAberto(true)}
+                                onBlur={() => setTimeout(() => setCidAberto(false), 150)}
+                                placeholder="Buscar por código ou descrição..."
+                                autoComplete="off"
+                                className="w-full rounded border border-blue-200 bg-white px-2 py-1 pr-6 text-xs text-blue-800 focus:outline-none focus:ring-1 focus:ring-blue-400 placeholder:text-blue-300"
+                              />
+                              {cidCodigo && (
+                                <button type="button"
+                                  onClick={() => { setCidCodigo(''); setCidBusca('') }}
+                                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-sm leading-none text-blue-400 hover:text-blue-600"
+                                >×</button>
+                              )}
+                              {cidAberto && cidsFiltrados.length > 0 && (
+                                <div className="absolute z-50 mt-0.5 max-h-40 w-full overflow-y-auto rounded border border-blue-200 bg-white shadow-lg">
+                                  {cidsFiltrados.slice(0, 30).map(c => (
+                                    <button key={c.codigo} type="button"
+                                      onMouseDown={() => { setCidCodigo(c.codigo); setCidBusca(`${c.codigo} — ${c.descricao}`); setCidAberto(false) }}
+                                      className="flex w-full items-baseline gap-2 px-2 py-1.5 text-left text-xs hover:bg-blue-50"
+                                    >
+                                      <span className="shrink-0 font-mono font-semibold text-blue-700">{c.codigo}</span>
+                                      <span className="truncate text-gray-600">{c.descricao}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            {!cidCodigo && (
+                              <p className="mt-0.5 text-[10px] text-red-500">Campo obrigatório para registrar atestado.</p>
+                            )}
+                          </div>
+
+                          {/* Motivo opcional */}
+                          <div>
+                            <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-blue-600">
+                              Motivo <span className="normal-case font-normal text-blue-400">(opcional)</span>
+                            </p>
+                            <textarea value={atestadoMotivo} onChange={e => setAtestadoMotivo(e.target.value)} rows={2}
                               placeholder="Observações do atestado..."
-                              className="w-full rounded border border-blue-200 bg-white px-2 py-1 text-xs text-blue-800 focus:outline-none focus:ring-1 focus:ring-blue-300"
-                            />
+                              className="w-full rounded border border-blue-200 bg-white px-2 py-1 text-xs text-blue-800 focus:outline-none focus:ring-1 focus:ring-blue-300 placeholder:text-blue-300" />
                           </div>
                         </div>
                       )}
@@ -556,50 +616,31 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
                 {/* Descrição / Observação */}
                 <div>
                   <label className={fieldLabel}>Descrição / Observação <span className="normal-case font-normal text-gray-400">(opcional)</span></label>
-                  <textarea
-                    value={motivo}
-                    onChange={e => setMotivo(e.target.value)}
-                    rows={2}
+                  <textarea value={motivo} onChange={e => setMotivo(e.target.value)} rows={2}
                     placeholder="Detalhes adicionais, CID, número de dias..."
-                    className={inputCls}
-                  />
+                    className={inputCls} />
                 </div>
 
                 {/* Apenas um dia */}
                 <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="apenas-um-dia"
-                    checked={apenasUmDia}
-                    onChange={e => setApenasUmDia(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-indigo-600"
-                  />
+                  <input type="checkbox" id="apenas-um-dia" checked={apenasUmDia} onChange={e => setApenasUmDia(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-indigo-600" />
                   <label htmlFor="apenas-um-dia" className="text-sm text-gray-600">Apenas um dia</label>
                 </div>
 
-                {/* Datas + contador */}
+                {/* Datas da cobertura */}
                 <div className="space-y-2">
                   <div className="flex gap-3">
                     <div className="flex-1">
                       <label className={fieldLabel}>Data Início</label>
-                      <input
-                        type="date"
-                        required
-                        value={dataInicio}
-                        onChange={e => setDataInicio(e.target.value)}
-                        className={inputCls}
-                      />
+                      <p className="mb-1 text-[10px] text-gray-400 -mt-0.5">Período da cobertura</p>
+                      <input type="date" required value={dataInicio} onChange={e => setDataInicio(e.target.value)} className={inputCls} />
                     </div>
                     {!apenasUmDia && (
                       <div className="flex-1">
                         <label className={fieldLabel}>Data Fim</label>
-                        <input
-                          type="date"
-                          required
-                          value={dataFim}
-                          onChange={e => setDataFim(e.target.value)}
-                          className={inputCls}
-                        />
+                        <p className="mb-1 text-[10px] text-gray-400 -mt-0.5">Período da cobertura</p>
+                        <input type="date" required value={dataFim} onChange={e => setDataFim(e.target.value)} className={inputCls} />
                       </div>
                     )}
                   </div>
@@ -627,25 +668,13 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
               </p>
               <div className="flex gap-6">
                 <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="radio"
-                    name="tipo_cobertura"
-                    value="reforco"
-                    checked={tipoCobertura === 'reforco'}
-                    onChange={() => setTipoCobertura('reforco')}
-                    className="h-4 w-4"
-                  />
+                  <input type="radio" name="tipo_cobertura" value="reforco"
+                    checked={tipoCobertura === 'reforco'} onChange={() => setTipoCobertura('reforco')} className="h-4 w-4" />
                   Reforço de posto
                 </label>
                 <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="radio"
-                    name="tipo_cobertura"
-                    value="substituicao"
-                    checked={tipoCobertura === 'substituicao'}
-                    onChange={() => setTipoCobertura('substituicao')}
-                    className="h-4 w-4"
-                  />
+                  <input type="radio" name="tipo_cobertura" value="substituicao"
+                    checked={tipoCobertura === 'substituicao'} onChange={() => setTipoCobertura('substituicao')} className="h-4 w-4" />
                   Substituindo funcionário ausente
                 </label>
               </div>
@@ -654,40 +683,23 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
                 <div className="space-y-3">
                   <div>
                     <label className={fieldLabel}>Funcionário Ausente</label>
-                    <select
-                      value={funcionarioAusenteId}
-                      onChange={e => setFuncionarioAusenteId(e.target.value)}
-                      required
-                      disabled={!postoId}
-                      className={`${inputCls} disabled:bg-gray-100 disabled:text-gray-400`}
-                    >
+                    <select value={funcionarioAusenteId} onChange={e => setFuncionarioAusenteId(e.target.value)}
+                      required disabled={!postoId}
+                      className={`${inputCls} disabled:bg-gray-100 disabled:text-gray-400`}>
                       <option value="">{postoId ? 'Selecione...' : 'Selecione o posto primeiro'}</option>
                       {funcionariosAusentes.map(f => (
-                        <option key={f.id} value={f.id}>
-                          {f.nome}{f.funcao ? ` (${f.funcao})` : ''}
-                        </option>
+                        <option key={f.id} value={f.id}>{f.nome}{f.funcao ? ` (${f.funcao})` : ''}</option>
                       ))}
                     </select>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className={fieldLabel}>Início Ausência</label>
-                      <input
-                        type="date"
-                        required
-                        value={dataInicioAusencia}
-                        onChange={e => setDataInicioAusencia(e.target.value)}
-                        className={inputCls}
-                      />
+                      <input type="date" required value={dataInicioAusencia} onChange={e => setDataInicioAusencia(e.target.value)} className={inputCls} />
                     </div>
                     <div>
                       <label className={fieldLabel}>Fim Ausência</label>
-                      <input
-                        type="date"
-                        value={dataFimAusencia}
-                        onChange={e => setDataFimAusencia(e.target.value)}
-                        className={inputCls}
-                      />
+                      <input type="date" value={dataFimAusencia} onChange={e => setDataFimAusencia(e.target.value)} className={inputCls} />
                     </div>
                   </div>
                 </div>
@@ -703,16 +715,14 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], onSuccess
 
             {/* ── AÇÕES ── */}
             <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="h-9 rounded-lg border border-gray-200 px-4 text-xs font-semibold uppercase tracking-widest text-gray-500 hover:bg-gray-50"
-              >
+              <button type="button" onClick={handleClose}
+                className="h-9 rounded-lg border border-gray-200 px-4 text-xs font-semibold uppercase tracking-widest text-gray-500 hover:bg-gray-50">
                 Cancelar
               </button>
               <button
                 type="submit"
-                disabled={pending || !substituto || !postoId || !tipoMotivo}
+                disabled={pending || !substituto || !postoId || !tipoMotivo || needsCid}
+                title={needsCid ? 'Selecione o CID para registrar o atestado' : undefined}
                 className="flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-xs font-semibold uppercase tracking-widest text-white hover:bg-slate-700 disabled:opacity-50"
               >
                 <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">

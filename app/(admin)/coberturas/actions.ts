@@ -56,6 +56,9 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
   const lancarFalta         = formData.get('lancar_falta') !== 'false'
   const registrarAtestado   = formData.get('registrar_atestado') !== 'false'
   const atestadoMotivo      = (formData.get('atestado_motivo') as string) || null
+  const atestadoDataInicio  = (formData.get('atestado_data_inicio') as string) || dataInicio
+  const atestadoDataFim     = (formData.get('atestado_data_fim') as string) || (dataPrevRetorno ?? dataInicio)
+  const atestadoCidCodigo   = (formData.get('atestado_cid_codigo') as string) || null
 
   if (!substitutoId || !postoDestinoId || !dataInicio) {
     return { success: false, error: 'Campos obrigatórios faltando' }
@@ -132,8 +135,8 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
       } else {
         const { error: errAfast } = await supabase.from('afastamentos').insert({
           funcionario_id:    ausenteId,
-          data_inicio:       dataInicio,
-          data_fim_prevista: dataPrevRetorno,
+          data_inicio:       atestadoDataInicio,
+          data_fim_prevista: atestadoDataFim,
           motivo:            atestadoMotivo,
         } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
         if (errAfast) {
@@ -143,9 +146,10 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
           const { error: errAtest } = await supabase.from('atestados').insert({
             funcionario_id: ausenteId,
             posto_id:       postoDestinoId,
-            data_inicio:    dataInicio,
-            data_fim:       dataPrevRetorno ?? dataInicio,
+            data_inicio:    atestadoDataInicio,
+            data_fim:       atestadoDataFim,
             motivo:         atestadoMotivo || motivo || null,
+            cid_codigo:     atestadoCidCodigo,
             registrado_por: guard.userId,
           } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
           await supabase.from('funcionarios').update({ status: 'afastado' }).eq('id', ausenteId)

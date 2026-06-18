@@ -54,7 +54,7 @@ export default async function CoberturasPage() {
 
   const supabase = createClient()
 
-  const [{ data: ativasRaw }, { data: encerradasRaw }, supervisores] = await Promise.all([
+  const [{ data: ativasRaw }, { data: encerradasRaw }, supervisores, { data: cidsRaw }] = await Promise.all([
     supabase
       .from('coberturas_temporarias')
       .select(COB_SELECT)
@@ -67,10 +67,33 @@ export default async function CoberturasPage() {
       .order('data_retorno_real', { ascending: false })
       .limit(50),
     buscarTodosSupervisores(),
+    supabase.from('cid_referencia').select('codigo, descricao').order('codigo'),
   ])
 
-  const coberturas = (ativasRaw ?? []) as unknown as CoberturaRow[]
-  const historico  = (encerradasRaw ?? []) as unknown as CoberturaRow[]
+  const cids = (cidsRaw ?? []) as { codigo: string; descricao: string }[]
+
+  // Enrich with ausente nomes via separate query (funcionario_ausente_id may lack FK for PostgREST join)
+  type AtivaRaw = { funcionario_ausente_id?: string | null; [k: string]: unknown }
+  const ativasArr = (ativasRaw ?? []) as unknown as AtivaRaw[]
+  const ausenteIds = Array.from(new Set(ativasArr.filter(c => c.funcionario_ausente_id).map(c => c.funcionario_ausente_id!)))
+  const ausenteNomeMap: Record<string, string> = {}
+  if (ausenteIds.length > 0) {
+    const { data: ausenteData } = await supabase.from('funcionarios').select('id, nome').in('id', ausenteIds)
+    for (const f of (ausenteData ?? []) as { id: string; nome: string }[]) {
+      ausenteNomeMap[f.id] = f.nome
+    }
+  }
+
+  const coberturas = ativasArr.map(c => ({
+    ...c,
+    ausente_nome: c.funcionario_ausente_id ? (ausenteNomeMap[c.funcionario_ausente_id] ?? null) : null,
+  })) as unknown as CoberturaRow[]
+
+  const historicoArr = (encerradasRaw ?? []) as unknown as AtivaRaw[]
+  const historico = historicoArr.map(c => ({
+    ...c,
+    ausente_nome: c.funcionario_ausente_id ? (ausenteNomeMap[c.funcionario_ausente_id] ?? null) : null,
+  })) as unknown as CoberturaRow[]
 
   // ─── Build faltasStatus map for active coberturas ─────────────────────────
 
@@ -140,6 +163,7 @@ export default async function CoberturasPage() {
         coberturas={coberturas}
         historico={historico}
         supervisores={supervisores}
+        cids={cids}
         faltasStatus={faltasStatus}
       />
     </div>
