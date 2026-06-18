@@ -33,6 +33,7 @@ export async function registrarCobertura(formData: FormData): Promise<ActionResu
   // Bug fix: modal envia 'substituto_id', não 'funcionario_id'
   const substitutoId       = formData.get('substituto_id') as string
   const postoDestinoId     = formData.get('posto_destino_id') as string
+  const tipoMotivo         = (formData.get('tipo_motivo') as string) || null
   const motivo             = (formData.get('motivo') as string) || null
   const dataInicio         = formData.get('data_inicio') as string
   // Bug fix: modal envia 'data_fim', não 'data_prev_retorno'
@@ -60,6 +61,7 @@ export async function registrarCobertura(formData: FormData): Promise<ActionResu
     funcionario_id:        substitutoId,
     posto_destino_id:      postoDestinoId,
     posto_origem_id:       postoOrigemId,
+    tipo_motivo:           tipoMotivo,
     motivo,
     data_inicio:           dataInicio,
     data_prev_retorno:     dataPrevRetorno,

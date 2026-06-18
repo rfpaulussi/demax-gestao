@@ -80,6 +80,7 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
   const [postoDropdownOpen, setPostoDropdownOpen] = useState(false)
   const [postoSelecionado, setPostoSelecionado] = useState<Posto | null>(null)
   const [secretaria, setSecretaria]             = useState('')
+  const [tipoMotivo, setTipoMotivo]             = useState('')
   const [motivo, setMotivo]                     = useState('')
 
   const [apenasUmDia, setApenasUmDia] = useState(false)
@@ -178,7 +179,7 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
     setBusca(''); setResultadosBusca([]); setSubstituto(null)
     setSupervisorId(''); setPostos([]); setPostoId(''); setSecretaria('')
     setPostoSearch(''); setPostoDropdownOpen(false); setPostoSelecionado(null)
-    setMotivo(''); setApenasUmDia(false); setDataInicio(''); setDataFim('')
+    setTipoMotivo(''); setMotivo(''); setApenasUmDia(false); setDataInicio(''); setDataFim('')
     setTipoCobertura('reforco'); setFuncionariosAusentes([])
     setFuncionarioAusenteId(''); setDataInicioAusencia(''); setDataFimAusencia('')
     onClose()
@@ -191,6 +192,7 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
     fd.set('substituto_id', substituto.id)
     fd.set('supervisor_id', supervisorId)
     fd.set('posto_destino_id', postoId)
+    fd.set('tipo_motivo', tipoMotivo)
     fd.set('motivo', motivo)
     fd.set('data_inicio', dataInicio)
     fd.set('data_fim', apenasUmDia ? dataInicio : dataFim)
@@ -394,13 +396,46 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
                   />
                 </div>
 
-                {/* Motivo */}
+                {/* Tipo do Motivo */}
+                <div className="space-y-2">
+                  <div>
+                    <label className={fieldLabel}>Tipo do Motivo</label>
+                    <select
+                      required
+                      value={tipoMotivo}
+                      onChange={e => setTipoMotivo(e.target.value)}
+                      className={inputCls}
+                    >
+                      <option value="">Selecione...</option>
+                      <option value="atestado_medico">Atestado médico</option>
+                      <option value="falta_justificada">Falta justificada</option>
+                      <option value="falta_injustificada">Falta injustificada</option>
+                      <option value="ferias">Férias</option>
+                      <option value="licenca">Licença</option>
+                      <option value="folga">Folga</option>
+                      <option value="outros">Outros</option>
+                    </select>
+                  </div>
+                  {tipoMotivo === 'atestado_medico' && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                      💡 Lembre-se de registrar o atestado no módulo <span className="font-semibold">Atestados</span> após salvar.
+                    </div>
+                  )}
+                  {(tipoMotivo === 'falta_justificada' || tipoMotivo === 'falta_injustificada') && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      💡 Lembre-se de registrar a falta no módulo <span className="font-semibold">Faltas</span> após salvar.
+                    </div>
+                  )}
+                </div>
+
+                {/* Descrição / Observação */}
                 <div>
-                  <label className={fieldLabel}>Motivo</label>
+                  <label className={fieldLabel}>Descrição / Observação <span className="normal-case font-normal text-gray-400">(opcional)</span></label>
                   <textarea
                     value={motivo}
                     onChange={e => setMotivo(e.target.value)}
                     rows={2}
+                    placeholder="Detalhes adicionais, CID, número de dias..."
                     className={inputCls}
                   />
                 </div>
@@ -545,7 +580,7 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
               </button>
               <button
                 type="submit"
-                disabled={pending || !substituto || !postoId}
+                disabled={pending || !substituto || !postoId || !tipoMotivo}
                 className="flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-xs font-semibold uppercase tracking-widest text-white hover:bg-slate-700 disabled:opacity-50"
               >
                 <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">

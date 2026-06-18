@@ -219,7 +219,7 @@ export function FuncionariosTable({
                               Editar
                             </Button>
                           )}
-                          {f.status === 'ativo' && (
+                          {(f.status === 'ativo' || f.status === 'afastado') && (
                             <Button
                               size="sm"
                               variant="outline"
