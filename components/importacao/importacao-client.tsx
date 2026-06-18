@@ -542,14 +542,19 @@ function RelatorioMensalSection() {
   }
 
   async function handleImportar() {
-    if (!rows.length) return
-    setProc(true); setRes(null)
-    const r = await importarInsalubridadeCoberturaMensal(
-      rows.map(({ registro, mes, ano, data_cobertura, periodo_dias, agente_ausente_nome, observacao }) => ({
-        registro, mes, ano, data_cobertura, periodo_dias, agente_ausente_nome, observacao,
-      }))
-    )
-    setRes(r); setProc(false)
+    if (processing || !rows.length) return
+    setProc(true)
+    setRes(null)
+    try {
+      const r = await importarInsalubridadeCoberturaMensal(
+        rows.map(({ registro, mes, ano, data_cobertura, periodo_dias, agente_ausente_nome, observacao }) => ({
+          registro, mes, ano, data_cobertura, periodo_dias, agente_ausente_nome, observacao,
+        }))
+      )
+      setRes(r)
+    } finally {
+      setProc(false)
+    }
   }
 
   return (
@@ -569,6 +574,7 @@ function RelatorioMensalSection() {
           className="w-full rounded-lg border border-gray-200 p-3 font-mono text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-slate-300"
         />
         <button
+          type="button"
           onClick={handleProcessar}
           disabled={!tsv.trim()}
           className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
@@ -591,6 +597,7 @@ function RelatorioMensalSection() {
             {rows.length} registro{rows.length !== 1 ? 's' : ''} encontrado{rows.length !== 1 ? 's' : ''}
           </p>
           <button
+            type="button"
             onClick={handleImportar}
             disabled={processing}
             className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
