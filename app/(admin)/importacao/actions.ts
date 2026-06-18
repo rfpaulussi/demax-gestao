@@ -447,7 +447,7 @@ export async function importarInsalubridadeCoberturaMensal(
   let inseridos = 0
   for (let i = 0; i < toInsert.length; i += 50) {
     const batch = toInsert.slice(i, i + 50)
-    const { error } = await (supabase as AnyClient).from('insalubridade_coberturas').insert(batch)
+    const { error } = await (supabase as AnyClient).from('insalubridade_coberturas').upsert(batch, { onConflict: 'funcionario_id,data_cobertura', ignoreDuplicates: true })
     if (error) erros.push(error.message)
     else inseridos += batch.length
   }
