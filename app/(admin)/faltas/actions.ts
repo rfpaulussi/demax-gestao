@@ -231,27 +231,45 @@ export async function registrarFalta(fd: FormData) {
   if (!auth) return { success: false, error: 'Não autenticado' }
 
   const funcionario_id = fd.get('funcionario_id') as string
-  const data_falta = fd.get('data_falta') as string
-  const data_fim = (fd.get('data_fim') as string) || null
-  const tipo = fd.get('tipo') as FaltaTipo
-  const observacao = (fd.get('observacao') as string) || null
+  const data_inicio    = fd.get('data_falta') as string   // campo do form chama data_falta
+  const data_fim       = (fd.get('data_fim') as string) || null
+  const tipo           = fd.get('tipo') as FaltaTipo
+  const observacao     = (fd.get('observacao') as string) || null
 
-  let dias = 1
-  if (data_fim && data_fim > data_falta) {
-    dias = Math.ceil((new Date(data_fim).getTime() - new Date(data_falta).getTime()) / 86400000) + 1
-  }
+  const dias = data_fim && data_fim > data_inicio
+    ? Math.ceil((new Date(data_fim).getTime() - new Date(data_inicio).getTime()) / 86400000) + 1
+    : 1
+
+  // Pré-verificação de duplicata antes de bater na constraint
+  // Usa data_falta (mesmo valor que data_inicio) pois os tipos gerados ainda não incluem data_inicio
+  const { data: existing } = await supabase
+    .from('faltas')
+    .select('id')
+    .eq('funcionario_id', funcionario_id)
+    .eq('data_falta', data_inicio)
+    .maybeSingle()
+
+  if (existing) return { success: false, error: 'DUPLICATE' }
 
   const { error } = await supabase.from('faltas').insert({
     funcionario_id,
-    data_falta,
-    data_fim: data_fim || null,
+    data_falta:  data_inicio,   // legado
+    data_inicio,                // coluna nova (constraint)
+    data_fim:    data_fim || null,
     tipo,
     dias,
     observacao,
     registrado_por: auth.user.id,
   } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    const isDupe = error.code === '23505'
+      || error.message.includes('duplicate key')
+      || error.message.includes('faltas_funcionario_id_data_inicio_key')
+    if (isDupe) return { success: false, error: 'DUPLICATE' }
+    return { success: false, error: error.message }
+  }
+
   revalidatePath('/faltas')
   return { success: true }
 }
