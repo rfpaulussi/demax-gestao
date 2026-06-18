@@ -22,6 +22,7 @@ import {
   BarChart3,
   ClipboardX,
   UserX,
+  ArrowLeftRight,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import { NAV_GROUPS } from './nav-config'
@@ -41,8 +42,9 @@ const ICONS: Record<string, React.ElementType> = {
   '/atestados':     Stethoscope,
   '/insalubridade': Biohazard,
   '/ocorrencias':   Siren,
-  '/desligamentos': UserX,
-  '/pendencias':    ClipboardX,
+  '/desligamentos':   UserX,
+  '/mudancas-funcao': ArrowLeftRight,
+  '/pendencias':      ClipboardX,
   '/fechamento':    ClipboardList,
   '/relatorios':    BarChart3,
   '/importacao':    Upload,

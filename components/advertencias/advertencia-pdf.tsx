@@ -82,7 +82,7 @@ function AdvertenciaDocument({ adv }: { adv: AdvertenciaCompleta }) {
         <View style={s.headerRow}>
           <View>
             <Text style={s.companyName}>DEMAX</Text>
-            <Text style={s.companySubtitle}>Gestão de Serviços Terceirizados</Text>
+            <Text style={s.companySubtitle}>Serviços e Comércio LTDA</Text>
           </View>
           <View style={s.regBlock}>
             <Text style={s.regLabel}>Registro</Text>
@@ -231,7 +231,7 @@ function AdvertenciaDocument({ adv }: { adv: AdvertenciaCompleta }) {
 
         {/* Rodapé */}
         <View style={s.footer} fixed>
-          <Text style={s.footerText}>DEMAX — Gestão de Serviços Terceirizados</Text>
+          <Text style={s.footerText}>DEMAX Serviços e Comércio LTDA</Text>
           <Text style={s.footerText}>Reg. {idShort} · Emitido em {emitidoEm}</Text>
         </View>
 

@@ -20,6 +20,11 @@ export type MovimentacaoItem = {
   created_at: string | null
   solicitacao_id: string | null
   perfis: { nome: string | null } | null
+  solicitacoes: {
+    dados_antes: Record<string, unknown> | null
+    dados_depois: Record<string, unknown> | null
+    motivo: string | null
+  } | null
 }
 
 export type AdvertenciaItem = {
@@ -64,12 +69,66 @@ const STATUS_ADV: Record<NonNullable<AdvertenciaItem['status']>, { label: string
 
 // ─── sub-views ────────────────────────────────────────────────────────────────
 
+function MovDetail({
+  m,
+  postoNomeMap,
+}: {
+  m: MovimentacaoItem
+  postoNomeMap: Record<string, string>
+}) {
+  if (m.tipo === 'mudanca_funcao') {
+    const sol    = m.solicitacoes
+    const antes  = sol?.dados_antes?.['funcao_nome'] as string | undefined
+    const depois = sol?.dados_depois?.['funcao_destino_nome'] as string | undefined
+    return (
+      <div className="mt-0.5 space-y-0.5">
+        <p className="text-xs text-gray-700">
+          <span className="line-through text-gray-400">{antes ?? m.valor_antes ?? '—'}</span>
+          {' → '}
+          <span className="font-medium text-gray-900">{depois ?? m.valor_depois ?? '—'}</span>
+        </p>
+        {sol?.motivo && (
+          <p className="text-xs text-gray-400">Motivo: {sol.motivo}</p>
+        )}
+      </div>
+    )
+  }
+
+  if (m.tipo === 'transferencia' && m.campo_alterado === 'posto_id') {
+    const antes  = (m.valor_antes  && postoNomeMap[m.valor_antes])  ? postoNomeMap[m.valor_antes]  : (m.valor_antes  ?? '—')
+    const depois = (m.valor_depois && postoNomeMap[m.valor_depois]) ? postoNomeMap[m.valor_depois] : (m.valor_depois ?? '—')
+    return (
+      <p className="mt-0.5 text-xs text-gray-500">
+        posto:{' '}
+        <span className="line-through text-gray-400">{antes}</span>
+        {' → '}
+        <span className="text-gray-700">{depois}</span>
+      </p>
+    )
+  }
+
+  if (m.campo_alterado) {
+    return (
+      <p className="mt-0.5 text-xs text-gray-500">
+        {m.campo_alterado}:{' '}
+        <span className="line-through text-gray-400">{m.valor_antes ?? '—'}</span>
+        {' → '}
+        <span className="text-gray-700">{m.valor_depois ?? '—'}</span>
+      </p>
+    )
+  }
+
+  return null
+}
+
 function TabMovimentacoes({
   items,
   funcionario,
+  postoNomeMap,
 }: {
   items: MovimentacaoItem[]
   funcionario: FuncionarioParaPDF
+  postoNomeMap: Record<string, string>
 }) {
   const [baixando, setBaixando] = useState<string | null>(null)
 
@@ -111,14 +170,7 @@ function TabMovimentacoes({
               <p className="mt-0.5 text-sm font-semibold capitalize text-gray-900">
                 {m.tipo.replace(/_/g, ' ')}
               </p>
-              {m.campo_alterado && (
-                <p className="text-xs text-gray-500">
-                  {m.campo_alterado}:{' '}
-                  <span className="line-through text-gray-400">{m.valor_antes ?? '—'}</span>
-                  {' → '}
-                  <span className="text-gray-700">{m.valor_depois ?? '—'}</span>
-                </p>
-              )}
+              <MovDetail m={m} postoNomeMap={postoNomeMap} />
             </div>
             <button
               onClick={() => handleDownload(m)}
@@ -139,15 +191,17 @@ function TabMovimentacoes({
 function TabAfastamentos({
   items,
   funcionario,
+  postoNomeMap,
 }: {
   items: MovimentacaoItem[]
   funcionario: FuncionarioParaPDF
+  postoNomeMap: Record<string, string>
 }) {
   const afastamentos = items.filter(m => m.tipo === 'afastamento' || m.tipo === 'atestado')
   if (afastamentos.length === 0) {
     return <p className="py-8 text-center text-sm text-gray-400">Nenhum afastamento registrado.</p>
   }
-  return <TabMovimentacoes items={afastamentos} funcionario={funcionario} />
+  return <TabMovimentacoes items={afastamentos} funcionario={funcionario} postoNomeMap={postoNomeMap} />
 }
 
 function TabAdvertencias({ items }: { items: AdvertenciaItem[] }) {
@@ -241,11 +295,13 @@ export function PerfilTabs({
   advertencias,
   solicitacoes,
   funcionario,
+  postoNomeMap = {},
 }: {
   movimentacoes: MovimentacaoItem[]
   advertencias: AdvertenciaItem[]
   solicitacoes: SolicitacaoItem[]
   funcionario: FuncionarioParaPDF
+  postoNomeMap?: Record<string, string>
 }) {
   const [tab, setTab] = useState<Tab>('movimentacoes')
 
@@ -269,8 +325,8 @@ export function PerfilTabs({
       </div>
 
       <div className="pt-4">
-        {tab === 'movimentacoes' && <TabMovimentacoes items={movimentacoes} funcionario={funcionario} />}
-        {tab === 'afastamentos'  && <TabAfastamentos  items={movimentacoes} funcionario={funcionario} />}
+        {tab === 'movimentacoes' && <TabMovimentacoes items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} />}
+        {tab === 'afastamentos'  && <TabAfastamentos  items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} />}
         {tab === 'advertencias'  && <TabAdvertencias  items={advertencias}  />}
         {tab === 'solicitacoes'  && <TabSolicitacoes  items={solicitacoes}  />}
       </div>

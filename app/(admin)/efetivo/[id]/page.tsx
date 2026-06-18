@@ -61,7 +61,11 @@ export default async function PerfilFuncionarioPage({
   ] = await Promise.all([
     supabase
       .from('movimentacoes')
-      .select('id, tipo, campo_alterado, valor_antes, valor_depois, created_at, solicitacao_id, perfis!executado_por(nome)')
+      .select(`
+        id, tipo, campo_alterado, valor_antes, valor_depois, created_at, solicitacao_id,
+        perfis!executado_por(nome),
+        solicitacoes!solicitacao_id(dados_antes, dados_depois, motivo)
+      `)
       .eq('funcionario_id', id)
       .order('created_at', { ascending: false }),
     supabase
@@ -84,6 +88,28 @@ export default async function PerfilFuncionarioPage({
           .single()
       : Promise.resolve({ data: null }),
   ])
+
+  // Resolve posto names for transferencia movimentacoes
+  function isUUID(v: unknown): v is string {
+    return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+  }
+  const postoIdSet = new Set<string>()
+  for (const m of (movRaw ?? []) as unknown as { tipo: string; campo_alterado: string | null; valor_antes: string | null; valor_depois: string | null }[]) {
+    if (m.tipo === 'transferencia' && m.campo_alterado === 'posto_id') {
+      if (isUUID(m.valor_antes))  postoIdSet.add(m.valor_antes)
+      if (isUUID(m.valor_depois)) postoIdSet.add(m.valor_depois)
+    }
+  }
+  const postoNomeMap: Record<string, string> = {}
+  if (postoIdSet.size > 0) {
+    const { data: postos } = await supabase
+      .from('postos')
+      .select('id, nome')
+      .in('id', Array.from(postoIdSet))
+    for (const p of (postos ?? []) as { id: string; nome: string }[]) {
+      postoNomeMap[p.id] = p.nome
+    }
+  }
 
   const movimentacoes = (movRaw ?? []) as unknown as MovimentacaoItem[]
   const advertencias  = (advRaw ?? []) as unknown as AdvertenciaItem[]
@@ -182,6 +208,7 @@ export default async function PerfilFuncionarioPage({
           movimentacoes={movimentacoes}
           advertencias={advertencias}
           solicitacoes={solicitacoes}
+          postoNomeMap={postoNomeMap}
           funcionario={{
             id:            id,
             nome:          f.nome,

@@ -172,7 +172,7 @@ function MovColaboradorDoc({ dados, tipo }: { dados: DadosMovColaborador; tipo: 
         <View style={s.hRow}>
           <View>
             <Text style={s.company}>DEMAX</Text>
-            <Text style={s.sub}>Gestão de Serviços Terceirizados</Text>
+            <Text style={s.sub}>Serviços e Comércio LTDA</Text>
           </View>
           <View style={s.titleBlock}>
             <Text style={s.title}>MOVIMENTAÇÃO DE COLABORADOR</Text>
@@ -277,7 +277,7 @@ function MovColaboradorDoc({ dados, tipo }: { dados: DadosMovColaborador; tipo: 
 
         {/* ── Rodapé ────────────────────────────────────────────────────── */}
         <View style={s.footer} fixed>
-          <Text style={s.footTxt}>DEMAX — Gestão de Serviços Terceirizados</Text>
+          <Text style={s.footTxt}>DEMAX Serviços e Comércio LTDA</Text>
           <Text style={s.footTxt}>Emitido em {emitidoEm}</Text>
         </View>
 
