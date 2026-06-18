@@ -418,31 +418,33 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
                 </div>
 
                 {/* Datas + contador */}
-                <div className="flex items-end gap-3">
-                  <div className="flex-1">
-                    <label className={fieldLabel}>Data Início</label>
-                    <input
-                      type="date"
-                      required
-                      value={dataInicio}
-                      onChange={e => setDataInicio(e.target.value)}
-                      className={inputCls}
-                    />
-                  </div>
-                  {!apenasUmDia && (
+                <div className="space-y-2">
+                  <div className="flex gap-3">
                     <div className="flex-1">
-                      <label className={fieldLabel}>Data Fim</label>
+                      <label className={fieldLabel}>Data Início</label>
                       <input
                         type="date"
                         required
-                        value={dataFim}
-                        onChange={e => setDataFim(e.target.value)}
+                        value={dataInicio}
+                        onChange={e => setDataInicio(e.target.value)}
                         className={inputCls}
                       />
                     </div>
-                  )}
+                    {!apenasUmDia && (
+                      <div className="flex-1">
+                        <label className={fieldLabel}>Data Fim</label>
+                        <input
+                          type="date"
+                          required
+                          value={dataFim}
+                          onChange={e => setDataFim(e.target.value)}
+                          className={inputCls}
+                        />
+                      </div>
+                    )}
+                  </div>
                   {diasCobertura !== null && (
-                    <span className="mb-0.5 flex-shrink-0 rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700 whitespace-nowrap">
+                    <span className="inline-flex rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
                       {diasCobertura} dia{diasCobertura !== 1 ? 's' : ''}
                     </span>
                   )}
@@ -489,7 +491,7 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
               </div>
 
               {tipoCobertura === 'substituicao' && (
-                <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-3">
                   <div>
                     <label className={fieldLabel}>Funcionário Ausente</label>
                     <select
@@ -507,24 +509,26 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [] }: Props) 
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className={fieldLabel}>Início Ausência</label>
-                    <input
-                      type="date"
-                      required
-                      value={dataInicioAusencia}
-                      onChange={e => setDataInicioAusencia(e.target.value)}
-                      className={inputCls}
-                    />
-                  </div>
-                  <div>
-                    <label className={fieldLabel}>Fim Ausência</label>
-                    <input
-                      type="date"
-                      value={dataFimAusencia}
-                      onChange={e => setDataFimAusencia(e.target.value)}
-                      className={inputCls}
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={fieldLabel}>Início Ausência</label>
+                      <input
+                        type="date"
+                        required
+                        value={dataInicioAusencia}
+                        onChange={e => setDataInicioAusencia(e.target.value)}
+                        className={inputCls}
+                      />
+                    </div>
+                    <div>
+                      <label className={fieldLabel}>Fim Ausência</label>
+                      <input
+                        type="date"
+                        value={dataFimAusencia}
+                        onChange={e => setDataFimAusencia(e.target.value)}
+                        className={inputCls}
+                      />
+                    </div>
                   </div>
                 </div>
               )}

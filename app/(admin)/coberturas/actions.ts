@@ -180,14 +180,17 @@ export async function buscarFuncionariosAtivosNoPostoSemAfastamento(
   const supabase = createClient()
   const hoje = new Date().toISOString().split('T')[0]
 
-  const { data: funcionarios } = await supabase
+  const { data: rawFuncs } = await supabase
     .from('funcionarios')
-    .select('id, nome')
+    .select('id, nome, funcoes:funcao_id(nome)')
     .eq('posto_id', postoId)
     .eq('status', 'ativo')
     .order('nome')
 
-  if (!funcionarios?.length) return []
+  type FuncRow = { id: string; nome: string; funcoes: { nome: string } | null }
+  const funcionarios = (rawFuncs ?? []) as unknown as FuncRow[]
+
+  if (!funcionarios.length) return []
 
   const ids = funcionarios.map(f => f.id)
 
@@ -212,7 +215,7 @@ export async function buscarFuncionariosAtivosNoPostoSemAfastamento(
 
   return funcionarios
     .filter(f => !excluir.has(f.id))
-    .map(f => ({ id: f.id, nome: f.nome, funcao: null }))
+    .map(f => ({ id: f.id, nome: f.nome, funcao: f.funcoes?.nome ?? null }))
 }
 
 export async function buscarTodosSupervisores(): Promise<{ id: string; nome: string }[]> {
