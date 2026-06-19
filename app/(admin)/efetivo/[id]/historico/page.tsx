@@ -86,7 +86,7 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
       .order('data_ocorrencia', { ascending: false }),
     (supabase as unknown as AnyQ)
       .from('movimentacoes')
-      .select('created_at, solicitacoes!solicitacao_id(dados_antes, dados_depois, motivo)')
+      .select('solicitacao_id, valor_antes, valor_depois, solicitacoes!solicitacao_id(dados_antes, dados_depois, motivo)')
       .eq('funcionario_id', id)
       .eq('tipo', 'mudanca_funcao'),
   ])
@@ -136,21 +136,26 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
     }
   }
 
-  // Build a date → funcao enrichment map from movimentacoes+solicitacoes
+  // Build solicitacao_id → enrich map; secondary index by "valor_antes:valor_depois" → solicitacao_id
+  // The historico trigger stores funcao_id UUIDs in dados_anteriores/dados_novos, matching
+  // movimentacoes.valor_antes / valor_depois — this lets us link without a date collision.
   type MovMudanca = {
-    created_at: string
+    solicitacao_id: string | null
+    valor_antes: string | null
+    valor_depois: string | null
     solicitacoes: { dados_antes: Record<string, unknown> | null; dados_depois: Record<string, unknown> | null; motivo: string | null } | null
   }
-  const funcaoEnrichMap = new Map<string, { anterior: string | null; nova: string | null; motivo: string | null }>()
+  const funcaoEnrichMap   = new Map<string, { anterior: string | null; nova: string | null; motivo: string | null }>()
+  const funcaoIdxBySolId  = new Map<string, string>() // "valor_antes:valor_depois" → solicitacao_id
   for (const m of ((movMudancas ?? []) as MovMudanca[])) {
-    const date = m.created_at?.split('T')[0]
-    if (!date) continue
+    if (!m.solicitacao_id) continue
     const sol = m.solicitacoes
-    funcaoEnrichMap.set(date, {
+    funcaoEnrichMap.set(m.solicitacao_id, {
       anterior: (sol?.dados_antes?.['funcao_nome'] as string | undefined) ?? null,
       nova:     (sol?.dados_depois?.['funcao_destino_nome'] as string | undefined) ?? null,
       motivo:   sol?.motivo ?? null,
     })
+    funcaoIdxBySolId.set(`${m.valor_antes ?? ''}:${m.valor_depois ?? ''}`, m.solicitacao_id)
   }
 
   // Track historico entries to avoid duplicates from individual tables
@@ -162,7 +167,10 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
     // Primary: historico entries (triggers + manual)
     ...(historico ?? []).map(e => {
       if (e.tipo === 'mudanca_funcao') {
-        const enrich = funcaoEnrichMap.get(e.data_evento?.split('T')[0] ?? '')
+        const funcAntesId = (e.dados_anteriores as Record<string, unknown> | null)?.['funcao_id'] as string | undefined
+        const funcNovaId  = (e.dados_novos      as Record<string, unknown> | null)?.['funcao_id'] as string | undefined
+        const solId  = funcaoIdxBySolId.get(`${funcAntesId ?? ''}:${funcNovaId ?? ''}`)
+        const enrich = solId ? funcaoEnrichMap.get(solId) : undefined
         if (enrich) {
           return {
             id: e.id,
