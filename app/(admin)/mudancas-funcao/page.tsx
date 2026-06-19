@@ -24,23 +24,29 @@ export default async function MudancasFuncaoAdminPage({
 
   const supabase = createClient()
 
-  const { data: raw } = await (supabase as unknown as AnyQ)
-    .from('movimentacoes')
-    .select(`
-      id, created_at, funcionario_id,
-      funcionarios!funcionario_id (
-        nome, registro,
-        postos!posto_id ( nome, secretaria )
-      ),
-      solicitacoes!solicitacao_id (
-        dados_antes, dados_depois, motivo,
-        perfis!supervisor_id ( nome )
-      )
-    `)
-    .eq('tipo', 'mudanca_funcao')
-    .gte('created_at', inicio)
-    .lt('created_at', proxMes)
-    .order('created_at', { ascending: false })
+  const [{ data: raw }, { data: funcoesList }] = await Promise.all([
+    (supabase as unknown as AnyQ)
+      .from('movimentacoes')
+      .select(`
+        id, created_at, funcionario_id, solicitacao_id, valor_antes, valor_depois,
+        funcionarios!funcionario_id (
+          nome, registro,
+          postos!posto_id ( nome, secretaria )
+        ),
+        solicitacoes!solicitacao_id (
+          dados_antes, dados_depois, motivo,
+          perfis!supervisor_id ( nome )
+        )
+      `)
+      .eq('tipo', 'mudanca_funcao')
+      .gte('created_at', inicio)
+      .lt('created_at', proxMes)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('funcoes')
+      .select('id, nome')
+      .order('nome'),
+  ])
 
   type FuncJoin = {
     nome: string
@@ -59,6 +65,9 @@ export default async function MudancasFuncaoAdminPage({
     id: string
     created_at: string
     funcionario_id: string
+    solicitacao_id: string | null
+    valor_antes: string | null
+    valor_depois: string | null
     funcionarios: FuncJoin
     solicitacoes: SolJoin
   }
@@ -67,16 +76,20 @@ export default async function MudancasFuncaoAdminPage({
     const func = r.funcionarios
     const sol  = r.solicitacoes
     return {
-      id:              r.id,
-      created_at:      r.created_at,
-      nome:            func?.nome ?? '—',
-      registro:        func?.registro ?? null,
-      posto:           func?.postos?.nome ?? '—',
-      secretaria:      func?.postos?.secretaria ?? '—',
-      funcao_anterior: (sol?.dados_antes?.['funcao_nome'] as string | undefined) ?? '—',
-      funcao_nova:     (sol?.dados_depois?.['funcao_destino_nome'] as string | undefined) ?? '—',
-      supervisor:      sol?.perfis?.nome ?? '—',
-      motivo:          sol?.motivo ?? null,
+      id:               r.id,
+      created_at:       r.created_at,
+      funcionario_id:   r.funcionario_id,
+      solicitacao_id:   r.solicitacao_id ?? null,
+      funcao_anterior_id: r.valor_antes ?? null,
+      funcao_nova_id:   r.valor_depois ?? null,
+      nome:             func?.nome ?? '—',
+      registro:         func?.registro ?? null,
+      posto:            func?.postos?.nome ?? '—',
+      secretaria:       func?.postos?.secretaria ?? '—',
+      funcao_anterior:  (sol?.dados_antes?.['funcao_nome'] as string | undefined) ?? '—',
+      funcao_nova:      (sol?.dados_depois?.['funcao_destino_nome'] as string | undefined) ?? '—',
+      supervisor:       sol?.perfis?.nome ?? '—',
+      motivo:           sol?.motivo ?? null,
     }
   })
 
@@ -89,7 +102,13 @@ export default async function MudancasFuncaoAdminPage({
         </p>
       </div>
 
-      <MudancasFuncaoAdminClient dados={dados} mes={mes} ano={ano} anos={anos} />
+      <MudancasFuncaoAdminClient
+        dados={dados}
+        mes={mes}
+        ano={ano}
+        anos={anos}
+        funcoes={(funcoesList ?? []) as { id: string; nome: string }[]}
+      />
     </div>
   )
 }

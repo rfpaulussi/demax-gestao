@@ -1,12 +1,25 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { FileSpreadsheet } from 'lucide-react'
+import { useState, useMemo, useTransition } from 'react'
+import { FileSpreadsheet, Pencil, Trash2 } from 'lucide-react'
 import { exportToExcel } from '@/lib/export-excel'
+import { editarMudancaFuncao, excluirMudancaFuncao } from '@/app/(admin)/mudancas-funcao/actions'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 export interface MudancaFuncaoAdminRow {
   id: string
   created_at: string
+  funcionario_id: string
+  solicitacao_id: string | null
+  funcao_anterior_id: string | null
+  funcao_nova_id: string | null
   nome: string
   registro: string | null
   posto: string
@@ -29,16 +42,172 @@ function fmtDt(iso: string): string {
 
 const sel = 'h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
 
+// ─── Modal Editar ─────────────────────────────────────────────────────────────
+
+interface ModalEditarProps {
+  row: MudancaFuncaoAdminRow
+  funcoes: { id: string; nome: string }[]
+  onClose: () => void
+}
+
+function ModalEditar({ row, funcoes, onClose }: ModalEditarProps) {
+  const [funcaoId, setFuncaoId] = useState(row.funcao_nova_id ?? '')
+  const [motivo,   setMotivo]   = useState(row.motivo ?? '')
+  const [vigencia, setVigencia] = useState('')
+  const [erro,     setErro]     = useState('')
+  const [pending, startTransition] = useTransition()
+
+  function handleSalvar() {
+    if (!funcaoId) { setErro('Selecione uma função.'); return }
+    const funcaoNome = funcoes.find(f => f.id === funcaoId)?.nome ?? ''
+    const fd = new FormData()
+    fd.set('movimentacao_id', row.id)
+    if (row.solicitacao_id) fd.set('solicitacao_id', row.solicitacao_id)
+    fd.set('funcao_id',      funcaoId)
+    fd.set('funcao_nome',    funcaoNome)
+    fd.set('motivo',         motivo)
+    fd.set('vigencia',       vigencia)
+    fd.set('funcionario_id', row.funcionario_id)
+    startTransition(async () => {
+      const res = await editarMudancaFuncao(fd)
+      if (!res.success) { setErro(res.error); return }
+      onClose()
+    })
+  }
+
+  return (
+    <Dialog open onOpenChange={open => { if (!open) onClose() }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Editar Mudança de Função</DialogTitle>
+          <p className="text-sm text-gray-500">{row.nome}</p>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Nova Função</label>
+            <select
+              value={funcaoId}
+              onChange={e => setFuncaoId(e.target.value)}
+              className={sel + ' w-full'}
+            >
+              <option value="">Selecionar...</option>
+              {funcoes.map(f => (
+                <option key={f.id} value={f.id}>{f.nome}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Motivo (opcional)</label>
+            <textarea
+              value={motivo}
+              onChange={e => setMotivo(e.target.value)}
+              rows={3}
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400 resize-none"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Data de Vigência</label>
+            <input
+              type="date"
+              value={vigencia}
+              onChange={e => setVigencia(e.target.value)}
+              className={sel + ' w-full'}
+            />
+          </div>
+
+          {erro && <p className="text-sm text-red-600">{erro}</p>}
+        </div>
+
+        <DialogFooter>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSalvar}
+            disabled={pending}
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40"
+          >
+            {pending ? 'Salvando…' : 'Salvar'}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ─── Dialog Excluir ───────────────────────────────────────────────────────────
+
+interface DialogExcluirProps {
+  row: MudancaFuncaoAdminRow
+  onClose: () => void
+}
+
+function DialogExcluir({ row, onClose }: DialogExcluirProps) {
+  const [erro,    setErro]    = useState('')
+  const [pending, startTransition] = useTransition()
+
+  function handleConfirmar() {
+    const fd = new FormData()
+    fd.set('movimentacao_id', row.id)
+    if (row.solicitacao_id)   fd.set('solicitacao_id', row.solicitacao_id)
+    fd.set('funcionario_id',  row.funcionario_id)
+    if (row.funcao_anterior_id) fd.set('funcao_anterior_id', row.funcao_anterior_id)
+    startTransition(async () => {
+      const res = await excluirMudancaFuncao(fd)
+      if (!res.success) { setErro(res.error); return }
+      onClose()
+    })
+  }
+
+  return (
+    <AlertDialog open onOpenChange={open => { if (!open) onClose() }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Esta ação irá reverter a função de <strong>{row.nome}</strong> para{' '}
+            <strong>{row.funcao_anterior}</strong>. O registro de mudança será removido permanentemente.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {erro && <p className="text-sm text-red-600 px-1">{erro}</p>}
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={onClose}>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={handleConfirmar}
+            disabled={pending}
+            className="bg-red-600 text-white hover:bg-red-700 focus:ring-red-600 disabled:opacity-40"
+          >
+            {pending ? 'Excluindo…' : 'Confirmar Exclusão'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
 interface Props {
   dados: MudancaFuncaoAdminRow[]
   mes: number
   ano: number
   anos: number[]
+  funcoes: { id: string; nome: string }[]
 }
 
-export function MudancasFuncaoAdminClient({ dados, mes, ano, anos }: Props) {
+export function MudancasFuncaoAdminClient({ dados, mes, ano, anos, funcoes }: Props) {
   const [supervisorFiltro, setSupervisorFiltro] = useState('')
   const [busca, setBusca]                       = useState('')
+  const [editando, setEditando]                 = useState<MudancaFuncaoAdminRow | null>(null)
+  const [excluindo, setExcluindo]               = useState<MudancaFuncaoAdminRow | null>(null)
 
   const supervisores = useMemo(
     () => Array.from(new Set(dados.map(r => r.supervisor).filter(Boolean))).sort(),
@@ -53,7 +222,7 @@ export function MudancasFuncaoAdminClient({ dados, mes, ano, anos }: Props) {
     [dados, supervisorFiltro, busca],
   )
 
-  const totalMudancas    = dadosFiltrados.length
+  const totalMudancas     = dadosFiltrados.length
   const totalFuncionarios = new Set(dadosFiltrados.map(r => r.nome)).size
 
   function handleExport() {
@@ -173,10 +342,10 @@ export function MudancasFuncaoAdminClient({ dados, mes, ano, anos }: Props) {
       ) : (
         <div className="w-full overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
           <div className="overflow-x-auto w-full">
-            <table className="w-full text-sm" style={{ minWidth: '1000px' }}>
+            <table className="w-full text-sm" style={{ minWidth: '1100px' }}>
               <thead>
                 <tr className="border-b border-gray-100 bg-slate-50">
-                  {['Data', 'Registro', 'Nome', 'Função Anterior', 'Nova Função', 'Posto', 'Secretaria', 'Supervisor', 'Motivo'].map(h => (
+                  {['Data', 'Registro', 'Nome', 'Função Anterior', 'Nova Função', 'Posto', 'Secretaria', 'Supervisor', 'Motivo', 'Ações'].map(h => (
                     <th key={h} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">
                       {h}
                     </th>
@@ -195,6 +364,26 @@ export function MudancasFuncaoAdminClient({ dados, mes, ano, anos }: Props) {
                     <td className="whitespace-nowrap px-3 py-2.5 text-gray-500">{r.secretaria}</td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-gray-500">{r.supervisor}</td>
                     <td className="max-w-xs truncate px-3 py-2.5 text-gray-400">{r.motivo ?? '—'}</td>
+                    <td className="whitespace-nowrap px-3 py-2.5">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditando(r)}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                          title="Editar"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExcluindo(r)}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-200 text-red-500 hover:bg-red-50 hover:text-red-700"
+                          title="Excluir"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -202,6 +391,10 @@ export function MudancasFuncaoAdminClient({ dados, mes, ano, anos }: Props) {
           </div>
         </div>
       )}
+
+      {/* Modals */}
+      {editando  && <ModalEditar   row={editando}  funcoes={funcoes} onClose={() => setEditando(null)}  />}
+      {excluindo && <DialogExcluir row={excluindo}                   onClose={() => setExcluindo(null)} />}
     </div>
   )
 }

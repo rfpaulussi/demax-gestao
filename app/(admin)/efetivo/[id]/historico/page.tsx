@@ -42,6 +42,9 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
   const supabase = createClient()
   const { id } = params
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type AnyQ = { from: (t: string) => any }
+
   const [
     { data: funcRaw },
     { data: historico },
@@ -49,6 +52,7 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
     { data: atestados },
     { data: faltas },
     { data: advertencias },
+    { data: movMudancas },
   ] = await Promise.all([
     supabase
       .from('funcionarios')
@@ -80,6 +84,11 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
       .select('*')
       .eq('funcionario_id', id)
       .order('data_ocorrencia', { ascending: false }),
+    (supabase as unknown as AnyQ)
+      .from('movimentacoes')
+      .select('created_at, solicitacoes!solicitacao_id(dados_antes, dados_depois, motivo)')
+      .eq('funcionario_id', id)
+      .eq('tipo', 'mudanca_funcao'),
   ])
 
   if (!funcRaw) notFound()
@@ -127,6 +136,23 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
     }
   }
 
+  // Build a date → funcao enrichment map from movimentacoes+solicitacoes
+  type MovMudanca = {
+    created_at: string
+    solicitacoes: { dados_antes: Record<string, unknown> | null; dados_depois: Record<string, unknown> | null; motivo: string | null } | null
+  }
+  const funcaoEnrichMap = new Map<string, { anterior: string | null; nova: string | null; motivo: string | null }>()
+  for (const m of ((movMudancas ?? []) as MovMudanca[])) {
+    const date = m.created_at?.split('T')[0]
+    if (!date) continue
+    const sol = m.solicitacoes
+    funcaoEnrichMap.set(date, {
+      anterior: (sol?.dados_antes?.['funcao_nome'] as string | undefined) ?? null,
+      nova:     (sol?.dados_depois?.['funcao_destino_nome'] as string | undefined) ?? null,
+      motivo:   sol?.motivo ?? null,
+    })
+  }
+
   // Track historico entries to avoid duplicates from individual tables
   const historicoSet = new Set(
     (historico ?? []).map(e => `${e.tipo}:${e.data_evento}`)
@@ -134,14 +160,29 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
 
   const eventos: ProntuarioEvento[] = [
     // Primary: historico entries (triggers + manual)
-    ...(historico ?? []).map(e => ({
-      id: e.id,
-      tipo: e.tipo,
-      data: e.data_evento,
-      descricao: e.descricao ?? null,
-      dados_anteriores: e.dados_anteriores as Record<string, unknown> | null,
-      dados_novos: e.dados_novos as Record<string, unknown> | null,
-    })),
+    ...(historico ?? []).map(e => {
+      if (e.tipo === 'mudanca_funcao') {
+        const enrich = funcaoEnrichMap.get(e.data_evento?.split('T')[0] ?? '')
+        if (enrich) {
+          return {
+            id: e.id,
+            tipo: e.tipo,
+            data: e.data_evento,
+            descricao: enrich.motivo ? `Motivo: ${enrich.motivo}` : (e.descricao ?? null),
+            dados_anteriores: enrich.anterior ? { funcao: enrich.anterior } : null,
+            dados_novos: enrich.nova ? { funcao: enrich.nova } : (e.dados_novos as Record<string, unknown> | null),
+          }
+        }
+      }
+      return {
+        id: e.id,
+        tipo: e.tipo,
+        data: e.data_evento,
+        descricao: e.descricao ?? null,
+        dados_anteriores: e.dados_anteriores as Record<string, unknown> | null,
+        dados_novos: e.dados_novos as Record<string, unknown> | null,
+      }
+    }),
 
     // Supplementary férias (fallback for data before triggers)
     ...(ferias ?? [])

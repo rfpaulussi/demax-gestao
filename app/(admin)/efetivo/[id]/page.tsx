@@ -89,27 +89,43 @@ export default async function PerfilFuncionarioPage({
       : Promise.resolve({ data: null }),
   ])
 
-  // Resolve posto names for transferencia movimentacoes
+  // Resolve nomes de postos e funções a partir dos UUIDs nas movimentações
   function isUUID(v: unknown): v is string {
     return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
   }
-  const postoIdSet = new Set<string>()
-  for (const m of (movRaw ?? []) as unknown as { tipo: string; campo_alterado: string | null; valor_antes: string | null; valor_depois: string | null }[]) {
+  type MovRawItem = { tipo: string; campo_alterado: string | null; valor_antes: string | null; valor_depois: string | null }
+  const movList = (movRaw ?? []) as unknown as MovRawItem[]
+
+  const postoIdSet  = new Set<string>()
+  const funcaoIdSet = new Set<string>()
+  for (const m of movList) {
     if (m.tipo === 'transferencia' && m.campo_alterado === 'posto_id') {
       if (isUUID(m.valor_antes))  postoIdSet.add(m.valor_antes)
       if (isUUID(m.valor_depois)) postoIdSet.add(m.valor_depois)
     }
-  }
-  const postoNomeMap: Record<string, string> = {}
-  if (postoIdSet.size > 0) {
-    const { data: postos } = await supabase
-      .from('postos')
-      .select('id, nome')
-      .in('id', Array.from(postoIdSet))
-    for (const p of (postos ?? []) as { id: string; nome: string }[]) {
-      postoNomeMap[p.id] = p.nome
+    if (m.tipo === 'mudanca_funcao') {
+      if (isUUID(m.valor_antes))  funcaoIdSet.add(m.valor_antes)
+      if (isUUID(m.valor_depois)) funcaoIdSet.add(m.valor_depois)
     }
   }
+
+  const postoNomeMap:  Record<string, string> = {}
+  const funcaoNomeMap: Record<string, string> = {}
+
+  await Promise.all([
+    postoIdSet.size > 0
+      ? supabase.from('postos').select('id, nome').in('id', Array.from(postoIdSet))
+          .then(({ data }) => {
+            for (const p of (data ?? []) as { id: string; nome: string }[]) postoNomeMap[p.id] = p.nome
+          })
+      : Promise.resolve(),
+    funcaoIdSet.size > 0
+      ? supabase.from('funcoes').select('id, nome').in('id', Array.from(funcaoIdSet))
+          .then(({ data }) => {
+            for (const f of (data ?? []) as { id: string; nome: string }[]) funcaoNomeMap[f.id] = f.nome
+          })
+      : Promise.resolve(),
+  ])
 
   const movimentacoes = (movRaw ?? []) as unknown as MovimentacaoItem[]
   const advertencias  = (advRaw ?? []) as unknown as AdvertenciaItem[]
@@ -209,6 +225,7 @@ export default async function PerfilFuncionarioPage({
           advertencias={advertencias}
           solicitacoes={solicitacoes}
           postoNomeMap={postoNomeMap}
+          funcaoNomeMap={funcaoNomeMap}
           funcionario={{
             id:            id,
             nome:          f.nome,

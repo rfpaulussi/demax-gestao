@@ -72,20 +72,26 @@ const STATUS_ADV: Record<NonNullable<AdvertenciaItem['status']>, { label: string
 function MovDetail({
   m,
   postoNomeMap,
+  funcaoNomeMap = {},
 }: {
   m: MovimentacaoItem
   postoNomeMap: Record<string, string>
+  funcaoNomeMap?: Record<string, string>
 }) {
   if (m.tipo === 'mudanca_funcao') {
     const sol    = m.solicitacoes
-    const antes  = sol?.dados_antes?.['funcao_nome'] as string | undefined
-    const depois = sol?.dados_depois?.['funcao_destino_nome'] as string | undefined
+    const antes  = (sol?.dados_antes?.['funcao_nome'] as string | undefined)
+                ?? (m.valor_antes  ? funcaoNomeMap[m.valor_antes]  : undefined)
+                ?? m.valor_antes  ?? '—'
+    const depois = (sol?.dados_depois?.['funcao_destino_nome'] as string | undefined)
+                ?? (m.valor_depois ? funcaoNomeMap[m.valor_depois] : undefined)
+                ?? m.valor_depois ?? '—'
     return (
       <div className="mt-0.5 space-y-0.5">
         <p className="text-xs text-gray-700">
-          <span className="line-through text-gray-400">{antes ?? m.valor_antes ?? '—'}</span>
+          <span className="line-through text-gray-400">{antes}</span>
           {' → '}
-          <span className="font-medium text-gray-900">{depois ?? m.valor_depois ?? '—'}</span>
+          <span className="font-medium text-gray-900">{depois}</span>
         </p>
         {sol?.motivo && (
           <p className="text-xs text-gray-400">Motivo: {sol.motivo}</p>
@@ -125,10 +131,12 @@ function TabMovimentacoes({
   items,
   funcionario,
   postoNomeMap,
+  funcaoNomeMap = {},
 }: {
   items: MovimentacaoItem[]
   funcionario: FuncionarioParaPDF
   postoNomeMap: Record<string, string>
+  funcaoNomeMap?: Record<string, string>
 }) {
   const [baixando, setBaixando] = useState<string | null>(null)
 
@@ -170,7 +178,7 @@ function TabMovimentacoes({
               <p className="mt-0.5 text-sm font-semibold capitalize text-gray-900">
                 {m.tipo.replace(/_/g, ' ')}
               </p>
-              <MovDetail m={m} postoNomeMap={postoNomeMap} />
+              <MovDetail m={m} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} />
             </div>
             <button
               onClick={() => handleDownload(m)}
@@ -192,16 +200,18 @@ function TabAfastamentos({
   items,
   funcionario,
   postoNomeMap,
+  funcaoNomeMap = {},
 }: {
   items: MovimentacaoItem[]
   funcionario: FuncionarioParaPDF
   postoNomeMap: Record<string, string>
+  funcaoNomeMap?: Record<string, string>
 }) {
   const afastamentos = items.filter(m => m.tipo === 'afastamento' || m.tipo === 'atestado')
   if (afastamentos.length === 0) {
     return <p className="py-8 text-center text-sm text-gray-400">Nenhum afastamento registrado.</p>
   }
-  return <TabMovimentacoes items={afastamentos} funcionario={funcionario} postoNomeMap={postoNomeMap} />
+  return <TabMovimentacoes items={afastamentos} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} />
 }
 
 function TabAdvertencias({ items }: { items: AdvertenciaItem[] }) {
@@ -296,12 +306,14 @@ export function PerfilTabs({
   solicitacoes,
   funcionario,
   postoNomeMap = {},
+  funcaoNomeMap = {},
 }: {
   movimentacoes: MovimentacaoItem[]
   advertencias: AdvertenciaItem[]
   solicitacoes: SolicitacaoItem[]
   funcionario: FuncionarioParaPDF
   postoNomeMap?: Record<string, string>
+  funcaoNomeMap?: Record<string, string>
 }) {
   const [tab, setTab] = useState<Tab>('movimentacoes')
 
@@ -325,8 +337,8 @@ export function PerfilTabs({
       </div>
 
       <div className="pt-4">
-        {tab === 'movimentacoes' && <TabMovimentacoes items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} />}
-        {tab === 'afastamentos'  && <TabAfastamentos  items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} />}
+        {tab === 'movimentacoes' && <TabMovimentacoes items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} />}
+        {tab === 'afastamentos'  && <TabAfastamentos  items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} />}
         {tab === 'advertencias'  && <TabAdvertencias  items={advertencias}  />}
         {tab === 'solicitacoes'  && <TabSolicitacoes  items={solicitacoes}  />}
       </div>
