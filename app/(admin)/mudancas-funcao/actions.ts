@@ -78,6 +78,8 @@ export async function editarMudancaFuncao(fd: FormData): Promise<ActionResult> {
   return { success: true }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export async function excluirMudancaFuncao(fd: FormData): Promise<ActionResult> {
   const guard = await assertAdmin()
   if (!guard.success) return guard
@@ -93,29 +95,29 @@ export async function excluirMudancaFuncao(fd: FormData): Promise<ActionResult> 
 
   const supabase = createClient()
 
-  // 1. Reverte funcao do funcionário para o valor anterior
-  if (funcaoAnteriorId) {
-    const { error: errFunc } = await supabase
-      .from('funcionarios')
-      .update({ funcao_id: funcaoAnteriorId } as never)
-      .eq('id', funcionarioId)
-    if (errFunc) return { success: false, error: errFunc.message }
-  }
-
-  // 2. Deleta a movimentação
+  // 1. Deleta a movimentação pelo id específico (não por funcionario_id)
   const { error: errMov } = await supabase
     .from('movimentacoes')
     .delete()
     .eq('id', movId)
   if (errMov) return { success: false, error: errMov.message }
 
-  // 3. Deleta a solicitação vinculada
+  // 2. Deleta a solicitação vinculada pelo id específico (não por funcionario_id)
   if (solId) {
     const { error: errSol } = await (supabase as unknown as AnyClient)
       .from('solicitacoes')
       .delete()
       .eq('id', solId)
     if (errSol) console.error('[mudancas-funcao] excluirMudancaFuncao: delete solicitacao:', errSol.message)
+  }
+
+  // 3. Reverte a função do funcionário — somente se valor_antes for um UUID válido
+  if (funcaoAnteriorId && UUID_RE.test(funcaoAnteriorId)) {
+    const { error: errFunc } = await supabase
+      .from('funcionarios')
+      .update({ funcao_id: funcaoAnteriorId } as never)
+      .eq('id', funcionarioId)
+    if (errFunc) return { success: false, error: errFunc.message }
   }
 
   revalidatePath('/mudancas-funcao')
