@@ -486,8 +486,6 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = []
                       <option value="atestado_medico">Atestado médico</option>
                       <option value="falta_justificada">Falta justificada</option>
                       <option value="falta_injustificada">Falta injustificada</option>
-                      <option value="ferias">Férias</option>
-                      <option value="licenca">Licença</option>
                       <option value="folga">Folga</option>
                       <option value="outros">Outros</option>
                     </select>
