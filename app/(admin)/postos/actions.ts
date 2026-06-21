@@ -82,7 +82,6 @@ type ConfigRow = {
 // Tipo local até eh_encarregado_volante ser adicionado aos tipos gerados do Supabase
 interface FuncionarioRow {
   id: string
-  nome: string
   posto_id: string | null
   status: string
   funcao_id: string | null
@@ -111,7 +110,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
     fetchAllRows<FuncionarioRow>((from, to) =>
       supabase
         .from('funcionarios')
-        .select('id, nome, posto_id, status, funcao_id, eh_encarregado_volante')
+        .select('id, posto_id, status, funcao_id, eh_encarregado_volante')
         .in('status', ['ativo', 'ferias', 'afastado'])
         .order('id', { ascending: true })
         .range(from, to) as unknown as PromiseLike<{ data: FuncionarioRow[] | null; error: { message: string } | null }>,
@@ -122,56 +121,26 @@ export async function getPostosData(): Promise<PostoRow[]> {
       .eq('ativo', true),
   ])
 
-  // Filtro 1: excluir cargos fora do efetivo contratual (funcao)
-  const semFuncaoExcluida = funcionariosRaw.filter(
-    f => !f.funcao_id || !excludedFuncaoIds.has(f.funcao_id),
-  )
-  // Filtro 2: excluir encarregados volantes (=== true para tratar null de registros antigos)
-  const funcionarios = semFuncaoExcluida.filter(f => f.eh_encarregado_volante !== true)
-
-  // [DEBUG-PAGINATION] afastados antes e depois dos filtros de funcao/volante
-  const afastadosRaw = funcionariosRaw.filter(f => f.status === 'afastado')
-  const afastadosFiltrados = funcionarios.filter(f => f.status === 'afastado')
-  console.log('[DEBUG-PAGINATION] afastados brutos (pré-filtros):', afastadosRaw.length)
-  console.log('[DEBUG-PAGINATION] afastados pós-filtros:', afastadosFiltrados.length)
-  if (afastadosRaw.length !== afastadosFiltrados.length) {
-    const idsPos = new Set(afastadosFiltrados.map(f => f.id))
-    const descartados = afastadosRaw.filter(f => !idsPos.has(f.id))
-    console.log('[DEBUG-PAGINATION] afastados descartados pelos filtros:', descartados.map(f => ({ id: f.id, nome: f.nome, funcao_id: f.funcao_id, eh_encarregado_volante: f.eh_encarregado_volante })))
-  }
-  console.log('[DEBUG-PAGINATION] IDs de todos os afastados pós-filtros:', afastadosFiltrados.map(f => f.id).sort())
-
-  // Mapas posto_id → secretaria e posto_id → nome
+  // Mapa posto_id → secretaria para diferenciar postos AFASTADOS dos operacionais
   const postoSecretariaMap = new Map<string, string>()
-  const postoNomeMap = new Map<string, string>()
   for (const p of postos ?? []) {
     postoSecretariaMap.set(p.id, (p.secretaria ?? '').toUpperCase())
-    postoNomeMap.set(p.id, p.nome ?? '')
   }
 
   const efetivoMap = new Map<string, number>()
-  for (const f of funcionarios) {
+  for (const f of funcionariosRaw) {
     if (!f.posto_id) continue
     const isPostoAfastados = postoSecretariaMap.get(f.posto_id) === 'AFASTADOS'
-    // Postos AFASTADOS: conta apenas afastados. Demais postos: conta apenas ativo/ferias.
-    if (isPostoAfastados ? f.status === 'afastado' : f.status !== 'afastado') {
-      efetivoMap.set(f.posto_id, (efetivoMap.get(f.posto_id) ?? 0) + 1)
-      // [DEBUG] loga cada afastado alocado em posto AFASTADOS
-      if (isPostoAfastados) {
-        console.log('[DEBUG-AFASTADOS] funcionario contado:', {
-          id: f.id,
-          nome: f.nome,
-          posto_id: f.posto_id,
-          posto_nome: postoNomeMap.get(f.posto_id),
-        })
-      }
+    if (isPostoAfastados) {
+      // Postos AFASTADOS: conta todos os afastados sem restrição de função ou volante
+      if (f.status !== 'afastado') continue
+    } else {
+      // Postos operacionais: só ativo/ferias, excluindo funções fora do efetivo e volantes
+      if (f.status === 'afastado') continue
+      if (f.funcao_id && excludedFuncaoIds.has(f.funcao_id)) continue
+      if (f.eh_encarregado_volante === true) continue
     }
-  }
-
-  // [DEBUG] totais por posto para os postos de secretaria AFASTADOS
-  const afastadosPostos = (postos ?? []).filter(p => (p.secretaria ?? '').toUpperCase() === 'AFASTADOS')
-  for (const p of afastadosPostos) {
-    console.log('[DEBUG-AFASTADOS] total posto:', { posto_id: p.id, posto_nome: p.nome, efetivo_atual: efetivoMap.get(p.id) ?? 0 })
+    efetivoMap.set(f.posto_id, (efetivoMap.get(f.posto_id) ?? 0) + 1)
   }
 
   const supervisorMap = new Map<string, string>()
