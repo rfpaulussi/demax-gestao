@@ -129,6 +129,18 @@ export async function getPostosData(): Promise<PostoRow[]> {
   // Filtro 2: excluir encarregados volantes (=== true para tratar null de registros antigos)
   const funcionarios = semFuncaoExcluida.filter(f => f.eh_encarregado_volante !== true)
 
+  // [DEBUG-PAGINATION] afastados antes e depois dos filtros de funcao/volante
+  const afastadosRaw = funcionariosRaw.filter(f => f.status === 'afastado')
+  const afastadosFiltrados = funcionarios.filter(f => f.status === 'afastado')
+  console.log('[DEBUG-PAGINATION] afastados brutos (pré-filtros):', afastadosRaw.length)
+  console.log('[DEBUG-PAGINATION] afastados pós-filtros:', afastadosFiltrados.length)
+  if (afastadosRaw.length !== afastadosFiltrados.length) {
+    const idsPos = new Set(afastadosFiltrados.map(f => f.id))
+    const descartados = afastadosRaw.filter(f => !idsPos.has(f.id))
+    console.log('[DEBUG-PAGINATION] afastados descartados pelos filtros:', descartados.map(f => ({ id: f.id, nome: f.nome, funcao_id: f.funcao_id, eh_encarregado_volante: f.eh_encarregado_volante })))
+  }
+  console.log('[DEBUG-PAGINATION] IDs de todos os afastados pós-filtros:', afastadosFiltrados.map(f => f.id).sort())
+
   // Mapas posto_id → secretaria e posto_id → nome
   const postoSecretariaMap = new Map<string, string>()
   const postoNomeMap = new Map<string, string>()
