@@ -111,7 +111,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
       supabase
         .from('funcionarios')
         .select('id, posto_id, status, funcao_id, eh_encarregado_volante')
-        .in('status', ['ativo', 'afastado', 'ferias'])
+        .in('status', ['ativo', 'ferias'])
         .order('id', { ascending: true })
         .range(from, to) as unknown as PromiseLike<{ data: FuncionarioRow[] | null; error: { message: string } | null }>,
     ),
