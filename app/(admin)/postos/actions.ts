@@ -111,7 +111,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
       supabase
         .from('funcionarios')
         .select('id, posto_id, status, funcao_id, eh_encarregado_volante')
-        .in('status', ['ativo', 'ferias'])
+        .in('status', ['ativo', 'ferias', 'afastado'])
         .order('id', { ascending: true })
         .range(from, to) as unknown as PromiseLike<{ data: FuncionarioRow[] | null; error: { message: string } | null }>,
     ),
@@ -128,9 +128,18 @@ export async function getPostosData(): Promise<PostoRow[]> {
   // Filtro 2: excluir encarregados volantes (=== true para tratar null de registros antigos)
   const funcionarios = semFuncaoExcluida.filter(f => f.eh_encarregado_volante !== true)
 
+  // Mapa posto_id → secretaria para diferenciar postos de AFASTADOS dos demais
+  const postoSecretariaMap = new Map<string, string>()
+  for (const p of postos ?? []) {
+    postoSecretariaMap.set(p.id, (p.secretaria ?? '').toUpperCase())
+  }
+
   const efetivoMap = new Map<string, number>()
   for (const f of funcionarios) {
-    if (f.posto_id) {
+    if (!f.posto_id) continue
+    const isPostoAfastados = postoSecretariaMap.get(f.posto_id) === 'AFASTADOS'
+    // Postos AFASTADOS: conta apenas afastados. Demais postos: conta apenas ativo/ferias.
+    if (isPostoAfastados ? f.status === 'afastado' : f.status !== 'afastado') {
       efetivoMap.set(f.posto_id, (efetivoMap.get(f.posto_id) ?? 0) + 1)
     }
   }
