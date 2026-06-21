@@ -14,7 +14,7 @@ Deno.serve(async (_req) => {
 
     const { data: coberturas, error: fetchError } = await supabase
       .from('coberturas_temporarias')
-      .select('id, funcionario_id, posto_origem_id')
+      .select('id, funcionario_id, posto_origem_id, funcionario_ausente_id')
       .eq('status', 'ativa')
       .lte('data_prev_retorno', hoje)
 
@@ -46,6 +46,29 @@ Deno.serve(async (_req) => {
           .update(update)
           .eq('id', c.funcionario_id)
       }),
+    )
+
+    // Reverter ausentes para 'ativo' se não há outra cobertura ativa cobrindo-os
+    const ausenteIds = [...new Set(
+      coberturas
+        .map(c => c.funcionario_ausente_id as string | null)
+        .filter((id): id is string => Boolean(id))
+    )]
+    await Promise.all(
+      ausenteIds.map(async ausenteId => {
+        const { count } = await supabase
+          .from('coberturas_temporarias')
+          .select('id', { count: 'exact', head: true })
+          .eq('funcionario_ausente_id', ausenteId)
+          .eq('status', 'ativa')
+        if (count === 0) {
+          const { error: errRev } = await supabase.from('funcionarios')
+            .update({ status: 'ativo' })
+            .eq('id', ausenteId)
+            .eq('status', 'afastado')
+          if (errRev) console.error(`[retorno-automatico] reverter status do ausente ${ausenteId}:`, errRev.message)
+        }
+      })
     )
 
     console.log(

@@ -152,10 +152,13 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
             cid_codigo:     atestadoCidCodigo,
             registrado_por: guard.userId,
           } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-          await supabase.from('funcionarios').update({ status: 'afastado' }).eq('id', ausenteId)
+          const { error: errAfastar } = await supabase.from('funcionarios').update({ status: 'afastado' }).eq('id', ausenteId)
           if (errAtest) {
             console.error('[coberturas] registrarCobertura: inserir atestado:', errAtest.message)
             atestadoMsg = `⚠ Afastamento de ${ausenteNome} registrado mas atestado não foi salvo — registre manualmente em Atestados.`
+          } else if (errAfastar) {
+            console.error('[coberturas] registrarCobertura: marcar ausente como afastado:', errAfastar.message)
+            atestadoMsg = `⚠ Atestado de ${ausenteNome} registrado mas status não foi atualizado — revise em Efetivo. (${errAfastar.message})`
           } else {
             atestadoMsg = `Atestado de ${ausenteNome} registrado.`
           }
@@ -195,6 +198,7 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
             })
           if (errFalta) {
             console.error('[coberturas] registrarCobertura: inserir falta:', errFalta.message)
+            faltaMsg = `⚠ Falta de ${ausenteNome} não registrada: ${errFalta.message}`
           } else {
             const periodoLabel = dataPrevRetorno && dataPrevRetorno !== dataInicio
               ? ` para ${fmtDateBR(dataInicio)} a ${fmtDateBR(dataPrevRetorno)}`
@@ -203,14 +207,8 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
           }
         }
       }
-    } else {
-      // ferias, licenca, folga, outros — sempre afastar
-      const { error: errAusente } = await supabase
-        .from('funcionarios')
-        .update({ status: 'afastado' })
-        .eq('id', ausenteId)
-      if (errAusente) console.error('[coberturas] registrarCobertura: marcar ausente como afastado:', errAusente.message)
     }
+    // folga / outros: cobertura registrada normalmente, ausente permanece 'ativo'
   }
 
   revalidatePath('/coberturas')
@@ -226,9 +224,9 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
   const supabase = createClient()
   const hoje = new Date().toISOString().split('T')[0]
 
-  const { data: cob, error: fetchError } = await supabase
+  const { data: cob, error: fetchError } = await (supabase as unknown as AnyClient)
     .from('coberturas_temporarias')
-    .select('funcionario_id, posto_origem_id')
+    .select('funcionario_id, posto_origem_id, funcionario_ausente_id')
     .eq('id', id)
     .single()
 
@@ -249,6 +247,21 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
     if (errRestore) console.error('[coberturas] encerrarCobertura: restaurar posto do substituto:', errRestore.message)
   }
 
+  if (cob.funcionario_ausente_id) {
+    const { count } = await (supabase as unknown as AnyClient)
+      .from('coberturas_temporarias')
+      .select('id', { count: 'exact', head: true })
+      .eq('funcionario_ausente_id', cob.funcionario_ausente_id)
+      .eq('status', 'ativa')
+    if (count === 0) {
+      const { error: errRev } = await supabase.from('funcionarios')
+        .update({ status: 'ativo' })
+        .eq('id', cob.funcionario_ausente_id)
+        .eq('status', 'afastado')
+      if (errRev) console.error('[coberturas] encerrarCobertura: reverter status do ausente', cob.funcionario_ausente_id, ':', errRev.message)
+    }
+  }
+
   revalidatePath('/coberturas')
   revalidatePath('/efetivo')
   revalidatePath('/dashboard')
@@ -259,13 +272,15 @@ export async function encerrarCoberturasVencidas(): Promise<{ encerradas: number
   const supabase = createClient()
   const hoje = new Date().toISOString().split('T')[0]
 
-  const { data: vencidas } = await supabase
+  const { data: vencidas } = await (supabase as unknown as AnyClient)
     .from('coberturas_temporarias')
-    .select('id, funcionario_id, posto_origem_id, posto_destino_id')
+    .select('id, funcionario_id, posto_origem_id, posto_destino_id, funcionario_ausente_id')
     .eq('status', 'ativa')
     .lt('data_prev_retorno', hoje)
 
   if (!vencidas || vencidas.length === 0) return { encerradas: 0 }
+
+  const ausentesParaVerificar = new Set<string>()
 
   for (const cob of vencidas) {
     const { error: errEnc } = await supabase
@@ -291,6 +306,23 @@ export async function encerrarCoberturasVencidas(): Promise<{ encerradas: number
         dados_novos:      { posto_id: cob.posto_origem_id },
       } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (errHist) console.error('[coberturas] encerrarCoberturasVencidas: registrar historico', cob.funcionario_id, ':', errHist.message)
+    }
+
+    if (cob.funcionario_ausente_id) ausentesParaVerificar.add(cob.funcionario_ausente_id)
+  }
+
+  for (const ausenteId of Array.from(ausentesParaVerificar)) {
+    const { count } = await (supabase as unknown as AnyClient)
+      .from('coberturas_temporarias')
+      .select('id', { count: 'exact', head: true })
+      .eq('funcionario_ausente_id', ausenteId)
+      .eq('status', 'ativa')
+    if (count === 0) {
+      const { error: errRev } = await supabase.from('funcionarios')
+        .update({ status: 'ativo' })
+        .eq('id', ausenteId)
+        .eq('status', 'afastado')
+      if (errRev) console.error('[coberturas] encerrarCoberturasVencidas: reverter status do ausente', ausenteId, ':', errRev.message)
     }
   }
 
