@@ -127,6 +127,21 @@ export default async function EfetivoPage() {
     faltasAtivas[f.funcionario_id] = true
   }
 
+  // Coberturas ativas hoje (para badges Em Cobertura / Sendo Coberto)
+  const { data: coberturasHoje } = await (supabase as unknown as AnyQ)
+    .from('coberturas_temporarias')
+    .select('funcionario_id, funcionario_ausente_id')
+    .eq('status', 'ativa')
+    .lte('data_inicio', hoje)
+    .or(`data_prev_retorno.is.null,data_prev_retorno.gte.${hoje}`)
+  type CoberturaHoje = { funcionario_id: string; funcionario_ausente_id: string | null }
+  const coberturaSubstitutos: Record<string, boolean> = {}
+  const coberturaAusentes: Record<string, boolean> = {}
+  for (const c of (coberturasHoje ?? []) as CoberturaHoje[]) {
+    coberturaSubstitutos[c.funcionario_id] = true
+    if (c.funcionario_ausente_id) coberturaAusentes[c.funcionario_ausente_id] = true
+  }
+
   // Enrich ALL funcionarios with supervisor_nome + supervisor_id + origem_ocupacional_cat
   const funcionarios = rawFuncs.map(f => {
     const sup = f.posto_id ? postoSupervisorMap.get(f.posto_id) : undefined
@@ -173,6 +188,8 @@ export default async function EfetivoPage() {
         cids={cids}
         isAdmin={isAdmin}
         faltasAtivas={faltasAtivas}
+        coberturaSubstitutos={coberturaSubstitutos}
+        coberturaAusentes={coberturaAusentes}
       />
     </div>
   )

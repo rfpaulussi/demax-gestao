@@ -87,6 +87,8 @@ export function FuncionariosTable({
   onSort,
   isAdmin,
   faltasAtivas,
+  coberturaSubstitutos,
+  coberturaAusentes,
 }: {
   funcionarios: FuncionarioRow[]
   postos: { id: string; nome: string; secretaria: string | null }[]
@@ -97,6 +99,8 @@ export function FuncionariosTable({
   onSort?: (col: string) => void
   isAdmin?: boolean
   faltasAtivas?: Record<string, boolean>
+  coberturaSubstitutos?: Record<string, boolean>
+  coberturaAusentes?: Record<string, boolean>
 }) {
   const [atestadoFuncionario, setAtestadoFuncionario]     = useState<FuncionarioRow | null>(null)
   const [afastarFuncionario, setAfastarFuncionario]       = useState<FuncionarioRow | null>(null)
@@ -209,6 +213,16 @@ export function FuncionariosTable({
                             {faltasAtivas?.[f.id] && (
                               <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
                                 Falta
+                              </span>
+                            )}
+                            {coberturaSubstitutos?.[f.id] && (
+                              <span className="inline-flex items-center rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-700 ring-1 ring-inset ring-teal-200">
+                                Em Cobertura
+                              </span>
+                            )}
+                            {coberturaAusentes?.[f.id] && (
+                              <span className="inline-flex items-center rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-700 ring-1 ring-inset ring-teal-200">
+                                Sendo Coberto
                               </span>
                             )}
                           </div>
