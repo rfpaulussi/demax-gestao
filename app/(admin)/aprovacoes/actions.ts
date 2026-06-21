@@ -183,14 +183,22 @@ export async function aprovarSolicitacao(
     }
 
     case 'admissao': {
+      const periodoRaw = dadosDepois.periodo_experiencia as string | undefined
+      const PERIODOS_VALIDOS = ['nenhum', '30+30', '45+45'] as const
+      if (!periodoRaw || !(PERIODOS_VALIDOS as readonly string[]).includes(periodoRaw)) {
+        return { success: false, error: 'Período de experiência inválido' }
+      }
+      const periodo_experiencia = periodoRaw === 'nenhum' ? null : periodoRaw as '30+30' | '45+45'
+
       const { data: novoFunc, error: errCreate } = await supabase
         .from('funcionarios')
         .insert({
-          nome:          dadosDepois.nome as string,
-          funcao_id:     dadosDepois.funcao_id as string,
-          posto_id:      dadosDepois.posto_id as string,
-          data_admissao: dadosDepois.data_admissao as string,
-          status:        'ativo' as const,
+          nome:                dadosDepois.nome as string,
+          funcao_id:           dadosDepois.funcao_id as string,
+          posto_id:            dadosDepois.posto_id as string,
+          data_admissao:       dadosDepois.data_admissao as string,
+          status:              'ativo' as const,
+          periodo_experiencia,
         })
         .select('id')
         .single()

@@ -13,15 +13,19 @@ export async function solicitarAdmissao(fd: FormData): Promise<ActionResult> {
   const auth = await getUser()
   if (!auth) return { success: false, error: 'Não autenticado' }
 
-  const nome          = (fd.get('nome') as string)?.trim()
-  const funcao_id     = fd.get('funcao_id') as string
-  const posto_id      = fd.get('posto_id') as string
-  const data_admissao = fd.get('data_admissao') as string
+  const nome               = (fd.get('nome') as string)?.trim()
+  const funcao_id          = fd.get('funcao_id') as string
+  const posto_id           = fd.get('posto_id') as string
+  const data_admissao      = fd.get('data_admissao') as string
+  const periodo_experiencia = fd.get('periodo_experiencia') as string
 
   if (!nome)          return { success: false, error: 'Nome obrigatório' }
   if (!funcao_id)     return { success: false, error: 'Função obrigatória' }
   if (!posto_id)      return { success: false, error: 'Posto obrigatório' }
   if (!data_admissao) return { success: false, error: 'Data de admissão obrigatória' }
+  if (!(['nenhum', '30+30', '45+45'] as const).includes(periodo_experiencia as 'nenhum' | '30+30' | '45+45')) {
+    return { success: false, error: 'Período de experiência inválido' }
+  }
 
   const [{ data: funcao }, { data: posto }] = await Promise.all([
     supabase.from('funcoes').select('nome').eq('id', funcao_id).single(),
@@ -39,11 +43,12 @@ export async function solicitarAdmissao(fd: FormData): Promise<ActionResult> {
     dados_depois: {
       nome,
       funcao_id,
-      funcao_nome:   funcao?.nome ?? null,
+      funcao_nome:          funcao?.nome ?? null,
       posto_id,
-      posto_nome:    postoTyped?.nome ?? null,
-      secretaria:    postoTyped?.secretaria ?? null,
+      posto_nome:           postoTyped?.nome ?? null,
+      secretaria:           postoTyped?.secretaria ?? null,
       data_admissao,
+      periodo_experiencia,
     },
   })
 

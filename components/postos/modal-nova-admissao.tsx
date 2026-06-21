@@ -20,12 +20,13 @@ const inputClass =
   'w-full rounded border border-gray-200 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600'
 
 export function ModalNovaAdmissao({ open, onClose, onSuccess, postos, funcoes }: Props) {
-  const [erro, setErro]         = useState<string | null>(null)
-  const [ok, setOk]             = useState(false)
-  const [pending, start]        = useTransition()
-  const [funcaoId, setFuncaoId] = useState('')
-  const [postoId, setPostoId]   = useState('')
-  const postoRef                = useRef<HTMLSelectElement>(null)
+  const [erro, setErro]                     = useState<string | null>(null)
+  const [ok, setOk]                         = useState(false)
+  const [pending, start]                    = useTransition()
+  const [funcaoId, setFuncaoId]             = useState('')
+  const [postoId, setPostoId]               = useState('')
+  const [periodoExp, setPeriodoExp]         = useState('45+45')
+  const postoRef                            = useRef<HTMLSelectElement>(null)
 
   const selectedFuncao = funcoes.find(f => f.id === funcaoId) ?? null
 
@@ -54,6 +55,7 @@ export function ModalNovaAdmissao({ open, onClose, onSuccess, postos, funcoes }:
     setOk(false)
     setFuncaoId('')
     setPostoId('')
+    setPeriodoExp('45+45')
     onClose()
   }
 
@@ -146,6 +148,24 @@ export function ModalNovaAdmissao({ open, onClose, onSuccess, postos, funcoes }:
               <div>
                 <label className={labelClass}>Data de admissão</label>
                 <input type="date" name="data_admissao" required className={inputClass} />
+              </div>
+
+              <div>
+                <label className={labelClass}>Período de Experiência</label>
+                <select
+                  name="periodo_experiencia"
+                  required
+                  className={inputClass}
+                  value={periodoExp}
+                  onChange={e => setPeriodoExp(e.target.value)}
+                >
+                  <option value="nenhum">Nenhum</option>
+                  <option value="30+30">30 + 30 dias</option>
+                  <option value="45+45">45 + 45 dias</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-400">
+                  Selecione &ldquo;Nenhum&rdquo; se o funcionário foi recontratado há menos de 6 meses.
+                </p>
               </div>
 
               {erro && (
