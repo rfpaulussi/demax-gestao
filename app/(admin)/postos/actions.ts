@@ -82,6 +82,7 @@ type ConfigRow = {
 // Tipo local até eh_encarregado_volante ser adicionado aos tipos gerados do Supabase
 interface FuncionarioRow {
   id: string
+  nome: string
   posto_id: string | null
   status: string
   funcao_id: string | null
@@ -110,7 +111,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
     fetchAllRows<FuncionarioRow>((from, to) =>
       supabase
         .from('funcionarios')
-        .select('id, posto_id, status, funcao_id, eh_encarregado_volante')
+        .select('id, nome, posto_id, status, funcao_id, eh_encarregado_volante')
         .in('status', ['ativo', 'ferias', 'afastado'])
         .order('id', { ascending: true })
         .range(from, to) as unknown as PromiseLike<{ data: FuncionarioRow[] | null; error: { message: string } | null }>,
@@ -128,10 +129,12 @@ export async function getPostosData(): Promise<PostoRow[]> {
   // Filtro 2: excluir encarregados volantes (=== true para tratar null de registros antigos)
   const funcionarios = semFuncaoExcluida.filter(f => f.eh_encarregado_volante !== true)
 
-  // Mapa posto_id → secretaria para diferenciar postos de AFASTADOS dos demais
+  // Mapas posto_id → secretaria e posto_id → nome
   const postoSecretariaMap = new Map<string, string>()
+  const postoNomeMap = new Map<string, string>()
   for (const p of postos ?? []) {
     postoSecretariaMap.set(p.id, (p.secretaria ?? '').toUpperCase())
+    postoNomeMap.set(p.id, p.nome ?? '')
   }
 
   const efetivoMap = new Map<string, number>()
@@ -141,7 +144,22 @@ export async function getPostosData(): Promise<PostoRow[]> {
     // Postos AFASTADOS: conta apenas afastados. Demais postos: conta apenas ativo/ferias.
     if (isPostoAfastados ? f.status === 'afastado' : f.status !== 'afastado') {
       efetivoMap.set(f.posto_id, (efetivoMap.get(f.posto_id) ?? 0) + 1)
+      // [DEBUG] loga cada afastado alocado em posto AFASTADOS
+      if (isPostoAfastados) {
+        console.log('[DEBUG-AFASTADOS] funcionario contado:', {
+          id: f.id,
+          nome: f.nome,
+          posto_id: f.posto_id,
+          posto_nome: postoNomeMap.get(f.posto_id),
+        })
+      }
     }
+  }
+
+  // [DEBUG] totais por posto para os postos de secretaria AFASTADOS
+  const afastadosPostos = (postos ?? []).filter(p => (p.secretaria ?? '').toUpperCase() === 'AFASTADOS')
+  for (const p of afastadosPostos) {
+    console.log('[DEBUG-AFASTADOS] total posto:', { posto_id: p.id, posto_nome: p.nome, efetivo_atual: efetivoMap.get(p.id) ?? 0 })
   }
 
   const supervisorMap = new Map<string, string>()
