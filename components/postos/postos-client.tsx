@@ -475,15 +475,27 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                         <td className="px-4 py-3 text-center tabular-nums text-gray-600">{p.efetivo_previsto}</td>
                         <td className="px-4 py-3 text-center tabular-nums text-gray-600">{p.cota_insalubridade}</td>
                         <td className="px-4 py-3 text-center">
-                          {p.secretaria === 'AFASTADOS' ? (
-                            <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
-                              Afastamentos
-                            </span>
-                          ) : (
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CHIP[st]}`}>
-                              {STATUS_LABELS[st]}
-                            </span>
-                          )}
+                          <div className="flex flex-col items-center gap-1">
+                            {p.secretaria === 'AFASTADOS' ? (
+                              <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
+                                Afastamentos
+                              </span>
+                            ) : (
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CHIP[st]}`}>
+                                {STATUS_LABELS[st]}
+                              </span>
+                            )}
+                            {p.cobertura_como_origem && (
+                              <span className="inline-flex items-center rounded-full bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-700">
+                                Cedeu reforço
+                              </span>
+                            )}
+                            {p.cobertura_como_destino && (
+                              <span className="inline-flex items-center rounded-full bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-700">
+                                Recebendo cobertura
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )

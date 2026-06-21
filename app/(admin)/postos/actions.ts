@@ -71,6 +71,8 @@ export type PostoRow = {
   ativo: boolean
   efetivo_atual: number
   supervisor_nome: string | null
+  cobertura_como_origem: boolean
+  cobertura_como_destino: boolean
 }
 
 type ConfigRow = {
@@ -98,7 +100,9 @@ export async function getPostosData(): Promise<PostoRow[]> {
     .in('nome', [...FUNCOES_FORA_DO_EFETIVO])
   const excludedFuncaoIds = new Set((funcoesExcluidasRaw ?? []).map(f => f.id))
 
-  const [{ data: postos }, funcionariosRaw, { data: config }] = await Promise.all([
+  const hoje = new Date().toISOString().split('T')[0]
+
+  const [{ data: postos }, funcionariosRaw, { data: config }, { data: coberturas }] = await Promise.all([
     supabase
       .from('postos')
       .select('id, nome, secretaria, efetivo_previsto, cota_insalubridade, ativo')
@@ -119,6 +123,12 @@ export async function getPostosData(): Promise<PostoRow[]> {
       .from('config_supervisores_postos')
       .select('posto_id, supervisor_id, perfis!supervisor_id(id, nome)')
       .eq('ativo', true),
+    supabase
+      .from('coberturas_temporarias')
+      .select('posto_origem_id, posto_destino_id')
+      .eq('status', 'ativa')
+      .lte('data_inicio', hoje)
+      .or(`data_prev_retorno.is.null,data_prev_retorno.gte.${hoje}`),
   ])
 
   // Mapa posto_id → secretaria para diferenciar postos AFASTADOS dos operacionais
@@ -150,6 +160,13 @@ export async function getPostosData(): Promise<PostoRow[]> {
     }
   }
 
+  const coberturaOrigemIds  = new Set<string>()
+  const coberturaDestinoIds = new Set<string>()
+  for (const c of coberturas ?? []) {
+    if (c.posto_origem_id)  coberturaOrigemIds.add(c.posto_origem_id)
+    if (c.posto_destino_id) coberturaDestinoIds.add(c.posto_destino_id)
+  }
+
   return (postos ?? []).map(p => ({
     id: p.id,
     nome: p.nome,
@@ -159,6 +176,8 @@ export async function getPostosData(): Promise<PostoRow[]> {
     ativo: p.ativo ?? true,
     efetivo_atual: efetivoMap.get(p.id) ?? 0,
     supervisor_nome: supervisorMap.get(p.id) ?? null,
+    cobertura_como_origem:  coberturaOrigemIds.has(p.id),
+    cobertura_como_destino: coberturaDestinoIds.has(p.id),
   }))
 }
 
