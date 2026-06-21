@@ -189,7 +189,7 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
               funcionario_id: ausenteId,
               data_falta:     dataInicio,
               data_fim:       dataPrevRetorno,
-              tipo:           tipoMotivo,
+              tipo:           tipoMotivo === 'falta_injustificada' ? 'sem_justificativa' : 'justificada',
               dias,
               observacao:     motivo,
               origem:         'cobertura',
