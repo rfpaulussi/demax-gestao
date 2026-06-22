@@ -74,7 +74,7 @@ function KpiCardPrincipal({
   const inner = (
     <div
       className={cn(
-        'rounded-xl border border-gray-100 border-t-4 bg-white p-3 shadow-sm transition-shadow min-h-[120px] flex flex-col justify-between',
+        'rounded-xl border border-gray-100 border-t-4 bg-white p-3 shadow-sm transition-shadow min-h-[100px] sm:min-h-[120px] flex flex-col justify-between',
         href && 'cursor-pointer hover:shadow-md',
         corBorda,
       )}
@@ -85,7 +85,7 @@ function KpiCardPrincipal({
           <p className="mt-0.5 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
         </div>
         {sparklineData && sparklineData.length >= 2 && (
-          <div className="flex-shrink-0">
+          <div className="hidden sm:block flex-shrink-0">
             <Sparkline data={sparklineData} color={sparkColor} />
           </div>
         )}
@@ -225,7 +225,7 @@ export default async function DashboardPage({
       </div>
 
       {/* ── Row 1: KPI Cards principais ─────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCardPrincipal
           label="Efetivo Ativo"
           valor={kpis.totalAtivos}
