@@ -485,6 +485,7 @@ export default function FeriasPage() {
         onSuccess={() => buscarFeriasLista().then(setFerias)}
       />
       <ModalEditarFerias
+        key={itemEditando?.id ?? 'nenhum'}
         item={itemEditando}
         onClose={() => setItemEditando(null)}
         onSuccess={() => buscarFeriasLista().then(setFerias)}

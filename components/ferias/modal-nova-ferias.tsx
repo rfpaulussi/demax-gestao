@@ -267,7 +267,15 @@ export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-xs text-slate-400">Início</label>
-                <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)}
+                <input type="date" value={dataInicio} onChange={e => {
+                  const inicio = e.target.value
+                  setDataInicio(inicio)
+                  if (inicio && diasDireito) {
+                    const d = new Date(inicio + 'T00:00:00')
+                    d.setDate(d.getDate() + Number(diasDireito) - 1)
+                    setDataFim(d.toISOString().split('T')[0])
+                  }
+                }}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-slate-300" />
               </div>
               <div>
