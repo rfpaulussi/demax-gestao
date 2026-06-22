@@ -46,28 +46,40 @@ export default async function AtestadosPage({
 }) {
   const auth = await getUser()
   if (!auth) redirect('/login')
-  if (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador') {
-    redirect(auth.perfil.role === 'supervisor' ? '/supervisor/meu-posto' : '/dashboard')
-  }
+  if (auth.perfil.role === 'viewer') redirect('/dashboard')
 
   const supabase = createClient()
 
+  // Supervisor vê só os atestados dos postos que gerencia
+  let postoIds: string[] | null = null
+  if (auth.perfil.role === 'supervisor') {
+    const { data: postos } = await supabase
+      .from('config_supervisores_postos')
+      .select('posto_id')
+      .eq('supervisor_id', auth.user.id)
+    postoIds = (postos ?? []).map(p => p.posto_id)
+  }
+
   const [{ data: rawAtestados }, { data: rawCids }, { data: rawCoberturas }] = await Promise.all([
-    supabase
-      .from('atestados')
-      .select(`
-        id, funcionario_id, posto_id, data_inicio, data_fim, motivo, cid_codigo, origem_ocupacional,
-        funcionarios!funcionario_id ( id, nome ),
-        postos!posto_id (
-          nome, secretaria,
-          config_supervisores_postos!posto_id (
-            ativo,
-            perfis!supervisor_id ( nome )
+    (() => {
+      let q = supabase
+        .from('atestados')
+        .select(`
+          id, funcionario_id, posto_id, data_inicio, data_fim, motivo, cid_codigo, origem_ocupacional,
+          funcionarios!funcionario_id ( id, nome ),
+          postos!posto_id (
+            nome, secretaria,
+            config_supervisores_postos!posto_id (
+              ativo,
+              perfis!supervisor_id ( nome )
+            )
           )
-        )
-      `)
-      .order('data_inicio', { ascending: false })
-      .range(0, 1499),
+        `)
+        .order('data_inicio', { ascending: false })
+        .range(0, 1499)
+      if (postoIds) q = q.in('posto_id', postoIds.length > 0 ? postoIds : ['__none__'])
+      return q
+    })(),
     supabase.from('cid_referencia').select('codigo, descricao, nexo_ocupacional_limpeza'),
     supabase
       .from('coberturas_temporarias')

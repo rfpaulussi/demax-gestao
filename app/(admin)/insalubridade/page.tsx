@@ -90,7 +90,7 @@ export default async function InsalubridadePage({
           <h1 className="text-lg font-bold text-gray-900">Cobertura Insalubre</h1>
           <p className="text-sm text-gray-400">Coberturas insalubres — {MESES[mes]} {ano}</p>
         </div>
-        <ImportarCoberturasBtn mes={mes} ano={ano} />
+        {auth?.perfil.role !== 'supervisor' && <ImportarCoberturasBtn mes={mes} ano={ano} />}
       </div>
 
       {/* KPI Cards */}

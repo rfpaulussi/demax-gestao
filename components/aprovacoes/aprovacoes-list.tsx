@@ -61,7 +61,7 @@ function renderDados(dados: Record<string, unknown> | null, label: string, side:
 
 // ─── card ─────────────────────────────────────────────────────────────────────
 
-function SolicitacaoCard({ sol }: { sol: SolicitacaoPendente }) {
+function SolicitacaoCard({ sol, canApprove }: { sol: SolicitacaoPendente; canApprove: boolean }) {
   const [isPending, startTransition] = useTransition()
   const [rejeitando, setRejeitando] = useState(false)
   const [motivo, setMotivo] = useState('')
@@ -111,7 +111,7 @@ function SolicitacaoCard({ sol }: { sol: SolicitacaoPendente }) {
         {renderDados(sol.dados_depois, 'Solicitado', 'depois')}
       </div>
 
-      {!rejeitando ? (
+      {canApprove && (!rejeitando ? (
         <div className="flex items-center gap-2">
           <button
             onClick={handleAprovar}
@@ -156,25 +156,25 @@ function SolicitacaoCard({ sol }: { sol: SolicitacaoPendente }) {
             </button>
           </div>
         </div>
-      )}
+      ))}
     </div>
   )
 }
 
 // ─── lista principal ──────────────────────────────────────────────────────────
 
-export function AprovacoesList({ solicitacoes }: { solicitacoes: SolicitacaoPendente[] }) {
+export function AprovacoesList({ solicitacoes, canApprove = true }: { solicitacoes: SolicitacaoPendente[]; canApprove?: boolean }) {
   if (solicitacoes.length === 0) {
     return (
       <div className="rounded-xl border border-gray-100 bg-white px-6 py-12 text-center shadow-sm">
-        <p className="text-sm font-medium text-gray-400">Nenhuma solicitação pendente.</p>
+        <p className="text-sm font-medium text-gray-400">Nenhuma solicitação encontrada.</p>
       </div>
     )
   }
   return (
     <div className="space-y-4">
       {solicitacoes.map(sol => (
-        <SolicitacaoCard key={sol.id} sol={sol} />
+        <SolicitacaoCard key={sol.id} sol={sol} canApprove={canApprove} />
       ))}
     </div>
   )

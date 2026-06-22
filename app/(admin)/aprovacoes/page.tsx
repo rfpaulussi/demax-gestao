@@ -42,9 +42,15 @@ const TIPO_LABELS: Record<TipoSolicitacao, string> = {
 
 export default async function AprovacoesPage() {
   const auth = await getUser()
-  if (!auth || auth.perfil.role !== 'admin') redirect('/dashboard')
+  if (!auth) redirect('/dashboard')
 
-  const todas = await buscarSolicitacoes({})
+  const isSupervisor = auth.perfil.role === 'supervisor'
+  const canApprove   = auth.perfil.role === 'admin'
+
+  // Supervisor vê só as próprias solicitações (todos os status)
+  // Admin/coordenador vê todas
+  const filtros = isSupervisor ? { supervisor_id: auth.user.id } : {}
+  const todas = await buscarSolicitacoes(filtros)
 
   const pendentes  = todas.filter(s => s.status === 'pendente')
   const aprovadas  = todas.filter(s => s.status === 'aprovada')
@@ -64,11 +70,15 @@ export default async function AprovacoesPage() {
 
       {/* Header */}
       <div>
-        <h1 className="text-lg font-bold text-gray-900">Aprovações</h1>
+        <h1 className="text-lg font-bold text-gray-900">
+          {isSupervisor ? 'Minhas Solicitações' : 'Aprovações'}
+        </h1>
         <p className="text-sm text-slate-400">
-          {pendentes.length === 0
-            ? 'Nenhuma solicitação pendente'
-            : `${pendentes.length} solicitaç${pendentes.length === 1 ? 'ão' : 'ões'} aguardando aprovação`}
+          {isSupervisor
+            ? `${todas.length} solicitaç${todas.length === 1 ? 'ão' : 'ões'} enviada${todas.length === 1 ? '' : 's'}`
+            : pendentes.length === 0
+              ? 'Nenhuma solicitação pendente'
+              : `${pendentes.length} solicitaç${pendentes.length === 1 ? 'ão' : 'ões'} aguardando aprovação`}
         </p>
       </div>
 
@@ -79,8 +89,8 @@ export default async function AprovacoesPage() {
         <KpiCard label="Rejeitadas" value={rejeitadas.length} topColor="border-t-red-500"    />
       </div>
 
-      {/* Breakdown por tipo (só exibe se houver pendentes) */}
-      {tiposAtivos.length > 0 && (
+      {/* Breakdown por tipo (só exibe se houver pendentes e for admin) */}
+      {!isSupervisor && tiposAtivos.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {tiposAtivos.map(([tipo, count]) => (
             <span
@@ -96,8 +106,8 @@ export default async function AprovacoesPage() {
         </div>
       )}
 
-      {/* Lista filtrável */}
-      <AprovacoesList solicitacoes={pendentes} />
+      {/* Lista — supervisor vê todas, admin vê só pendentes com ação */}
+      <AprovacoesList solicitacoes={isSupervisor ? todas : pendentes} canApprove={canApprove} />
     </div>
   )
 }
