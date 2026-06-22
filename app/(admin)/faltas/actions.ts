@@ -104,21 +104,47 @@ query = query.eq('tipo', tipo as any)
 
 export async function buscarDashFaltas(mes: number, ano: number): Promise<DashFaltas> {
   const supabase = createClient()
+  const auth = await getUser()
   const inicio = `${ano}-${String(mes).padStart(2, '0')}-01`
   const fim = new Date(ano, mes, 0)
   const fimStr = `${ano}-${String(mes).padStart(2, '0')}-${String(fim.getDate()).padStart(2, '0')}`
 
-  const { data: faltas } = await supabase
+  let funcIds: string[] | null = null
+  if (auth?.perfil.role === 'supervisor') {
+    const { data: cfgData } = await supabase
+      .from('config_supervisores_postos')
+      .select('posto_id')
+      .eq('supervisor_id', auth.user.id)
+      .eq('ativo', true)
+    const postoIds = (cfgData ?? []).map((r: { posto_id: string }) => r.posto_id)
+    if (postoIds.length === 0) funcIds = []
+    else {
+      const { data: funcs } = await supabase.from('funcionarios').select('id').in('posto_id', postoIds)
+      funcIds = (funcs ?? []).map((f: { id: string }) => f.id)
+    }
+  }
+
+  let faltasQuery = supabase
     .from('faltas')
     .select(`id, funcionario_id, tipo, dias, funcionarios!funcionario_id(nome, postos!posto_id(nome, secretaria))`)
     .gte('data_falta', inicio)
     .lte('data_falta', fimStr)
+  if (funcIds !== null) {
+    if (funcIds.length === 0) faltasQuery = faltasQuery.in('funcionario_id', ['no-match'])
+    else faltasQuery = faltasQuery.in('funcionario_id', funcIds)
+  }
+  const { data: faltas } = await faltasQuery
 
-  const { data: atestados } = await supabase
+  let atestadosQuery = supabase
     .from('atestados')
     .select(`id, funcionario_id, data_inicio, data_fim, funcionarios!funcionario_id(nome, postos!posto_id(nome, secretaria))`)
     .gte('data_inicio', inicio)
     .lte('data_inicio', fimStr)
+  if (funcIds !== null) {
+    if (funcIds.length === 0) atestadosQuery = atestadosQuery.in('funcionario_id', ['no-match'])
+    else atestadosQuery = atestadosQuery.in('funcionario_id', funcIds)
+  }
+  const { data: atestados } = await atestadosQuery
 
   const totalDiasFaltas = (faltas ?? []).reduce((a, f) => a + (f.dias ?? 1), 0)
 
@@ -284,11 +310,26 @@ export async function removerFalta(id: string) {
 
 export async function buscarFuncionariosParaFalta(): Promise<FuncOpt[]> {
   const supabase = createClient()
-  const { data, error } = await supabase
+  const auth = await getUser()
+
+  let query = supabase
     .from('funcionarios')
     .select(`id, nome, postos!posto_id(id, nome, secretaria), funcoes!funcionarios_funcao_id_fkey(nome)`)
     .neq('status', 'desligado')
     .order('nome')
+
+  if (auth?.perfil.role === 'supervisor') {
+    const { data: cfgData } = await supabase
+      .from('config_supervisores_postos')
+      .select('posto_id')
+      .eq('supervisor_id', auth.user.id)
+      .eq('ativo', true)
+    const postoIds = (cfgData ?? []).map((r: { posto_id: string }) => r.posto_id)
+    if (postoIds.length === 0) return []
+    query = query.in('posto_id', postoIds)
+  }
+
+  const { data, error } = await query
   if (error) throw error
   return (data ?? []) as unknown as FuncOpt[]
 }

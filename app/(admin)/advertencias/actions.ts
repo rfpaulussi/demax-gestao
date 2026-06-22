@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getUser } from '@/lib/auth/get-user'
 
 export type AdvertenciaGrau = 'verbal' | 'escrita' | 'suspensao'
 export type AdvertenciaStatus = 'pendente' | 'gerada' | 'entregue'
@@ -52,22 +53,55 @@ const ADV_SELECT = `
   )
 `
 
+async function getPostoIdsSupervisor(supabase: ReturnType<typeof createClient>, userId: string): Promise<string[] | null> {
+  const { data: cfgData } = await supabase
+    .from('config_supervisores_postos')
+    .select('posto_id')
+    .eq('supervisor_id', userId)
+    .eq('ativo', true)
+  return (cfgData ?? []).map((r: { posto_id: string }) => r.posto_id)
+}
+
 export async function buscarAdvertencias(): Promise<AdvertenciaCompleta[]> {
   const supabase = createClient()
-  const { data } = await supabase
+  const auth = await getUser()
+
+  let query = supabase
     .from('advertencias')
     .select(ADV_SELECT)
     .order('data_ocorrencia', { ascending: false })
+
+  if (auth?.perfil.role === 'supervisor') {
+    const postoIds = await getPostoIdsSupervisor(supabase, auth.user.id)
+    if (!postoIds || postoIds.length === 0) return []
+    const { data: funcs } = await supabase
+      .from('funcionarios').select('id').in('posto_id', postoIds)
+    const funcIds = (funcs ?? []).map((f: { id: string }) => f.id)
+    if (funcIds.length === 0) return []
+    query = query.in('funcionario_id', funcIds)
+  }
+
+  const { data } = await query
   return (data ?? []) as unknown as AdvertenciaCompleta[]
 }
 
 export async function buscarFuncionariosAtivos(): Promise<FuncionarioOpt[]> {
   const supabase = createClient()
-  const { data } = await supabase
+  const auth = await getUser()
+
+  let query = supabase
     .from('funcionarios')
     .select('id, nome, postos!posto_id(nome, secretaria)')
     .in('status', ['ativo', 'ferias', 'afastado'])
     .order('nome')
+
+  if (auth?.perfil.role === 'supervisor') {
+    const postoIds = await getPostoIdsSupervisor(supabase, auth.user.id)
+    if (!postoIds || postoIds.length === 0) return []
+    query = query.in('posto_id', postoIds)
+  }
+
+  const { data } = await query
   return (data ?? []) as unknown as FuncionarioOpt[]
 }
 

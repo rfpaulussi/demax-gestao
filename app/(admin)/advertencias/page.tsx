@@ -36,9 +36,6 @@ export default async function AdvertenciasPage({
 }) {
   const auth = await getUser()
   if (!auth) redirect('/login')
-  if (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador') {
-    redirect(auth.perfil.role === 'supervisor' ? '/supervisor/meu-posto' : '/dashboard')
-  }
 
   const [all, funcionarios, supervisores] = await Promise.all([
     buscarAdvertencias(),
