@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { editarFerias, excluirFerias, type FeriasListaItem } from '@/app/(admin)/ferias/actions'
+import { editarFerias, type FeriasListaItem } from '@/app/(admin)/ferias/actions'
 
 interface Props {
   item: FeriasListaItem | null
@@ -27,7 +27,7 @@ export function ModalEditarFerias({ item, onClose, onSuccess }: Props) {
   const [dataFim, setDataFim] = useState(formatDateInput(item?.data_fim ?? null))
   const [status, setStatus] = useState(item?.status ?? 'disponivel')
   const [observacao, setObservacao] = useState('')
-  const [confirmandoExclusao, setConfirmandoExclusao] = useState(false)
+  const [confirmandoLimpeza, setConfirmandoLimpeza] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [pendingSave, startSave] = useTransition()
   const [pendingDelete, startDelete] = useTransition()
@@ -54,14 +54,20 @@ export function ModalEditarFerias({ item, onClose, onSuccess }: Props) {
     })
   }
 
-  function handleExcluir() {
+  function handleLimparDatas() {
     startDelete(async () => {
       try {
-        await excluirFerias(item!.id)
+        await editarFerias(item!.id, {
+          data_inicio: null,
+          data_fim: null,
+          dias_utilizados: null,
+          status: 'disponivel',
+          observacao: null,
+        })
         onSuccess()
         onClose()
       } catch (e: unknown) {
-        setErro(e instanceof Error ? e.message : 'Erro ao excluir')
+        setErro(e instanceof Error ? e.message : 'Erro ao limpar datas')
       }
     })
   }
@@ -117,18 +123,18 @@ export function ModalEditarFerias({ item, onClose, onSuccess }: Props) {
         {erro && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{erro}</p>}
 
         <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-          {!confirmandoExclusao ? (
-            <button onClick={() => setConfirmandoExclusao(true)} className="text-sm text-red-600 hover:text-red-800 font-medium">
-              Excluir registro
+          {!confirmandoLimpeza ? (
+            <button onClick={() => setConfirmandoLimpeza(true)} className="text-sm text-amber-600 hover:text-amber-800 font-medium">
+              Limpar datas
             </button>
           ) : (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-red-700 font-medium">Confirmar exclusão?</span>
-              <button onClick={handleExcluir} disabled={pendingDelete}
-                className="px-3 py-1 text-xs font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
-                {pendingDelete ? 'Excluindo...' : 'Sim, excluir'}
+              <span className="text-sm text-amber-700 font-medium">Limpar datas de gozo?</span>
+              <button onClick={handleLimparDatas} disabled={pendingDelete}
+                className="px-3 py-1 text-xs font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50">
+                {pendingDelete ? 'Limpando...' : 'Sim, limpar'}
               </button>
-              <button onClick={() => setConfirmandoExclusao(false)}
+              <button onClick={() => setConfirmandoLimpeza(false)}
                 className="px-3 py-1 text-xs font-medium text-slate-600 hover:text-slate-900">
                 Cancelar
               </button>
