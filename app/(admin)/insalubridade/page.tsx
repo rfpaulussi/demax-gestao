@@ -10,7 +10,7 @@ const sel = 'h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm focus-v
 function KpiCard({ label, value, borderColor }: { label: string; value: number; borderColor: string }) {
   return (
     <div className={cn('rounded-xl border border-gray-100 border-t-4 bg-white p-5 shadow-sm', borderColor)}>
-      <p className="text-3xl font-black tracking-tight text-gray-900">{value}</p>
+      <p className="text-2xl font-black tracking-tight text-gray-900">{value}</p>
       <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
     </div>
   )
@@ -94,7 +94,7 @@ export default async function InsalubridadePage({
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-3">
         <KpiCard label="Pendentes"          value={kpiPendentes}   borderColor="border-t-amber-500"  />
         <KpiCard label="Enviados no Mês"    value={kpiEnviados}    borderColor="border-t-green-500"  />
         <KpiCard label="Func. com Cobertura" value={kpiFuncionarios} borderColor="border-t-purple-500" />

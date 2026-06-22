@@ -26,15 +26,15 @@ export default async function AdvertenciasMesPage({
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-gray-100 border-t-4 border-t-red-500 bg-white p-5 shadow-sm">
-          <p className="text-3xl font-black tracking-tight text-gray-900">{kpis.total_advertencias}</p>
+          <p className="text-2xl font-black tracking-tight text-gray-900">{kpis.total_advertencias}</p>
           <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Total Advertências</p>
         </div>
         <div className="rounded-xl border border-gray-100 border-t-4 border-t-orange-500 bg-white p-5 shadow-sm">
-          <p className="text-3xl font-black tracking-tight text-gray-900">{kpis.total_suspensoes}</p>
+          <p className="text-2xl font-black tracking-tight text-gray-900">{kpis.total_suspensoes}</p>
           <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Total Suspensões</p>
         </div>
         <div className="rounded-xl border border-gray-100 border-t-4 border-t-slate-500 bg-white p-5 shadow-sm">
-          <p className="text-3xl font-black tracking-tight text-gray-900">{kpis.total_dias_suspensos}</p>
+          <p className="text-2xl font-black tracking-tight text-gray-900">{kpis.total_dias_suspensos}</p>
           <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Dias Suspensos</p>
         </div>
       </div>

@@ -21,7 +21,7 @@ export default async function DesligamentosPage({
         <p className="text-sm text-gray-400">Gestão de saídas e histórico acumulado</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {[
           { label: 'Total',        value: kpis.total,               color: 'border-t-slate-500'  },
           { label: 'Voluntária',   value: kpis.voluntaria,          color: 'border-t-blue-500'   },
@@ -31,7 +31,7 @@ export default async function DesligamentosPage({
           { label: 'Outros',       value: kpis.outros,              color: 'border-t-gray-400'   },
         ].map(k => (
           <div key={k.label} className={`rounded-xl border border-gray-100 border-t-4 ${k.color} bg-white p-5 shadow-sm`}>
-            <p className="text-3xl font-black tracking-tight text-gray-900">{k.value}</p>
+            <p className="text-2xl font-black tracking-tight text-gray-900">{k.value}</p>
             <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{k.label}</p>
           </div>
         ))}

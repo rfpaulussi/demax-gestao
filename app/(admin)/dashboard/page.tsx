@@ -74,14 +74,14 @@ function KpiCardPrincipal({
   const inner = (
     <div
       className={cn(
-        'rounded-xl border border-gray-100 border-t-4 bg-white p-4 shadow-sm transition-shadow min-h-[140px] flex flex-col justify-between',
+        'rounded-xl border border-gray-100 border-t-4 bg-white p-3 shadow-sm transition-shadow min-h-[120px] flex flex-col justify-between',
         href && 'cursor-pointer hover:shadow-md',
         corBorda,
       )}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-3xl font-black tracking-tight text-gray-900">{valor}</p>
+          <p className="text-2xl font-black tracking-tight text-gray-900">{valor}</p>
           <p className="mt-0.5 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
         </div>
         {sparklineData && sparklineData.length >= 2 && (
@@ -90,7 +90,7 @@ function KpiCardPrincipal({
           </div>
         )}
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2 min-h-[20px]">
+      <div className="mt-2 flex flex-wrap items-center gap-2 min-h-[20px]">
         {delta != null && (
           <span
             className={cn(
@@ -133,7 +133,7 @@ function KpiMini({
   const inner = (
     <div
       className={cn(
-        'rounded-lg border border-gray-100 bg-gray-50 p-4 transition-colors',
+        'rounded-lg border border-gray-100 bg-gray-50 p-3 transition-colors',
         href && 'cursor-pointer hover:bg-gray-100',
       )}
     >
@@ -200,7 +200,7 @@ export default async function DashboardPage({
   const deltaFerias    = deltaKPIs.emFerias   != null ? { valor: deltaKPIs.emFerias,   texto: 'vs ontem' } : null
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
 
       {/* ── Topbar ──────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
@@ -225,7 +225,7 @@ export default async function DashboardPage({
       </div>
 
       {/* ── Row 1: KPI Cards principais ─────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCardPrincipal
           label="Efetivo Ativo"
           valor={kpis.totalAtivos}
@@ -263,19 +263,19 @@ export default async function DashboardPage({
       </div>
 
       {/* ── Row 2: Alertas | [Mini KPIs + Próximas Férias] ─────────────────── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
 
         {/* Coluna esquerda — Alertas Críticos */}
         <AlertasCriticos alertas={alertas} />
 
         {/* Coluna direita — Indicadores 2×2 + Próximas Férias */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3">
           {/* Mini KPIs 2×2 */}
           <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
             <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-400">
               Indicadores
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <KpiMini label="Aprovações Pend."  value={kpis.solicitacoesPendentes} href="/aprovacoes" />
               <KpiMini label="Coberturas Ativas" value={kpis.coberturasAtivas}      href="/coberturas" />
               <KpiMini label="Em Experiência"    value={experiencias.total}          href="/efetivo"    />
@@ -298,7 +298,7 @@ export default async function DashboardPage({
       </div>
 
       {/* ── Row 3: Evolução + Efetivo por Secretaria ────────────────────────── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <EvolucaoEfetivo dados={evolucao} />
         <EfetivoPorSecretaria secretarias={secretarias} />
       </div>

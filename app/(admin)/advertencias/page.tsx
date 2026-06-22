@@ -23,7 +23,7 @@ function KpiCard({
 }) {
   return (
     <div className={cn('rounded-xl border border-gray-100 border-t-4 bg-white p-5 shadow-sm', borderColor)}>
-      <p className="text-3xl font-black tracking-tight text-gray-900">{value}</p>
+      <p className="text-2xl font-black tracking-tight text-gray-900">{value}</p>
       <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
     </div>
   )
@@ -75,7 +75,7 @@ export default async function AdvertenciasPage({
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KpiCard label="Total"     value={total}     borderColor="border-t-gray-400"   />
         <KpiCard label="Pendentes" value={pendentes} borderColor="border-t-amber-500"  />
         <KpiCard label="Geradas"   value={geradas}   borderColor="border-t-blue-500"   />

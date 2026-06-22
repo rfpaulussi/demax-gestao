@@ -26,11 +26,11 @@ export default async function MudancasFuncaoPage({
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-gray-100 border-t-4 border-t-indigo-500 bg-white p-5 shadow-sm">
-          <p className="text-3xl font-black tracking-tight text-gray-900">{dados.length}</p>
+          <p className="text-2xl font-black tracking-tight text-gray-900">{dados.length}</p>
           <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Mudanças</p>
         </div>
         <div className="rounded-xl border border-gray-100 border-t-4 border-t-slate-500 bg-white p-5 shadow-sm">
-          <p className="text-3xl font-black tracking-tight text-gray-900">{new Set(dados.map(r => r.funcionario_nome)).size}</p>
+          <p className="text-2xl font-black tracking-tight text-gray-900">{new Set(dados.map(r => r.funcionario_nome)).size}</p>
           <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Funcionários</p>
         </div>
       </div>

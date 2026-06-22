@@ -14,8 +14,8 @@ function CounterCard({
   topColor: string
 }) {
   return (
-    <div className={`rounded-xl border border-gray-100 border-t-4 bg-white p-5 shadow-sm ${topColor}`}>
-      <p className="text-4xl font-black tracking-tight text-gray-900">{value}</p>
+    <div className={`rounded-xl border border-gray-100 border-t-4 bg-white p-3 shadow-sm ${topColor}`}>
+      <p className="text-2xl font-black tracking-tight text-gray-900">{value}</p>
       <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
     </div>
   )
@@ -43,7 +43,7 @@ export default async function UsuariosPage() {
         <p className="text-sm text-gray-400">Gestão de acessos ao sistema</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <CounterCard label="Total"    value={todos.length} topColor="border-t-gray-400"   />
         <CounterCard label="Ativos"   value={ativos}       topColor="border-t-green-500"  />
         <CounterCard label="Inativos" value={inativos}     topColor="border-t-red-500"    />

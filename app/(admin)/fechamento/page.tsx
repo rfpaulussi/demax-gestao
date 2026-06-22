@@ -5,7 +5,7 @@ import { FechamentoClient } from '@/components/fechamento/fechamento-client'
 function KpiCard({ label, value, sub, borderColor }: { label: string; value: number | string; sub?: string; borderColor: string }) {
   return (
     <div className={cn('rounded-xl border border-gray-100 border-t-4 bg-white p-5 shadow-sm', borderColor)}>
-      <p className="text-3xl font-black tracking-tight text-gray-900">{value}</p>
+      <p className="text-2xl font-black tracking-tight text-gray-900">{value}</p>
       {sub && <p className="text-xs text-gray-400">{sub}</p>}
       <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
     </div>
@@ -47,7 +47,7 @@ export default async function FechamentoPage({
         <p className="text-sm text-gray-400">Apuração de dias trabalhados — {MESES[mes]} {ano}</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KpiCard label="Funcionários"      value={kpiTotal}         borderColor="border-t-slate-500"  />
         <KpiCard label="Com Deduções"      value={kpiDeducoes}      borderColor="border-t-amber-500"  />
         <KpiCard label="Com Suspensão"     value={kpiSuspensao}     borderColor="border-t-red-500"    />

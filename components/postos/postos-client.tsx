@@ -57,8 +57,8 @@ function CounterCard({
   subtextClass?: string
 }) {
   return (
-    <div className={`rounded-xl border border-gray-100 border-t-4 bg-white p-5 shadow-sm ${topColor}`}>
-      <p className="text-4xl font-black tracking-tight text-gray-900">{value}</p>
+    <div className={`rounded-xl border border-gray-100 border-t-4 bg-white p-3 shadow-sm ${topColor}`}>
+      <p className="text-2xl font-black tracking-tight text-gray-900">{value}</p>
       <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
       {subtext && <p className={`mt-1 text-sm ${subtextClass}`}>{subtext}</p>}
     </div>
@@ -349,7 +349,7 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
       {aba === 'visao' && (
         <>
           {/* KPI grid */}
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
             <CounterCard label="Total"          value={kpis.total}         topColor="border-t-gray-400"   />
             <CounterCard label="Ok"             value={kpis.ok}            topColor="border-t-green-500"  />
             <CounterCard

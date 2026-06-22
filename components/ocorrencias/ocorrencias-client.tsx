@@ -45,8 +45,8 @@ const STATUS_ORDER: Record<string, number> = {
 
 function CounterCard({ label, value, topColor }: { label: string; value: number; topColor: string }) {
   return (
-    <div className={`rounded-xl border border-gray-100 border-t-4 bg-white p-5 shadow-sm ${topColor}`}>
-      <p className="text-4xl font-black tracking-tight text-gray-900">{value}</p>
+    <div className={`rounded-xl border border-gray-100 border-t-4 bg-white p-3 shadow-sm ${topColor}`}>
+      <p className="text-2xl font-black tracking-tight text-gray-900">{value}</p>
       <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
     </div>
   )
@@ -225,7 +225,7 @@ export function OcorrenciasClient({
   return (
     <div className="space-y-6">
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <CounterCard label="Total"              value={kpis.total}           topColor="border-t-gray-400"   />
         <CounterCard label="Abertas"            value={kpis.abertas}         topColor="border-t-red-500"    />
         <CounterCard label="Em Análise"         value={kpis.emAnalise}       topColor="border-t-amber-500"  />
@@ -450,7 +450,7 @@ export function OcorrenciasClient({
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
                     Data

@@ -322,18 +322,18 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = []
         <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto">
 
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+          <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
             <Dialog.Title className="text-sm font-bold uppercase tracking-widest text-gray-900">
               Nova Cobertura
             </Dialog.Title>
             <button type="button" onClick={handleClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            <div className="grid grid-cols-2 gap-6">
+          <form onSubmit={handleSubmit} className="p-4 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
 
               {/* ── COLUNA ESQUERDA: SUBSTITUTO ── */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Substituto</p>
 
                 {!substituto ? (
@@ -411,7 +411,7 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = []
               </div>
 
               {/* ── COLUNA DIREITA: DESTINO ── */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Destino</p>
 
                 {/* Supervisor */}
@@ -614,7 +614,7 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = []
                 {/* Descrição / Observação */}
                 <div>
                   <label className={fieldLabel}>Descrição / Observação <span className="normal-case font-normal text-gray-400">(opcional)</span></label>
-                  <textarea value={motivo} onChange={e => setMotivo(e.target.value)} rows={2}
+                  <textarea value={motivo} onChange={e => setMotivo(e.target.value)} rows={1}
                     placeholder="Detalhes adicionais, CID, número de dias..."
                     className={inputCls} />
                 </div>
@@ -660,7 +660,7 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = []
             </div>
 
             {/* ── SEÇÃO: FUNCIONÁRIO AUSENTE ── */}
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-3">
               <p className="text-xs font-semibold uppercase tracking-widest text-amber-700">
                 Funcionário Ausente
               </p>
@@ -690,7 +690,7 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = []
                       ))}
                     </select>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className={fieldLabel}>Início Ausência</label>
                       <input type="date" required value={dataInicioAusencia} onChange={e => setDataInicioAusencia(e.target.value)} className={inputCls} />
@@ -712,7 +712,7 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = []
             )}
 
             {/* ── AÇÕES ── */}
-            <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
+            <div className="flex justify-end gap-3 border-t border-gray-100 pt-2">
               <button type="button" onClick={handleClose}
                 className="h-9 rounded-lg border border-gray-200 px-4 text-xs font-semibold uppercase tracking-widest text-gray-500 hover:bg-gray-50">
                 Cancelar

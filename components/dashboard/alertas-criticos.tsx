@@ -13,8 +13,8 @@ export function AlertasCriticos({ alertas }: Props) {
     postosDeficit.length > 0 || funcSemPosto > 0 || feriasLimiteVencendo > 0 || catAlertas.length > 0
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-      <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">
+    <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-400">
         Alertas Críticos
       </p>
 
@@ -24,7 +24,7 @@ export function AlertasCriticos({ alertas }: Props) {
           <p className="text-sm font-medium text-green-700">Nenhum alerta crítico.</p>
         </div>
       ) : (
-        <div className="max-h-64 overflow-y-auto space-y-2">
+        <div className="max-h-52 overflow-y-auto space-y-2">
 
           {/* Postos em déficit */}
           {postosDeficit.slice(0, 5).map(p => (

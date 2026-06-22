@@ -29,15 +29,15 @@ export default async function CoberturasInsalubresPage({
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-gray-100 border-t-4 border-t-purple-500 bg-white p-5 shadow-sm">
-          <p className="text-3xl font-black tracking-tight text-gray-900">{dados.length}</p>
+          <p className="text-2xl font-black tracking-tight text-gray-900">{dados.length}</p>
           <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Registros</p>
         </div>
         <div className="rounded-xl border border-gray-100 border-t-4 border-t-blue-500 bg-white p-5 shadow-sm">
-          <p className="text-3xl font-black tracking-tight text-gray-900">{totalDias}</p>
+          <p className="text-2xl font-black tracking-tight text-gray-900">{totalDias}</p>
           <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Total Dias</p>
         </div>
         <div className="rounded-xl border border-gray-100 border-t-4 border-t-slate-500 bg-white p-5 shadow-sm">
-          <p className="text-3xl font-black tracking-tight text-gray-900">{supervisores}</p>
+          <p className="text-2xl font-black tracking-tight text-gray-900">{supervisores}</p>
           <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">Supervisores</p>
         </div>
       </div>

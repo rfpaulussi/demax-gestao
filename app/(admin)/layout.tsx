@@ -40,7 +40,7 @@ export default async function AdminLayout({
       <div className="flex min-h-screen flex-col md:pl-64">
 
         {/* Top header */}
-        <header className="sticky top-0 z-20 flex h-16 items-center border-b border-gray-200 bg-white px-4 md:px-6">
+        <header className="sticky top-0 z-20 flex h-12 items-center border-b border-gray-200 bg-white px-4 md:px-6">
           {/* Spacer keeps header content from overlapping mobile hamburger */}
           <div className="w-10 shrink-0 md:hidden" aria-hidden />
 
@@ -69,7 +69,7 @@ export default async function AdminLayout({
           </div>
         </header>
 
-        <main className="flex-1 p-4 md:p-6">{children}</main>
+        <main className="flex-1 p-3 md:p-4">{children}</main>
       </div>
     </div>
   )

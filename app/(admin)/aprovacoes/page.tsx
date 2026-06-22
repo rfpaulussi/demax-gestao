@@ -16,8 +16,8 @@ function KpiCard({
   topColor: string
 }) {
   return (
-    <div className={`rounded-xl border border-gray-100 border-t-4 bg-white p-5 shadow-sm ${topColor}`}>
-      <p className="text-4xl font-black tracking-tight text-gray-900">{value}</p>
+    <div className={`rounded-xl border border-gray-100 border-t-4 bg-white p-3 shadow-sm ${topColor}`}>
+      <p className="text-2xl font-black tracking-tight text-gray-900">{value}</p>
       <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-slate-500">{label}</p>
     </div>
   )
@@ -73,7 +73,7 @@ export default async function AprovacoesPage() {
       </div>
 
       {/* KPIs principais */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-3">
         <KpiCard label="Pendentes"  value={pendentes.length}  topColor="border-t-amber-400"  />
         <KpiCard label="Aprovadas"  value={aprovadas.length}  topColor="border-t-green-500"  />
         <KpiCard label="Rejeitadas" value={rejeitadas.length} topColor="border-t-red-500"    />

@@ -25,8 +25,8 @@ function fmt(iso: string | null): string {
 
 function KpiCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className={`rounded-xl border border-gray-100 border-t-4 bg-white p-5 shadow-sm ${color}`}>
-      <p className="text-4xl font-black tracking-tight text-gray-900">{value}</p>
+    <div className={`rounded-xl border border-gray-100 border-t-4 bg-white p-3 shadow-sm ${color}`}>
+      <p className="text-2xl font-black tracking-tight text-gray-900">{value}</p>
       <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
     </div>
   )
@@ -75,7 +75,7 @@ export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtiv
     <div className="space-y-6">
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCard label="Total Ocorrências"  value={dash.total_ocorrencias}  color="border-t-slate-500"  />
         <KpiCard label="Dias Perdidos"      value={dash.total_dias_geral}    color="border-t-red-500"    />
         <KpiCard label="Sem Justificativa"  value={dash.sem_justificativa}   color="border-t-orange-500" />
@@ -83,7 +83,7 @@ export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtiv
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
           <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-500">Ausências por Secretaria</p>
           <ResponsiveContainer width="100%" height={280}>
