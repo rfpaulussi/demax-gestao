@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { ModalNovaFerias } from '@/components/ferias/modal-nova-ferias'
 import { ModalImportarHistoricoFerias } from '@/components/ferias/modal-importar-historico-ferias'
+import { ModalEditarFerias } from '@/components/ferias/modal-editar-ferias'
 import {
   buscarFeriasLista,
   buscarSupervisoresParaFiltro,
@@ -165,6 +166,8 @@ export default function FeriasPage() {
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [modalHistoricoAberto, setModalHistoricoAberto] = useState(false)
+  const [itemEditando, setItemEditando] = useState<FeriasListaItem | null>(null)
+  const [filtroBusca, setFiltroBusca] = useState('')
 
   // Filtros
   const [filtroStatus, setFiltroStatus] = useState('todos')
@@ -204,6 +207,14 @@ export default function FeriasPage() {
   const filtered = useMemo(() => {
     let list = [...ferias]
 
+    if (filtroBusca.trim()) {
+      const termo = filtroBusca.toLowerCase().trim()
+      list = list.filter(f =>
+        f.funcionario_nome.toLowerCase().includes(termo) ||
+        f.funcionario_registro.toLowerCase().includes(termo)
+      )
+    }
+
     if (filtroStatus !== 'todos') list = list.filter(f => f.status === filtroStatus)
     if (filtroSecretaria !== 'todas') list = list.filter(f => f.secretaria === filtroSecretaria)
     if (filtroSupervisor !== 'todos') list = list.filter(f => f.supervisor_nome === filtroSupervisor)
@@ -230,7 +241,7 @@ export default function FeriasPage() {
     })
 
     return list
-  }, [ferias, filtroStatus, filtroSecretaria, filtroSupervisor, filtroVencimento, sortKey, sortAsc])
+  }, [ferias, filtroBusca, filtroStatus, filtroSecretaria, filtroSupervisor, filtroVencimento, sortKey, sortAsc])
 
   function handleSort(key: SortKey) {
     if (sortKey === key) setSortAsc(p => !p)
@@ -320,6 +331,14 @@ export default function FeriasPage() {
 
       {/* Filtros */}
       <div className="flex flex-wrap gap-3 items-center">
+        <input
+          type="text"
+          value={filtroBusca}
+          onChange={e => setFiltroBusca(e.target.value)}
+          placeholder="Buscar por nome ou registro..."
+          className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300 min-w-[220px]"
+        />
+
         {/* Status */}
         <select
           value={filtroStatus}
@@ -439,12 +458,12 @@ export default function FeriasPage() {
                       <StatusBadge status={item.status} />
                     </td>
                     <td className="px-3 py-3">
-                      <Link
-                        href={`/ferias/${item.id}`}
+                      <button
+                        onClick={() => setItemEditando(item)}
                         className="text-xs text-slate-500 hover:text-slate-800 underline"
                       >
-                        Ver
-                      </Link>
+                        Ver / Editar
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -463,6 +482,11 @@ export default function FeriasPage() {
       <ModalImportarHistoricoFerias
         open={modalHistoricoAberto}
         onClose={() => setModalHistoricoAberto(false)}
+        onSuccess={() => buscarFeriasLista().then(setFerias)}
+      />
+      <ModalEditarFerias
+        item={itemEditando}
+        onClose={() => setItemEditando(null)}
         onSuccess={() => buscarFeriasLista().then(setFerias)}
       />
     </div>

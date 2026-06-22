@@ -298,6 +298,42 @@ export async function importarFeriasHistoricas(data: {
   revalidatePath('/ferias')
 }
 
+export async function editarFerias(id: string, data: {
+  data_inicio: string | null
+  data_fim: string | null
+  dias_utilizados: number | null
+  status: string
+  observacao?: string | null
+}) {
+  const supabase = createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const payload: any = {
+    data_inicio: data.data_inicio,
+    data_fim: data.data_fim,
+    dias_utilizados: data.dias_utilizados,
+    status: data.status,
+    observacao: data.observacao ?? null,
+  }
+  const { error } = await supabase
+    .from('ferias')
+    .update(payload)
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/ferias')
+  return { ok: true }
+}
+
+export async function excluirFerias(id: string) {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('ferias')
+    .delete()
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/ferias')
+  return { ok: true }
+}
+
 export async function buscarSupervisoresParaFiltro(): Promise<SupervisorFiltro[]> {
   const supabase = createClient()
 
