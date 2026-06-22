@@ -83,18 +83,18 @@ export default async function AdvertenciasPage({
       </div>
 
       {/* Filters */}
-      <form method="get" className="flex flex-wrap items-center gap-3">
+      <form method="get" className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
         <input
           type="text"
           name="busca"
           defaultValue={searchParams.busca}
           placeholder="Buscar funcionário..."
-          className={cn(inputClass, 'w-56')}
+          className={cn(inputClass, 'col-span-2 w-full sm:w-56')}
         />
         <select
           name="grau"
           defaultValue={searchParams.grau}
-          className={cn(inputClass, 'w-44')}
+          className={cn(inputClass, 'w-full sm:w-44')}
         >
           <option value="">Todos os graus</option>
           <option value="verbal">Verbal</option>
@@ -104,7 +104,7 @@ export default async function AdvertenciasPage({
         <select
           name="status"
           defaultValue={searchParams.status}
-          className={cn(inputClass, 'w-40')}
+          className={cn(inputClass, 'w-full sm:w-40')}
         >
           <option value="">Todos os status</option>
           <option value="pendente">Pendente</option>
@@ -113,13 +113,13 @@ export default async function AdvertenciasPage({
         </select>
         <button
           type="submit"
-          className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition-colors hover:bg-slate-700"
+          className="flex h-9 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition-colors hover:bg-slate-700 sm:w-auto"
         >
           Filtrar
         </button>
         <a
           href="/advertencias"
-          className="flex h-9 items-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-50"
+          className="flex h-9 w-full items-center justify-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-50 sm:w-auto"
         >
           Limpar
         </a>

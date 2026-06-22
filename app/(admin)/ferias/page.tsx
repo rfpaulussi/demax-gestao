@@ -330,20 +330,20 @@ export default function FeriasPage() {
       )}
 
       {/* Filtros */}
-      <div className="flex flex-wrap gap-3 items-center">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
         <input
           type="text"
           value={filtroBusca}
           onChange={e => setFiltroBusca(e.target.value)}
           placeholder="Buscar por nome ou registro..."
-          className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300 min-w-[220px]"
+          className="col-span-2 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300 sm:min-w-[220px] sm:w-auto"
         />
 
         {/* Status */}
         <select
           value={filtroStatus}
           onChange={e => setFiltroStatus(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300"
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300 sm:w-auto"
         >
           <option value="todos">Todos os status</option>
           <option value="disponivel">Disponível</option>
@@ -358,7 +358,7 @@ export default function FeriasPage() {
         <select
           value={filtroSecretaria}
           onChange={e => setFiltroSecretaria(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300"
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300 sm:w-auto"
         >
           <option value="todas">Todas as secretarias</option>
           {secretarias.map(s => <option key={s} value={s}>{s}</option>)}
@@ -368,7 +368,7 @@ export default function FeriasPage() {
         <select
           value={filtroSupervisor}
           onChange={e => setFiltroSupervisor(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300"
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300 sm:w-auto"
         >
           <option value="todos">Todos os supervisores</option>
           {supervisores.map(s => <option key={s.nome} value={s.nome}>{s.nome}</option>)}
@@ -378,7 +378,7 @@ export default function FeriasPage() {
         <select
           value={filtroVencimento}
           onChange={e => setFiltroVencimento(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-300 font-medium"
+          className="col-span-2 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-300 font-medium sm:col-span-1 sm:w-auto"
           style={{
             color: filtroVencimento === 'vencido' ? '#dc2626'
               : filtroVencimento === '30d' ? '#ea580c'
@@ -392,7 +392,7 @@ export default function FeriasPage() {
           <option value="60d">⏰ Vencem em 60 dias</option>
         </select>
 
-        <span className="text-sm text-slate-400 ml-1">{filtered.length} registros</span>
+        <span className="col-span-2 text-sm text-slate-400 sm:col-span-1 sm:ml-1">{filtered.length} registros</span>
       </div>
 
       {/* Tabela */}

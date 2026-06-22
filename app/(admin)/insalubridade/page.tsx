@@ -94,17 +94,17 @@ export default async function InsalubridadePage({
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <KpiCard label="Pendentes"          value={kpiPendentes}   borderColor="border-t-amber-500"  />
         <KpiCard label="Enviados no Mês"    value={kpiEnviados}    borderColor="border-t-green-500"  />
         <KpiCard label="Func. com Cobertura" value={kpiFuncionarios} borderColor="border-t-purple-500" />
       </div>
 
       {/* Filters */}
-      <form method="get" className="flex flex-wrap items-end gap-3">
+      <form method="get" className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end sm:gap-3">
         <div className="space-y-1">
           <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Mês</label>
-          <select name="mes" defaultValue={mes} className={sel}>
+          <select name="mes" defaultValue={mes} className={`${sel} w-full sm:w-auto`}>
             {MESES.slice(1).map((m, i) => (
               <option key={i+1} value={i+1}>{m}</option>
             ))}
@@ -112,13 +112,13 @@ export default async function InsalubridadePage({
         </div>
         <div className="space-y-1">
           <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Ano</label>
-          <select name="ano" defaultValue={ano} className={sel}>
+          <select name="ano" defaultValue={ano} className={`${sel} w-full sm:w-auto`}>
             {anos.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>
         <div className="space-y-1">
           <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Status</label>
-          <select name="status" defaultValue={searchParams.status ?? ''} className={sel}>
+          <select name="status" defaultValue={searchParams.status ?? ''} className={`${sel} w-full sm:w-auto`}>
             <option value="">Todos</option>
             <option value="pendente">Pendente</option>
             <option value="enviado">Enviado</option>
@@ -127,15 +127,15 @@ export default async function InsalubridadePage({
         </div>
         <div className="space-y-1">
           <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Secretaria</label>
-          <select name="secretaria" defaultValue={searchParams.secretaria ?? ''} className={sel}>
+          <select name="secretaria" defaultValue={searchParams.secretaria ?? ''} className={`${sel} w-full sm:w-auto`}>
             <option value="">Todas</option>
             {secretarias.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
-        <button type="submit" className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700">
+        <button type="submit" className="flex h-9 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 sm:w-auto sm:self-end">
           Filtrar
         </button>
-        <a href="/insalubridade" className="flex h-9 items-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-500 hover:bg-gray-50">
+        <a href="/insalubridade" className="flex h-9 w-full items-center justify-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-500 hover:bg-gray-50 sm:w-auto sm:self-end">
           Limpar
         </a>
       </form>

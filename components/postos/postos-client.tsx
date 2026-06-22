@@ -370,19 +370,19 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
           </div>
 
           {/* Filtros + botão Nova Admissão (supervisor) */}
-          <div className="flex flex-wrap items-center gap-3">
-            <select value={secretaria} onChange={e => setSecretaria(e.target.value)} className={selectClass}>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+            <select value={secretaria} onChange={e => setSecretaria(e.target.value)} className={`${selectClass} w-full sm:w-auto`}>
               <option value="">Todas as secretarias</option>
               {secretarias.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
 
-            <select value={supervisor} onChange={e => setSupervisor(e.target.value)} className={selectClass}>
+            <select value={supervisor} onChange={e => setSupervisor(e.target.value)} className={`${selectClass} w-full sm:w-auto`}>
               <option value="">Todos os supervisores</option>
               <option value="sem_supervisor">Sem supervisor</option>
               {supervisores.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
 
-            <select value={status} onChange={e => setStatus(e.target.value)} className={selectClass}>
+            <select value={status} onChange={e => setStatus(e.target.value)} className={`${selectClass} w-full sm:w-auto`}>
               <option value="">Todos os status</option>
               <option value="ok">Ok</option>
               <option value="deficit">Déficit</option>
@@ -394,7 +394,7 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
               type="button"
               onClick={handleExcel}
               disabled={loadingXlsx || filtered.length === 0}
-              className="flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+              className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 sm:w-auto sm:justify-start"
             >
               <FileSpreadsheet className="h-4 w-4 text-green-600" />
               {loadingXlsx ? 'Gerando…' : 'Excel'}
@@ -404,7 +404,7 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
               <button
                 type="button"
                 onClick={() => setNovaAdmissaoOpen(true)}
-                className="ml-auto flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors"
+                className="col-span-2 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors sm:ml-auto sm:w-auto"
               >
                 <UserPlus className="h-3.5 w-3.5" />
                 Nova Admissão

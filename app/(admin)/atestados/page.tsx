@@ -218,18 +218,18 @@ export default async function AtestadosPage({
       </div>
 
       {/* Filtros */}
-      <form method="get" className="flex flex-wrap items-center gap-3">
+      <form method="get" className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
         <input
           type="text"
           name="busca"
           defaultValue={searchParams.busca}
           placeholder="Buscar funcionário..."
-          className={cn(inputClass, 'w-52')}
+          className={cn(inputClass, 'col-span-2 w-full sm:w-52')}
         />
         <select
           name="secretaria"
           defaultValue={searchParams.secretaria}
-          className={cn(inputClass, 'w-44')}
+          className={cn(inputClass, 'w-full sm:w-44')}
         >
           <option value="">Todas as secretarias</option>
           {secretarias.map(s => (
@@ -239,39 +239,39 @@ export default async function AtestadosPage({
         <select
           name="posto"
           defaultValue={searchParams.posto}
-          className={cn(inputClass, 'w-44')}
+          className={cn(inputClass, 'w-full sm:w-44')}
         >
           <option value="">Todos os postos</option>
           {postos.map(p => (
             <option key={p} value={p}>{p}</option>
           ))}
         </select>
-        <div className="flex items-center gap-2">
+        <div className="col-span-2 flex items-center gap-2 sm:col-span-1">
           <input
             type="date"
             name="data_de"
             defaultValue={searchParams.data_de}
-            className={cn(inputClass, 'w-36')}
+            className={cn(inputClass, 'w-full sm:w-36')}
             title="Início a partir de"
           />
-          <span className="text-sm text-gray-400">até</span>
+          <span className="shrink-0 text-sm text-gray-400">até</span>
           <input
             type="date"
             name="data_ate"
             defaultValue={searchParams.data_ate}
-            className={cn(inputClass, 'w-36')}
+            className={cn(inputClass, 'w-full sm:w-36')}
             title="Início até"
           />
         </div>
         <button
           type="submit"
-          className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition-colors hover:bg-slate-700"
+          className="flex h-9 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white transition-colors hover:bg-slate-700 sm:w-auto"
         >
           Filtrar
         </button>
         <a
           href="/atestados"
-          className="flex h-9 items-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-50"
+          className="flex h-9 w-full items-center justify-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-50 sm:w-auto"
         >
           Limpar
         </a>

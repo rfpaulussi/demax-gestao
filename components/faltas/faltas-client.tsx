@@ -157,10 +157,10 @@ export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtiv
       </div>
 
       {/* Filtros */}
-      <form onSubmit={handleFilter} className="flex flex-wrap items-end gap-3">
+      <form onSubmit={handleFilter} className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end sm:gap-3">
         <div className="space-y-1">
           <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Mês</label>
-          <select name="mes" defaultValue={mes} className={sel}>
+          <select name="mes" defaultValue={mes} className={`${sel} w-full sm:w-auto`}>
             {MESES.slice(1).map((m, i) => (
               <option key={i + 1} value={i + 1}>{m}</option>
             ))}
@@ -168,23 +168,23 @@ export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtiv
         </div>
         <div className="space-y-1">
           <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Ano</label>
-          <select name="ano" defaultValue={ano} className={sel}>
+          <select name="ano" defaultValue={ano} className={`${sel} w-full sm:w-auto`}>
             {anos.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>
-        <div className="space-y-1">
+        <div className="space-y-1 col-span-2 sm:col-span-1">
           <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Tipo</label>
-          <select name="tipo" defaultValue={tipoAtivo} className={sel}>
+          <select name="tipo" defaultValue={tipoAtivo} className={`${sel} w-full sm:w-auto`}>
             <option value="">Todos</option>
             {(Object.entries(FALTA_TIPO_LABELS) as [FaltaTipo, string][]).map(([v, l]) => (
               <option key={v} value={v}>{l}</option>
             ))}
           </select>
         </div>
-        <button type="submit" className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700">
+        <button type="submit" className="flex h-9 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 sm:w-auto sm:self-end">
           Filtrar
         </button>
-        <Link href="/faltas" className="flex h-9 items-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-500 hover:bg-gray-50">
+        <Link href="/faltas" className="flex h-9 w-full items-center justify-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-500 hover:bg-gray-50 sm:w-auto sm:self-end">
           Limpar
         </Link>
       </form>
