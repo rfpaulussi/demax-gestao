@@ -264,6 +264,9 @@ export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
             <label className="block text-xs font-semibold uppercase tracking-widest text-slate-500 mb-1">
               Datas de Gozo <span className="text-slate-300 font-normal normal-case">(opcional — pode agendar depois)</span>
             </label>
+            <p className="text-xs text-blue-500 mb-2">
+              💡 Escolha primeiro o <strong>Início</strong> — o sistema calcula o <strong>Fim</strong> automaticamente com base nos dias de direito.
+            </p>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-xs text-slate-400">Início</label>

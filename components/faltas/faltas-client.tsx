@@ -13,6 +13,7 @@ import type { FaltaCompleta, FuncOpt, DashFaltas } from '@/app/(admin)/faltas/ac
 import { FALTA_TIPO_LABELS, FALTA_TIPO_COLORS } from './faltas-config'
 import type { FaltaTipo } from './faltas-config'
 import { ModalRegistrarFalta } from './modal-registrar-falta'
+import { ModalEditarFalta } from './modal-editar-falta'
 
 const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const sel   = 'h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
@@ -58,6 +59,7 @@ interface Props {
 
 export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtivo, anos }: Props) {
   const [showModal, setShowModal] = useState(false)
+  const [editando, setEditando] = useState<FaltaCompleta | null>(null)
   const router = useRouter()
 
   function handleFilter(e: React.FormEvent<HTMLFormElement>) {
@@ -237,6 +239,13 @@ export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtiv
                     <td className="px-4 py-3 text-gray-500">{f.perfis?.nome ?? '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setEditando(f)}
+                          className="text-xs text-blue-500 hover:text-blue-700"
+                        >
+                          Editar
+                        </button>
                         <RemoverBtn id={f.id} />
                         {f.tipo === 'sem_justificativa' && (
                           <Link
@@ -260,6 +269,12 @@ export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtiv
         open={showModal}
         onClose={() => setShowModal(false)}
         funcionariosOpt={funcionariosOpt}
+      />
+
+      <ModalEditarFalta
+        falta={editando}
+        onClose={() => setEditando(null)}
+        onSuccess={() => { setEditando(null); router.refresh() }}
       />
     </div>
   )

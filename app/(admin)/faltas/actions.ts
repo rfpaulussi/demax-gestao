@@ -311,6 +311,28 @@ export async function registrarFalta(fd: FormData) {
   return { success: true }
 }
 
+export async function editarFalta(
+  id: string,
+  data: { data_falta: string; data_fim: string | null; tipo: FaltaTipo; observacao: string | null }
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient()
+  const dias = data.data_fim && data.data_fim > data.data_falta
+    ? Math.ceil((new Date(data.data_fim).getTime() - new Date(data.data_falta).getTime()) / 86400000) + 1
+    : 1
+  const { error } = await supabase.from('faltas').update({
+    data_falta:  data.data_falta,
+    data_inicio: data.data_falta,
+    data_fim:    data.data_fim,
+    tipo:        data.tipo,
+    dias,
+    observacao:  data.observacao,
+  } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+    .eq('id', id)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/faltas')
+  return { success: true }
+}
+
 export async function removerFalta(id: string) {
   const supabase = createClient()
   const { error } = await supabase.from('faltas').delete().eq('id', id)

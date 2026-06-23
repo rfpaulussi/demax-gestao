@@ -86,8 +86,9 @@ export async function buscarFeriasParaRelatorio(
         )
       `)
       .in('status', ['agendado', 'aprovado', 'em_curso'])
-      .gte('data_inicio', dataInicio)
+      // Férias que se sobrepõem ao mês: começaram antes do fim do mês E terminam após o início do mês (ou sem data fim)
       .lte('data_inicio', dataFim)
+      .or(`data_fim.is.null,data_fim.gte.${dataInicio}`)
       .order('data_inicio', { ascending: true })
 
     if (error) {

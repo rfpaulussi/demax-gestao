@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import { downloadAdvertenciaPDF } from './advertencia-pdf'
 import { marcarEntregue, excluirAdvertencia } from '@/app/(admin)/advertencias/actions'
@@ -23,6 +23,25 @@ function fmt(iso: string | null): string {
   if (!iso) return '—'
   const [y, m, d] = iso.split('T')[0].split('-')
   return `${d}/${m}/${y}`
+}
+
+function EntregarBtn({ id, onSuccess }: { id: string; onSuccess: () => void }) {
+  const [pending, start] = useTransition()
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() => start(async () => {
+        const fd = new FormData()
+        fd.append('advertencia_id', id)
+        await marcarEntregue(fd)
+        onSuccess()
+      })}
+      className="flex h-7 items-center rounded-md border border-green-200 bg-green-50 px-2.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-100 disabled:opacity-50"
+    >
+      {pending ? '...' : 'Entregar'}
+    </button>
+  )
 }
 
 interface Props {
@@ -190,13 +209,7 @@ export function AdvertenciasTable({ advertencias, reincidencias, supervisores }:
                           Excluir
                         </button>
                         {adv.status === 'gerada' && (
-                          <form action={marcarEntregue}>
-                            <input type="hidden" name="advertencia_id" value={adv.id} />
-                            <button type="submit"
-                              className="flex h-7 items-center rounded-md border border-green-200 bg-green-50 px-2.5 text-xs font-medium text-green-700 transition-colors hover:bg-green-100">
-                              Entregar
-                            </button>
-                          </form>
+                          <EntregarBtn id={adv.id} onSuccess={handleSucesso} />
                         )}
                       </div>
                     </td>
