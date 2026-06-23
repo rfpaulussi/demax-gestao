@@ -421,9 +421,12 @@ export async function buscarSecretariaData(): Promise<SecretariaRow[]> {
     secAgg.set(posto.secretaria, agg)
   }
 
+  const SECRETARIAS_IGNORADAS = ['AFASTADOS']
+
   return Array.from(secAgg.entries())
+    .filter(([nome]) => !SECRETARIAS_IGNORADAS.includes(nome))
     .map(([nome, { previsto, real }]) => {
-      const pct = previsto > 0 ? Math.min(100, Math.round((real / previsto) * 100)) : 0
+      const pct = previsto > 0 ? Math.round((real / previsto) * 100) : 0
       return { nome, previsto, real, pct }
     })
     .sort((a, b) => a.pct - b.pct)
