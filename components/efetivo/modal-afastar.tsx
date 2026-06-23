@@ -14,13 +14,54 @@ interface Props {
 const labelClass = 'mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600'
 const inputClass = 'w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600'
 
+const MOTIVOS_MEDICOS = ['INSS - Doença', 'INSS - Acidente de Trabalho']
+
+function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  dt.setDate(dt.getDate() + days)
+  return dt.toISOString().slice(0, 10)
+}
+
 export function ModalAfastar({ funcionario, open, onClose }: Props) {
-  const [erro, setErro]  = useState<string | null>(null)
-  const [pending, start] = useTransition()
+  const [erro, setErro]           = useState<string | null>(null)
+  const [pending, start]          = useTransition()
+  const [motivo, setMotivo]       = useState('')
+  const [dataInicio, setDataInicio] = useState('')
+  const [dias, setDias]           = useState('')
+  const [dataRetorno, setDataRetorno] = useState('')
+
+  const ehMedico = MOTIVOS_MEDICOS.includes(motivo)
+
+  function handleDiasChange(val: string) {
+    setDias(val)
+    const n = parseInt(val)
+    if (dataInicio && n > 0) {
+      setDataRetorno(addDays(dataInicio, n))
+    } else if (!val) {
+      setDataRetorno('')
+    }
+  }
+
+  function handleDataInicioChange(val: string) {
+    setDataInicio(val)
+    const n = parseInt(dias)
+    if (val && n > 0) {
+      setDataRetorno(addDays(val, n))
+    }
+  }
+
+  function resetState() {
+    setErro(null)
+    setMotivo('')
+    setDataInicio('')
+    setDias('')
+    setDataRetorno('')
+  }
 
   function handleClose() {
     if (pending) return
-    setErro(null)
+    resetState()
     onClose()
   }
 
@@ -29,6 +70,10 @@ export function ModalAfastar({ funcionario, open, onClose }: Props) {
     setErro(null)
     const fd = new FormData(e.currentTarget)
     fd.set('funcionario_id', funcionario.id)
+    fd.set('data_inicio', dataInicio)
+    fd.set('data_retorno_prevista', dataRetorno)
+    fd.set('eh_medico', ehMedico ? 'true' : 'false')
+    if (dias) fd.set('dias', dias)
 
     start(async () => {
       const result = await solicitarAfastamento(fd)
@@ -55,7 +100,13 @@ export function ModalAfastar({ funcionario, open, onClose }: Props) {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className={labelClass}>Motivo do Afastamento</label>
-              <select name="motivo" required className={inputClass}>
+              <select
+                name="motivo"
+                required
+                value={motivo}
+                onChange={e => setMotivo(e.target.value)}
+                className={inputClass}
+              >
                 <option value="">Selecione...</option>
                 <option value="INSS - Doença">INSS — Doença</option>
                 <option value="INSS - Acidente de Trabalho">INSS — Acidente de Trabalho</option>
@@ -66,15 +117,52 @@ export function ModalAfastar({ funcionario, open, onClose }: Props) {
               </select>
             </div>
 
-            <div>
-              <label className={labelClass}>Data de Início</label>
-              <input type="date" name="data_inicio" required className={inputClass} />
+            {/* Data início + Dias → Data Retorno automática */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelClass}>Data de Início</label>
+                <input
+                  type="date"
+                  required
+                  value={dataInicio}
+                  onChange={e => handleDataInicioChange(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>Dias de Atestado</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="730"
+                  placeholder="Ex: 45"
+                  value={dias}
+                  onChange={e => handleDiasChange(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
             </div>
 
             <div>
               <label className={labelClass}>Data Prevista de Retorno</label>
-              <input type="date" name="data_retorno_prevista" className={inputClass} />
+              <input
+                type="date"
+                value={dataRetorno}
+                onChange={e => { setDataRetorno(e.target.value); setDias('') }}
+                className={inputClass}
+              />
+              {dias && dataRetorno && (
+                <p className="mt-1 text-xs text-slate-500">
+                  Retorno previsto em {dias} dias de afastamento
+                </p>
+              )}
             </div>
+
+            {ehMedico && (
+              <div className="rounded border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                ✓ Atestado médico será registrado automaticamente junto com a solicitação.
+              </div>
+            )}
 
             {erro && (
               <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">

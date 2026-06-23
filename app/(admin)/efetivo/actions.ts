@@ -11,12 +11,13 @@ export async function registrarAtestado(formData: FormData) {
   const auth = await getUser()
   if (!auth) throw new Error('Não autenticado')
 
-  const funcionarioId      = formData.get('funcionario_id') as string
-  const postoId            = formData.get('posto_id') as string
-  const dataInicio         = formData.get('data_inicio') as string
-  const dataFim            = formData.get('data_fim') as string
-  const motivo             = (formData.get('motivo') as string) || null
-  const cidCodigo          = (formData.get('cid_codigo') as string) || null
+  const funcionarioId     = formData.get('funcionario_id') as string
+  const postoId           = formData.get('posto_id') as string
+  const dataInicio        = formData.get('data_inicio') as string
+  const dataFim           = formData.get('data_fim') as string
+  const motivo            = (formData.get('motivo') as string) || null
+  const cidCodigo         = (formData.get('cid_codigo') as string) || null
+  const semCid            = formData.get('sem_cid') === 'true'
   const origemOcupacional = ((formData.get('origem_ocupacional') as string) || null) as 'acidente_trabalho' | 'doenca_ocupacional' | null
 
   const { data: func } = await supabase
@@ -32,6 +33,7 @@ export async function registrarAtestado(formData: FormData) {
     data_fim: dataFim,
     motivo,
     cid_codigo: cidCodigo,
+    sem_cid: semCid,
     origem_ocupacional: origemOcupacional,
     registrado_por: auth.user.id,
   })
@@ -229,14 +231,31 @@ export async function solicitarMudancaFuncao(formData: FormData): Promise<Action
   return { success: true }
 }
 
+const MOTIVOS_MEDICOS_INSS = ['INSS - Doença', 'INSS - Acidente de Trabalho']
+
+function addDaysToDate(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  dt.setDate(dt.getDate() + days)
+  return dt.toISOString().slice(0, 10)
+}
+
 export async function solicitarAfastamento(fd: FormData): Promise<ActionResult> {
   const supabase = createClient()
   const auth = await getUser()
   if (!auth) return { success: false, error: 'Não autenticado' }
-  const funcionario_id       = fd.get('funcionario_id') as string
-  const motivo               = fd.get('motivo') as string
-  const data_inicio          = fd.get('data_inicio') as string
-  const data_retorno_prevista = (fd.get('data_retorno_prevista') as string) || null
+  const funcionario_id        = fd.get('funcionario_id') as string
+  const motivo                = fd.get('motivo') as string
+  const data_inicio           = fd.get('data_inicio') as string
+  const diasStr               = (fd.get('dias') as string) || ''
+  const ehMedico              = fd.get('eh_medico') === 'true'
+  let   data_retorno_prevista = (fd.get('data_retorno_prevista') as string) || null
+
+  // Calcular retorno a partir dos dias se não foi informado manualmente
+  if (!data_retorno_prevista && diasStr) {
+    const n = parseInt(diasStr)
+    if (n > 0 && data_inicio) data_retorno_prevista = addDaysToDate(data_inicio, n)
+  }
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -246,16 +265,37 @@ export async function solicitarAfastamento(fd: FormData): Promise<ActionResult> 
 
   const { error } = await supabase.from('solicitacoes').insert({
     funcionario_id,
-    tipo:         'afastamento' as unknown as 'desligamento',
-    status:       'pendente',
+    tipo:          'afastamento' as unknown as 'desligamento',
+    status:        'pendente',
     supervisor_id: auth.user.id,
-    dados_antes:  { status: func?.status ?? null, posto_id: func?.posto_id ?? null },
-    dados_depois: { motivo, data_inicio, data_retorno_prevista },
+    dados_antes:   { status: func?.status ?? null, posto_id: func?.posto_id ?? null },
+    dados_depois:  { motivo, data_inicio, data_retorno_prevista, dias: diasStr || null },
     motivo,
   })
   if (error) return { success: false, error: error.message }
+
+  // Para motivos INSS, registrar atestado imediatamente (sem esperar aprovação)
+  if (ehMedico && MOTIVOS_MEDICOS_INSS.includes(motivo) && diasStr && func?.posto_id) {
+    const n = parseInt(diasStr)
+    if (n > 0) {
+      const data_fim = addDaysToDate(data_inicio, n - 1)
+      await supabase.from('atestados').insert({
+        funcionario_id,
+        posto_id:        func.posto_id,
+        data_inicio,
+        data_fim,
+        motivo,
+        cid_codigo:      null,
+        sem_cid:         false,
+        origem_ocupacional: motivo === 'INSS - Acidente de Trabalho' ? 'acidente_trabalho' : null,
+        registrado_por:  auth.user.id,
+      })
+    }
+  }
+
   revalidatePath('/efetivo')
   revalidatePath('/aprovacoes')
+  revalidatePath('/atestados')
   return { success: true }
 }
 
