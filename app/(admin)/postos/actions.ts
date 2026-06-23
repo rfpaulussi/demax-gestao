@@ -82,6 +82,23 @@ type ConfigRow = {
   perfis: { id: string; nome: string | null } | null
 }
 
+// Função de insalubridade que conta por secretaria
+const INSALUBRIDADE_POR_SECRETARIA: Record<string, string> = {
+  SME:   'AGENTE HIGIENIZAÇÃO B',
+  SMS:   'AGENTE HIGIENIZAÇÃO A',
+  SMGCP: 'AGENTE HIGIENIZAÇÃO B',
+  SMMT:  'AGENTE HIGIENIZAÇÃO C',
+  SMEL:  'AGENTE HIGIENIZAÇÃO B',
+  SEMAS: 'AGENTE HIGIENIZAÇÃO B',
+  SMAPA: 'AGENTE HIGIENIZAÇÃO B',
+  SMSEG: 'AGENTE HIGIENIZAÇÃO B',
+  SMC:   'AGENTE HIGIENIZAÇÃO B',
+  SMDET: 'AGENTE HIGIENIZAÇÃO B',
+  SMASA: 'AGENTE HIGIENIZAÇÃO B',
+  SMGOV: 'AGENTE HIGIENIZAÇÃO B',
+  SMSUZ: 'AGENTE HIGIENIZAÇÃO B',
+}
+
 // Tipo local até eh_encarregado_volante ser adicionado aos tipos gerados do Supabase
 interface FuncionarioRow {
   id: string
@@ -94,18 +111,19 @@ interface FuncionarioRow {
 export async function getPostosData(): Promise<PostoRow[]> {
   const supabase = createClient()
 
-  // Pre-fetch IDs dos cargos que não contam no efetivo contratual
-  const { data: funcoesExcluidasRaw } = await supabase
-    .from('funcoes')
-    .select('id')
-    .in('nome', [...FUNCOES_FORA_DO_EFETIVO])
-  const excludedFuncaoIds = new Set((funcoesExcluidasRaw ?? []).map(f => f.id))
+  // Pre-fetch todas as funções com nome para filtrar efetivo e calcular insalubridade
+  const { data: funcoesRaw } = await supabase.from('funcoes').select('id, nome')
+  const excludedFuncaoIds = new Set(
+    (funcoesRaw ?? []).filter(f => FUNCOES_FORA_DO_EFETIVO.includes(f.nome as never)).map(f => f.id)
+  )
+  // mapa funcao_id → nome normalizado (maiúsculas)
+  const funcaoNomeMap = new Map<string, string>(
+    (funcoesRaw ?? []).map(f => [f.id, f.nome.trim().toUpperCase()])
+  )
 
   const hoje = new Date()
-  const mesAtual = hoje.getMonth() + 1
-  const anoAtual = hoje.getFullYear()
 
-  const [{ data: postos }, funcionariosRaw, { data: config }, { data: coberturas }, { data: insalubRaw }] = await Promise.all([
+  const [{ data: postos }, funcionariosRaw, { data: config }, { data: coberturas }] = await Promise.all([
     supabase
       .from('postos')
       .select('id, nome, secretaria, efetivo_previsto, cota_insalubridade, ativo')
@@ -132,12 +150,6 @@ export async function getPostosData(): Promise<PostoRow[]> {
       .eq('status', 'ativa')
       .lte('data_inicio', hoje.toISOString().split('T')[0])
       .or(`data_prev_retorno.is.null,data_prev_retorno.gte.${hoje.toISOString().split('T')[0]}`),
-    // Contagem de funcionários distintos com insalubridade no mês atual por posto
-    supabase
-      .from('insalubridade_coberturas')
-      .select('funcionario_id, posto_id')
-      .eq('mes', mesAtual)
-      .eq('ano', anoAtual),
   ])
 
   // Mapa posto_id → secretaria para diferenciar postos AFASTADOS dos operacionais
@@ -147,9 +159,12 @@ export async function getPostosData(): Promise<PostoRow[]> {
   }
 
   const efetivoMap = new Map<string, number>()
+  const insalubMap = new Map<string, number>()
   for (const f of funcionariosRaw) {
     if (!f.posto_id) continue
-    const isPostoAfastados = postoSecretariaMap.get(f.posto_id) === 'AFASTADOS'
+    const secretaria = postoSecretariaMap.get(f.posto_id) ?? ''
+    const isPostoAfastados = secretaria === 'AFASTADOS'
+
     if (isPostoAfastados) {
       // Postos AFASTADOS: conta todos os afastados sem restrição de função ou volante
       if (f.status !== 'afastado') continue
@@ -160,6 +175,15 @@ export async function getPostosData(): Promise<PostoRow[]> {
       if (f.eh_encarregado_volante === true) continue
     }
     efetivoMap.set(f.posto_id, (efetivoMap.get(f.posto_id) ?? 0) + 1)
+
+    // Conta como insalubre se a função do funcionário bate com a regra da secretaria
+    const funcaoEsperada = INSALUBRIDADE_POR_SECRETARIA[secretaria]
+    if (funcaoEsperada && f.funcao_id) {
+      const funcaoNome = funcaoNomeMap.get(f.funcao_id) ?? ''
+      if (funcaoNome === funcaoEsperada) {
+        insalubMap.set(f.posto_id, (insalubMap.get(f.posto_id) ?? 0) + 1)
+      }
+    }
   }
 
   const supervisorMap = new Map<string, string>()
@@ -167,16 +191,6 @@ export async function getPostosData(): Promise<PostoRow[]> {
     if (!supervisorMap.has(row.posto_id) && row.perfis?.nome) {
       supervisorMap.set(row.posto_id, row.perfis.nome)
     }
-  }
-
-  // Contagem de funcionários únicos com insalubridade por posto no mês atual
-  type InsalubRow = { funcionario_id: string; posto_id: string | null }
-  const insalubMap = new Map<string, Set<string>>()
-  for (const r of (insalubRaw ?? []) as unknown as InsalubRow[]) {
-    const postoId = r.posto_id
-    if (!postoId) continue
-    if (!insalubMap.has(postoId)) insalubMap.set(postoId, new Set())
-    insalubMap.get(postoId)!.add(r.funcionario_id)
   }
 
   const coberturaOrigemIds  = new Set<string>()
@@ -194,7 +208,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
     cota_insalubridade: p.cota_insalubridade ?? 0,
     ativo: p.ativo ?? true,
     efetivo_atual: efetivoMap.get(p.id) ?? 0,
-    insalubridade_atual: insalubMap.get(p.id)?.size ?? 0,
+    insalubridade_atual: insalubMap.get(p.id) ?? 0,
     supervisor_nome: supervisorMap.get(p.id) ?? null,
     cobertura_como_origem:  coberturaOrigemIds.has(p.id),
     cobertura_como_destino: coberturaDestinoIds.has(p.id),
