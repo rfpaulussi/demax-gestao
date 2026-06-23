@@ -23,6 +23,7 @@ import {
   ClipboardX,
   UserX,
   ArrowLeftRight,
+  ScrollText,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import { NAV_GROUPS } from './nav-config'
@@ -49,6 +50,7 @@ const ICONS: Record<string, React.ElementType> = {
   '/relatorios':    BarChart3,
   '/importacao':    Upload,
   '/usuarios':      UserCog,
+  '/auditoria':     ScrollText,
 }
 
 // ─── shared nav content ──────────────────────────────────────────────────────
