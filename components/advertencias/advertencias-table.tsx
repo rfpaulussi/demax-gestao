@@ -31,12 +31,37 @@ interface Props {
   supervisores: SupervisorOpt[]
 }
 
+type SortCol = 'nome' | 'posto' | 'secretaria' | 'grau' | 'ocorrencia' | 'status' | 'reinc'
+type SortDir = 'asc' | 'desc'
+
 export function AdvertenciasTable({ advertencias, reincidencias, supervisores }: Props) {
   const [loadingPdf,          setLoadingPdf]          = useState<string | null>(null)
   const [editando,            setEditando]            = useState<AdvertenciaCompleta | null>(null)
   const [confirmandoExclusao, setConfirmandoExclusao] = useState<string | null>(null)
   const [excluindo,           setExcluindo]           = useState(false)
   const [lista,               setLista]               = useState(advertencias)
+  const [sortCol,             setSortCol]             = useState<SortCol>('ocorrencia')
+  const [sortDir,             setSortDir]             = useState<SortDir>('desc')
+
+  function toggleSort(col: SortCol) {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
+
+  const sorted = [...lista].sort((a, b) => {
+    let va: string | number = ''
+    let vb: string | number = ''
+    if (sortCol === 'nome')       { va = a.funcionarios?.nome ?? ''; vb = b.funcionarios?.nome ?? '' }
+    if (sortCol === 'posto')      { va = a.funcionarios?.postos?.nome ?? ''; vb = b.funcionarios?.postos?.nome ?? '' }
+    if (sortCol === 'secretaria') { va = a.funcionarios?.postos?.secretaria ?? ''; vb = b.funcionarios?.postos?.secretaria ?? '' }
+    if (sortCol === 'grau')       { va = a.grau ?? (a.tipo as string) ?? ''; vb = b.grau ?? (b.tipo as string) ?? '' }
+    if (sortCol === 'ocorrencia') { va = a.data_ocorrencia ?? ''; vb = b.data_ocorrencia ?? '' }
+    if (sortCol === 'status')     { va = a.status ?? ''; vb = b.status ?? '' }
+    if (sortCol === 'reinc')      { va = reincidencias[a.funcionario_id] ?? 1; vb = reincidencias[b.funcionario_id] ?? 1 }
+    if (va < vb) return sortDir === 'asc' ? -1 : 1
+    if (va > vb) return sortDir === 'asc' ? 1 : -1
+    return 0
+  })
 
   async function handleDownloadPDF(adv: AdvertenciaCompleta) {
     setLoadingPdf(adv.id)
@@ -82,15 +107,31 @@ export function AdvertenciasTable({ advertencias, reincidencias, supervisores }:
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
-                {['Colaborador', 'Posto', 'Secretaria', 'Grau', 'Ocorrência', 'Status', 'Reinc.', 'Ações'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">
-                    {h}
+                {([
+                  ['nome',       'Colaborador'],
+                  ['posto',      'Posto'],
+                  ['secretaria', 'Secretaria'],
+                  ['grau',       'Grau'],
+                  ['ocorrencia', 'Ocorrência'],
+                  ['status',     'Status'],
+                  ['reinc',      'Reinc.'],
+                ] as [SortCol, string][]).map(([col, label]) => (
+                  <th
+                    key={col}
+                    onClick={() => toggleSort(col)}
+                    className="cursor-pointer select-none px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-600"
+                  >
+                    {label}
+                    {sortCol === col ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕'}
                   </th>
                 ))}
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">
+                  Ações
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {lista.map(adv => {
+              {sorted.map(adv => {
                 const reinc = reincidencias[adv.funcionario_id] ?? 1
                 const isReinc = reinc > 1
                 const grauKey = adv.grau ?? (adv.tipo as string) ?? ''
