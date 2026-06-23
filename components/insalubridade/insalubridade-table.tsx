@@ -385,12 +385,11 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
       <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
         {/* Cabeçalho de colunas */}
         <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5 pl-14">
-          <div className="grid grid-cols-[2fr_1.5fr_1fr_1fr_0.7fr_1fr_1fr] gap-2 items-center">
+          <div className="grid grid-cols-[2fr_1.5fr_1.2fr_0.8fr_1fr_1fr] gap-2 items-center">
             <Th col="nome"       label="Funcionário" />
             <Th col="posto"      label="Posto" />
             <Th col="supervisor" label="Supervisor" />
             <Th col="dias"       label="Dias" />
-            <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">%</span>
             <Th col="status"     label="Status" />
             <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">Origem</span>
           </div>
@@ -418,7 +417,7 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
                       }
                     </button>
 
-                    <div className="min-w-0 flex-1 grid grid-cols-[2fr_1.5fr_1fr_1fr_0.7fr_1fr_1fr] gap-2 items-center">
+                    <div className="min-w-0 flex-1 grid grid-cols-[2fr_1.5fr_1.2fr_0.8fr_1fr_1fr] gap-2 items-center">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-gray-900">{grupo.funcionario_nome}</p>
                         {grupo.funcao && <p className="truncate text-xs text-gray-400">{grupo.funcao}</p>}
@@ -429,7 +428,6 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
                       </div>
                       <p className="text-sm text-gray-600 truncate">{grupo.supervisor_nome ?? '—'}</p>
                       <p className="text-sm font-bold text-gray-900">{grupo.total_dias} dia{grupo.total_dias !== 1 ? 's' : ''}</p>
-                      <p className="text-sm text-gray-600">40%</p>
                       <Badge status={grupo.status} />
                       <div className="flex flex-wrap gap-1">
                         {grupo.origens.map(o => {
