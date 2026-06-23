@@ -163,6 +163,7 @@ interface PostosClientProps {
 }
 
 export function PostosClient({ postos, role, funcoes = [], supervisorPostos = [] }: PostosClientProps) {
+  const [busca, setBusca]                   = useState('')
   const [secretaria, setSecretaria]         = useState('')
   const [supervisor, setSupervisor]         = useState('')
   const [status, setStatus]                 = useState('')
@@ -265,12 +266,13 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
 
   const filtered = useMemo(() => {
     let list = postos
+    if (busca) list = list.filter(p => p.nome.toLowerCase().includes(busca.toLowerCase()))
     if (secretaria) list = list.filter(p => p.secretaria === secretaria)
     if (supervisor === 'sem_supervisor') list = list.filter(p => !p.supervisor_nome)
     else if (supervisor) list = list.filter(p => p.supervisor_nome === supervisor)
     if (status) list = list.filter(p => getStatusPosto(p.efetivo_atual, p.efetivo_previsto) === status)
     return list
-  }, [postos, secretaria, supervisor, status])
+  }, [postos, busca, secretaria, supervisor, status])
 
   // ── sort ───────────────────────────────────────────────────────────────────
 
@@ -370,6 +372,14 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
 
           {/* Filtros + botão Nova Admissão (supervisor) */}
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+            <input
+              type="text"
+              placeholder="Buscar posto..."
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+              className={`${selectClass} col-span-2 w-full sm:w-56`}
+            />
+
             <select value={secretaria} onChange={e => setSecretaria(e.target.value)} className={`${selectClass} w-full sm:w-auto`}>
               <option value="">Todas as secretarias</option>
               {secretarias.map(s => <option key={s} value={s}>{s}</option>)}

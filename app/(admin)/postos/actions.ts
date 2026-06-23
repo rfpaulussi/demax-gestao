@@ -132,10 +132,10 @@ export async function getPostosData(): Promise<PostoRow[]> {
       .eq('status', 'ativa')
       .lte('data_inicio', hoje.toISOString().split('T')[0])
       .or(`data_prev_retorno.is.null,data_prev_retorno.gte.${hoje.toISOString().split('T')[0]}`),
-    // Contagem de funcionários com insalubridade no mês atual por posto
+    // Contagem de funcionários distintos com insalubridade no mês atual por posto
     supabase
       .from('insalubridade_coberturas')
-      .select('funcionario_id, funcionarios!funcionario_id(posto_id)')
+      .select('funcionario_id, posto_id')
       .eq('mes', mesAtual)
       .eq('ano', anoAtual),
   ])
@@ -170,10 +170,10 @@ export async function getPostosData(): Promise<PostoRow[]> {
   }
 
   // Contagem de funcionários únicos com insalubridade por posto no mês atual
-  type InsalubRow = { funcionario_id: string; funcionarios: { posto_id: string | null } | null }
+  type InsalubRow = { funcionario_id: string; posto_id: string | null }
   const insalubMap = new Map<string, Set<string>>()
   for (const r of (insalubRaw ?? []) as unknown as InsalubRow[]) {
-    const postoId = r.funcionarios?.posto_id
+    const postoId = r.posto_id
     if (!postoId) continue
     if (!insalubMap.has(postoId)) insalubMap.set(postoId, new Set())
     insalubMap.get(postoId)!.add(r.funcionario_id)
