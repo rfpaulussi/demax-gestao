@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useTransition } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { deleteAtestado } from '@/app/(admin)/atestados/actions'
+import { solicitarAfastamento } from '@/app/(admin)/efetivo/actions'
 import { ModalEditarAtestado } from './modal-editar-atestado'
 
 export type AtestadoRow = {
@@ -62,6 +63,115 @@ interface Props {
   cids: CidOpt[]
 }
 
+type InssModalState = {
+  funcionario_id: string
+  funcionario_nome: string
+  data_inicio: string
+  dias: number
+  motivo: string
+}
+
+function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  dt.setDate(dt.getDate() + days)
+  return dt.toISOString().slice(0, 10)
+}
+
+function ModalSolicitarInss({
+  state,
+  onClose,
+}: {
+  state: InssModalState
+  onClose: () => void
+}) {
+  const [motivo, setMotivo] = useState(state.motivo)
+  const [dataInicio, setDataInicio] = useState(state.data_inicio)
+  const [dias, setDias] = useState(String(state.dias))
+  const [dataRetorno, setDataRetorno] = useState(
+    state.data_inicio ? addDays(state.data_inicio, state.dias) : '',
+  )
+  const [erro, setErro] = useState<string | null>(null)
+  const [pending, start] = useTransition()
+
+  function handleDias(val: string) {
+    setDias(val)
+    const n = parseInt(val)
+    if (dataInicio && n > 0) setDataRetorno(addDays(dataInicio, n))
+    else if (!val) setDataRetorno('')
+  }
+
+  function handleDataInicio(val: string) {
+    setDataInicio(val)
+    const n = parseInt(dias)
+    if (val && n > 0) setDataRetorno(addDays(val, n))
+  }
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setErro(null)
+    const fd = new FormData()
+    fd.set('funcionario_id', state.funcionario_id)
+    fd.set('motivo', motivo)
+    fd.set('data_inicio', dataInicio)
+    fd.set('data_retorno_prevista', dataRetorno)
+    fd.set('eh_medico', 'true')
+    fd.set('dias', dias)
+    start(async () => {
+      const res = await solicitarAfastamento(fd)
+      if (!res.success) { setErro(res.error); return }
+      onClose()
+    })
+  }
+
+  const labelCls = 'mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600'
+  const inputCls = 'w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+        <h3 className="mb-1 text-base font-semibold text-gray-900">Solicitar Afastamento INSS</h3>
+        <p className="mb-4 text-sm text-gray-500">{state.funcionario_nome}</p>
+        <div className="mb-4 rounded border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+          Dados pré-preenchidos com base nos atestados acumulados. Revise antes de enviar.
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className={labelCls}>Motivo</label>
+            <select value={motivo} onChange={e => setMotivo(e.target.value)} className={inputCls}>
+              <option value="INSS - Doença">INSS — Doença</option>
+              <option value="INSS - Acidente de Trabalho">INSS — Acidente de Trabalho</option>
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Data de Início</label>
+              <input type="date" required value={dataInicio} onChange={e => handleDataInicio(e.target.value)} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Dias de Atestado</label>
+              <input type="number" min="1" value={dias} onChange={e => handleDias(e.target.value)} className={inputCls} />
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Retorno Previsto</label>
+            <input type="date" value={dataRetorno} onChange={e => { setDataRetorno(e.target.value); setDias('') }} className={inputCls} />
+          </div>
+          {erro && <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{erro}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose} disabled={pending} className="rounded px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50">
+              Cancelar
+            </button>
+            <button type="submit" disabled={pending} className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
+              {pending ? 'Enviando...' : 'Enviar Solicitação'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 export function AtestadosClient({ atestados, cids }: Props) {
   const [editando, setEditando] = useState<AtestadoRow | null>(null)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
@@ -71,6 +181,17 @@ export function AtestadosClient({ atestados, cids }: Props) {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [aba, setAba] = useState<'lista' | 'ranking'>('lista')
   const [janelaRanking, setJanelaRanking] = useState<30 | 60 | 90 | 180>(90)
+  const [inssModal, setInssModal] = useState<InssModalState | null>(null)
+
+  // Data do atestado mais antigo por funcionário (para pré-preencher o modal INSS)
+  const primeiroAtestadoMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const a of atestados) {
+      const cur = map.get(a.funcionario_id)
+      if (!cur || a.data_inicio < cur) map.set(a.funcionario_id, a.data_inicio)
+    }
+    return map
+  }, [atestados])
 
   function handleSort(col: SortCol) {
     if (col === sortCol) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
@@ -404,7 +525,22 @@ export function AtestadosClient({ atestados, cids }: Props) {
                           </div>
                         </div>
                       ) : (
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-1.5">
+                          {a.alerta && (
+                            <button
+                              type="button"
+                              onClick={() => setInssModal({
+                                funcionario_id: a.funcionario_id,
+                                funcionario_nome: a.funcionario_nome,
+                                data_inicio: primeiroAtestadoMap.get(a.funcionario_id) ?? a.data_inicio,
+                                dias: a.acumulado,
+                                motivo: 'INSS - Doença',
+                              })}
+                              className="rounded border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
+                            >
+                              Solicitar INSS
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => setEditando(a)}
@@ -435,6 +571,13 @@ export function AtestadosClient({ atestados, cids }: Props) {
         onClose={() => setEditando(null)}
         cids={cids}
       />
+
+      {inssModal && (
+        <ModalSolicitarInss
+          state={inssModal}
+          onClose={() => setInssModal(null)}
+        />
+      )}
     </>
   )
 }
