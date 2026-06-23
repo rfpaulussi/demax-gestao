@@ -22,9 +22,14 @@ export default async function FaltasPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-bold text-gray-900">Faltas &amp; Atestados</h1>
-        <p className="text-sm text-gray-400">Absenteísmo — {MESES[mes]} {ano}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-bold text-gray-900">Faltas &amp; Atestados</h1>
+          <p className="text-sm text-gray-400">Absenteísmo — {MESES[mes]} {ano}</p>
+        </div>
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          Registre todas as faltas independentemente da duração. O status do funcionário é alterado para <strong>Afastado</strong> automaticamente apenas a partir de <strong>3 dias</strong> de falta consecutivos.
+        </p>
       </div>
       <FaltasClient
         dash={dash}
