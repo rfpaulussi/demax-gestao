@@ -36,9 +36,27 @@ export async function deleteAtestado(id: string): Promise<{ error?: string }> {
 
   const supabase = createClient()
 
+  // Lê o atestado antes de excluir para registrar no log
+  const { data: atestado } = await supabase
+    .from('atestados')
+    .select('funcionario_id, data_inicio, data_fim, cid_codigo')
+    .eq('id', id)
+    .single()
+
   const { error } = await supabase.from('atestados').delete().eq('id', id)
 
   if (error) return { error: error.message }
+
+  if (atestado) {
+    await supabase.from('movimentacoes').insert({
+      funcionario_id: atestado.funcionario_id,
+      tipo:           'exclusao_atestado',
+      campo_alterado: 'atestado',
+      valor_antes:    `${atestado.data_inicio} → ${atestado.data_fim}${atestado.cid_codigo ? ` (${atestado.cid_codigo})` : ''}`,
+      valor_depois:   null,
+      executado_por:  auth.user.id,
+    })
+  }
 
   revalidatePath('/atestados')
   return {}

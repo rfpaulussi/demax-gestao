@@ -293,6 +293,12 @@ export async function rejeitarSolicitacao(id: string, motivo: string): Promise<A
 
   const supabase = createClient()
 
+  const { data: sol } = await supabase
+    .from('solicitacoes')
+    .select('funcionario_id, tipo')
+    .eq('id', id)
+    .single()
+
   const { error } = await supabase
     .from('solicitacoes')
     .update({
@@ -304,6 +310,18 @@ export async function rejeitarSolicitacao(id: string, motivo: string): Promise<A
     .eq('id', id)
 
   if (error) return { success: false, error: error.message }
+
+  if (sol) {
+    await supabase.from('movimentacoes').insert({
+      funcionario_id: sol.funcionario_id,
+      tipo:           'rejeicao',
+      campo_alterado: 'solicitacao',
+      valor_antes:    sol.tipo,
+      valor_depois:   `rejeitado: ${motivo}`,
+      executado_por:  guard.userId,
+      solicitacao_id: id,
+    })
+  }
 
   revalidatePath('/aprovacoes')
   return { success: true }

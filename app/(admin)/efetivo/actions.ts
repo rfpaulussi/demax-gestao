@@ -405,10 +405,40 @@ export async function editarFuncionario(
     periodo_experiencia: periodoExperiencia,
   }
 
+  // Lê estado atual para comparar e logar apenas o que mudou
+  const { data: antes } = await supabase
+    .from('funcionarios')
+    .select('nome, funcao_id, posto_id, status, periodo_experiencia')
+    .eq('id', id)
+    .single()
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await supabase.from('funcionarios').update(updatePayload as any).eq('id', id)
 
   if (error) return { success: false, error: error.message }
+
+  // Registra em movimentacoes cada campo que de fato mudou
+  if (antes) {
+    const camposAuditoria: Array<{ campo: string; antes: string | null; depois: string | null }> = [
+      { campo: 'nome',       antes: antes.nome ?? null,               depois: campos.nome || null },
+      { campo: 'funcao_id',  antes: antes.funcao_id ?? null,          depois: campos.funcao_id || null },
+      { campo: 'posto_id',   antes: antes.posto_id ?? null,           depois: campos.posto_id || null },
+      { campo: 'status',     antes: antes.status ?? null,             depois: campos.status || null },
+    ]
+    const alterados = camposAuditoria.filter(c => c.antes !== c.depois)
+    if (alterados.length > 0) {
+      await supabase.from('movimentacoes').insert(
+        alterados.map(c => ({
+          funcionario_id: id,
+          tipo:           'edicao_direta',
+          campo_alterado: c.campo,
+          valor_antes:    c.antes,
+          valor_depois:   c.depois,
+          executado_por:  auth.user.id,
+        }))
+      )
+    }
+  }
 
   revalidatePath('/efetivo')
   revalidatePath(`/efetivo/${id}`)
