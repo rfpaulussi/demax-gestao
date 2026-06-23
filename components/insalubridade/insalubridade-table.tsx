@@ -164,15 +164,77 @@ type EditForm = {
   observacao: string
 }
 
+type SortCol = 'nome' | 'posto' | 'secretaria' | 'supervisor' | 'dias' | 'status'
+type SortDir = 'asc' | 'desc'
+
 export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, isAdmin }: Props) {
   const router = useRouter()
-  const [expanded, setExpanded]       = useState<Set<string>>(new Set())
-  const [showModal, setShowModal]     = useState(false)
-  const [loadingXlsx, setLoadingXlsx] = useState(false)
-  const [loadingLote, setLoadingLote] = useState(false)
-  const [editandoId, setEditandoId]   = useState<string | null>(null)
-  const [editForm, setEditForm]       = useState<EditForm | null>(null)
-  const [salvando, setSalvando]       = useState(false)
+  const [expanded, setExpanded]         = useState<Set<string>>(new Set())
+  const [showModal, setShowModal]       = useState(false)
+  const [loadingXlsx, setLoadingXlsx]   = useState(false)
+  const [loadingLote, setLoadingLote]   = useState(false)
+  const [editandoId, setEditandoId]     = useState<string | null>(null)
+  const [editForm, setEditForm]         = useState<EditForm | null>(null)
+  const [salvando, setSalvando]         = useState(false)
+  const [busca, setBusca]               = useState('')
+  const [filtroSup, setFiltroSup]       = useState('')
+  const [sortCol, setSortCol]           = useState<SortCol>('nome')
+  const [sortDir, setSortDir]           = useState<SortDir>('asc')
+  const [showRanking, setShowRanking]   = useState(false)
+
+  function toggleSort(col: SortCol) {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
+
+  // Lista de supervisores únicos
+  const supervisores = Array.from(
+    new Set(grupos.map(g => g.supervisor_nome).filter(Boolean))
+  ).sort() as string[]
+
+  // Filtro + ordenação
+  const filtrados = grupos
+    .filter(g => {
+      if (busca && !g.funcionario_nome.toLowerCase().includes(busca.toLowerCase())) return false
+      if (filtroSup && g.supervisor_nome !== filtroSup) return false
+      return true
+    })
+    .sort((a, b) => {
+      let va: string | number = '', vb: string | number = ''
+      if (sortCol === 'nome')       { va = a.funcionario_nome; vb = b.funcionario_nome }
+      if (sortCol === 'posto')      { va = a.posto_nome ?? ''; vb = b.posto_nome ?? '' }
+      if (sortCol === 'secretaria') { va = a.secretaria ?? ''; vb = b.secretaria ?? '' }
+      if (sortCol === 'supervisor') { va = a.supervisor_nome ?? ''; vb = b.supervisor_nome ?? '' }
+      if (sortCol === 'dias')       { va = a.total_dias; vb = b.total_dias }
+      if (sortCol === 'status')     { va = a.status; vb = b.status }
+      if (va < vb) return sortDir === 'asc' ? -1 : 1
+      if (va > vb) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
+
+  // Ranking por supervisor
+  const rankingSup = Object.values(
+    grupos.reduce<Record<string, { nome: string; funcionarios: number; dias: number }>>((acc, g) => {
+      const sup = g.supervisor_nome ?? '—'
+      if (!acc[sup]) acc[sup] = { nome: sup, funcionarios: 0, dias: 0 }
+      acc[sup].funcionarios++
+      acc[sup].dias += g.total_dias
+      return acc
+    }, {})
+  ).sort((a, b) => b.dias - a.dias)
+
+  function Th({ col, label }: { col: SortCol; label: string }) {
+    return (
+      <button
+        type="button"
+        onClick={() => toggleSort(col)}
+        className="flex items-center gap-1 text-left text-xs font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-600 select-none"
+      >
+        {label}
+        <span className="text-gray-300">{sortCol === col ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
+      </button>
+    )
+  }
 
   function iniciarEdicao(r: InsalubridadeCobertura) {
     setEditandoId(r.id)
@@ -225,12 +287,39 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
 
   return (
     <>
-      {/* Action buttons row */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-          {grupos.length} funcionário{grupos.length !== 1 ? 's' : ''}
-        </p>
-        <div className="flex items-center gap-2">
+      {/* Busca + filtro supervisor + ações */}
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="text"
+          placeholder="Buscar funcionário..."
+          value={busca}
+          onChange={e => setBusca(e.target.value)}
+          className="h-9 w-56 rounded-lg border border-gray-200 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400"
+        />
+        <select
+          value={filtroSup}
+          onChange={e => setFiltroSup(e.target.value)}
+          className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400"
+        >
+          <option value="">Todos os supervisores</option>
+          {supervisores.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <button
+          type="button"
+          onClick={() => setShowRanking(v => !v)}
+          className={cn(
+            'flex h-9 items-center rounded-lg border px-3 text-sm font-medium transition-colors',
+            showRanking
+              ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+              : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+          )}
+        >
+          Ranking supervisores
+        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+            {filtrados.length} funcionário{filtrados.length !== 1 ? 's' : ''}
+          </p>
           <button
             type="button"
             onClick={handleExcel}
@@ -258,15 +347,62 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
         </div>
       </div>
 
+      {/* Ranking supervisores */}
+      {showRanking && rankingSup.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
+          <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5">
+            <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Ranking por Supervisor</p>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {rankingSup.map((sup, i) => (
+              <div key={sup.nome} className="flex items-center gap-4 px-4 py-2.5">
+                <span className="w-5 text-center text-xs font-bold text-gray-400">{i + 1}º</span>
+                <span className="flex-1 text-sm font-medium text-gray-800">{sup.nome}</span>
+                <div className="flex items-center gap-6">
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-gray-900">{sup.funcionarios}</p>
+                    <p className="text-xs text-gray-400">funcionários</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-indigo-700">{sup.dias}</p>
+                    <p className="text-xs text-gray-400">dias no mês</p>
+                  </div>
+                  {/* Barra proporcional */}
+                  <div className="w-32 h-1.5 rounded-full bg-gray-100">
+                    <div
+                      className="h-1.5 rounded-full bg-indigo-400"
+                      style={{ width: `${Math.round((sup.dias / rankingSup[0].dias) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-        {grupos.length === 0 ? (
+        {/* Cabeçalho de colunas */}
+        <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5 pl-14">
+          <div className="grid grid-cols-[2fr_1.5fr_1fr_1fr_0.7fr_1fr_1fr] gap-2 items-center">
+            <Th col="nome"       label="Funcionário" />
+            <Th col="posto"      label="Posto" />
+            <Th col="supervisor" label="Supervisor" />
+            <Th col="dias"       label="Dias" />
+            <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">%</span>
+            <Th col="status"     label="Status" />
+            <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">Origem</span>
+          </div>
+        </div>
+
+        {filtrados.length === 0 ? (
           <p className="px-6 py-10 text-center text-sm text-gray-400">
-            Nenhum registro de insalubridade encontrado para este mês.
+            Nenhum registro encontrado.
           </p>
         ) : (
           <div className="divide-y divide-gray-100">
-            {grupos.map(grupo => {
+            {filtrados.map(grupo => {
               const isOpen = expanded.has(grupo.funcionario_id)
               return (
                 <div key={grupo.funcionario_id}>
