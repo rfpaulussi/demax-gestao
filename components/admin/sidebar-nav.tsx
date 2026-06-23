@@ -72,7 +72,7 @@ function NavLinks({
         if (group.adminOnly && role !== 'admin') return null
         return (
           <div key={group.label} className={i > 0 ? 'mt-6' : undefined}>
-            <p className="text-[10px] uppercase tracking-widest text-slate-500 px-3 mb-2">
+            <p className="text-[10px] uppercase tracking-widest px-3 mb-2" style={{ color: '#2d5a3d' }}>
               {group.label}
             </p>
             <div className="flex flex-col gap-0.5">
@@ -87,9 +87,10 @@ function NavLinks({
                     onClick={onNavigate}
                     className={
                       active
-                        ? 'flex items-center gap-3 rounded-r-lg border-l-2 border-blue-500 bg-white/10 px-3 py-2.5 text-sm font-semibold text-white'
-                        : 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-white'
+                        ? 'flex items-center gap-3 rounded-r-lg border-l-2 px-3 py-2.5 text-sm font-semibold text-white'
+                        : 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:text-white'
                     }
+                    style={active ? { borderColor: '#22c55e', background: 'rgba(34,197,94,0.08)' } : undefined}
                   >
                     {Icon && <Icon className="h-4 w-4 shrink-0" />}
                     <span className="flex-1">{label}</span>
@@ -111,7 +112,8 @@ function NavLinks({
 
 function SidebarHeader() {
   return (
-    <div className="flex h-16 shrink-0 items-center border-b border-slate-800 px-6">
+    <div className="flex h-16 shrink-0 items-center gap-2.5 px-6" style={{ borderBottom: '1px solid #0d2318' }}>
+      <span className="block h-2 w-2 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} aria-hidden />
       <span className="text-sm font-black uppercase tracking-widest text-white">
         DEMAX
       </span>
@@ -143,7 +145,7 @@ export function SidebarNav({
 
       {/* Mobile: Sheet sidebar */}
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="left" className="bg-slate-900 pt-0">
+        <SheetContent side="left" className="pt-0 !bg-[#071510]">
           <SheetClose />
           <SidebarHeader />
           <NavLinks role={role} pendingCount={pendingCount} onNavigate={() => setOpen(false)} />
@@ -151,7 +153,7 @@ export function SidebarNav({
       </Sheet>
 
       {/* Desktop: fixed sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-slate-800 bg-slate-900 md:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col md:flex" style={{ background: '#071510', borderRight: '1px solid #0d2318' }}>
         <SidebarHeader />
         <NavLinks role={role} pendingCount={pendingCount} />
       </aside>
