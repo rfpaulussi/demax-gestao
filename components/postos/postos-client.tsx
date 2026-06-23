@@ -70,13 +70,12 @@ function CounterCard({
 type ColDef = { label: string; sortKey: SortCol | null; align: 'left' | 'center' }
 
 const COLS: ColDef[] = [
-  { label: 'Posto',         sortKey: 'nome',             align: 'left'   },
-  { label: 'Secretaria',    sortKey: 'secretaria',       align: 'left'   },
-  { label: 'Supervisor',    sortKey: 'supervisor',       align: 'left'   },
-  { label: 'Alocado',       sortKey: 'efetivo_atual',    align: 'center' },
-  { label: 'Previsto',      sortKey: 'efetivo_previsto', align: 'center' },
-  { label: 'Insalubridade', sortKey: null,               align: 'center' },
-  { label: 'Status',        sortKey: 'status',           align: 'center' },
+  { label: 'Posto',              sortKey: 'nome',             align: 'left'   },
+  { label: 'Secretaria',         sortKey: 'secretaria',       align: 'left'   },
+  { label: 'Supervisor',         sortKey: 'supervisor',       align: 'left'   },
+  { label: 'Aloc / Prev',        sortKey: 'efetivo_atual',    align: 'center' },
+  { label: 'Insalub / Cota',     sortKey: null,               align: 'center' },
+  { label: 'Status',             sortKey: 'status',           align: 'center' },
 ]
 
 const selectClass =
@@ -471,9 +470,27 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-center tabular-nums text-gray-900">{p.efetivo_atual}</td>
-                        <td className="px-4 py-3 text-center tabular-nums text-gray-600">{p.efetivo_previsto}</td>
-                        <td className="px-4 py-3 text-center tabular-nums text-gray-600">{p.cota_insalubridade}</td>
+                        {/* Aloc / Prev */}
+                        <td className="px-4 py-3 text-center tabular-nums">
+                          <span className={st === 'deficit' ? 'font-bold text-red-600' : st === 'excesso' ? 'font-bold text-indigo-600' : 'text-gray-900'}>
+                            {p.efetivo_atual}
+                          </span>
+                          <span className="text-gray-400"> / {p.efetivo_previsto}</span>
+                        </td>
+                        {/* Insalub / Cota */}
+                        <td className="px-4 py-3 text-center tabular-nums">
+                          {p.cota_insalubridade > 0 ? (
+                            <>
+                              <span className={p.insalubridade_atual < p.cota_insalubridade ? 'font-bold text-red-600' : p.insalubridade_atual > p.cota_insalubridade ? 'font-bold text-indigo-600' : 'text-gray-900'}>
+                                {p.insalubridade_atual}
+                              </span>
+                              <span className="text-gray-400"> / {p.cota_insalubridade}</span>
+                            </>
+                          ) : (
+                            <span className="text-gray-300">—</span>
+                          )}
+                        </td>
+                        {/* Status (dois badges: alocação + insalubridade) */}
                         <td className="px-4 py-3 text-center">
                           <div className="flex flex-col items-center gap-1">
                             {p.secretaria === 'AFASTADOS' ? (
@@ -482,9 +499,18 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                               </span>
                             ) : (
                               <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CHIP[st]}`}>
-                                {STATUS_LABELS[st]}
+                                Aloc: {STATUS_LABELS[st]}
                               </span>
                             )}
+                            {p.cota_insalubridade > 0 && (() => {
+                              const stI = p.insalubridade_atual < p.cota_insalubridade ? 'deficit'
+                                : p.insalubridade_atual > p.cota_insalubridade ? 'excesso' : 'ok'
+                              return (
+                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CHIP[stI]}`}>
+                                  Insalub: {STATUS_LABELS[stI]}
+                                </span>
+                              )
+                            })()}
                             {p.cobertura_como_origem && (
                               <span className="inline-flex items-center rounded-full bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-700">
                                 Cedeu reforço

@@ -70,6 +70,7 @@ export type PostoRow = {
   cota_insalubridade: number
   ativo: boolean
   efetivo_atual: number
+  insalubridade_atual: number
   supervisor_nome: string | null
   cobertura_como_origem: boolean
   cobertura_como_destino: boolean
@@ -100,9 +101,11 @@ export async function getPostosData(): Promise<PostoRow[]> {
     .in('nome', [...FUNCOES_FORA_DO_EFETIVO])
   const excludedFuncaoIds = new Set((funcoesExcluidasRaw ?? []).map(f => f.id))
 
-  const hoje = new Date().toISOString().split('T')[0]
+  const hoje = new Date()
+  const mesAtual = hoje.getMonth() + 1
+  const anoAtual = hoje.getFullYear()
 
-  const [{ data: postos }, funcionariosRaw, { data: config }, { data: coberturas }] = await Promise.all([
+  const [{ data: postos }, funcionariosRaw, { data: config }, { data: coberturas }, { data: insalubRaw }] = await Promise.all([
     supabase
       .from('postos')
       .select('id, nome, secretaria, efetivo_previsto, cota_insalubridade, ativo')
@@ -127,8 +130,14 @@ export async function getPostosData(): Promise<PostoRow[]> {
       .from('coberturas_temporarias')
       .select('posto_origem_id, posto_destino_id')
       .eq('status', 'ativa')
-      .lte('data_inicio', hoje)
-      .or(`data_prev_retorno.is.null,data_prev_retorno.gte.${hoje}`),
+      .lte('data_inicio', hoje.toISOString().split('T')[0])
+      .or(`data_prev_retorno.is.null,data_prev_retorno.gte.${hoje.toISOString().split('T')[0]}`),
+    // Contagem de funcionários com insalubridade no mês atual por posto
+    supabase
+      .from('insalubridade_coberturas')
+      .select('funcionario_id, funcionarios!funcionario_id(posto_id)')
+      .eq('mes', mesAtual)
+      .eq('ano', anoAtual),
   ])
 
   // Mapa posto_id → secretaria para diferenciar postos AFASTADOS dos operacionais
@@ -160,6 +169,16 @@ export async function getPostosData(): Promise<PostoRow[]> {
     }
   }
 
+  // Contagem de funcionários únicos com insalubridade por posto no mês atual
+  type InsalubRow = { funcionario_id: string; funcionarios: { posto_id: string | null } | null }
+  const insalubMap = new Map<string, Set<string>>()
+  for (const r of (insalubRaw ?? []) as unknown as InsalubRow[]) {
+    const postoId = r.funcionarios?.posto_id
+    if (!postoId) continue
+    if (!insalubMap.has(postoId)) insalubMap.set(postoId, new Set())
+    insalubMap.get(postoId)!.add(r.funcionario_id)
+  }
+
   const coberturaOrigemIds  = new Set<string>()
   const coberturaDestinoIds = new Set<string>()
   for (const c of coberturas ?? []) {
@@ -175,6 +194,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
     cota_insalubridade: p.cota_insalubridade ?? 0,
     ativo: p.ativo ?? true,
     efetivo_atual: efetivoMap.get(p.id) ?? 0,
+    insalubridade_atual: insalubMap.get(p.id)?.size ?? 0,
     supervisor_nome: supervisorMap.get(p.id) ?? null,
     cobertura_como_origem:  coberturaOrigemIds.has(p.id),
     cobertura_como_destino: coberturaDestinoIds.has(p.id),
