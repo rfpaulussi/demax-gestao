@@ -49,18 +49,23 @@ function CounterCard({
   topColor,
   subtext,
   subtextClass = 'text-gray-500',
+  subtext2,
+  subtext2Class = 'text-gray-400',
 }: {
   label: string
   value: number
   topColor: string
   subtext?: string
   subtextClass?: string
+  subtext2?: string
+  subtext2Class?: string
 }) {
   return (
     <div className={`rounded-xl border border-gray-100 border-t-4 bg-white p-3 shadow-sm ${topColor}`}>
       <p className="text-2xl font-black tracking-tight text-gray-900">{value}</p>
       <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
       {subtext && <p className={`mt-1 text-sm ${subtextClass}`}>{subtext}</p>}
+      {subtext2 && <p className={`text-xs ${subtext2Class}`}>{subtext2}</p>}
     </div>
   )
 }
@@ -249,17 +254,22 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
 
   const kpis = useMemo(() => {
     let total = 0, ok = 0, deficit = 0, vagos = 0, excesso = 0, semSupervisor = 0
-    let pessoasDeficit = 0, pessoasExcesso = 0
+    let pessoasDeficit = 0, pessoasExcesso = 0, pessoasExcessoAfastados = 0
     for (const p of postos) {
       total++
       const st = getStatusPosto(p.efetivo_atual, p.efetivo_previsto)
       if (st === 'ok')      ok++
       if (st === 'deficit') { deficit++;  pessoasDeficit  += p.efetivo_previsto - p.efetivo_atual }
       if (st === 'vago')    vagos++
-      if (st === 'excesso') { excesso++;  pessoasExcesso  += p.efetivo_atual    - p.efetivo_previsto }
+      if (st === 'excesso') {
+        excesso++
+        const extra = p.efetivo_atual - p.efetivo_previsto
+        pessoasExcesso += extra
+        if (p.secretaria === 'AFASTADOS') pessoasExcessoAfastados += extra
+      }
       if (!p.supervisor_nome) semSupervisor++
     }
-    return { total, ok, deficit, vagos, excesso, semSupervisor, pessoasDeficit, pessoasExcesso }
+    return { total, ok, deficit, vagos, excesso, semSupervisor, pessoasDeficit, pessoasExcesso, pessoasExcessoAfastados }
   }, [postos])
 
   // ── filter ─────────────────────────────────────────────────────────────────
@@ -341,10 +351,12 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
           className={cn('rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
             aba === 'visao' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
           )}>Visão Geral</button>
-        <button type="button" onClick={() => setAba('gerenciar')}
-          className={cn('rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
-            aba === 'gerenciar' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-          )}>Gerenciar</button>
+        {role !== 'supervisor' && (
+          <button type="button" onClick={() => setAba('gerenciar')}
+            className={cn('rounded-md px-4 py-1.5 text-sm font-medium transition-colors',
+              aba === 'gerenciar' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+            )}>Gerenciar</button>
+        )}
       </div>
 
       {aba === 'visao' && (
@@ -366,6 +378,7 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
               value={kpis.excesso}
               topColor="border-t-indigo-500"
               subtext={kpis.pessoasExcesso > 0 ? `+${kpis.pessoasExcesso} pessoas` : undefined}
+              subtext2={kpis.pessoasExcessoAfastados > 0 ? `(${kpis.pessoasExcessoAfastados} afastados)` : undefined}
             />
             <CounterCard label="Sem Supervisor" value={kpis.semSupervisor} topColor="border-t-amber-500"  />
           </div>

@@ -14,18 +14,19 @@ import type { EvolucaoEfetivoResult } from '@/app/(admin)/dashboard/actions'
 
 interface EvolucaoEfetivoProps {
   dados: EvolucaoEfetivoResult
+  minimoContratual?: number
 }
 
-const MINIMO_CONTRATUAL = 850
+const MINIMO_CONTRATUAL_PADRAO = 850
 
 function formatPrimeiroCadastro(iso: string): string {
   const [y, m, d] = iso.split('-')
   return `${d}/${m}/${y}`
 }
 
-export function EvolucaoEfetivo({ dados }: EvolucaoEfetivoProps) {
+export function EvolucaoEfetivo({ dados, minimoContratual = MINIMO_CONTRATUAL_PADRAO }: EvolucaoEfetivoProps) {
   const { meses, apenasUmMes, totalAtual, primeiroCadastro } = dados
-  const deficit = Math.max(0, MINIMO_CONTRATUAL - totalAtual)
+  const deficit = Math.max(0, minimoContratual - totalAtual)
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -58,12 +59,12 @@ export function EvolucaoEfetivo({ dados }: EvolucaoEfetivoProps) {
             <YAxis fontSize={10} width={35} />
             <Tooltip formatter={(v) => [v, 'Ativos']} />
             <ReferenceLine
-              y={MINIMO_CONTRATUAL}
+              y={minimoContratual}
               stroke="#dc2626"
               strokeDasharray="4 3"
               strokeOpacity={0.6}
               label={{
-                value: `${MINIMO_CONTRATUAL} mín. contratual`,
+                value: `${minimoContratual} mín. contratual`,
                 position: 'right',
                 fontSize: 10,
                 fill: '#dc2626',
@@ -82,8 +83,8 @@ export function EvolucaoEfetivo({ dados }: EvolucaoEfetivoProps) {
       )}
 
       <p className="mt-3 text-xs text-gray-400">
-        Mínimo contratual: {MINIMO_CONTRATUAL} · Atual:{' '}
-        <span className={totalAtual < MINIMO_CONTRATUAL ? 'font-semibold text-gray-700' : 'font-semibold text-gray-700'}>
+        Mínimo contratual: {minimoContratual} · Atual:{' '}
+        <span className={totalAtual < minimoContratual ? 'font-semibold text-gray-700' : 'font-semibold text-gray-700'}>
           {totalAtual}
         </span>
         {' · '}

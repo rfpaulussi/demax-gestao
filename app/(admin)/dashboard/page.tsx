@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getUser } from '@/lib/auth/get-user'
+import { createClient } from '@/lib/supabase/server'
 import {
   buscarKPIsDashboard,
   buscarAlertasDashboard,
@@ -155,6 +156,8 @@ export default async function DashboardPage({
   const periodo = searchParams?.periodo ?? '30d'
   const dias = periodo === 'hoje' ? 1 : periodo === '7d' ? 7 : 30
 
+  const supabase = createClient()
+
   const [
     auth,
     kpis,
@@ -178,6 +181,21 @@ export default async function DashboardPage({
     buscarDeltaKPIs(),
     buscarOcorrenciasMes(dias),
   ])
+
+  // Para supervisor: calcular mínimo contratual baseado nos seus postos
+  let minimoContratual: number | undefined = undefined
+  const role = (auth as unknown as { perfil?: { role?: string | null } } | null)?.perfil?.role
+  if (role === 'supervisor' && auth) {
+    const userId = (auth as unknown as { user: { id: string } }).user.id
+    const { data: spPostos } = await supabase
+      .from('config_supervisores_postos')
+      .select('postos!posto_id(efetivo_previsto)')
+      .eq('supervisor_id', userId)
+      .eq('ativo', true)
+    type SpRow = { postos: { efetivo_previsto: number | null } | null }
+    minimoContratual = ((spPostos ?? []) as unknown as SpRow[])
+      .reduce((sum, row) => sum + (row.postos?.efetivo_previsto ?? 0), 0)
+  }
 
   const nomeUsuario = (auth as unknown as { perfil?: { nome?: string | null } } | null)?.perfil?.nome ?? ''
   const iniciais = nomeUsuario
@@ -299,7 +317,7 @@ export default async function DashboardPage({
 
       {/* ── Row 3: Evolução + Efetivo por Secretaria ────────────────────────── */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <EvolucaoEfetivo dados={evolucao} />
+        <EvolucaoEfetivo dados={evolucao} minimoContratual={minimoContratual} />
         <EfetivoPorSecretaria secretarias={secretarias} />
       </div>
 
