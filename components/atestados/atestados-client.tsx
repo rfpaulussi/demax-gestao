@@ -48,6 +48,7 @@ const COLS: { label: string; sortKey?: SortCol }[] = [
   { label: 'Funcionário', sortKey: 'funcionario_nome' },
   { label: 'Posto',       sortKey: 'posto_nome'       },
   { label: 'Secretaria',  sortKey: 'secretaria'       },
+  { label: 'Supervisor'                                },
   { label: 'Início',      sortKey: 'data_inicio'      },
   { label: 'Fim',         sortKey: 'data_fim'         },
   { label: 'Dias',        sortKey: 'dias'             },
@@ -191,6 +192,17 @@ export function AtestadosClient({ atestados, cids }: Props) {
       if (!cur || a.data_inicio < cur) map.set(a.funcionario_id, a.data_inicio)
     }
     return map
+  }, [atestados])
+
+  // Apenas o atestado mais recente de cada funcionário com alerta exibe o badge INSS
+  const ultimoAlertaIds = useMemo(() => {
+    const map = new Map<string, { id: string; data: string }>()
+    for (const a of atestados) {
+      if (!a.alerta) continue
+      const cur = map.get(a.funcionario_id)
+      if (!cur || a.data_inicio > cur.data) map.set(a.funcionario_id, { id: a.id, data: a.data_inicio })
+    }
+    return new Set(Array.from(map.values()).map(v => v.id))
   }, [atestados])
 
   function handleSort(col: SortCol) {
@@ -447,6 +459,15 @@ export function AtestadosClient({ atestados, cids }: Props) {
                     <td className="px-5 py-3.5 font-medium text-gray-900">{a.funcionario_nome}</td>
                     <td className="px-5 py-3.5 text-gray-500">{a.posto_nome}</td>
                     <td className="px-5 py-3.5 text-gray-500">{a.secretaria}</td>
+                    <td className="px-5 py-3.5 text-gray-500">
+                      {a.supervisor_nome
+                        ? <span className="inline-flex items-center gap-1">
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+                            {a.supervisor_nome}
+                          </span>
+                        : <span className="text-gray-300">—</span>
+                      }
+                    </td>
                     <td className="px-5 py-3.5 tabular-nums text-gray-500">
                       {a.data_inicio.split('-').reverse().join('/')}
                     </td>
@@ -494,7 +515,7 @@ export function AtestadosClient({ atestados, cids }: Props) {
                         <span className={cn('tabular-nums font-semibold', a.alerta ? 'text-red-700' : 'text-gray-700')}>
                           {a.acumulado}d
                         </span>
-                        {a.alerta && (
+                        {ultimoAlertaIds.has(a.id) && (
                           <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-red-700 ring-1 ring-inset ring-red-200">
                             ⚠️ Avaliar INSS
                           </span>
@@ -526,7 +547,7 @@ export function AtestadosClient({ atestados, cids }: Props) {
                         </div>
                       ) : (
                         <div className="flex flex-wrap gap-1.5">
-                          {a.alerta && (
+                          {ultimoAlertaIds.has(a.id) && (
                             <button
                               type="button"
                               onClick={() => setInssModal({
