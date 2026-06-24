@@ -46,14 +46,15 @@ function EntregarBtn({ id, onSuccess }: { id: string; onSuccess: () => void }) {
 
 interface Props {
   advertencias: AdvertenciaCompleta[]
-  reincidencias: Record<string, number>
+  reincidencias?: Record<string, number>
+  reincPorId: Record<string, number>
   supervisores: SupervisorOpt[]
 }
 
 type SortCol = 'nome' | 'posto' | 'secretaria' | 'grau' | 'ocorrencia' | 'status' | 'reinc'
 type SortDir = 'asc' | 'desc'
 
-export function AdvertenciasTable({ advertencias, reincidencias, supervisores }: Props) {
+export function AdvertenciasTable({ advertencias, reincPorId, supervisores }: Props) {
   const [loadingPdf,          setLoadingPdf]          = useState<string | null>(null)
   const [editando,            setEditando]            = useState<AdvertenciaCompleta | null>(null)
   const [confirmandoExclusao, setConfirmandoExclusao] = useState<string | null>(null)
@@ -76,7 +77,7 @@ export function AdvertenciasTable({ advertencias, reincidencias, supervisores }:
     if (sortCol === 'grau')       { va = a.grau ?? (a.tipo as string) ?? ''; vb = b.grau ?? (b.tipo as string) ?? '' }
     if (sortCol === 'ocorrencia') { va = a.data_ocorrencia ?? ''; vb = b.data_ocorrencia ?? '' }
     if (sortCol === 'status')     { va = a.status ?? ''; vb = b.status ?? '' }
-    if (sortCol === 'reinc')      { va = reincidencias[a.funcionario_id] ?? 1; vb = reincidencias[b.funcionario_id] ?? 1 }
+    if (sortCol === 'reinc')      { va = reincPorId[a.id] ?? 1; vb = reincPorId[b.id] ?? 1 }
     if (va < vb) return sortDir === 'asc' ? -1 : 1
     if (va > vb) return sortDir === 'asc' ? 1 : -1
     return 0
@@ -151,7 +152,7 @@ export function AdvertenciasTable({ advertencias, reincidencias, supervisores }:
             </thead>
             <tbody className="divide-y divide-gray-50">
               {sorted.map(adv => {
-                const reinc = reincidencias[adv.funcionario_id] ?? 1
+                const reinc = reincPorId[adv.id] ?? 1
                 const isReinc = reinc > 1
                 const grauKey = adv.grau ?? (adv.tipo as string) ?? ''
                 const grauBadge = GRAU_BADGE[grauKey] ?? { label: grauKey || '—', cls: 'bg-gray-50 text-gray-600 ring-gray-200' }

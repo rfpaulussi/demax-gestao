@@ -43,10 +43,24 @@ export default async function AdvertenciasPage({
     buscarSupervisoresParaAdvertencia(),
   ])
 
+  // Total por funcionário → usado no modal de nova advertência
   const reincidencias: Record<string, number> = {}
   for (const a of all) {
     reincidencias[a.funcionario_id] = (reincidencias[a.funcionario_id] ?? 0) + 1
   }
+
+  // Posição sequencial por advertência (cronológica asc) → usado na tabela
+  const reincPorId: Record<string, number> = {}
+  const porFuncionario = new Map<string, { id: string; data: string }[]>()
+  for (const a of all) {
+    const arr = porFuncionario.get(a.funcionario_id) ?? []
+    arr.push({ id: a.id, data: a.data_ocorrencia ?? '' })
+    porFuncionario.set(a.funcionario_id, arr)
+  }
+  Array.from(porFuncionario.values()).forEach(items => {
+    items.sort((x, y) => x.data.localeCompare(y.data))
+    items.forEach(({ id }, i) => { reincPorId[id] = i + 1 })
+  })
 
   const total     = all.length
   const pendentes = all.filter(a => a.status === 'pendente').length
@@ -126,7 +140,7 @@ export default async function AdvertenciasPage({
       </form>
 
       {/* Table */}
-      <AdvertenciasTable advertencias={filtered} reincidencias={reincidencias} supervisores={supervisores} />
+      <AdvertenciasTable advertencias={filtered} reincidencias={reincidencias} reincPorId={reincPorId} supervisores={supervisores} />
 
     </div>
   )
