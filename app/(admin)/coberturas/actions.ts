@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 
 export type RegisterResult =
@@ -41,7 +42,8 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
   const guard = await assertAuth()
   if (!guard.success) return guard
 
-  const supabase = createClient()
+  const supabase      = createClient()
+  const adminSupabase = createAdminClient()
 
   const substitutoId        = formData.get('substituto_id') as string
   const postoDestinoId      = formData.get('posto_destino_id') as string
@@ -73,7 +75,7 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
   const postoOrigemId = substituto?.posto_id ?? null
   const urgencia      = calcUrgencia(dataPrevRetorno)
 
-  const { data: cobData, error } = await (supabase as unknown as AnyClient)
+  const { data: cobData, error } = await (adminSupabase as unknown as AnyClient)
     .from('coberturas_temporarias')
     .insert({
       funcionario_id:         substitutoId,
@@ -133,7 +135,7 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
       if (existingAfast) {
         atestadoMsg = `Atestado de ${ausenteNome} já estava registrado.`
       } else {
-        const { error: errAfast } = await supabase.from('afastamentos').insert({
+        const { error: errAfast } = await adminSupabase.from('afastamentos').insert({
           funcionario_id:    ausenteId,
           data_inicio:       atestadoDataInicio,
           data_fim_prevista: atestadoDataFim,
@@ -143,7 +145,7 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
           console.error('[coberturas] registrarCobertura: inserir afastamento:', errAfast.message)
         } else {
           // Inserir também em atestados (posto_id e registrado_por são obrigatórios)
-          const { error: errAtest } = await supabase.from('atestados').insert({
+          const { error: errAtest } = await adminSupabase.from('atestados').insert({
             funcionario_id: ausenteId,
             posto_id:       postoDestinoId,
             data_inicio:    atestadoDataInicio,
@@ -183,7 +185,7 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
         if (existingFalta) {
           faltaMsg = `Falta de ${ausenteNome} já estava registrada.`
         } else {
-          const { error: errFalta } = await (supabase as unknown as AnyClient)
+          const { error: errFalta } = await (adminSupabase as unknown as AnyClient)
             .from('faltas')
             .insert({
               funcionario_id: ausenteId,
