@@ -1,6 +1,7 @@
 'use server'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import type { FaltaTipo } from '@/components/faltas/faltas-config'
 
@@ -277,10 +278,11 @@ export async function registrarFalta(fd: FormData) {
 
   if (existing) return { success: false, error: 'DUPLICATE' }
 
-  const { error } = await supabase.from('faltas').insert({
+  const adminSupabase = createAdminClient()
+  const { error } = await adminSupabase.from('faltas').insert({
     funcionario_id,
-    data_falta:  data_inicio,   // legado
-    data_inicio,                // coluna nova (constraint)
+    data_falta:  data_inicio,
+    data_inicio,
     data_fim:    data_fim || null,
     tipo,
     dias,
