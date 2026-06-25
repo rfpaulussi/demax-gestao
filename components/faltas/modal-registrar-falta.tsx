@@ -35,10 +35,12 @@ export function ModalRegistrarFalta({ open, onClose, funcionariosOpt }: Props) {
     return () => document.removeEventListener('mousedown', onOutside)
   }, [])
 
-  const diasCalculados =
-    dataInicio && dataFim && dataFim > dataInicio
-      ? Math.ceil((new Date(dataFim).getTime() - new Date(dataInicio).getTime()) / 86400000) + 1
-      : null
+  const diasCalculados = (() => {
+    if (!dataInicio) return null
+    if (!dataFim || dataFim === dataInicio) return dataFim === dataInicio ? 1 : null
+    if (dataFim > dataInicio) return Math.ceil((new Date(dataFim).getTime() - new Date(dataInicio).getTime()) / 86400000) + 1
+    return null
+  })()
 
   const funcsFiltrados = busca.trim()
     ? funcionariosOpt.filter(f => f.nome.toLowerCase().includes(busca.toLowerCase()))
