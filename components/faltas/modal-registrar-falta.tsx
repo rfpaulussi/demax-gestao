@@ -68,7 +68,7 @@ export function ModalRegistrarFalta({ open, onClose, funcionariosOpt }: Props) {
           result.error?.includes('faltas_funcionario_id_data_inicio_key')
         setErro(isDuplicate
           ? 'Já existe uma falta registrada para este funcionário neste período.'
-          : `Erro: ${result.error ?? 'desconhecido'}`)
+          : 'Erro ao registrar falta. Tente novamente.')
         return
       }
       handleClose()

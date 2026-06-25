@@ -143,7 +143,6 @@ export async function criarAdvertencia(formData: FormData) {
       const { error: faltaError } = await supabase.from('faltas').insert({
         funcionario_id: formData.get('funcionario_id') as string,
         data_falta:     dataFalta,
-        data_inicio:    dataFalta,
         data_fim:       null,
         tipo:           'suspensao',
         dias:           Number(diasRaw),

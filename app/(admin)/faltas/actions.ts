@@ -281,9 +281,8 @@ export async function registrarFalta(fd: FormData) {
   const adminSupabase = createAdminClient()
   const { error } = await adminSupabase.from('faltas').insert({
     funcionario_id,
-    data_falta:  data_inicio,
-    data_inicio,
-    data_fim:    data_fim || null,
+    data_falta: data_inicio,
+    data_fim:   data_fim || null,
     tipo,
     dias,
     observacao,
@@ -322,12 +321,11 @@ export async function editarFalta(
     ? Math.ceil((new Date(data.data_fim).getTime() - new Date(data.data_falta).getTime()) / 86400000) + 1
     : 1
   const { error } = await supabase.from('faltas').update({
-    data_falta:  data.data_falta,
-    data_inicio: data.data_falta,
-    data_fim:    data.data_fim,
-    tipo:        data.tipo,
+    data_falta: data.data_falta,
+    data_fim:   data.data_fim,
+    tipo:       data.tipo,
     dias,
-    observacao:  data.observacao,
+    observacao: data.observacao,
   } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     .eq('id', id)
   if (error) return { success: false, error: error.message }
