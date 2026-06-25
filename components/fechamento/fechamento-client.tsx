@@ -31,11 +31,12 @@ function exportExcel(
 
   // ── Sheet 1: Por Funcionário ──
   {
-    const HEADERS = ['Nome','Função','Posto','Secretaria','Regime','D.Úteis','Férias','Faltas','Atestados','Suspensão','Afastamento','Trabalhados','Insalubridade','Advertência']
+    const HEADERS = ['Nome','Função','Posto','Posto Principal','Secretaria Principal','Regime','D.Úteis','Férias','Faltas','Atestados','Suspensão','Afastamento','Trabalhados','Ins.(dias)','Advertência']
     const NC = HEADERS.length
-    const secretarias = Array.from(new Set(porFuncionario.map(f => f.secretaria ?? 'Sem Secretaria'))).sort()
+    const secretarias = Array.from(new Set(porFuncionario.map(f => f.secretaria ?? 'Sem Secretaria')))
+      .sort((a, b) => { if (a === 'AFASTADOS') return 1; if (b === 'AFASTADOS') return -1; return a.localeCompare(b, 'pt-BR') })
 
-    type XRow = { data: (string | number)[]; style?: 'groupHeader' | 'totals' | 'colHeader' }
+    type XRow = { data: (string | number)[]; style?: 'groupHeader' | 'totals' | 'colHeader' | 'multiPosto' }
     const rows: XRow[] = [{ data: [titulo] }, { data: [] }]
 
     for (const sec of secretarias) {
@@ -43,16 +44,23 @@ function exportExcel(
       rows.push({ data: [sec.toUpperCase(), ...Array(NC - 1).fill('')], style: 'groupHeader' })
       rows.push({ data: HEADERS, style: 'colHeader' })
       for (const f of grupo) {
-        rows.push({ data: [
-          f.funcionario_nome, f.funcao ?? '—', f.posto_nome ?? '—', f.secretaria ?? '—', f.regime,
-          f.dias_uteis, f.ferias_dias || 0, f.faltas_dias || 0, f.atestados_dias || 0,
-          f.dias_suspensao || 0, f.afastamento_dias || 0, f.dias_trabalhados,
-          f.insalubridade_dias || 0,
-          f.tem_suspensao ? 'Suspensão' : f.tem_advertencia ? 'Sim' : '',
-        ]})
+        const isMulti = f.multi_posto && f.posto_preponderante_id !== f.posto_id
+        rows.push({
+          data: [
+            f.funcionario_nome, f.funcao ?? '—', f.posto_nome ?? '—',
+            isMulti ? (f.posto_preponderante_nome ?? '—') : '',
+            isMulti ? (f.secretaria_preponderante ?? '—') : '',
+            f.regime,
+            f.dias_uteis, f.ferias_dias || 0, f.faltas_dias || 0, f.atestados_dias || 0,
+            f.dias_suspensao || 0, f.afastamento_dias || 0, f.dias_trabalhados,
+            f.insalubridade_dias || 0,
+            f.tem_suspensao ? 'Suspensão' : f.tem_advertencia ? 'Sim' : '',
+          ],
+          style: isMulti ? 'multiPosto' : undefined,
+        })
       }
       rows.push({ data: [
-        'TOTAL', '', '', '', '',
+        'TOTAL', '', '', '', '', '',
         grupo.reduce((s, f) => s + f.dias_uteis, 0),
         grupo.reduce((s, f) => s + (f.ferias_dias || 0), 0),
         grupo.reduce((s, f) => s + (f.faltas_dias || 0), 0),
@@ -73,11 +81,15 @@ function exportExcel(
         const addr = XLSX.utils.encode_cell({ r: ri, c: ci })
         if (!ws[addr]) ws[addr] = { v: '', t: 's' }
         if (row.style === 'groupHeader') ws[addr].s = { fill: { patternType: 'solid', fgColor: { rgb: '1e293b' } }, font: { color: { rgb: 'FFFFFF' }, bold: true, sz: 10 } }
-        else if (row.style === 'totals')   ws[addr].s = { font: { bold: true }, fill: { patternType: 'solid', fgColor: { rgb: 'f1f5f9' } } }
+        else if (row.style === 'totals')    ws[addr].s = { font: { bold: true }, fill: { patternType: 'solid', fgColor: { rgb: 'f1f5f9' } } }
         else if (row.style === 'colHeader') ws[addr].s = { font: { bold: true, color: { rgb: '475569' } }, fill: { patternType: 'solid', fgColor: { rgb: 'e2e8f0' } } }
+        else if (row.style === 'multiPosto') {
+          // Colunas 3 e 4 (Posto Principal / Secretaria Principal) em amarelo
+          if (ci === 3 || ci === 4) ws[addr].s = { fill: { patternType: 'solid', fgColor: { rgb: 'fef08a' } }, font: { bold: true, color: { rgb: '713f12' } } }
+        }
       }
     })
-    ws['!cols'] = [{ wch: 32 }, { wch: 18 }, { wch: 24 }, { wch: 14 }, { wch: 7 }, ...Array(8).fill({ wch: 10 }), { wch: 13 }]
+    ws['!cols'] = [{ wch: 32 }, { wch: 18 }, { wch: 24 }, { wch: 24 }, { wch: 16 }, { wch: 7 }, ...Array(8).fill({ wch: 10 }), { wch: 13 }]
     XLSX.utils.book_append_sheet(wb, ws, 'Por Funcionário')
   }
 
@@ -102,15 +114,19 @@ function exportExcel(
         const coberturas = posto.funcionarios.filter(f => f.tipo === 'cobertura')
 
         for (const f of titulares) {
+          const tipoLabel = f.multi_posto
+            ? (f.is_posto_preponderante ? 'Titular ★ Principal' : 'Titular (secundário)')
+            : 'Titular'
           rows.push({ data: [
-            f.funcionario_nome, f.funcao ?? '—', 'Titular',
+            f.funcionario_nome, f.funcao ?? '—', tipoLabel,
             fmt(f.data_inicio_no_posto), fmt(f.data_fim_no_posto), f.dias_no_posto,
             f.tem_advertencia ? 'Sim' : '', f.faltas_dias || 0, f.atestados_dias || 0, f.insalubridade_dias || 0,
           ]})
         }
         for (const f of coberturas) {
+          const tipoLabel = f.is_posto_preponderante ? 'Cobertura ★ Principal' : 'Cobertura'
           rows.push({ data: [
-            f.funcionario_nome, f.funcao ?? '—', 'Cobertura',
+            f.funcionario_nome, f.funcao ?? '—', tipoLabel,
             fmt(f.data_inicio_no_posto), fmt(f.data_fim_no_posto), f.dias_no_posto,
             '', '', '', '',
           ], style: 'cobertura' })
@@ -238,12 +254,14 @@ function TabFuncionarios({ dados, mostrarVazias }: { dados: FechamentoFuncionari
   )
 
   return (
-    <div className="w-full rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-      <div className="overflow-x-auto overflow-y-auto w-full" style={{ maxHeight: 'calc(100vh - 320px)', WebkitOverflowScrolling: 'touch' }}>
-        <table className="w-full text-sm" style={{ minWidth: '1500px' }}>
+    <div className="w-full rounded-xl border border-gray-100 bg-white shadow-sm">
+      {/* scaleY(-1) move a scrollbar horizontal para o topo */}
+      <div className="overflow-x-auto w-full" style={{ transform: 'scaleY(-1)', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ transform: 'scaleY(-1)' }}>
+        <table className="w-full text-sm" style={{ minWidth: '1600px' }}>
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50">
-              <th onClick={() => toggleSort('nome')} className="sticky left-0 z-10 bg-gray-50 min-w-[220px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400 cursor-pointer select-none hover:text-gray-600">
+              <th onClick={() => toggleSort('nome')} className="min-w-[220px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400 cursor-pointer select-none hover:text-gray-600">
                 Funcionário {sortCol === 'nome' ? (sortDir === 'asc' ? '↑' : '↓') : <span className="text-gray-300">↕</span>}
               </th>
               <th className="min-w-[160px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Função</th>
@@ -258,7 +276,9 @@ function TabFuncionarios({ dados, mostrarVazias }: { dados: FechamentoFuncionari
               {mostrarVazias && <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Suspensão</th>}
               {mostrarVazias && <th className="min-w-[70px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Afastamento</th>}
               <Th col="trabalhados"   label="Trabalhados" center />
-              <Th col="insalubridade" label="Insalubridade" center />
+              <th onClick={() => toggleSort('insalubridade')} title="Dias trabalhados em condição insalubre (cobertura insalubre registrada no mês)" className="min-w-[90px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400 cursor-pointer select-none hover:text-gray-600">
+                Ins. (dias) {sortCol === 'insalubridade' ? (sortDir === 'asc' ? '↑' : '↓') : <span className="text-gray-300">↕</span>}
+              </th>
               <th className="min-w-[90px] px-3 py-3 text-center text-xs font-semibold uppercase tracking-widest text-gray-400">Advertência</th>
               <th className="min-w-[160px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Coberturas no mês</th>
             </tr>
@@ -270,9 +290,8 @@ function TabFuncionarios({ dados, mostrarVazias }: { dados: FechamentoFuncionari
                 f.tem_suspensao ? 'bg-red-50/40' : f.faltas_dias > 0 ? 'bg-red-50/20' : f.ferias_dias > 0 ? 'bg-orange-50/30' : f.afastamento_dias > 0 ? 'bg-gray-50/60' : null,
               )}>
                 <td className={cn(
-                  'sticky left-0 z-10 px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap',
+                  'px-3 py-2.5 font-medium text-gray-900 whitespace-nowrap',
                   f.data_desligamento && 'text-gray-400',
-                  f.tem_suspensao ? 'bg-red-50/40' : f.faltas_dias > 0 ? 'bg-red-50/20' : f.ferias_dias > 0 ? 'bg-orange-50/30' : f.afastamento_dias > 0 ? 'bg-gray-50/60' : 'bg-white',
                 )}>
                   <div className="flex items-center gap-1.5">
                     {f.funcionario_nome}
@@ -325,6 +344,7 @@ function TabFuncionarios({ dados, mostrarVazias }: { dados: FechamentoFuncionari
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   )

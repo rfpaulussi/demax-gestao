@@ -39,24 +39,29 @@ function advLabel(f: FechamentoFuncionario) {
 }
 
 const COLS = [
-  { label: 'Nome',        style: s.cNome,   num: false },
-  { label: 'Função',      style: s.cFuncao, num: false },
-  { label: 'Regime',      style: s.cReg,    num: true  },
-  { label: 'D.Úteis',     style: s.cN5,     num: true  },
-  { label: 'Férias',      style: s.cN5,     num: true  },
-  { label: 'Faltas',      style: s.cN5,     num: true  },
-  { label: 'Atestados',   style: s.cN5,     num: true  },
-  { label: 'Suspens.',    style: s.cSusp,   num: true  },
-  { label: 'Afast.',      style: s.cAfast,  num: true  },
-  { label: 'Trabalhados', style: s.cTrab,   num: true  },
-  { label: 'Insalub.',    style: s.cN5,     num: true  },
-  { label: 'Advertên.',   style: s.cAdv,    num: false },
+  { label: 'Nome',         style: s.cNome,   num: false },
+  { label: 'Função',       style: s.cFuncao, num: false },
+  { label: 'Posto Princ.', style: s.cFuncao, num: false },
+  { label: 'Regime',       style: s.cReg,    num: true  },
+  { label: 'D.Úteis',      style: s.cN5,     num: true  },
+  { label: 'Férias',       style: s.cN5,     num: true  },
+  { label: 'Faltas',       style: s.cN5,     num: true  },
+  { label: 'Atestados',    style: s.cN5,     num: true  },
+  { label: 'Suspens.',     style: s.cSusp,   num: true  },
+  { label: 'Afast.',       style: s.cAfast,  num: true  },
+  { label: 'Trabalhados',  style: s.cTrab,   num: true  },
+  { label: 'Ins.(dias)',   style: s.cN5,     num: true  },
+  { label: 'Advertên.',    style: s.cAdv,    num: false },
 ]
 
 function cellValue(f: FechamentoFuncionario, idx: number): string {
+  const postoPrinc = f.multi_posto && f.posto_preponderante_id !== f.posto_id
+    ? `★ ${f.posto_preponderante_nome ?? '—'}`
+    : '—'
   const vals = [
     f.funcionario_nome,
     f.funcao ?? '—',
+    postoPrinc,
     f.regime,
     String(f.dias_uteis),
     f.ferias_dias > 0 ? String(f.ferias_dias) : '—',
@@ -151,7 +156,11 @@ export function FechamentoPorPostoPDF({ porPosto, mes, ano, MESES }: PropsPosto)
                       <View key={f.funcionario_id + '-t'} style={sp.row}>
                         <Text style={[sp.td,  sp.cNome]}>{f.funcionario_nome}</Text>
                         <Text style={[sp.td,  sp.cFuncao]}>{f.funcao ?? '—'}</Text>
-                        <Text style={[sp.tdC, sp.cTipo]}>Titular</Text>
+                        <Text style={[sp.tdC, sp.cTipo]}>
+                          {f.multi_posto
+                            ? (f.is_posto_preponderante ? 'Titular ★' : 'Titular (sec.)')
+                            : 'Titular'}
+                        </Text>
                         <Text style={[sp.tdC, sp.cPer]}>{fmtPdf(f.data_inicio_no_posto)} – {fmtPdf(f.data_fim_no_posto)}</Text>
                         <Text style={[sp.tdB, sp.cDias]}>{f.dias_no_posto}</Text>
                         <Text style={[sp.td,  sp.cOcor]}>{[
@@ -166,7 +175,9 @@ export function FechamentoPorPostoPDF({ porPosto, mes, ano, MESES }: PropsPosto)
                       <View key={f.funcionario_id + '-c-' + i} style={sp.rowCob}>
                         <Text style={[sp.td,  sp.cNome]}>{f.funcionario_nome}</Text>
                         <Text style={[sp.td,  sp.cFuncao]}>{f.funcao ?? '—'}</Text>
-                        <Text style={[sp.tdC, sp.cTipo]}>Cobertura</Text>
+                        <Text style={[sp.tdC, sp.cTipo]}>
+                          {f.is_posto_preponderante ? 'Cobertura ★' : 'Cobertura'}
+                        </Text>
                         <Text style={[sp.tdC, sp.cPer]}>{fmtPdf(f.data_inicio_no_posto)} – {fmtPdf(f.data_fim_no_posto)}</Text>
                         <Text style={[{ fontSize: 8, fontWeight: 'bold', color: '#854d0e', paddingVertical: 3, paddingHorizontal: 4, textAlign: 'center' }, sp.cDias]}>{f.dias_no_posto}</Text>
                         <Text style={[sp.td, sp.cOcor]}>—</Text>
