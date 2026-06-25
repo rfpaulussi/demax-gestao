@@ -236,7 +236,7 @@ export function AtestadosClient({ atestados, cids }: Props) {
     const limStr = limite.toISOString().split('T')[0]
     const map = new Map<string, { nome: string; supervisor: string | null; posto: string; secretaria: string; dias: number; ocorrencias: number }>()
     for (const a of atestados) {
-      if (a.data_fim < limStr) continue
+      if ((a.data_fim ?? a.data_inicio) < limStr) continue
       const cur = map.get(a.funcionario_id) ?? { nome: a.funcionario_nome, supervisor: a.supervisor_nome, posto: a.posto_nome, secretaria: a.secretaria, dias: 0, ocorrencias: 0 }
       cur.dias += a.dias
       cur.ocorrencias += 1
@@ -251,7 +251,7 @@ export function AtestadosClient({ atestados, cids }: Props) {
     const limStr = limite.toISOString().split('T')[0]
     const map = new Map<string, { posto: string; secretaria: string; supervisor: string | null; dias: number; ocorrencias: number }>()
     for (const a of atestados) {
-      if (a.data_fim < limStr) continue
+      if ((a.data_fim ?? a.data_inicio) < limStr) continue
       const key = a.posto_nome
       const cur = map.get(key) ?? { posto: a.posto_nome, secretaria: a.secretaria, supervisor: a.supervisor_nome, dias: 0, ocorrencias: 0 }
       cur.dias += a.dias
@@ -267,7 +267,7 @@ export function AtestadosClient({ atestados, cids }: Props) {
     const limStr = limite.toISOString().split('T')[0]
     const map = new Map<string, { codigo: string; descricao: string; dias: number; ocorrencias: number }>()
     for (const a of atestados) {
-      if (a.data_fim < limStr || !a.cid_codigo) continue
+      if ((a.data_fim ?? a.data_inicio) < limStr || !a.cid_codigo) continue
       const key = a.cid_codigo
       const cur = map.get(key) ?? { codigo: a.cid_codigo, descricao: a.cid_desc || a.cid_codigo, dias: 0, ocorrencias: 0 }
       cur.dias += a.dias
