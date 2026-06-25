@@ -234,7 +234,9 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
 
   if (fetchError || !cob) return { success: false, error: 'Cobertura não encontrada' }
 
-  const { error } = await supabase
+  const adminSupabase = createAdminClient()
+
+  const { error } = await adminSupabase
     .from('coberturas_temporarias')
     .update({ status: 'encerrada', data_retorno_real: hoje })
     .eq('id', id)
@@ -242,7 +244,7 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
   if (error) return { success: false, error: error.message }
 
   if (cob.posto_origem_id && cob.funcionario_id) {
-    const { error: errRestore } = await supabase
+    const { error: errRestore } = await adminSupabase
       .from('funcionarios')
       .update({ posto_id: cob.posto_origem_id })
       .eq('id', cob.funcionario_id)
@@ -256,7 +258,7 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
       .eq('funcionario_ausente_id', cob.funcionario_ausente_id)
       .eq('status', 'ativa')
     if (count === 0) {
-      const { error: errRev } = await supabase.from('funcionarios')
+      const { error: errRev } = await adminSupabase.from('funcionarios')
         .update({ status: 'ativo' })
         .eq('id', cob.funcionario_ausente_id)
         .eq('status', 'afastado')
