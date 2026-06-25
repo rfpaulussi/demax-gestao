@@ -104,11 +104,26 @@ export async function getOcorrenciasData(): Promise<OcorrenciaRow[]> {
 
 export async function getPostosSimples(): Promise<PostoSimples[]> {
   const supabase = createClient()
-  const { data } = await supabase
+  const auth = await getUser()
+
+  let query = supabase
     .from('postos')
     .select('id, nome, secretaria')
     .eq('ativo', true)
     .order('nome')
+
+  if (auth?.perfil.role === 'supervisor') {
+    const { data: cfg } = await supabase
+      .from('config_supervisores_postos')
+      .select('posto_id')
+      .eq('supervisor_id', auth.user.id)
+      .eq('ativo', true)
+    const ids = (cfg ?? []).map((r: { posto_id: string }) => r.posto_id)
+    if (ids.length === 0) return []
+    query = query.in('id', ids)
+  }
+
+  const { data } = await query
   return (data ?? []).map(p => ({ id: p.id, nome: p.nome, secretaria: p.secretaria ?? '' }))
 }
 
@@ -176,9 +191,9 @@ export async function criarAlerta(
 }
 
 export async function resolverAlerta(id: string): Promise<ActionResult> {
-  const supabase = createClient()
+  const adminSupabase = createAdminClient()
 
-  const { error } = await (supabase as unknown as AnyClient)
+  const { error } = await (adminSupabase as unknown as AnyClient)
     .from('ocorrencias')
     .update({ status: 'resolvido' })
     .eq('id', id)
@@ -190,12 +205,12 @@ export async function resolverAlerta(id: string): Promise<ActionResult> {
 }
 
 export async function updateStatusOcorrencia(formData: FormData): Promise<ActionResult> {
-  const supabase = createClient()
+  const adminSupabase = createAdminClient()
 
   const id     = formData.get('id') as string
   const status = formData.get('status') as string
 
-  const { error } = await (supabase as unknown as AnyClient)
+  const { error } = await (adminSupabase as unknown as AnyClient)
     .from('ocorrencias')
     .update({ status })
     .eq('id', id)
