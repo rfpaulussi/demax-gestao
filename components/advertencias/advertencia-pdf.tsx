@@ -244,6 +244,15 @@ export async function downloadAdvertenciaPDF(adv: AdvertenciaCompleta): Promise<
   const { pdf } = await import('@react-pdf/renderer')
   const blob = await pdf(<AdvertenciaDocument adv={adv} />).toBlob()
   const url = URL.createObjectURL(blob)
-  window.open(url, '_blank')
+  const nomeSanitizado = (adv.funcionarios?.nome ?? 'colaborador')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '')
+  const data = (adv.data_ocorrencia ?? new Date().toISOString()).split('T')[0]
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `advertencia_${nomeSanitizado}_${data}.pdf`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
   setTimeout(() => URL.revokeObjectURL(url), 10000)
 }

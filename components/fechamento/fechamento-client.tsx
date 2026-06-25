@@ -242,8 +242,8 @@ export function FechamentoClient({ dados, mes, ano, secretariaAtiva, secretarias
           <p className="text-sm text-gray-400">Nenhum funcionário encontrado para o período.</p>
         </div>
       ) : (
-        <div className="w-full rounded-xl border border-gray-100 bg-white shadow-sm">
-          <div className="overflow-x-scroll w-full">
+        <div className="w-full rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+          <div className="overflow-x-auto w-full" style={{ WebkitOverflowScrolling: 'touch' }}>
             <table className="w-full text-sm" style={{ minWidth: '1400px' }}>
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">

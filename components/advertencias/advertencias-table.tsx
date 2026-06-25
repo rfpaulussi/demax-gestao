@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { cn } from '@/lib/utils'
 import { downloadAdvertenciaPDF } from './advertencia-pdf'
-import { marcarEntregue, excluirAdvertencia } from '@/app/(admin)/advertencias/actions'
+import { marcarEntregue, marcarGerada, excluirAdvertencia } from '@/app/(admin)/advertencias/actions'
 import { ModalEditarAdvertencia } from './modal-editar-advertencia'
 import type { AdvertenciaCompleta, SupervisorOpt } from '@/app/(admin)/advertencias/actions'
 
@@ -87,6 +87,13 @@ export function AdvertenciasTable({ advertencias, reincPorId, supervisores }: Pr
     setLoadingPdf(adv.id)
     try {
       await downloadAdvertenciaPDF(adv)
+      // Auto-avança para "gerada" ao baixar o PDF pela primeira vez
+      if (adv.status === 'pendente') {
+        const fd = new FormData()
+        fd.append('advertencia_id', adv.id)
+        await marcarGerada(fd)
+        setLista(prev => prev.map(a => a.id === adv.id ? { ...a, status: 'gerada' } : a))
+      }
     } catch (err) {
       console.error(err)
       alert('Erro ao gerar PDF. Tente novamente.')
