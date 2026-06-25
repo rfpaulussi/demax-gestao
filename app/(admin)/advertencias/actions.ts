@@ -160,7 +160,7 @@ export async function criarAdvertencia(formData: FormData) {
 }
 
 export async function marcarEntregue(formData: FormData) {
-  const supabase = createClient()
+  const supabase = createAdminClient()
   const advertencia_id = formData.get('advertencia_id') as string
   const { error } = await supabase
     .from('advertencias')
@@ -171,7 +171,7 @@ export async function marcarEntregue(formData: FormData) {
 }
 
 export async function marcarGerada(formData: FormData) {
-  const supabase = createClient()
+  const supabase = createAdminClient()
   const advertencia_id = formData.get('advertencia_id') as string
   const { error } = await supabase
     .from('advertencias')
