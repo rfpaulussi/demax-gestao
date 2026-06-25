@@ -2,11 +2,10 @@ import { cn } from '@/lib/utils'
 import { calcularFechamento } from './actions'
 import { FechamentoClient } from '@/components/fechamento/fechamento-client'
 
-function KpiCard({ label, value, sub, borderColor }: { label: string; value: number | string; sub?: string; borderColor: string }) {
+function KpiCard({ label, value, borderColor }: { label: string; value: number | string; borderColor: string }) {
   return (
     <div className={cn('rounded-xl border border-gray-100 border-t-4 bg-white p-5 shadow-sm', borderColor)}>
       <p className="text-2xl font-black tracking-tight text-gray-900">{value}</p>
-      {sub && <p className="text-xs text-gray-400">{sub}</p>}
       <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
     </div>
   )
@@ -23,20 +22,24 @@ export default async function FechamentoPage({
   const mes = Number(searchParams.mes ?? now.getMonth() + 1)
   const ano = Number(searchParams.ano ?? now.getFullYear())
 
-  const todos = await calcularFechamento(mes, ano)
+  const { porFuncionario, porPosto } = await calcularFechamento(mes, ano)
 
-  const dados = searchParams.secretaria
-    ? todos.filter(f => f.secretaria === searchParams.secretaria)
-    : todos
+  const todos = searchParams.secretaria
+    ? porFuncionario.filter(f => f.secretaria === searchParams.secretaria)
+    : porFuncionario
+
+  const todosPosto = searchParams.secretaria
+    ? porPosto.filter(p => p.secretaria === searchParams.secretaria)
+    : porPosto
 
   const secretarias = Array.from(
-    new Set(todos.map(f => f.secretaria).filter((s): s is string => Boolean(s)))
+    new Set(porFuncionario.map(f => f.secretaria).filter((s): s is string => Boolean(s)))
   ).sort()
 
-  const kpiTotal         = dados.length
-  const kpiDeducoes      = dados.filter(f => f.ferias_dias > 0 || f.faltas_dias > 0 || f.atestados_dias > 0 || f.afastamento_dias > 0 || f.dias_suspensao > 0).length
-  const kpiSuspensao     = dados.filter(f => f.tem_suspensao).length
-  const kpiInsalubridade = dados.filter(f => f.insalubridade_dias > 0).length
+  const kpiTotal         = todos.length
+  const kpiDeducoes      = todos.filter(f => f.ferias_dias > 0 || f.faltas_dias > 0 || f.atestados_dias > 0 || f.afastamento_dias > 0 || f.dias_suspensao > 0).length
+  const kpiSuspensao     = todos.filter(f => f.tem_suspensao).length
+  const kpiInsalubridade = todos.filter(f => f.insalubridade_dias > 0).length
 
   const anos = [now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2]
 
@@ -55,7 +58,8 @@ export default async function FechamentoPage({
       </div>
 
       <FechamentoClient
-        dados={dados}
+        porFuncionario={todos}
+        porPosto={todosPosto}
         mes={mes}
         ano={ano}
         secretariaAtiva={searchParams.secretaria ?? ''}
