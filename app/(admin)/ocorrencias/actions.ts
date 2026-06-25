@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 
 export type OcorrenciaRow = {
@@ -105,7 +106,7 @@ export async function getSupervisoresSimples(): Promise<SupervisorSimples[]> {
 }
 
 export async function createOcorrencia(formData: FormData): Promise<ActionResult> {
-  const supabase = createClient()
+  const adminSupabase = createAdminClient()
 
   const posto_id        = formData.get('posto_id') as string
   const supervisor_id   = (formData.get('supervisor_id') as string) || null
@@ -113,7 +114,7 @@ export async function createOcorrencia(formData: FormData): Promise<ActionResult
   const data_ocorrencia = formData.get('data_ocorrencia') as string
   const gravidade       = formData.get('gravidade') as string
 
-  const { error } = await (supabase as unknown as AnyClient).from('ocorrencias').insert({
+  const { error } = await (adminSupabase as unknown as AnyClient).from('ocorrencias').insert({
     posto_id,
     supervisor_id,
     descricao,
@@ -137,9 +138,9 @@ export async function criarAlerta(
   const auth = await getUser()
   if (!auth) return { success: false, error: 'Não autenticado' }
 
-  const supabase = createClient()
+  const adminSupabase = createAdminClient()
 
-  const { error } = await (supabase as unknown as AnyClient).from('ocorrencias').insert({
+  const { error } = await (adminSupabase as unknown as AnyClient).from('ocorrencias').insert({
     supervisor_id:   auth.user.id,
     titulo,
     descricao,
