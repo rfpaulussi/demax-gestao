@@ -172,7 +172,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
 
       supabase
         .from('insalubridade_coberturas')
-        .select('funcionario_id')
+        .select('funcionario_id, periodo_dias')
         .eq('mes', mes)
         .eq('ano', ano),
 
@@ -247,7 +247,9 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     const suspensoes     = advFunc.filter(a => a.grau === 'suspensao')
     const diasSuspensao  = suspensoes.reduce((acc, a) => acc + (a.dias_suspensao ?? 0), 0)
 
-    const insalubridadeDias = insalubridades.filter(i => i.funcionario_id === func.id).length
+    const insalubridadeDias = (insalubridades as unknown as { funcionario_id: string; periodo_dias: number }[])
+      .filter(i => i.funcionario_id === func.id)
+      .reduce((s, i) => s + (i.periodo_dias ?? 1), 0)
 
     const afastamentoDias = afastamentos
       .filter(a => a.funcionario_id === func.id)

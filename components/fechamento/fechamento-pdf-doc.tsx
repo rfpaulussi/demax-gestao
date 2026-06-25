@@ -55,8 +55,8 @@ const COLS = [
 ]
 
 function cellValue(f: FechamentoFuncionario, idx: number): string {
-  const postoPrinc = f.multi_posto && f.posto_preponderante_id !== f.posto_id
-    ? `★ ${f.posto_preponderante_nome ?? '—'}`
+  const postoPrinc = f.multi_posto
+    ? (f.posto_preponderante_id !== f.posto_id ? `★ ${f.posto_preponderante_nome ?? '—'}` : f.posto_preponderante_nome ?? '—')
     : '—'
   const vals = [
     f.funcionario_nome,
