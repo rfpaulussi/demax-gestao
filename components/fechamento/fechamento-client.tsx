@@ -44,7 +44,8 @@ function exportExcel(
       rows.push({ data: [sec.toUpperCase(), ...Array(NC - 1).fill('')], style: 'groupHeader' })
       rows.push({ data: HEADERS, style: 'colHeader' })
       for (const f of grupo) {
-        const isMulti = f.multi_posto && f.posto_preponderante_id !== f.posto_id
+        const isMulti      = f.multi_posto
+        const prepDiferente = isMulti && f.posto_preponderante_id !== f.posto_id
         rows.push({
           data: [
             f.funcionario_nome, f.funcao ?? '—', f.posto_nome ?? '—',
@@ -56,7 +57,7 @@ function exportExcel(
             f.insalubridade_dias || 0,
             f.tem_suspensao ? 'Suspensão' : f.tem_advertencia ? 'Sim' : '',
           ],
-          style: isMulti ? 'multiPosto' : undefined,
+          style: prepDiferente ? 'multiPosto' : undefined,
         })
       }
       rows.push({ data: [
