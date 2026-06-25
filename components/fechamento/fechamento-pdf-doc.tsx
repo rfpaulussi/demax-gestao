@@ -115,7 +115,8 @@ interface PropsPosto {
 }
 
 export function FechamentoPorPostoPDF({ porPosto, mes, ano, MESES }: PropsPosto) {
-  const secretarias = Array.from(new Set(porPosto.map(p => p.secretaria || 'Sem Secretaria'))).sort()
+  const secretarias = Array.from(new Set(porPosto.map(p => p.secretaria || 'Sem Secretaria')))
+    .sort((a, b) => { if (a === 'AFASTADOS') return 1; if (b === 'AFASTADOS') return -1; return a.localeCompare(b, 'pt-BR') })
   const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
 
   return (
@@ -185,7 +186,8 @@ export function FechamentoPorPostoPDF({ porPosto, mes, ano, MESES }: PropsPosto)
 // ─── PDF Por Funcionário (original) ──────────────────────────────────────────
 
 export function FechamentoPDFDoc({ dados, mes, ano, MESES }: Props) {
-  const secretarias = Array.from(new Set(dados.map(f => f.secretaria ?? 'Sem Secretaria'))).sort()
+  const secretarias = Array.from(new Set(dados.map(f => f.secretaria ?? 'Sem Secretaria')))
+    .sort((a, b) => { if (a === 'AFASTADOS') return 1; if (b === 'AFASTADOS') return -1; return a.localeCompare(b, 'pt-BR') })
   const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
 
   return (

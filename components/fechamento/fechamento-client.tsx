@@ -88,7 +88,8 @@ function exportExcel(
     type XRow = { data: (string | number)[]; style?: 'secHeader' | 'postoHeader' | 'colHeader' | 'cobertura' | 'totals' }
     const rows: XRow[] = [{ data: [`Por Posto — ${titulo}`] }, { data: [] }]
 
-    const secretarias = Array.from(new Set(porPosto.map(p => p.secretaria || 'Sem Secretaria'))).sort()
+    const secretarias = Array.from(new Set(porPosto.map(p => p.secretaria || 'Sem Secretaria')))
+      .sort((a, b) => { if (a === 'AFASTADOS') return 1; if (b === 'AFASTADOS') return -1; return a.localeCompare(b, 'pt-BR') })
     for (const sec of secretarias) {
       const postosGrupo = porPosto.filter(p => (p.secretaria || 'Sem Secretaria') === sec)
       rows.push({ data: [sec.toUpperCase(), ...Array(NC - 1).fill('')], style: 'secHeader' })
@@ -178,24 +179,28 @@ function exportExcel(
 
 // ─── PDF exports ──────────────────────────────────────────────────────────────
 
+function triggerDownload(url: string, filename: string) {
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 10000)
+}
+
 async function exportPDFFuncionarios(dados: FechamentoFuncionario[], mes: number, ano: number, MESES: string[]) {
   const { pdf }              = await import('@react-pdf/renderer')
   const { FechamentoPDFDoc } = await import('./fechamento-pdf-doc')
   const blob = await pdf(<FechamentoPDFDoc dados={dados} mes={mes} ano={ano} MESES={MESES} />).toBlob()
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = `fechamento-funcionarios-${pad2(mes)}-${ano}.pdf`
-  a.click()
+  triggerDownload(URL.createObjectURL(blob), `fechamento-funcionarios-${pad2(mes)}-${ano}.pdf`)
 }
 
 async function exportPDFPorPosto(porPosto: FechamentoPosto[], mes: number, ano: number, MESES: string[]) {
-  const { pdf }                  = await import('@react-pdf/renderer')
+  const { pdf }                   = await import('@react-pdf/renderer')
   const { FechamentoPorPostoPDF } = await import('./fechamento-pdf-doc')
   const blob = await pdf(<FechamentoPorPostoPDF porPosto={porPosto} mes={mes} ano={ano} MESES={MESES} />).toBlob()
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = `fechamento-postos-${pad2(mes)}-${ano}.pdf`
-  a.click()
+  triggerDownload(URL.createObjectURL(blob), `fechamento-postos-${pad2(mes)}-${ano}.pdf`)
 }
 
 // ─── Tab: Por Funcionário ─────────────────────────────────────────────────────
@@ -234,8 +239,8 @@ function TabFuncionarios({ dados, mostrarVazias }: { dados: FechamentoFuncionari
 
   return (
     <div className="w-full rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-      <div className="overflow-x-auto w-full" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <table className="w-full text-sm" style={{ minWidth: '1400px' }}>
+      <div className="overflow-x-auto overflow-y-auto w-full" style={{ maxHeight: 'calc(100vh - 320px)', WebkitOverflowScrolling: 'touch' }}>
+        <table className="w-full text-sm" style={{ minWidth: '1500px' }}>
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50">
               <th onClick={() => toggleSort('nome')} className="sticky left-0 z-10 bg-gray-50 min-w-[220px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400 cursor-pointer select-none hover:text-gray-600">
@@ -269,8 +274,21 @@ function TabFuncionarios({ dados, mostrarVazias }: { dados: FechamentoFuncionari
                   f.data_desligamento && 'text-gray-400',
                   f.tem_suspensao ? 'bg-red-50/40' : f.faltas_dias > 0 ? 'bg-red-50/20' : f.ferias_dias > 0 ? 'bg-orange-50/30' : f.afastamento_dias > 0 ? 'bg-gray-50/60' : 'bg-white',
                 )}>
-                  {f.funcionario_nome}
-                  {f.data_desligamento && <span className="ml-1.5 inline-block rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-500">desligado {fmt(f.data_desligamento)}</span>}
+                  <div className="flex items-center gap-1.5">
+                    {f.funcionario_nome}
+                    {f.data_desligamento && <span className="inline-block rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-500">desligado {fmt(f.data_desligamento)}</span>}
+                    {f.multi_posto && (
+                      <span title={`Posto preponderante: ${f.posto_preponderante_nome ?? '—'} (${f.secretaria_preponderante ?? '—'})`}
+                        className={cn(
+                          'inline-block rounded px-1.5 py-0.5 text-[10px] font-bold',
+                          f.secretaria_preponderante !== f.secretaria
+                            ? 'bg-indigo-100 text-indigo-700'
+                            : 'bg-sky-100 text-sky-700',
+                        )}>
+                        ↔ {f.secretaria_preponderante !== f.secretaria ? f.secretaria_preponderante : f.posto_preponderante_nome}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{f.funcao ?? '—'}</td>
                 <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{f.posto_nome ?? '—'}</td>
@@ -315,7 +333,12 @@ function TabFuncionarios({ dados, mostrarVazias }: { dados: FechamentoFuncionari
 // ─── Tab: Por Posto ───────────────────────────────────────────────────────────
 
 function TabPorPosto({ porPosto }: { porPosto: FechamentoPosto[] }) {
-  const secretarias = Array.from(new Set(porPosto.map(p => p.secretaria || 'Sem Secretaria'))).sort()
+  const secretarias = Array.from(new Set(porPosto.map(p => p.secretaria || 'Sem Secretaria')))
+    .sort((a, b) => {
+      if (a === 'AFASTADOS') return 1
+      if (b === 'AFASTADOS') return -1
+      return a.localeCompare(b, 'pt-BR')
+    })
 
   if (porPosto.length === 0) {
     return <div className="rounded-xl border border-gray-100 bg-white py-12 text-center shadow-sm"><p className="text-sm text-gray-400">Nenhum dado encontrado.</p></div>
@@ -365,8 +388,18 @@ function TabPorPosto({ porPosto }: { porPosto: FechamentoPosto[] }) {
                       </thead>
                       <tbody className="divide-y divide-gray-50">
                         {titulares.map(f => (
-                          <tr key={f.funcionario_id + '-t'} className="hover:bg-gray-50/60">
-                            <td className="px-4 py-2 font-medium text-gray-900 whitespace-nowrap">{f.funcionario_nome}</td>
+                          <tr key={f.funcionario_id + '-t'} className={cn('hover:bg-gray-50/60', !f.is_posto_preponderante && f.multi_posto && 'opacity-60')}>
+                            <td className="px-4 py-2 font-medium text-gray-900 whitespace-nowrap">
+                              <div className="flex items-center gap-1.5">
+                                {f.funcionario_nome}
+                                {f.multi_posto && f.is_posto_preponderante && (
+                                  <span className="inline-block rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">★ Principal</span>
+                                )}
+                                {f.multi_posto && !f.is_posto_preponderante && (
+                                  <span className="inline-block rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">secundário</span>
+                                )}
+                              </div>
+                            </td>
                             <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{f.funcao ?? '—'}</td>
                             <td className="px-4 py-2 text-center">
                               <span className="inline-block rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">Titular</span>
@@ -385,8 +418,15 @@ function TabPorPosto({ porPosto }: { porPosto: FechamentoPosto[] }) {
                           </tr>
                         ))}
                         {coberturas.map((f, i) => (
-                          <tr key={f.funcionario_id + '-c-' + i} className="bg-yellow-50/40 hover:bg-yellow-50/60">
-                            <td className="px-4 py-2 text-gray-700 whitespace-nowrap">{f.funcionario_nome}</td>
+                          <tr key={f.funcionario_id + '-c-' + i} className={cn('bg-yellow-50/40 hover:bg-yellow-50/60', !f.is_posto_preponderante && 'opacity-70')}>
+                            <td className="px-4 py-2 text-gray-700 whitespace-nowrap">
+                              <div className="flex items-center gap-1.5">
+                                {f.funcionario_nome}
+                                {f.is_posto_preponderante && (
+                                  <span className="inline-block rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">★ Principal</span>
+                                )}
+                              </div>
+                            </td>
                             <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{f.funcao ?? '—'}</td>
                             <td className="px-4 py-2 text-center">
                               <span className="inline-block rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800">Cobertura</span>
@@ -414,7 +454,12 @@ function TabPorPosto({ porPosto }: { porPosto: FechamentoPosto[] }) {
 // ─── Tab: Por Secretaria ──────────────────────────────────────────────────────
 
 function TabPorSecretaria({ porFuncionario, porPosto }: { porFuncionario: FechamentoFuncionario[]; porPosto: FechamentoPosto[] }) {
-  const secretarias = Array.from(new Set(porFuncionario.map(f => f.secretaria).filter(Boolean) as string[])).sort()
+  const secretarias = Array.from(new Set(porFuncionario.map(f => f.secretaria).filter(Boolean) as string[]))
+    .sort((a, b) => {
+      if (a === 'AFASTADOS') return 1
+      if (b === 'AFASTADOS') return -1
+      return a.localeCompare(b, 'pt-BR')
+    })
 
   if (secretarias.length === 0) {
     return <div className="rounded-xl border border-gray-100 bg-white py-12 text-center shadow-sm"><p className="text-sm text-gray-400">Nenhum dado encontrado.</p></div>

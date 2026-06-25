@@ -33,6 +33,11 @@ export interface FechamentoFuncionario {
   // rota no mês
   coberturas_prestadas: SegmentoCobertura[]
   dias_no_posto_base: number
+  // posto onde ficou mais tempo no mês (pode diferir do posto base)
+  posto_preponderante_id: string | null
+  posto_preponderante_nome: string | null
+  secretaria_preponderante: string | null
+  multi_posto: boolean
 }
 
 export interface SegmentoCobertura {
@@ -57,6 +62,8 @@ export interface FechamentoItemPosto {
   faltas_dias: number
   atestados_dias: number
   insalubridade_dias: number
+  is_posto_preponderante: boolean
+  multi_posto: boolean
 }
 
 export interface FechamentoPosto {
@@ -271,6 +278,24 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     const diasEmCobertura = coberturasPrestadas.reduce((s, c) => s + c.dias_no_posto, 0)
     const diasNoPostoBase = Math.max(0, diasTrabalhados - diasEmCobertura)
 
+    // Posto preponderante = onde ficou mais dias no mês
+    const isAfastado = postos?.secretaria === 'AFASTADOS'
+    let postoPrepId   = func.posto_id ?? null
+    let postoPrepNome = postos?.nome ?? null
+    let secPrep       = postos?.secretaria ?? null
+    let maxDias       = isAfastado ? 0 : diasNoPostoBase
+
+    for (const c of coberturasPrestadas) {
+      if (c.dias_no_posto > maxDias) {
+        maxDias       = c.dias_no_posto
+        postoPrepId   = c.posto_id
+        postoPrepNome = c.posto_nome
+        secPrep       = c.secretaria
+      }
+    }
+
+    const multiPosto = coberturasPrestadas.length > 0
+
     return {
       funcionario_id:      func.id,
       funcionario_nome:    func.nome,
@@ -294,8 +319,12 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
       tem_advertencia:     advFunc.length > 0,
       tem_suspensao:       suspensoes.length > 0,
       insalubridade_dias:  insalubridadeDias,
-      coberturas_prestadas: coberturasPrestadas,
-      dias_no_posto_base:  diasNoPostoBase,
+      coberturas_prestadas:      coberturasPrestadas,
+      dias_no_posto_base:        diasNoPostoBase,
+      posto_preponderante_id:    postoPrepId,
+      posto_preponderante_nome:  postoPrepNome,
+      secretaria_preponderante:  secPrep,
+      multi_posto:               multiPosto,
     }
   })
 
@@ -320,6 +349,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
   for (const f of porFuncionario) {
     if (!f.posto_id) continue
     const posto = getOrCreatePosto(f.posto_id)
+    const isAfastadoPosto = posto.secretaria === 'AFASTADOS'
     posto.funcionarios.push({
       funcionario_id:       f.funcionario_id,
       funcionario_nome:     f.funcionario_nome,
@@ -327,11 +357,14 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
       tipo:                 'titular',
       data_inicio_no_posto: f.periodo_inicio,
       data_fim_no_posto:    f.periodo_fim,
-      dias_no_posto:        f.dias_no_posto_base,
-      tem_advertencia:      f.tem_advertencia,
-      faltas_dias:          f.faltas_dias,
-      atestados_dias:       f.atestados_dias,
-      insalubridade_dias:   f.insalubridade_dias,
+      // Postos AFASTADOS não contam dias úteis (funcionário não está produzindo)
+      dias_no_posto:          isAfastadoPosto ? 0 : f.dias_no_posto_base,
+      tem_advertencia:        f.tem_advertencia,
+      faltas_dias:            f.faltas_dias,
+      atestados_dias:         f.atestados_dias,
+      insalubridade_dias:     f.insalubridade_dias,
+      is_posto_preponderante: f.posto_preponderante_id === f.posto_id,
+      multi_posto:            f.multi_posto,
     })
   }
 
@@ -349,17 +382,19 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
 
     const posto = getOrCreatePosto(cob.posto_destino_id)
     posto.funcionarios.push({
-      funcionario_id:       funcData.funcionario_id,
-      funcionario_nome:     funcData.funcionario_nome,
-      funcao:               funcData.funcao,
-      tipo:                 'cobertura',
-      data_inicio_no_posto: inicio,
-      data_fim_no_posto:    fim,
-      dias_no_posto:        dias,
-      tem_advertencia:      false,
-      faltas_dias:          0,
-      atestados_dias:       0,
-      insalubridade_dias:   0,
+      funcionario_id:         funcData.funcionario_id,
+      funcionario_nome:       funcData.funcionario_nome,
+      funcao:                 funcData.funcao,
+      tipo:                   'cobertura',
+      data_inicio_no_posto:   inicio,
+      data_fim_no_posto:      fim,
+      dias_no_posto:          dias,
+      tem_advertencia:        false,
+      faltas_dias:            0,
+      atestados_dias:         0,
+      insalubridade_dias:     0,
+      is_posto_preponderante: funcData.posto_preponderante_id === cob.posto_destino_id,
+      multi_posto:            funcData.multi_posto,
     })
   }
 
