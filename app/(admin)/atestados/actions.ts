@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 
 export async function updateAtestado(
@@ -11,9 +12,9 @@ export async function updateAtestado(
   const auth = await getUser()
   if (!auth) return { error: 'Não autenticado' }
 
-  const supabase = createClient()
+  const adminSupabase = createAdminClient()
 
-  const { error } = await supabase
+  const { error } = await adminSupabase
     .from('atestados')
     .update({
       data_inicio:        formData.get('data_inicio') as string,
@@ -35,6 +36,7 @@ export async function deleteAtestado(id: string): Promise<{ error?: string }> {
   if (!auth) return { error: 'Não autenticado' }
 
   const supabase = createClient()
+  const adminSupabase = createAdminClient()
 
   // Lê o atestado antes de excluir para registrar no log
   const { data: atestado } = await supabase
@@ -43,12 +45,12 @@ export async function deleteAtestado(id: string): Promise<{ error?: string }> {
     .eq('id', id)
     .single()
 
-  const { error } = await supabase.from('atestados').delete().eq('id', id)
+  const { error } = await adminSupabase.from('atestados').delete().eq('id', id)
 
   if (error) return { error: error.message }
 
   if (atestado) {
-    await supabase.from('movimentacoes').insert({
+    await adminSupabase.from('movimentacoes').insert({
       funcionario_id: atestado.funcionario_id,
       tipo:           'exclusao_atestado',
       campo_alterado: 'atestado',
