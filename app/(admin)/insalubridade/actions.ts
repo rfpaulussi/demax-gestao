@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export type InsalubridadeStatus = 'pendente' | 'enviado' | 'pago'
 export type InsalubridadeOrigem = 'manual' | 'cobertura'
@@ -142,7 +143,7 @@ export async function buscarInsalubridades(
 }
 
 export async function criarInsalubridade(formData: FormData) {
-  const supabase = createClient()
+  const adminSupabase = createAdminClient()
 
   const funcionarioId = formData.get('funcionario_id') as string
   const dataCobertura = formData.get('data_cobertura') as string
@@ -152,7 +153,7 @@ export async function criarInsalubridade(formData: FormData) {
   const periodoDias = parseInt(formData.get('periodo_dias') as string) || 1
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any).from('insalubridade_coberturas').insert({
+  const { error } = await (adminSupabase as any).from('insalubridade_coberturas').insert({
     funcionario_id: funcionarioId,
     mes,
     ano,
@@ -267,8 +268,8 @@ export async function marcarEnviado(
 }
 
 export async function removerDia(id: string) {
-  const supabase = createClient()
-  const { error } = await supabase.from('insalubridade_coberturas').delete().eq('id', id)
+  const adminSupabase = createAdminClient()
+  const { error } = await adminSupabase.from('insalubridade_coberturas').delete().eq('id', id)
   if (error) console.error('[insalubridade] removerDia:', error.message)
   revalidatePath('/insalubridade')
 }
@@ -282,10 +283,10 @@ export async function editarCobertura(
     observacao: string
   }
 ): Promise<{ error?: string }> {
-  const supabase = createClient()
+  const adminSupabase = createAdminClient()
   const [ano, mes] = dados.data_cobertura.split('-').map(Number)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (supabase as any)
+  const { error } = await (adminSupabase as any)
     .from('insalubridade_coberturas')
     .update({
       data_cobertura:      dados.data_cobertura,
@@ -302,8 +303,8 @@ export async function editarCobertura(
 }
 
 export async function excluirCobertura(id: string): Promise<{ error?: string }> {
-  const supabase = createClient()
-  const { error } = await supabase.from('insalubridade_coberturas').delete().eq('id', id)
+  const adminSupabase = createAdminClient()
+  const { error } = await adminSupabase.from('insalubridade_coberturas').delete().eq('id', id)
   if (error) return { error: error.message }
   revalidatePath('/insalubridade')
   return {}

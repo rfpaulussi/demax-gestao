@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 
 export type AdvertenciaGrau = 'verbal' | 'escrita' | 'suspensao'
@@ -107,13 +108,14 @@ export async function buscarFuncionariosAtivos(): Promise<FuncionarioOpt[]> {
 
 export async function criarAdvertencia(formData: FormData) {
   const supabase = createClient()
+  const adminSupabase = createAdminClient()
 
   const { data: { user } } = await supabase.auth.getUser()
 
   const grau = (formData.get('grau') as string) || null
   const diasRaw = formData.get('dias_suspensao')
 
-  const { error } = await supabase.from('advertencias').insert({
+  const { error } = await adminSupabase.from('advertencias').insert({
     funcionario_id: formData.get('funcionario_id') as string,
     tipo: grau,
     grau: grau as AdvertenciaGrau | null,
@@ -140,7 +142,7 @@ export async function criarAdvertencia(formData: FormData) {
       (formData.get('data_ocorrencia') as string) ||
       null
     if (dataFalta) {
-      const { error: faltaError } = await supabase.from('faltas').insert({
+      const { error: faltaError } = await adminSupabase.from('faltas').insert({
         funcionario_id: formData.get('funcionario_id') as string,
         data_falta:     dataFalta,
         data_fim:       null,

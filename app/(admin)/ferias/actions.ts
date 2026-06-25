@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -43,7 +44,7 @@ function addMonths(dateStr: string, months: number): string {
 // ─── Mutações ─────────────────────────────────────────────────────────────────
 
 export async function registrarFerias(formData: FormData) {
-  const supabase = createClient()
+  const adminSupabase = createAdminClient()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const insert: any = {
@@ -53,7 +54,7 @@ export async function registrarFerias(formData: FormData) {
     observacao: formData.get('observacao') as string || null,
     status: 'agendado',
   }
-  const { error } = await supabase.from('ferias').insert(insert)
+  const { error } = await adminSupabase.from('ferias').insert(insert)
 
   if (error) throw new Error(error.message)
   revalidatePath('/ferias')
@@ -72,6 +73,7 @@ export async function agendarFerias(data: {
   observacao?: string
 }) {
   const supabase = createClient()
+  const adminSupabase = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Não autenticado')
 
@@ -94,7 +96,7 @@ export async function agendarFerias(data: {
     status: 'agendado',
     criado_por: user.id,
   }
-  const { error } = await supabase.from('ferias').insert(payload)
+  const { error } = await adminSupabase.from('ferias').insert(payload)
 
   if (error) throw new Error(error.message)
   revalidatePath('/ferias')
@@ -103,12 +105,13 @@ export async function agendarFerias(data: {
 
 export async function aprovarFerias(id: string) {
   const supabase = createClient()
+  const adminSupabase = createAdminClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Não autenticado')
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const update: any = { status: 'aprovado', aprovado_por: user.id, aprovado_em: new Date().toISOString() }
-  const { error } = await supabase.from('ferias').update(update).eq('id', id)
+  const { error } = await adminSupabase.from('ferias').update(update).eq('id', id)
 
   if (error) throw new Error(error.message)
   revalidatePath('/ferias')
@@ -117,11 +120,11 @@ export async function aprovarFerias(id: string) {
 }
 
 export async function concluirFerias(id: string) {
-  const supabase = createClient()
+  const adminSupabase = createAdminClient()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const concludeUpdate: any = { status: 'concluido' }
-  const { error } = await supabase.from('ferias').update(concludeUpdate).eq('id', id)
+  const { error } = await adminSupabase.from('ferias').update(concludeUpdate).eq('id', id)
 
   if (error) throw new Error(error.message)
   revalidatePath('/ferias')
@@ -129,11 +132,11 @@ export async function concluirFerias(id: string) {
 }
 
 export async function cancelarFerias(id: string, motivo?: string) {
-  const supabase = createClient()
+  const adminSupabase = createAdminClient()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cancelUpdate: any = { status: 'cancelado', observacao: motivo }
-  const { error } = await supabase.from('ferias').update(cancelUpdate).eq('id', id)
+  const { error } = await adminSupabase.from('ferias').update(cancelUpdate).eq('id', id)
 
   if (error) throw new Error(error.message)
   revalidatePath('/ferias')
@@ -280,8 +283,8 @@ export async function importarFeriasHistoricas(data: {
   dias_utilizados?: number
   observacao?: string
 }) {
-  const supabase = createClient()
-  const { error } = await supabase.from('ferias').insert({
+  const adminSupabase = createAdminClient()
+  const { error } = await adminSupabase.from('ferias').insert({
     funcionario_id: data.funcionario_id,
     numero_periodo: data.numero_periodo,
     periodo_inicio: data.periodo_inicio,
