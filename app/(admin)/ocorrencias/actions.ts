@@ -45,12 +45,30 @@ type RawOcorrencia = {
 
 export async function getOcorrenciasData(): Promise<OcorrenciaRow[]> {
   const supabase = createClient()
+  const auth = await getUser()
+
+  // Supervisores: busca ocorrências dos seus postos + alertas criados por eles
+  // Alertas têm posto_id=null, então o RLS por posto os excluiria sem esse tratamento
+  let ocorrenciasQuery = (supabase as unknown as AnyClient)
+    .from('ocorrencias')
+    .select('id, posto_id, supervisor_id, titulo, descricao, data_ocorrencia, gravidade, status, tipo, data_lembrete, created_at')
+    .order('data_ocorrencia', { ascending: false })
+
+  if (auth?.perfil.role === 'supervisor') {
+    const { data: cfgData } = await supabase
+      .from('config_supervisores_postos')
+      .select('posto_id')
+      .eq('supervisor_id', auth.user.id)
+      .eq('ativo', true)
+    const postoIds = (cfgData ?? []).map((r: { posto_id: string }) => r.posto_id)
+    // OR: ocorrências dos postos do supervisor OU alertas criados pelo próprio supervisor
+    ocorrenciasQuery = ocorrenciasQuery.or(
+      `posto_id.in.(${postoIds.join(',')}),and(tipo.eq.alerta,supervisor_id.eq.${auth.user.id})`
+    )
+  }
 
   const [{ data: ocorrenciasRaw }, { data: postos }, { data: perfis }] = await Promise.all([
-    (supabase as unknown as AnyClient)
-      .from('ocorrencias')
-      .select('id, posto_id, supervisor_id, titulo, descricao, data_ocorrencia, gravidade, status, tipo, data_lembrete, created_at')
-      .order('data_ocorrencia', { ascending: false }),
+    ocorrenciasQuery,
     supabase.from('postos').select('id, nome, secretaria'),
     supabase.from('perfis').select('id, nome'),
   ])

@@ -49,11 +49,14 @@ export default async function AuditoriaPage({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   type AnyQ = { from: (t: string) => any }
 
-  const [{ data: usuariosRaw }, { data: rows, count }] = await Promise.all([
+  const [{ data: usuariosRaw }, { data: postosRaw }, { data: rows, count }] = await Promise.all([
     (supabase as unknown as AnyQ)
       .from('perfis')
       .select('id, nome, email, role')
       .order('nome'),
+    (supabase as unknown as AnyQ)
+      .from('postos')
+      .select('id, nome'),
     (() => {
       let q = (supabase as unknown as AnyQ)
         .from('movimentacoes')
@@ -76,6 +79,26 @@ export default async function AuditoriaPage({
 
   type UsuarioOpt = { id: string; nome: string | null; email: string | null; role: string | null }
   const usuarios = (usuariosRaw ?? []) as UsuarioOpt[]
+
+  const postosMap = new Map<string, string>()
+  for (const p of (postosRaw ?? []) as { id: string; nome: string }[]) {
+    postosMap.set(p.id, p.nome)
+  }
+
+  const CAMPO_LABEL: Record<string, string> = {
+    posto_id: 'Posto',
+    status:   'Status',
+    funcao_id:'Função',
+    salario:  'Salário',
+    solicitacao: 'Solicitação',
+    atestado: 'Atestado',
+  }
+
+  function resolveValor(campo: string | null, valor: string | null): string {
+    if (!valor) return '—'
+    if (campo === 'posto_id') return postosMap.get(valor) ?? valor.slice(0, 8) + '…'
+    return valor
+  }
 
   type MovRow = {
     id: string
@@ -176,9 +199,9 @@ export default async function AuditoriaPage({
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-700">{m.funcionarios?.nome ?? '—'}</td>
-                      <td className="px-4 py-3 text-gray-500">{m.campo_alterado ?? '—'}</td>
-                      <td className="max-w-[180px] px-4 py-3 text-gray-400 truncate">{m.valor_antes ?? '—'}</td>
-                      <td className="max-w-[180px] px-4 py-3 text-gray-700 truncate">{m.valor_depois ?? '—'}</td>
+                      <td className="px-4 py-3 text-gray-500">{CAMPO_LABEL[m.campo_alterado ?? ''] ?? m.campo_alterado ?? '—'}</td>
+                      <td className="max-w-[180px] px-4 py-3 text-gray-400 truncate">{resolveValor(m.campo_alterado, m.valor_antes)}</td>
+                      <td className="max-w-[180px] px-4 py-3 text-gray-700 truncate">{resolveValor(m.campo_alterado, m.valor_depois)}</td>
                     </tr>
                   )
                 })}
