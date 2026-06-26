@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { downloadAdvertenciaPDF } from './advertencia-pdf'
 import { marcarEntregue, marcarGerada, excluirAdvertencia } from '@/app/(admin)/advertencias/actions'
@@ -55,12 +56,16 @@ type SortCol = 'nome' | 'posto' | 'secretaria' | 'grau' | 'ocorrencia' | 'status
 type SortDir = 'asc' | 'desc'
 
 export function AdvertenciasTable({ advertencias, reincPorId, supervisores }: Props) {
+  const router = useRouter()
   const [loadingPdf,          setLoadingPdf]          = useState<string | null>(null)
   const [editando,            setEditando]            = useState<AdvertenciaCompleta | null>(null)
   const [confirmandoExclusao, setConfirmandoExclusao] = useState<string | null>(null)
   const [excluindo,           setExcluindo]           = useState(false)
   const [lista,               setLista]               = useState(advertencias)
   const [sortCol,             setSortCol]             = useState<SortCol>('ocorrencia')
+
+  // Sincroniza lista quando o Server Component re-renderiza após revalidatePath
+  useEffect(() => { setLista(advertencias) }, [advertencias])
   const [sortDir,             setSortDir]             = useState<SortDir>('desc')
 
   function toggleSort(col: SortCol) {
@@ -92,7 +97,7 @@ export function AdvertenciasTable({ advertencias, reincPorId, supervisores }: Pr
         const fd = new FormData()
         fd.append('advertencia_id', adv.id)
         await marcarGerada(fd)
-        setLista(prev => prev.map(a => a.id === adv.id ? { ...a, status: 'gerada' } : a))
+        router.refresh()
       }
     } catch (err) {
       console.error(err)

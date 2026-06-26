@@ -205,12 +205,15 @@ function AdvertenciaDocument({ adv }: { adv: AdvertenciaCompleta }) {
         <View style={s.section}>
           <Text style={s.sectionTitle}>VI. CIÊNCIA E CONCORDÂNCIA</Text>
           <Text style={s.ciencia}>
-            {`O(A) colaborador(a) declara ter tomado ciência desta advertência e dos fatos nela descritos, estando ciente de que a reincidência em infrações disciplinares poderá resultar em medidas progressivamente mais severas, podendo culminar na rescisão do contrato de trabalho por justa causa, nos termos do art. 482 da Consolidação das Leis do Trabalho — CLT.\n\nA presente medida disciplinar não implica confissão de culpa pelo empregador quanto a eventuais débitos trabalhistas, nem afasta o direito de defesa do(a) colaborador(a), que poderá apresentar justificativa por escrito no prazo de 48 (quarenta e oito) horas a contar do recebimento deste documento.\n\nMogi das Cruzes, ${new Date().toLocaleDateString('pt-BR')}.`}
+            {`O(A) colaborador(a) declara ter tomado ciência desta advertência e dos fatos nela descritos, estando ciente de que a reincidência em infrações disciplinares poderá resultar em medidas progressivamente mais severas, podendo culminar na rescisão do contrato de trabalho por justa causa, nos termos do art. 482 da Consolidação das Leis do Trabalho — CLT.\n\nA presente medida disciplinar não implica confissão de culpa pelo empregador quanto a eventuais débitos trabalhistas, nem afasta o direito de defesa do(a) colaborador(a), que poderá apresentar justificativa por escrito no prazo de 48 (quarenta e oito) horas a contar do recebimento deste documento.`}
+          </Text>
+          <Text style={{ fontSize: 9, marginTop: 8 }}>
+            {`Mogi das Cruzes, ${new Date().toLocaleDateString('pt-BR')}.`}
           </Text>
         </View>
 
         {/* Assinaturas */}
-        <View style={[s.section, { marginTop: 16 }]}>
+        <View style={[s.section, { marginTop: 16 }]} wrap={false}>
           <View style={s.sigGrid}>
             <View style={s.sigBox}>
               <Text style={s.sigName}>{adv.funcionarios?.nome ?? '—'}</Text>
