@@ -19,7 +19,10 @@ function abreviarNome(nome: string): string {
   return `${partes[0]} ${partes.slice(1, -1).map(p => p[0] + '.').join(' ')} ${partes[partes.length - 1]}`
 }
 
-const MODELO_TEXTO = `trabalharem no dia [DATA DO EVENTO] ([NOME DO EVENTO]), com acréscimo de [HH:MM] hora diária no horário normal nos dias [DATA COMP. 1] e [DATA COMP. 2], compensando assim [X] hora(s) laborada(s) no referido evento.`
+const MODELOS = {
+  extra: `trabalharem no dia [DATA DO EVENTO] ([NOME DO EVENTO]), com acréscimo de [HH:MM] hora diária no horário normal nos dias [DATA COMP. 1], [DATA COMP. 2] e [DATA COMP. 3], compensando assim [X] hora(s) laborada(s) no referido evento.`,
+  dispensa: `trabalharem normalmente até as [HORA NORMAL]h no dia [DATA DO EVENTO] ([NOME DO EVENTO]), sendo dispensados às [HORA DISPENSA]h conforme decreto municipal, compensando as [X] horas não laboradas com acréscimo de [HH:MM]h diária no horário normal nos dias [DATA COMP. 1], [DATA COMP. 2] e [DATA COMP. 3].`,
+}
 
 const DEFAULT_TIMES: Record<string, DiaTimes> = {
   'Segunda-feira': { folga: false, e1: '08:00', s1: '12:00', e2: '13:30', s2: '18:00' },
@@ -255,13 +258,22 @@ export function ModalNovoAcordo({ postos, onClose }: Props) {
               <p className="mt-2 text-[10px] text-slate-500">
                 Este trecho entra direto no documento jurídico. Informe o evento, a data trabalhada, o acréscimo de horas e os dias de compensação.
               </p>
-              <button
-                type="button"
-                onClick={() => !descricao && setDescricao(MODELO_TEXTO)}
-                className="mt-2 rounded-md bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-200 hover:bg-slate-600 transition-colors"
-              >
-                ✦ Usar modelo
-              </button>
+              <div className="mt-2 flex gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setDescricao(MODELOS.extra)}
+                  className="rounded-md bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-200 hover:bg-slate-600 transition-colors"
+                >
+                  ✦ Trabalho extra
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDescricao(MODELOS.dispensa)}
+                  className="rounded-md bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-200 hover:bg-slate-600 transition-colors"
+                >
+                  ✦ Dispensa antecipada
+                </button>
+              </div>
             </div>
             <textarea
               value={descricao}
