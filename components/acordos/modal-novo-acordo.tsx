@@ -13,8 +13,10 @@ const DIAS = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sext
 
 const HORARIOS: string[] = []
 for (let h = 5; h <= 23; h++) {
-  HORARIOS.push(`${String(h).padStart(2,'0')}:00`)
-  if (h < 23) HORARIOS.push(`${String(h).padStart(2,'0')}:30`)
+  for (let m = 0; m < 60; m += 12) {
+    if (h === 23 && m > 0) break
+    HORARIOS.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`)
+  }
 }
 
 function TimeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
