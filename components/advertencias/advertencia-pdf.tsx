@@ -8,22 +8,24 @@ const GRAU_LABEL: Record<string, string> = {
 }
 
 const NATUREZA_LABEL: Record<string, string> = {
-  comportamento:  'Comportamento Inadequado',
-  falta:          'Falta Injustificada',
-  atraso:         'Atraso Recorrente',
-  negligencia:    'Negligência no Trabalho',
-  descumprimento: 'Descumprimento de Normas Internas',
-  insubordinacao: 'Insubordinação',
-  'desídia':      'Desídia no Desempenho das Funções',
-  improbidade:    'Improbidade / Desonestidade',
-  ofensa_honra:   'Ofensa à Honra',
-  uso_indevido:   'Uso Indevido de Equipamentos/Patrimônio',
-  abandono:       'Abandono de Posto de Trabalho',
-  outro:          'Outro',
+  comportamento:   'Mau Procedimento / Conduta Inadequada',
+  falta:           'Falta Injustificada',
+  atraso:          'Atraso Recorrente',
+  negligencia:     'Negligência no Trabalho',
+  descumprimento:  'Descumprimento de Normas Internas',
+  insubordinacao:  'Insubordinação',
+  'desídia':       'Desídia no Desempenho das Funções',
+  improbidade:     'Improbidade / Desonestidade',
+  ofensa_honra:    'Ofensa à Honra de Colegas ou Terceiros',
+  ofensa_superior: 'Ofensa ao Empregador ou Superior Hierárquico',
+  uso_indevido:    'Uso Indevido de Equipamentos/Patrimônio',
+  embriaguez:      'Embriaguez em Serviço',
+  abandono:        'Abandono de Emprego / Posto de Trabalho',
+  outro:           'Outro',
 }
 
 const NATUREZA_CLT_PDF: Record<string, string> = {
-  comportamento:   'Art. 482, alínea "j" da CLT',
+  comportamento:   'Art. 482, alínea "b" da CLT',
   falta:           'Art. 482, alínea "e" da CLT',
   atraso:          'Art. 482, alínea "e" da CLT',
   negligencia:     'Art. 482, alínea "e" da CLT',
@@ -32,7 +34,9 @@ const NATUREZA_CLT_PDF: Record<string, string> = {
   'desídia':       'Art. 482, alínea "e" da CLT',
   improbidade:     'Art. 482, alínea "a" da CLT',
   ofensa_honra:    'Art. 482, alínea "j" da CLT',
-  uso_indevido:    'Art. 482, alínea "f" da CLT',
+  ofensa_superior: 'Art. 482, alínea "k" da CLT',
+  uso_indevido:    'Art. 482, alínea "h" da CLT',
+  embriaguez:      'Art. 482, alínea "f" da CLT',
   abandono:        'Art. 482, alínea "i" da CLT',
   outro:           'Art. 482 da CLT e Regulamento Interno',
 }

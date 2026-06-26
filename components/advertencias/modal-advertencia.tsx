@@ -7,7 +7,7 @@ import { criarAdvertencia, buscarHistoricoAdvertencias } from '@/app/(admin)/adv
 import type { FuncionarioOpt, SupervisorOpt, HistoricoAdvertencia } from '@/app/(admin)/advertencias/actions'
 
 const NATUREZA_OPTS = [
-  { value: 'comportamento',  label: 'Comportamento Inadequado' },
+  { value: 'comportamento',  label: 'Mau Procedimento / Conduta Inadequada' },
   { value: 'falta',          label: 'Falta Injustificada' },
   { value: 'atraso',         label: 'Atraso Recorrente' },
   { value: 'negligencia',    label: 'Negligência no Trabalho' },
@@ -15,14 +15,16 @@ const NATUREZA_OPTS = [
   { value: 'insubordinacao', label: 'Insubordinação' },
   { value: 'desídia',        label: 'Desídia no Desempenho das Funções' },
   { value: 'improbidade',    label: 'Improbidade / Desonestidade' },
-  { value: 'ofensa_honra',   label: 'Ofensa à Honra de Colegas ou Superiores' },
+  { value: 'ofensa_honra',   label: 'Ofensa à Honra de Colegas ou Terceiros' },
+  { value: 'ofensa_superior',label: 'Ofensa ao Empregador ou Superior Hierárquico' },
   { value: 'uso_indevido',   label: 'Uso Indevido de Equipamentos/Patrimônio' },
-  { value: 'abandono',       label: 'Abandono de Posto de Trabalho' },
+  { value: 'embriaguez',     label: 'Embriaguez em Serviço' },
+  { value: 'abandono',       label: 'Abandono de Emprego / Posto de Trabalho' },
   { value: 'outro',          label: 'Outro' },
 ]
 
 const NATUREZA_CLT: Record<string, string> = {
-  comportamento:   'Art. 482, alínea "j" da CLT — ato lesivo à honra ou à boa fama praticado no serviço',
+  comportamento:   'Art. 482, alínea "b" da CLT — incontinência de conduta ou mau procedimento',
   falta:           'Art. 482, alínea "e" da CLT — desídia no desempenho das respectivas funções',
   atraso:          'Art. 482, alínea "e" da CLT — desídia no desempenho das respectivas funções',
   negligencia:     'Art. 482, alínea "e" da CLT — desídia no desempenho das respectivas funções',
@@ -30,14 +32,16 @@ const NATUREZA_CLT: Record<string, string> = {
   insubordinacao:  'Art. 482, alínea "h" da CLT — ato de indisciplina ou de insubordinação',
   'desídia':       'Art. 482, alínea "e" da CLT — desídia no desempenho das respectivas funções',
   improbidade:     'Art. 482, alínea "a" da CLT — ato de improbidade',
-  ofensa_honra:    'Art. 482, alínea "j" da CLT — ato lesivo à honra ou à boa fama praticado no serviço',
-  uso_indevido:    'Art. 482, alínea "f" da CLT — embriaguez habitual ou em serviço / uso indevido de bens da empresa',
-  abandono:        'Art. 482, alínea "i" da CLT — abandono de emprego / abandono de posto',
+  ofensa_honra:    'Art. 482, alínea "j" da CLT — ato lesivo à honra ou à boa fama praticado no serviço contra qualquer pessoa',
+  ofensa_superior: 'Art. 482, alínea "k" da CLT — ato lesivo à honra ou à boa fama praticado contra o empregador ou superior hierárquico',
+  uso_indevido:    'Art. 482, alínea "h" da CLT — ato de indisciplina; descumprimento das normas de uso do patrimônio da empresa',
+  embriaguez:      'Art. 482, alínea "f" da CLT — embriaguez habitual ou em serviço',
+  abandono:        'Art. 482, alínea "i" da CLT — abandono de emprego',
   outro:           'Regulamento Interno da Empresa e Art. 482 da CLT',
 }
 
 const NATUREZA_TEXTO_BASE: Record<string, string> = {
-  comportamento:   'O(A) colaborador(a) apresentou comportamento inadequado no ambiente de trabalho, em desacordo com as normas de conduta estabelecidas pela empresa e pelos princípios de convivência profissional, conforme verificado na data e horário indicados.',
+  comportamento:   'O(A) colaborador(a) apresentou mau procedimento e conduta inadequada no ambiente de trabalho, em desacordo com as normas de conduta estabelecidas pela empresa e pelos princípios de convivência profissional, conforme verificado na data e horário indicados.',
   falta:           'O(A) colaborador(a) faltou ao trabalho sem apresentar justificativa ou documentação comprobatória no prazo regulamentar, caracterizando falta injustificada nos termos da legislação trabalhista e das normas internas da empresa.',
   atraso:          'O(A) colaborador(a) registrou atrasos recorrentes no cumprimento do horário de trabalho estabelecido em contrato, descumprindo reiteradamente as obrigações de pontualidade previstas no Regulamento Interno.',
   negligencia:     'O(A) colaborador(a) demonstrou negligência no desempenho de suas funções, deixando de executar as atividades de sua responsabilidade com o zelo e a qualidade exigidos, causando prejuízo à prestação dos serviços.',
@@ -45,9 +49,11 @@ const NATUREZA_TEXTO_BASE: Record<string, string> = {
   insubordinacao:  'O(A) colaborador(a) recusou-se a cumprir ordem direta e legítima emanada por seu superior hierárquico, caracterizando ato de insubordinação incompatível com a relação de emprego e as normas disciplinares da empresa.',
   'desídia':       'O(A) colaborador(a) demonstrou desídia reiterada no desempenho de suas funções, evidenciada pela falta de empenho, atenção e qualidade na execução das atividades que lhe competem.',
   improbidade:     'O(A) colaborador(a) praticou ato de improbidade no ambiente de trabalho, em violação aos princípios de honestidade, lealdade e boa-fé que devem nortear a relação de emprego.',
-  ofensa_honra:    'O(A) colaborador(a) proferiu ofensas à honra e à boa fama de colega(s) ou superior(es) hierárquico(s) durante o expediente de trabalho, configurando conduta incompatível com o ambiente profissional.',
+  ofensa_honra:    'O(A) colaborador(a) proferiu ofensas à honra e à boa fama de colega(s) ou terceiro(s) durante o expediente de trabalho, configurando conduta incompatível com o ambiente profissional.',
+  ofensa_superior: 'O(A) colaborador(a) proferiu ofensas à honra e à boa fama do empregador ou de superior hierárquico durante o expediente de trabalho, configurando conduta grave incompatível com a relação de emprego.',
   uso_indevido:    'O(A) colaborador(a) utilizou de forma indevida equipamentos, ferramentas ou patrimônio da empresa, em desacordo com as normas de uso e conservação estabelecidas, causando risco de dano ao patrimônio público/empresarial.',
-  abandono:        'O(A) colaborador(a) abandonou seu posto de trabalho sem autorização prévia de superior hierárquico e sem justificativa plausível, colocando em risco a continuidade dos serviços sob sua responsabilidade.',
+  embriaguez:      'O(A) colaborador(a) apresentou-se ao serviço em estado de embriaguez, comprometendo o desempenho de suas funções, a segurança do ambiente de trabalho e a imagem da empresa perante terceiros.',
+  abandono:        'O(A) colaborador(a) abandonou seu posto de trabalho/emprego sem autorização prévia de superior hierárquico e sem justificativa plausível, colocando em risco a continuidade dos serviços sob sua responsabilidade.',
   outro:           '',
 }
 
