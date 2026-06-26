@@ -25,6 +25,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/atestados',     label: 'Atestados'     },
       { href: '/insalubridade', label: 'Cobertura Insalubre' },
       { href: '/ocorrencias',   label: 'Ocorrências'   },
+      { href: '/acordos',       label: 'Acordos'        },
     ],
   },
   {
