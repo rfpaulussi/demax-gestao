@@ -19,7 +19,7 @@ function abreviarNome(nome: string): string {
   return `${partes[0]} ${partes.slice(1, -1).map(p => p[0] + '.').join(' ')} ${partes[partes.length - 1]}`
 }
 
-const MODELO_TEXTO = `trabalhem no dia [DATA DO EVENTO], referente a [NOME DO EVENTO], com acréscimo de [HH:MM] hora diária no horário normal nos dias [DATA 1] e [DATA 2], compensando assim [X] hora(s) laborada(s) no referido evento.`
+const MODELO_TEXTO = `trabalharem no dia [DATA DO EVENTO] ([NOME DO EVENTO]), com acréscimo de [HH:MM] hora diária no horário normal nos dias [DATA COMP. 1] e [DATA COMP. 2], compensando assim [X] hora(s) laborada(s) no referido evento.`
 
 const DEFAULT_TIMES: Record<string, DiaTimes> = {
   'Segunda-feira': { folga: false, e1: '08:00', s1: '12:00', e2: '13:30', s2: '18:00' },
