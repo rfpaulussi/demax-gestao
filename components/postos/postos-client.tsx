@@ -534,6 +534,11 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                                 </span>
                               )
                             })()}
+                            {p.em_ferias > 0 && (
+                              <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                                🌴 {p.em_ferias} em férias
+                              </span>
+                            )}
                             {p.cobertura_como_origem && (
                               <span className="inline-flex items-center rounded-full bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-700">
                                 Cedeu reforço

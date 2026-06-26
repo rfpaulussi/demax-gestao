@@ -71,6 +71,7 @@ export type PostoRow = {
   ativo: boolean
   efetivo_atual: number
   insalubridade_atual: number
+  em_ferias: number
   supervisor_nome: string | null
   cobertura_como_origem: boolean
   cobertura_como_destino: boolean
@@ -160,6 +161,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
 
   const efetivoMap = new Map<string, number>()
   const insalubMap = new Map<string, number>()
+  const feriasMap  = new Map<string, number>()
   for (const f of funcionariosRaw) {
     if (!f.posto_id) continue
     const secretaria = postoSecretariaMap.get(f.posto_id) ?? ''
@@ -173,6 +175,10 @@ export async function getPostosData(): Promise<PostoRow[]> {
       if (f.status === 'afastado') continue
       if (f.funcao_id && excludedFuncaoIds.has(f.funcao_id)) continue
       if (f.eh_encarregado_volante === true) continue
+      // Contagem separada de quem está de férias
+      if (f.status === 'ferias') {
+        feriasMap.set(f.posto_id, (feriasMap.get(f.posto_id) ?? 0) + 1)
+      }
     }
     efetivoMap.set(f.posto_id, (efetivoMap.get(f.posto_id) ?? 0) + 1)
 
@@ -209,6 +215,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
     ativo: p.ativo ?? true,
     efetivo_atual: efetivoMap.get(p.id) ?? 0,
     insalubridade_atual: insalubMap.get(p.id) ?? 0,
+    em_ferias: feriasMap.get(p.id) ?? 0,
     supervisor_nome: supervisorMap.get(p.id) ?? null,
     cobertura_como_origem:  coberturaOrigemIds.has(p.id),
     cobertura_como_destino: coberturaDestinoIds.has(p.id),
