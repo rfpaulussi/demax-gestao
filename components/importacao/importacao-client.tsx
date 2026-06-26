@@ -4,7 +4,6 @@ import { useState } from 'react'
 import * as XLSX from 'xlsx-js-style'
 import {
   importarEventosHistorico,
-  importarCoberturas,
   importarMudancasFuncao,
   importarAdvertencias,
   importarEfetivo,
@@ -15,7 +14,6 @@ import {
 import type {
   ImportResult,
   EventoHistoricoInput,
-  CoberturaCsvRow,
   MudancaFuncaoRow,
   AdvertenciaRow,
   EfetivoRow,
@@ -644,67 +642,6 @@ function RelatorioMensalSection() {
 
 // ─── ABA 2: Coberturas Insalubres ────────────────────────────
 
-function TabCoberturas() {
-  const [preview, setPreview]   = useState<Record<string, unknown>[]>([])
-  const [rows, setRows]         = useState<CoberturaCsvRow[]>([])
-  const [processing, setProc]   = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [result, setResult]     = useState<ImportResult | null>(null)
-
-  async function handleFile(f: File) {
-    setResult(null)
-    const raw = await parseCSV(f)
-    setPreview(raw.slice(0, 5))
-    setRows(raw.map(r => ({
-      supervisor:        getCol(r, 'Supervisor', 'supervisor'),
-      posto:             getCol(r, 'Posto', 'posto'),
-      colaborador_cobriu:getCol(r, 'ColaboradorCobriu', 'Colaborador Cobriu', 'colaborador_cobriu'),
-      data_cobertura:    getCol(r, 'DataCobertura', 'Data Cobertura', 'data_cobertura'),
-      periodo_dias:      getCol(r, 'PeriodoDias', 'Periodo Dias', 'periodo_dias'),
-      agente_fixo_ausente:getCol(r, 'AgenteFixoAusente', 'Agente Fixo Ausente', 'agente_fixo_ausente'),
-      motivo_cobertura:  getCol(r, 'MotivoCobertura', 'Motivo Cobertura', 'motivo_cobertura'),
-    })).filter(r => r.colaborador_cobriu))
-  }
-
-  async function handleProcess() {
-    if (!rows.length) return
-    setProc(true); setProgress(0); setResult(null)
-    const batches = chunk(rows, 500)
-    let imported = 0; const errors: string[] = []
-    for (let i = 0; i < batches.length; i++) {
-      const r = await importarCoberturas(batches[i])
-      imported += r.imported; errors.push(...r.errors)
-      setProgress(Math.round(((i + 1) / batches.length) * 100))
-    }
-    setResult({ imported, errors }); setProc(false)
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm space-y-3">
-        <p className="text-xs text-gray-400">
-          Colunas esperadas: <span className="font-mono text-gray-600">Timestamp · Supervisor · Posto · ColaboradorCobriu · DataCobertura · PeriodoDias · AgenteFixoAusente · MotivoCobertura</span>
-        </p>
-        <input type="file" accept=".csv" className={inputFile}
-          onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
-      </div>
-      {preview.length > 0 && (
-        <>
-          <PreviewTable rows={preview} />
-          <p className="text-xs text-gray-400">{rows.length} linha{rows.length !== 1 ? 's' : ''} válida{rows.length !== 1 ? 's' : ''}</p>
-          <button onClick={handleProcess} disabled={processing}
-            className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40">
-            {processing ? 'Processando…' : `Importar ${rows.length} coberturas`}
-          </button>
-        </>
-      )}
-      {processing && <ProgressBar value={progress} />}
-      {result && <ResultPanel result={result} />}
-      <RelatorioMensalSection />
-    </div>
-  )
-}
-
 // ─── ABA 3: Mudanças de Função ────────────────────────────────
 
 function TabMudancasFuncao() {
@@ -1263,6 +1200,7 @@ function TabCoberturaInsalubridade() {
 
       {processing && <ProgressBar value={progress} />}
       {result && <ResultPanel result={result} />}
+      <RelatorioMensalSection />
     </div>
   )
 }
@@ -1273,7 +1211,6 @@ const TABS = [
   { id: 'efetivo',                   label: 'Efetivo'                    },
   { id: 'alocacoes',                 label: 'Alocações Mensais'          },
   { id: 'ferias',                    label: 'Férias'                     },
-  { id: 'coberturas',                label: 'Coberturas Insalubres'      },
   { id: 'coberturas-insalubridade',  label: 'Coberturas Insalubridade'   },
   { id: 'mudancas',                  label: 'Mudanças de Função'         },
   { id: 'advertencias',              label: 'Advertências'               },
@@ -1307,7 +1244,6 @@ export function ImportacaoClient() {
       <div className={active !== 'efetivo'      ? 'hidden' : ''}><TabEfetivo /></div>
       <div className={active !== 'alocacoes'    ? 'hidden' : ''}><TabAlocacoes /></div>
       <div className={active !== 'ferias'       ? 'hidden' : ''}><TabFerias /></div>
-      <div className={active !== 'coberturas'                 ? 'hidden' : ''}><TabCoberturas /></div>
       <div className={active !== 'coberturas-insalubridade'  ? 'hidden' : ''}><TabCoberturaInsalubridade /></div>
       <div className={active !== 'mudancas'                  ? 'hidden' : ''}><TabMudancasFuncao /></div>
       <div className={active !== 'advertencias' ? 'hidden' : ''}><TabAdvertencias /></div>

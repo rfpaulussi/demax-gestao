@@ -88,61 +88,91 @@ function pad2(n: number) { return String(n).padStart(2, '0') }
 
 function exportExcelInsalubridade(grupos: InsalubridadeGrupo[], mes: number, ano: number) {
   const wb = XLSX.utils.book_new()
-  const HEADERS = ['Funcionário','Função','Posto','Secretaria','Supervisor','Total Dias','Período (dias)','%','Status','Origens']
-  const NC = HEADERS.length
+  const fmtDate = (s: string | null | undefined) => {
+    if (!s) return '—'
+    const [y, m, d] = s.split('-')
+    return `${d}/${m}/${y}`
+  }
 
-  const rows: { data: (string | number)[]; style?: 'header' | 'totals' }[] = [
+  // ── Aba Resumo ──────────────────────────────────────────────
+  const HDR_RESUMO = ['Funcionário','Função','Posto','Secretaria','Supervisor','Total Dias','%','Status','Origens']
+  const NC_R = HDR_RESUMO.length
+  const rowsR: { data: (string | number)[]; style?: 'header' | 'totals' }[] = [
     { data: [`Insalubridade — ${pad2(mes)}/${ano}`] },
     { data: [] },
-    { data: HEADERS, style: 'header' },
+    { data: HDR_RESUMO, style: 'header' },
   ]
-
   for (const g of grupos) {
-    rows.push({ data: [
+    rowsR.push({ data: [
       g.funcionario_nome,
       g.funcao ?? '—',
       g.posto_nome ?? '—',
       g.secretaria ?? '—',
       g.supervisor_nome ?? '—',
       g.total_dias,
-      g.registros.reduce((s, r) => s + (r.periodo_dias ?? 1), 0),
       '40%',
       g.status.charAt(0).toUpperCase() + g.status.slice(1),
       g.origens.join(', '),
     ]})
   }
-
-  rows.push({ data: [
+  rowsR.push({ data: [
     'TOTAL', '', '', '', '',
     grupos.reduce((s, g) => s + g.total_dias, 0),
-    grupos.reduce((s, g) => s + g.registros.reduce((rs, r) => rs + (r.periodo_dias ?? 1), 0), 0),
     '', '', '',
   ], style: 'totals' })
 
-  const aoa = rows.map(r => r.data)
-  const ws = XLSX.utils.aoa_to_sheet(aoa)
-
-  rows.forEach((row, ri) => {
+  const wsR = XLSX.utils.aoa_to_sheet(rowsR.map(r => r.data))
+  rowsR.forEach((row, ri) => {
     if (!row.style) return
-    for (let ci = 0; ci < NC; ci++) {
+    for (let ci = 0; ci < NC_R; ci++) {
       const addr = XLSX.utils.encode_cell({ r: ri, c: ci })
-      if (!ws[addr]) ws[addr] = { v: '', t: 's' }
-      if (row.style === 'header') {
-        ws[addr].s = {
-          font: { bold: true, color: { rgb: '475569' } },
-          fill: { patternType: 'solid', fgColor: { rgb: 'e2e8f0' } },
-        }
-      } else if (row.style === 'totals') {
-        ws[addr].s = {
-          font: { bold: true },
-          fill: { patternType: 'solid', fgColor: { rgb: 'f1f5f9' } },
-        }
-      }
+      if (!wsR[addr]) wsR[addr] = { v: '', t: 's' }
+      wsR[addr].s = row.style === 'header'
+        ? { font: { bold: true, color: { rgb: '475569' } }, fill: { patternType: 'solid', fgColor: { rgb: 'e2e8f0' } } }
+        : { font: { bold: true }, fill: { patternType: 'solid', fgColor: { rgb: 'f1f5f9' } } }
     }
   })
+  wsR['!cols'] = [{ wch: 36 }, { wch: 20 }, { wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 6 }, { wch: 12 }, { wch: 18 }]
+  XLSX.utils.book_append_sheet(wb, wsR, 'Resumo')
 
-  ws['!cols'] = [{ wch: 36 }, { wch: 20 }, { wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 6 }, { wch: 12 }, { wch: 18 }]
-  XLSX.utils.book_append_sheet(wb, ws, 'Insalubridade')
+  // ── Aba Detalhes ─────────────────────────────────────────────
+  const HDR_DET = ['Funcionário','Função','Posto','Secretaria','Supervisor','Data Cobertura','Dias','Agente Ausente','Observação','Origem','Status']
+  const NC_D = HDR_DET.length
+  const rowsD: { data: (string | number)[]; style?: 'header' }[] = [
+    { data: [`Insalubridade — Detalhes — ${pad2(mes)}/${ano}`] },
+    { data: [] },
+    { data: HDR_DET, style: 'header' },
+  ]
+  for (const g of grupos) {
+    for (const r of g.registros) {
+      rowsD.push({ data: [
+        g.funcionario_nome,
+        g.funcao ?? '—',
+        g.posto_nome ?? '—',
+        g.secretaria ?? '—',
+        g.supervisor_nome ?? '—',
+        fmtDate(r.data_cobertura),
+        r.periodo_dias ?? 1,
+        r.agente_ausente_nome ?? '—',
+        r.observacao ?? '—',
+        r.origem,
+        r.status,
+      ]})
+    }
+  }
+
+  const wsD = XLSX.utils.aoa_to_sheet(rowsD.map(r => r.data))
+  rowsD.forEach((row, ri) => {
+    if (!row.style) return
+    for (let ci = 0; ci < NC_D; ci++) {
+      const addr = XLSX.utils.encode_cell({ r: ri, c: ci })
+      if (!wsD[addr]) wsD[addr] = { v: '', t: 's' }
+      wsD[addr].s = { font: { bold: true, color: { rgb: '475569' } }, fill: { patternType: 'solid', fgColor: { rgb: 'e2e8f0' } } }
+    }
+  })
+  wsD['!cols'] = [{ wch: 36 }, { wch: 20 }, { wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 6 }, { wch: 30 }, { wch: 40 }, { wch: 12 }, { wch: 12 }]
+  XLSX.utils.book_append_sheet(wb, wsD, 'Detalhes')
+
   XLSX.writeFile(wb, `insalubridade-${pad2(mes)}-${ano}.xlsx`)
 }
 
