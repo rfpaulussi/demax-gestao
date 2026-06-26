@@ -81,26 +81,77 @@ export interface ResultadoFechamento {
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-function diasUteisNoPeriodo(start: Date, end: Date, regime: string): number {
+// Algoritmo de Butcher: calcula a data da Páscoa para qualquer ano
+function calcEaster(year: number): Date {
+  const a = year % 19
+  const b = Math.floor(year / 100)
+  const c = year % 100
+  const d = Math.floor(b / 4)
+  const e = b % 4
+  const f = Math.floor((b + 8) / 25)
+  const g = Math.floor((b - f + 1) / 3)
+  const h = (19 * a + b - d - g + 15) % 30
+  const i = Math.floor(c / 4)
+  const k = c % 4
+  const l = (32 + 2 * e + 2 * i - h - k) % 7
+  const m = Math.floor((a + 11 * h + 22 * l) / 451)
+  const month = Math.floor((h + l - 7 * m + 114) / 31)
+  const day   = ((h + l - 7 * m + 114) % 31) + 1
+  return new Date(year, month - 1, day, 12)
+}
+
+function feriadosDoAno(year: number): Set<string> {
+  const fmt = (d: Date) => d.toISOString().split('T')[0]
+  const addDias = (base: Date, n: number) =>
+    new Date(base.getTime() + n * 86400000)
+
+  const pascoa = calcEaster(year)
+
+  const fixos = [
+    `${year}-01-01`, // Confraternização Universal
+    `${year}-04-21`, // Tiradentes
+    `${year}-05-01`, // Dia do Trabalho
+    `${year}-07-09`, // Revolução Constitucionalista (SP)
+    `${year}-09-07`, // Independência
+    `${year}-10-12`, // Nossa Senhora Aparecida
+    `${year}-11-02`, // Finados
+    `${year}-11-15`, // Proclamação da República
+    `${year}-11-20`, // Consciência Negra (nacional desde 2023)
+    `${year}-12-25`, // Natal
+    // Mogi das Cruzes
+    `${year}-01-25`, // Aniversário de São Paulo (ponto facultativo SP)
+    `${year}-06-26`, // Aniversário de Mogi das Cruzes
+    `${year}-07-26`, // Dia de Sant'Ana (Padroeira do município)
+    `${year}-09-01`, // Aniversário da Fundação de Mogi das Cruzes
+  ]
+
+  const moveis = [
+    fmt(addDias(pascoa, -48)), // Segunda de Carnaval
+    fmt(addDias(pascoa, -47)), // Terça de Carnaval
+    fmt(addDias(pascoa, -2)),  // Sexta-feira Santa
+    fmt(addDias(pascoa, 60)),  // Corpus Christi
+  ]
+
+  return new Set([...fixos, ...moveis])
+}
+
+function diasUteisNoPeriodo(start: Date, end: Date, regime: string, feriados: Set<string>): number {
   if (start > end) return 0
-  if (regime === '5x1' || regime === '12x36') {
-    return Math.max(0, Math.floor((end.getTime() - start.getTime()) / 86400000) + 1)
-  }
   let count = 0
   const d = new Date(start)
   while (d <= end) {
+    const dateStr = d.toISOString().split('T')[0]
     const dow = d.getDay()
-    if (dow !== 0 && dow !== 6) count++
+    if (regime === '5x1' || regime === '12x36') {
+      // dias corridos, mas pula feriados
+      if (!feriados.has(dateStr)) count++
+    } else {
+      // 5x2: seg-sex, pula feriados
+      if (dow !== 0 && dow !== 6 && !feriados.has(dateStr)) count++
+    }
     d.setDate(d.getDate() + 1)
   }
   return count
-}
-
-function diasSobrepostos(aStart: string, aEnd: string, mesStart: string, mesEnd: string): number {
-  const s = new Date(Math.max(new Date(aStart + 'T12:00:00').getTime(), new Date(mesStart + 'T12:00:00').getTime()))
-  const e = new Date(Math.min(new Date(aEnd + 'T12:00:00').getTime(), new Date(mesEnd + 'T12:00:00').getTime()))
-  if (s > e) return 0
-  return Math.floor((e.getTime() - s.getTime()) / 86400000) + 1
 }
 
 function clipToMes(date: string | null, fallback: string, mesStart: string, mesEnd: string): string {
@@ -109,6 +160,8 @@ function clipToMes(date: string | null, fallback: string, mesStart: string, mesE
   if (d > mesEnd) return mesEnd
   return d
 }
+
+function toDate(s: string) { return new Date(s + 'T12:00:00') }
 
 // ─── main ────────────────────────────────────────────────────────────────────
 
@@ -211,6 +264,8 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     postoConfigMap.set(pc.posto_id, pc.regime)
   }
 
+  const feriados = feriadosDoAno(ano)
+
   // 3. Por funcionário
   const porFuncionario: FechamentoFuncionario[] = funcionarios.map(func => {
     const admissao     = func.data_admissao     ? new Date(func.data_admissao     + 'T12:00:00') : mesStart
@@ -225,18 +280,24 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     const funcoes = func.funcoes as unknown as { nome: string } | null
     const regime  = postos?.config_escalas_postos?.[0]?.regime ?? postoConfigMap.get(func.posto_id ?? '') ?? '5x2'
 
-    const diasUteis = diasUteisNoPeriodo(periodoInicio, periodoFim, regime)
+    const diasUteis = diasUteisNoPeriodo(periodoInicio, periodoFim, regime, feriados)
 
     const feriasDias = ferias
       .filter(f => f.funcionario_id === func.id)
-      .reduce((acc, f) => acc + diasSobrepostos(f.data_inicio!, f.data_fim!, mesStartStr, mesEndStr), 0)
+      .reduce((acc, f) => {
+        const s = clipToMes(f.data_inicio!, mesStartStr, mesStartStr, mesEndStr)
+        const e = clipToMes(f.data_fim!, mesEndStr, mesStartStr, mesEndStr)
+        return acc + diasUteisNoPeriodo(toDate(s), toDate(e), regime, feriados)
+      }, 0)
 
     const atestadosDias = atestados
       .filter(a => a.funcionario_id === func.id)
       .reduce((acc, a) => {
-        const fimCoberto = new Date(new Date(a.data_inicio + 'T12:00:00').getTime() + (DIAS_COBERTURA_ATESTADO - 1) * 86400000).toISOString().split('T')[0]
+        const fimCoberto = new Date(toDate(a.data_inicio).getTime() + (DIAS_COBERTURA_ATESTADO - 1) * 86400000).toISOString().split('T')[0]
         const fimEfetivo = fimCoberto < a.data_fim ? fimCoberto : a.data_fim
-        return acc + diasSobrepostos(a.data_inicio, fimEfetivo, mesStartStr, mesEndStr)
+        const s = clipToMes(a.data_inicio, mesStartStr, mesStartStr, mesEndStr)
+        const e = clipToMes(fimEfetivo, mesEndStr, mesStartStr, mesEndStr)
+        return acc + diasUteisNoPeriodo(toDate(s), toDate(e), regime, feriados)
       }, 0)
 
     const faltasDias = faltas
@@ -253,7 +314,11 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
 
     const afastamentoDias = afastamentos
       .filter(a => a.funcionario_id === func.id)
-      .reduce((acc, a) => acc + diasSobrepostos(a.data_inicio, a.data_fim_real ?? mesEndStr, mesStartStr, mesEndStr), 0)
+      .reduce((acc, a) => {
+        const s = clipToMes(a.data_inicio, mesStartStr, mesStartStr, mesEndStr)
+        const e = clipToMes(a.data_fim_real ?? mesEndStr, mesEndStr, mesStartStr, mesEndStr)
+        return acc + diasUteisNoPeriodo(toDate(s), toDate(e), regime, feriados)
+      }, 0)
 
     const diasTrabalhados = Math.max(0, diasUteis - feriasDias - faltasDias - atestadosDias - diasSuspensao - afastamentoDias)
 
@@ -264,7 +329,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
       const fimRaw  = c.data_retorno_real ?? c.data_prev_retorno ?? mesEndStr
       const fim     = clipToMes(fimRaw, mesEndStr, mesStartStr, mesEndStr)
       const regimeDest = postoConfigMap.get(c.posto_destino_id) ?? '5x2'
-      const dias = diasUteisNoPeriodo(new Date(inicio + 'T12:00'), new Date(fim + 'T12:00'), regimeDest)
+      const dias = diasUteisNoPeriodo(new Date(inicio + 'T12:00'), new Date(fim + 'T12:00'), regimeDest, feriados)
       const postoInfo = postosMap.get(c.posto_destino_id)
       return {
         posto_id:   c.posto_destino_id,
@@ -380,7 +445,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     const fimRaw  = cob.data_retorno_real ?? cob.data_prev_retorno ?? mesEndStr
     const fim     = clipToMes(fimRaw, mesEndStr, mesStartStr, mesEndStr)
     const regime  = postoConfigMap.get(cob.posto_destino_id) ?? '5x2'
-    const dias    = diasUteisNoPeriodo(new Date(inicio + 'T12:00'), new Date(fim + 'T12:00'), regime)
+    const dias    = diasUteisNoPeriodo(new Date(inicio + 'T12:00'), new Date(fim + 'T12:00'), regime, feriados)
 
     const posto = getOrCreatePosto(cob.posto_destino_id)
     posto.funcionarios.push({
