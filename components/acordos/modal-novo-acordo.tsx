@@ -11,6 +11,25 @@ import type { AcordoPostoItem, AcordoFuncionarioItem, HorarioSemana } from '@/ap
 
 const DIAS = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado','Domingo']
 
+const HORARIOS: string[] = []
+for (let h = 5; h <= 23; h++) {
+  HORARIOS.push(`${String(h).padStart(2,'0')}:00`)
+  if (h < 23) HORARIOS.push(`${String(h).padStart(2,'0')}:30`)
+}
+
+function TimeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-slate-300"
+    >
+      <option value="">--:--</option>
+      {HORARIOS.map(h => <option key={h} value={h}>{h}</option>)}
+    </select>
+  )
+}
+
 interface DiaTimes { folga: boolean; e1: string; s1: string; e2: string; s2: string }
 
 function abreviarNome(nome: string): string {
@@ -222,17 +241,13 @@ export function ModalNovoAcordo({ postos, onClose }: Props) {
                       <span className="flex-1 text-xs font-bold uppercase tracking-wider text-gray-400">Folga</span>
                     ) : (
                       <div className="flex flex-1 items-center gap-1.5 text-xs text-gray-600">
-                        <input type="time" value={t.e1} onChange={e => updateTime(dia, 'e1', e.target.value)}
-                          className="rounded-lg border border-gray-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                        <TimeSelect value={t.e1} onChange={v => updateTime(dia, 'e1', v)} />
                         <span className="text-gray-400">–</span>
-                        <input type="time" value={t.s1} onChange={e => updateTime(dia, 's1', e.target.value)}
-                          className="rounded-lg border border-gray-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                        <TimeSelect value={t.s1} onChange={v => updateTime(dia, 's1', v)} />
                         <span className="mx-1 text-gray-300">/</span>
-                        <input type="time" value={t.e2} onChange={e => updateTime(dia, 'e2', e.target.value)}
-                          className="rounded-lg border border-gray-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                        <TimeSelect value={t.e2} onChange={v => updateTime(dia, 'e2', v)} />
                         <span className="text-gray-400">–</span>
-                        <input type="time" value={t.s2} onChange={e => updateTime(dia, 's2', e.target.value)}
-                          className="rounded-lg border border-gray-200 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-slate-300" />
+                        <TimeSelect value={t.s2} onChange={v => updateTime(dia, 's2', v)} />
                       </div>
                     )}
 
@@ -264,7 +279,7 @@ export function ModalNovoAcordo({ postos, onClose }: Props) {
                   onClick={() => setDescricao(MODELOS.extra)}
                   className="rounded-md bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-200 hover:bg-slate-600 transition-colors"
                 >
-                  ✦ Trabalho extra
+                  ✦ Evento trabalhado
                 </button>
                 <button
                   type="button"
