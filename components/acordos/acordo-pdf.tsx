@@ -36,18 +36,11 @@ const DIAS = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sext
 interface Props { acordo: AcordoCompensacao }
 
 export function AcordoPdfDoc({ acordo }: Props) {
-  const postoNomes = acordo.postos.map(p => p.nome).join(', ')
-
   return (
     <Document>
       <Page size="A4" style={s.page}>
         {/* Título */}
         <Text style={s.title}>ACORDO DE COMPENSAÇÃO DE HORAS</Text>
-
-        {/* Unidade(s) */}
-        <Text style={[s.para, { fontSize: 9, color: '#555', textAlign: 'center', marginBottom: 12 }]}>
-          {postoNomes}
-        </Text>
 
         {/* Intro */}
         <Text style={s.para}>
