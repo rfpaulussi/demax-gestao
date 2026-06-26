@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { buscarFeriasParaRelatorio, buscarSupervisoresAtivos } from './actions'
 import type { SupervisorOption } from './actions'
 import { downloadRelatorioFerias } from '@/components/ferias/relatorio-supervisor-pdf'
@@ -120,6 +121,7 @@ function TabelaSupervisor({ supervisor, itens }: { supervisor: string; itens: an
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function RelatorioFeriasPage() {
+  const router = useRouter()
   const defaultPeriodo = mesAtualDefault()
   const [mes, setMes] = useState(defaultPeriodo.mes)
   const [ano, setAno] = useState(defaultPeriodo.ano)
@@ -200,6 +202,12 @@ export default function RelatorioFeriasPage() {
 
         {/* Título */}
         <div className="mb-6">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-slate-400 hover:text-slate-700 transition-colors mb-3"
+          >
+            ← Voltar
+          </button>
           <p className="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1">Férias</p>
           <h1 className="text-2xl font-bold text-slate-900">Relação por Supervisor</h1>
           <p className="text-sm text-slate-500 mt-1">
