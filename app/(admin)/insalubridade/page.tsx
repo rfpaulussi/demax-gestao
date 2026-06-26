@@ -95,7 +95,7 @@ export default async function InsalubridadePage({
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <KpiCard label="Pendentes"          value={kpiPendentes}   borderColor="border-t-amber-500"  />
+        <KpiCard label="Registros Pendentes" value={kpiPendentes}   borderColor="border-t-amber-500"  />
         <KpiCard label="Enviados no Mês"    value={kpiEnviados}    borderColor="border-t-green-500"  />
         <KpiCard label="Func. com Cobertura" value={kpiFuncionarios} borderColor="border-t-purple-500" />
       </div>
