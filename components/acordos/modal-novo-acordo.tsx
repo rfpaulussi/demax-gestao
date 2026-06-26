@@ -13,6 +13,14 @@ const DIAS = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sext
 
 interface DiaTimes { folga: boolean; e1: string; s1: string; e2: string; s2: string }
 
+function abreviarNome(nome: string): string {
+  const partes = nome.trim().split(/\s+/).map(p => p.charAt(0) + p.slice(1).toLowerCase())
+  if (partes.length <= 2) return partes.join(' ')
+  return `${partes[0]} ${partes.slice(1, -1).map(p => p[0] + '.').join(' ')} ${partes[partes.length - 1]}`
+}
+
+const MODELO_TEXTO = `trabalhem no dia [DATA DO EVENTO], referente a [NOME DO EVENTO], com acréscimo de [HH:MM] hora diária no horário normal nos dias [DATA 1] e [DATA 2], compensando assim [X] hora(s) laborada(s) no referido evento.`
+
 const DEFAULT_TIMES: Record<string, DiaTimes> = {
   'Segunda-feira': { folga: false, e1: '08:00', s1: '12:00', e2: '13:30', s2: '18:00' },
   'Terça-feira':   { folga: false, e1: '08:00', s1: '12:00', e2: '13:30', s2: '18:00' },
@@ -180,11 +188,17 @@ export function ModalNovoAcordo({ postos, onClose }: Props) {
                 {loadingFuncs ? 'Carregando…' : postosSel.length ? `Carregar funcionários (${postosSel.length} posto${postosSel.length > 1 ? 's' : ''})` : 'Selecione um posto acima'}
               </button>
               {funcionarios.length > 0 && (
-                <div className="mt-2 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2">
-                  <div className="h-2 w-2 rounded-full bg-green-500" />
-                  <span className="text-xs font-medium text-green-700">
+                <div className="mt-3">
+                  <p className="mb-2 text-xs font-semibold text-green-700">
                     {funcionarios.length} funcionário{funcionarios.length !== 1 ? 's' : ''} incluído{funcionarios.length !== 1 ? 's' : ''}
-                  </span>
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {funcionarios.map(f => (
+                      <span key={f.id} className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                        {abreviarNome(f.nome)}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -233,17 +247,27 @@ export function ModalNovoAcordo({ postos, onClose }: Props) {
           {/* Evento e compensação */}
           <div>
             <SectionHeader icon={FileText} title="Evento e Compensação" />
-            <div className="mt-3 rounded-xl border-2 border-dashed border-amber-200 bg-amber-50 p-3">
-              <p className="text-xs text-amber-700">
-                Descreva o evento (data, motivo) e como será compensado (acréscimo de horas, dias de compensação).
-                Este texto entra diretamente no documento jurídico.
+            <div className="mt-3 rounded-xl bg-slate-900 px-4 py-3">
+              <p className="font-mono text-[11px] leading-relaxed text-slate-300">
+                <span className="text-slate-500">…com a finalidade de que os funcionários </span>
+                <span className="text-amber-400 italic">[seu texto aqui]</span>
               </p>
+              <p className="mt-2 text-[10px] text-slate-500">
+                Este trecho entra direto no documento jurídico. Informe o evento, a data trabalhada, o acréscimo de horas e os dias de compensação.
+              </p>
+              <button
+                type="button"
+                onClick={() => !descricao && setDescricao(MODELO_TEXTO)}
+                className="mt-2 rounded-md bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-200 hover:bg-slate-600 transition-colors"
+              >
+                ✦ Usar modelo
+              </button>
             </div>
             <textarea
               value={descricao}
               onChange={e => setDescricao(e.target.value)}
               rows={4}
-              placeholder="ex: trabalhem no dia 28/06/2026 (Festa Junina), com acréscimo de 01:00 hora diária nos dias 30/06 e 01/07/2026, compensando assim 02 horas laboradas no evento."
+              placeholder="Clique em 'Usar modelo' acima ou escreva diretamente…"
               className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
             />
           </div>
