@@ -44,13 +44,32 @@ const MODELOS = {
 }
 
 const DEFAULT_TIMES: Record<string, DiaTimes> = {
-  'Segunda-feira': { folga: false, e1: '08:00', s1: '12:00', e2: '13:30', s2: '18:00' },
-  'Terça-feira':   { folga: false, e1: '08:00', s1: '12:00', e2: '13:30', s2: '18:00' },
-  'Quarta-feira':  { folga: false, e1: '08:00', s1: '12:00', e2: '13:30', s2: '18:00' },
-  'Quinta-feira':  { folga: false, e1: '08:00', s1: '12:00', e2: '13:30', s2: '18:00' },
-  'Sexta-feira':   { folga: false, e1: '08:00', s1: '12:00', e2: '13:30', s2: '18:00' },
+  'Segunda-feira': { folga: false, e1: '07:00', s1: '12:00', e2: '13:12', s2: '17:00' },
+  'Terça-feira':   { folga: false, e1: '07:00', s1: '12:00', e2: '13:12', s2: '17:00' },
+  'Quarta-feira':  { folga: false, e1: '07:00', s1: '12:00', e2: '13:12', s2: '17:00' },
+  'Quinta-feira':  { folga: false, e1: '07:00', s1: '12:00', e2: '13:12', s2: '17:00' },
+  'Sexta-feira':   { folga: false, e1: '07:00', s1: '12:00', e2: '13:12', s2: '17:00' },
   'Sábado':        { folga: true,  e1: '',      s1: '',      e2: '',      s2: ''      },
   'Domingo':       { folga: true,  e1: '',      s1: '',      e2: '',      s2: ''      },
+}
+
+function minutosEntre(a: string, b: string): number {
+  if (!a || !b) return 0
+  const [ah, am] = a.split(':').map(Number)
+  const [bh, bm] = b.split(':').map(Number)
+  return Math.max(0, (bh * 60 + bm) - (ah * 60 + am))
+}
+
+function calcTotalSemanal(times: Record<string, DiaTimes>): string {
+  let total = 0
+  for (const dia of DIAS) {
+    const t = times[dia]
+    if (!t || t.folga) continue
+    total += minutosEntre(t.e1, t.s1) + minutosEntre(t.e2, t.s2)
+  }
+  const h = Math.floor(total / 60)
+  const m = total % 60
+  return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2,'0')}min`
 }
 
 function timesToString(t: DiaTimes): string {
@@ -259,6 +278,19 @@ export function ModalNovoAcordo({ postos, onClose }: Props) {
                   </div>
                 )
               })}
+            </div>
+            {/* Total semanal */}
+            <div className="mt-2 flex items-center justify-end gap-2">
+              <span className="text-xs text-gray-400">Total semanal:</span>
+              {(() => {
+                const total = calcTotalSemanal(times)
+                const ok = total === '44h'
+                return (
+                  <span className={`text-xs font-bold ${ok ? 'text-green-600' : 'text-amber-600'}`}>
+                    {total} {ok ? '✓' : '≠ 44h'}
+                  </span>
+                )
+              })()}
             </div>
           </div>
 
