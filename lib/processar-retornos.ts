@@ -21,12 +21,25 @@ export async function processarRetornosAtestado(): Promise<ResultadoRetorno> {
   const admin = createAdminClient()
   const hoje  = new Date().toISOString().split('T')[0]
 
-  // 1. Afastados que NÃO são INSS (motivo_afastamento != 'inss')
-  const { data: afastados } = await admin
+  // 1. Afastados que NÃO são INSS e cujo posto não está na secretaria "AFASTADOS"
+  //    (postos com secretaria "AFASTADOS" são afastamentos formais de longa duração)
+  const { data: postosAfastados } = await admin
+    .from('postos')
+    .select('id')
+    .eq('secretaria', 'AFASTADOS')
+  const idsPostosAfastados = (postosAfastados ?? []).map((p: { id: string }) => p.id)
+
+  let query = admin
     .from('funcionarios')
     .select('id, nome')
     .eq('status', 'afastado')
     .neq('motivo_afastamento', 'inss')
+
+  if (idsPostosAfastados.length > 0) {
+    query = query.not('posto_id', 'in', `(${idsPostosAfastados.join(',')})`)
+  }
+
+  const { data: afastados } = await query
 
   if (!afastados || afastados.length === 0) return { processados: 0, nomes: [] }
 
