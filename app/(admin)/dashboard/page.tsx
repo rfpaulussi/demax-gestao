@@ -3,6 +3,7 @@ import { AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getUser } from '@/lib/auth/get-user'
 import { createClient } from '@/lib/supabase/server'
+import { processarRetornosAtestado } from '@/lib/processar-retornos'
 import {
   buscarKPIsDashboard,
   buscarAlertasDashboard,
@@ -158,6 +159,9 @@ export default async function DashboardPage({
 
   const supabase = createClient()
 
+  // Processa retornos silenciosamente a cada carregamento do dashboard
+  const retornos = await processarRetornosAtestado()
+
   const [
     auth,
     kpis,
@@ -241,6 +245,21 @@ export default async function DashboardPage({
           )}
         </div>
       </div>
+
+      {/* ── Banner retornos automáticos ─────────────────────────────────────── */}
+      {retornos.processados > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+          <span className="mt-0.5 text-green-600">✓</span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-green-800">
+              {retornos.processados} funcionário{retornos.processados > 1 ? 's retornaram' : ' retornou'} automaticamente ao ativo
+            </p>
+            <p className="mt-0.5 truncate text-xs text-green-700">
+              {retornos.nomes.slice(0, 5).join(', ')}{retornos.nomes.length > 5 ? ` e mais ${retornos.nomes.length - 5}` : ''}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Row 1: KPI Cards principais ─────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
