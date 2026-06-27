@@ -41,7 +41,7 @@ export async function registrarAtestado(formData: FormData) {
 
   const { error: errStatus } = await supabase
     .from('funcionarios')
-    .update({ status: 'afastado' })
+    .update({ status: 'atestado', motivo_afastamento: 'ausencia_temporaria' })
     .eq('id', funcionarioId)
   if (errStatus) throw new Error(errStatus.message)
 
@@ -50,7 +50,7 @@ export async function registrarAtestado(formData: FormData) {
     tipo: 'atestado',
     campo_alterado: 'status',
     valor_antes: func?.status ?? null,
-    valor_depois: 'afastado',
+    valor_depois: 'atestado',
     executado_por: auth.user.id,
   })
   if (errMov) throw new Error(errMov.message)

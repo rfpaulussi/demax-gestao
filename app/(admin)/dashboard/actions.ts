@@ -508,7 +508,7 @@ export async function buscarForaDoEfetivo(): Promise<number> {
   const { count } = await supabase
     .from('funcionarios')
     .select('*', { count: 'exact', head: true })
-    .in('status', ['ativo', 'afastado', 'ferias'])
+    .in('status', ['ativo', 'atestado', 'afastado', 'ferias'])
     .in('funcao_id', ids)
   return count ?? 0
 }
@@ -520,7 +520,7 @@ export async function buscarExperienciasDashboard(): Promise<{ total: number; ve
       .from('funcionarios')
       .select('data_admissao, periodo_experiencia')
       .not('periodo_experiencia', 'is', null)
-      .in('status', ['ativo', 'afastado', 'ferias'])
+      .in('status', ['ativo', 'atestado', 'afastado', 'ferias'])
       .range(0, 999)
 
     if (!data) return { total: 0, vencendo7dias: 0 }

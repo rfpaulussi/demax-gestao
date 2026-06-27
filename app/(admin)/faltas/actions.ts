@@ -298,11 +298,11 @@ export async function registrarFalta(fd: FormData) {
     return { success: false, error: error.message }
   }
 
-  // Falta com 3 ou mais dias → marca funcionário como afastado
+  // Falta com 3 ou mais dias → marca funcionário como atestado
   if (dias >= 3) {
     await supabase
       .from('funcionarios')
-      .update({ status: 'afastado' })
+      .update({ status: 'atestado', motivo_afastamento: 'ausencia_temporaria' })
       .eq('id', funcionario_id)
       .eq('status', 'ativo') // só muda se estiver ativo (não sobrescreve férias etc.)
   }

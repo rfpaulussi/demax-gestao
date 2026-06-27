@@ -9,37 +9,17 @@ export type ResultadoRetorno = {
 }
 
 /**
- * Retorna automaticamente a "ativo" funcionários afastados cujo período terminou.
- *
- * Protegidos (NÃO retornam automaticamente):
- * - motivo_afastamento = 'inss'
- * - Têm registro ativo em `afastamentos` (data_fim_prevista >= hoje ou nula)
- * - Têm atestado ainda válido (atestados.data_fim >= hoje)
- * - Têm falta multi-dia ainda vigente (faltas.data_fim >= hoje)
+ * Retorna automaticamente a "ativo" funcionários com status 'atestado' cujo período terminou.
+ * Status 'afastado' = INSS/formal — nunca é tocado aqui.
  */
 export async function processarRetornosAtestado(): Promise<ResultadoRetorno> {
   const admin = createAdminClient()
   const hoje  = new Date().toISOString().split('T')[0]
 
-  // 1. Afastados que NÃO são INSS e cujo posto não está na secretaria "AFASTADOS"
-  //    (postos com secretaria "AFASTADOS" são afastamentos formais de longa duração)
-  const { data: postosAfastados } = await admin
-    .from('postos')
-    .select('id')
-    .eq('secretaria', 'AFASTADOS')
-  const idsPostosAfastados = (postosAfastados ?? []).map((p: { id: string }) => p.id)
-
-  let query = admin
+  const { data: afastados } = await admin
     .from('funcionarios')
     .select('id, nome')
-    .eq('status', 'afastado')
-    .neq('motivo_afastamento', 'inss')
-
-  if (idsPostosAfastados.length > 0) {
-    query = query.not('posto_id', 'in', `(${idsPostosAfastados.join(',')})`)
-  }
-
-  const { data: afastados } = await query
+    .eq('status', 'atestado')
 
   if (!afastados || afastados.length === 0) return { processados: 0, nomes: [] }
 

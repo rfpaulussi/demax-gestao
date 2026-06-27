@@ -5,7 +5,8 @@ import { Search } from 'lucide-react'
 
 const STATUS_LABELS: Record<string, string> = {
   ativo:     'Ativo',
-  afastado:  'Afastado',
+  atestado:  'Atestado',
+  afastado:  'Afastado (INSS)',
   ferias:    'Em Férias',
   desligado: 'Desligado',
 }

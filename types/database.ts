@@ -292,7 +292,7 @@ export type Database = {
           cpf: string | null
           funcao_id: string | null
           posto_id: string | null
-          status: 'ativo' | 'afastado' | 'ferias' | 'desligado' | null
+          status: 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado' | null
           data_admissao: string | null
           data_desligamento: string | null
           created_at: string
@@ -313,7 +313,7 @@ export type Database = {
           cpf?: string | null
           funcao_id?: string | null
           posto_id?: string | null
-          status?: 'ativo' | 'afastado' | 'ferias' | 'desligado' | null
+          status?: 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado' | null
           data_admissao?: string | null
           data_desligamento?: string | null
           created_at?: string
@@ -334,7 +334,7 @@ export type Database = {
           cpf?: string | null
           funcao_id?: string | null
           posto_id?: string | null
-          status?: 'ativo' | 'afastado' | 'ferias' | 'desligado' | null
+          status?: 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado' | null
           data_admissao?: string | null
           data_desligamento?: string | null
           updated_at?: string

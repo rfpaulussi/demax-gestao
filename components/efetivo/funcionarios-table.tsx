@@ -16,7 +16,7 @@ export type FuncionarioRow = {
   nome: string
   registro: string | null
   cpf: string | null
-  status: 'ativo' | 'afastado' | 'ferias' | 'desligado' | null
+  status: 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado' | null
   motivo_afastamento: 'ausencia_temporaria' | 'inss' | null
   origem_ocupacional_cat: string | null
   data_admissao: string | null
@@ -50,20 +50,22 @@ const STATUS_BADGE: Record<
   NonNullable<FuncionarioRow['status']>,
   { label: string; className: string }
 > = {
-  ativo:     { label: 'Ativo',     className: 'bg-green-50 text-green-700 ring-green-200'    },
-  afastado:  { label: 'Afastado',  className: 'bg-red-50 text-red-700 ring-red-200'          },
-  ferias:    { label: 'Férias',    className: 'bg-orange-50 text-orange-700 ring-orange-200' },
-  desligado: { label: 'Desligado', className: 'bg-gray-100 text-gray-500 ring-gray-200'      },
+  ativo:     { label: 'Ativo',     className: 'bg-green-50 text-green-700 ring-green-200'      },
+  atestado:  { label: 'Atestado',  className: 'bg-amber-50 text-amber-700 ring-amber-200'      },
+  afastado:  { label: 'Afastado',  className: 'bg-red-50 text-red-700 ring-red-200'            },
+  ferias:    { label: 'Férias',    className: 'bg-orange-50 text-orange-700 ring-orange-200'   },
+  desligado: { label: 'Desligado', className: 'bg-gray-100 text-gray-500 ring-gray-200'        },
 }
 
 const STATUS_ROW: Record<
   NonNullable<FuncionarioRow['status']>,
   { bg: string; hover: string; borderLeft: string; dimmed: boolean }
 > = {
-  ativo:     { bg: 'bg-white',    hover: 'hover:bg-gray-50',   borderLeft: '',                                   dimmed: false },
-  afastado:  { bg: 'bg-amber-50', hover: 'hover:bg-amber-100', borderLeft: 'border-l-[3px] border-l-amber-400', dimmed: false },
-  ferias:    { bg: 'bg-blue-50',  hover: 'hover:bg-blue-100',  borderLeft: 'border-l-[3px] border-l-blue-400',  dimmed: false },
-  desligado: { bg: 'bg-gray-50',  hover: 'hover:bg-gray-100',  borderLeft: '',                                   dimmed: true  },
+  ativo:     { bg: 'bg-white',    hover: 'hover:bg-gray-50',    borderLeft: '',                                    dimmed: false },
+  atestado:  { bg: 'bg-amber-50', hover: 'hover:bg-amber-100',  borderLeft: 'border-l-[3px] border-l-amber-400',  dimmed: false },
+  afastado:  { bg: 'bg-red-50',   hover: 'hover:bg-red-100',    borderLeft: 'border-l-[3px] border-l-red-400',    dimmed: false },
+  ferias:    { bg: 'bg-blue-50',  hover: 'hover:bg-blue-100',   borderLeft: 'border-l-[3px] border-l-blue-400',   dimmed: false },
+  desligado: { bg: 'bg-gray-50',  hover: 'hover:bg-gray-100',   borderLeft: '',                                    dimmed: true  },
 }
 
 const COLS: { label: string; sortKey?: string }[] = [
@@ -205,14 +207,9 @@ export function FuncionariosTable({
                                 INSS
                               </span>
                             )}
-                            {f.status === 'afastado' && f.motivo_afastamento !== 'inss' && f.origem_ocupacional_cat && (
+                            {(f.status === 'afastado' || f.status === 'atestado') && f.origem_ocupacional_cat && (
                               <span className="text-[10px] font-semibold text-orange-600 pl-0.5">
                                 {ORIGEM_SUBTEXT[f.origem_ocupacional_cat] ?? f.origem_ocupacional_cat}
-                              </span>
-                            )}
-                            {f.status === 'afastado' && f.motivo_afastamento === 'ausencia_temporaria' && !f.origem_ocupacional_cat && (
-                              <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-600 ring-1 ring-inset ring-amber-200">
-                                Atestado
                               </span>
                             )}
                             {faltasAtivas?.[f.id] && (
@@ -245,7 +242,7 @@ export function FuncionariosTable({
                               Editar
                             </Button>
                           )}
-                          {(f.status === 'ativo' || f.status === 'afastado') && (
+                          {(f.status === 'ativo' || f.status === 'atestado' || f.status === 'afastado') && (
                             <Button
                               size="sm"
                               variant="outline"

@@ -39,7 +39,7 @@ export async function calcularKPIsAtuais(
     { data: funcAtivosData },
   ] = await Promise.all([
     supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'ativo'),
-    supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'afastado'),
+    supabase.from('funcionarios').select('*', { count: 'exact', head: true }).in('status', ['afastado', 'atestado']),
     supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'ferias'),
     supabase.from('coberturas_temporarias').select('*', { count: 'exact', head: true }).eq('status', 'ativa'),
     supabase.from('solicitacoes').select('*', { count: 'exact', head: true }).eq('status', 'pendente'),
