@@ -581,9 +581,11 @@ export type SupervisorPostoKpi = {
   nome: string
   secretaria: string | null
   efetivo_previsto: number
+  cota_insalubridade: number
   ativos: number
   atestados: number
   ferias: number
+  insalubridade: number
   descoberto: boolean
   coberturas_ativas: number
 }
@@ -614,6 +616,16 @@ export type SupervisorFerias = {
   status: string
 }
 
+export type SupervisorAtestadoRecente = {
+  id: string
+  funcionario_nome: string
+  posto_nome: string | null
+  secretaria: string | null
+  data_inicio: string
+  data_fim: string
+  duracao: number
+}
+
 export type DadosSupervisor = {
   postos: SupervisorPostoKpi[]
   kpis: {
@@ -628,6 +640,8 @@ export type DadosSupervisor = {
   atestadosAtivos: SupervisorAtestadoAtivo[]
   coberturas: SupervisorCobertura[]
   proximasFerias: SupervisorFerias[]
+  atestadosRecentes: SupervisorAtestadoRecente[]
+  postosDeficit: { id: string; nome: string; gap: number }[]
 }
 
 export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Promise<DadosSupervisor> {
@@ -639,28 +653,35 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
   // 1. Postos do supervisor (excluindo AFASTADOS)
   const { data: spPostos } = await supabase
     .from('config_supervisores_postos')
-    .select('postos!posto_id(id, nome, secretaria, efetivo_previsto)')
+    .select('postos!posto_id(id, nome, secretaria, efetivo_previsto, cota_insalubridade)')
     .eq('supervisor_id', supervisorId)
     .eq('ativo', true)
 
-  type SpRow = { postos: { id: string; nome: string; secretaria: string | null; efetivo_previsto: number | null } | null }
+  type SpRow = { postos: { id: string; nome: string; secretaria: string | null; efetivo_previsto: number | null; cota_insalubridade: number | null } | null }
   const postos = ((spPostos ?? []) as unknown as SpRow[])
     .map(r => r.postos)
     .filter(Boolean)
-    .filter(p => (p!.secretaria ?? '').toUpperCase() !== 'AFASTADOS') as { id: string; nome: string; secretaria: string | null; efetivo_previsto: number | null }[]
+    .filter(p => (p!.secretaria ?? '').toUpperCase() !== 'AFASTADOS') as { id: string; nome: string; secretaria: string | null; efetivo_previsto: number | null; cota_insalubridade: number | null }[]
 
   if (postos.length === 0) {
-    return { postos: [], kpis: { ativos: 0, atestados: 0, ferias: 0, descobertos: 0, coberturas_ativas: 0, ocorrencias: 0, aprovacoes: 0 }, atestadosAtivos: [], coberturas: [], proximasFerias: [] }
+    return { postos: [], kpis: { ativos: 0, atestados: 0, ferias: 0, descobertos: 0, coberturas_ativas: 0, ocorrencias: 0, aprovacoes: 0 }, atestadosAtivos: [], coberturas: [], proximasFerias: [], atestadosRecentes: [], postosDeficit: [] }
   }
 
   const postoIds = postos.map(p => p.id)
 
-  // 2. Funcionários nos postos
+  // 2. Funcionários nos postos (com funcao para insalubridade)
   const { data: funcs } = await supabase
     .from('funcionarios')
-    .select('id, nome, posto_id, status')
+    .select('id, nome, posto_id, status, funcao_id')
     .in('posto_id', postoIds)
     .in('status', ['ativo', 'atestado', 'ferias'])
+
+  // Busca nomes de funções para calcular insalubridade
+  const funcaoIds = Array.from(new Set((funcs ?? []).map(f => f.funcao_id).filter(Boolean))) as string[]
+  const { data: funcoesDb } = funcaoIds.length > 0
+    ? await supabase.from('funcoes').select('id, nome').in('id', funcaoIds)
+    : { data: [] }
+  const funcaoNomeMap = new Map<string, string>((funcoesDb ?? []).map(f => [f.id, f.nome.trim().toUpperCase()]))
 
   // 3. Atestados ativos com data_fim
   const funcIds = (funcs ?? []).map(f => f.id)
@@ -765,16 +786,47 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
       status: r.status,
     }))
 
+  // Mapa secretaria → nome da função insalubre
+  const INSALUBRIDADE_POR_SECRETARIA: Record<string, string> = {
+    SME:   'AGENTE DE HIGIENIZAÇÃO B',
+    SMS:   'AGENTE DE HIGIENIZAÇÃO A',
+    SMGCP: 'AGENTE DE HIGIENIZAÇÃO B',
+    SMMT:  'AGENTE DE HIGIENIZAÇÃO C',
+    SMEL:  'AGENTE DE HIGIENIZAÇÃO B',
+    SEMAS: 'AGENTE DE HIGIENIZAÇÃO B',
+    SMAPA: 'AGENTE DE HIGIENIZAÇÃO B',
+    SMSEG: 'AGENTE DE HIGIENIZAÇÃO B',
+    SMC:   'AGENTE DE HIGIENIZAÇÃO B',
+    SMDET: 'AGENTE DE HIGIENIZAÇÃO B',
+    SMASA: 'AGENTE DE HIGIENIZAÇÃO B',
+    SMGOV: 'AGENTE DE HIGIENIZAÇÃO B',
+    SMSUZ: 'AGENTE DE HIGIENIZAÇÃO B',
+  }
+
   // Agregar por posto
   const ativosPorPosto: Record<string, number> = {}
   const atestadosPorPosto: Record<string, number> = {}
   const feriasPorPosto: Record<string, number> = {}
-  for (const f of funcs ?? []) {
+  const insalubridadePorPosto: Record<string, number> = {}
+
+  const postoSecretariaMap = new Map(postos.map(p => [p.id, (p.secretaria ?? '').toUpperCase()]))
+
+  type FuncWithFuncao = { id: string; nome: string; posto_id: string | null; status: string; funcao_id: string | null }
+  for (const f of (funcs ?? []) as unknown as FuncWithFuncao[]) {
     const pid = f.posto_id as string
     if (f.status === 'ativo') ativosPorPosto[pid] = (ativosPorPosto[pid] ?? 0) + 1
     if (f.status === 'atestado') atestadosPorPosto[pid] = (atestadosPorPosto[pid] ?? 0) + 1
     if (f.status === 'ferias') feriasPorPosto[pid] = (feriasPorPosto[pid] ?? 0) + 1
+    // Insalubridade: só ativos
+    if (f.status === 'ativo' && f.funcao_id) {
+      const sec = postoSecretariaMap.get(pid) ?? ''
+      const funcaoEsperada = INSALUBRIDADE_POR_SECRETARIA[sec]
+      if (funcaoEsperada && funcaoNomeMap.get(f.funcao_id) === funcaoEsperada) {
+        insalubridadePorPosto[pid] = (insalubridadePorPosto[pid] ?? 0) + 1
+      }
+    }
   }
+
   const coberturasAtivasPorPosto: Record<string, number> = {}
   for (const c of coberturas) {
     const pid = (funcs ?? []).find(f => f.nome === c.ausente_nome)?.posto_id as string | undefined
@@ -790,9 +842,11 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
       nome: p.nome,
       secretaria: p.secretaria,
       efetivo_previsto: p.efetivo_previsto ?? 0,
+      cota_insalubridade: p.cota_insalubridade ?? 0,
       ativos: ativosPorPosto[p.id] ?? 0,
       atestados: atestadosPorPosto[p.id] ?? 0,
       ferias: feriasPorPosto[p.id] ?? 0,
+      insalubridade: insalubridadePorPosto[p.id] ?? 0,
       descoberto: ausentes > 0 && descoberto,
       coberturas_ativas: coberturasAtivasPorPosto[p.id] ?? 0,
     }
@@ -802,6 +856,40 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
   const totalAtestados = postosKpi.reduce((s, p) => s + p.atestados, 0)
   const totalFerias    = postosKpi.reduce((s, p) => s + p.ferias, 0)
   const totalDesc      = postosKpi.filter(p => p.descoberto).length
+
+  // Atestados recentes (últimos 30 dias nos postos do supervisor)
+  const desde30 = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0]
+  const { data: atestadosRecentesDb } = await supabase
+    .from('atestados')
+    .select('id, data_inicio, data_fim, funcionarios!funcionario_id(nome, posto_id)')
+    .in('funcionario_id', (funcs ?? []).map(f => f.id))
+    .gte('data_inicio', desde30)
+    .order('data_inicio', { ascending: false })
+    .limit(12)
+
+  type AteRecenteRow = { id: string; data_inicio: string; data_fim: string; funcionarios: { nome: string; posto_id: string | null } | null }
+  const atestadosRecentes: SupervisorAtestadoRecente[] = ((atestadosRecentesDb ?? []) as unknown as AteRecenteRow[]).map(a => {
+    const postoId = a.funcionarios?.posto_id ?? null
+    const posto = postoId ? postos.find(p => p.id === postoId) : null
+    const inicio = new Date(a.data_inicio + 'T00:00:00')
+    const fim    = new Date(a.data_fim    + 'T00:00:00')
+    const duracao = Math.max(1, Math.round((fim.getTime() - inicio.getTime()) / 86400000) + 1)
+    return {
+      id: a.id,
+      funcionario_nome: a.funcionarios?.nome ?? '—',
+      posto_nome: posto?.nome ?? null,
+      secretaria: posto?.secretaria ?? null,
+      data_inicio: a.data_inicio,
+      data_fim:    a.data_fim,
+      duracao,
+    }
+  })
+
+  // Postos em déficit (ativos < previsto)
+  const postosDeficit = postosKpi
+    .filter(p => p.ativos < p.efetivo_previsto)
+    .map(p => ({ id: p.id, nome: p.nome, gap: p.efetivo_previsto - p.ativos }))
+    .sort((a, b) => b.gap - a.gap)
 
   return {
     postos: postosKpi,
@@ -817,5 +905,7 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
     atestadosAtivos,
     coberturas,
     proximasFerias,
+    atestadosRecentes,
+    postosDeficit,
   }
 }
