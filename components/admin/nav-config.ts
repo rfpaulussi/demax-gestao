@@ -2,6 +2,7 @@ export type NavItem = {
   href: string
   label: string
   badge?: boolean
+  supervisorOnly?: boolean
 }
 
 export type NavGroup = {
@@ -15,6 +16,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Operacional',
     items: [
       { href: '/dashboard',     label: 'Dashboard'     },
+      { href: '/meus-postos',   label: 'Meus Postos', supervisorOnly: true },
       { href: '/efetivo',       label: 'Efetivo'       },
       { href: '/postos',        label: 'Postos'        },
       { href: '/aprovacoes',    label: 'Aprovações',   badge: true },

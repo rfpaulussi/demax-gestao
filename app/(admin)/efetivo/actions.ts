@@ -373,7 +373,7 @@ export async function editarFuncionario(
     funcao_id: string
     posto_id: string
     data_admissao: string | null
-    status: 'ativo' | 'afastado' | 'ferias' | 'desligado'
+    status: 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado'
     data_desligamento: string | null
     motivo_desligamento: string | null
     tipo_desligamento: string | null
