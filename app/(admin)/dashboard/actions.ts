@@ -573,3 +573,249 @@ export async function buscarOcorrenciasMes(dias = 30): Promise<number> {
     return 0
   }
 }
+
+// ─── Tipos supervisor ─────────────────────────────────────────────────────────
+
+export type SupervisorPostoKpi = {
+  id: string
+  nome: string
+  secretaria: string | null
+  efetivo_previsto: number
+  ativos: number
+  atestados: number
+  ferias: number
+  descoberto: boolean
+  coberturas_ativas: number
+}
+
+export type SupervisorCobertura = {
+  id: string
+  ausente_nome: string
+  substituto_nome: string
+  posto_nome: string | null
+  data_prevista_retorno: string | null
+  venceHoje: boolean
+  venceAmanha: boolean
+}
+
+export type SupervisorAtestadoAtivo = {
+  id: string
+  funcionario_nome: string
+  posto_nome: string | null
+  data_fim: string
+  dias_restantes: number
+}
+
+export type SupervisorFerias = {
+  id: string
+  funcionario_nome: string
+  posto_nome: string | null
+  data_inicio: string
+  status: string
+}
+
+export type DadosSupervisor = {
+  postos: SupervisorPostoKpi[]
+  kpis: {
+    ativos: number
+    atestados: number
+    ferias: number
+    descobertos: number
+    coberturas_ativas: number
+    ocorrencias: number
+    aprovacoes: number
+  }
+  atestadosAtivos: SupervisorAtestadoAtivo[]
+  coberturas: SupervisorCobertura[]
+  proximasFerias: SupervisorFerias[]
+}
+
+export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Promise<DadosSupervisor> {
+  const supabase = createClient()
+  const hoje = new Date().toISOString().split('T')[0]
+  const amanha = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+  const plusDias = new Date(Date.now() + dias * 86400000).toISOString().split('T')[0]
+
+  // 1. Postos do supervisor (excluindo AFASTADOS)
+  const { data: spPostos } = await supabase
+    .from('config_supervisores_postos')
+    .select('postos!posto_id(id, nome, secretaria, efetivo_previsto)')
+    .eq('supervisor_id', supervisorId)
+    .eq('ativo', true)
+
+  type SpRow = { postos: { id: string; nome: string; secretaria: string | null; efetivo_previsto: number | null } | null }
+  const postos = ((spPostos ?? []) as unknown as SpRow[])
+    .map(r => r.postos)
+    .filter(Boolean)
+    .filter(p => (p!.secretaria ?? '').toUpperCase() !== 'AFASTADOS') as { id: string; nome: string; secretaria: string | null; efetivo_previsto: number | null }[]
+
+  if (postos.length === 0) {
+    return { postos: [], kpis: { ativos: 0, atestados: 0, ferias: 0, descobertos: 0, coberturas_ativas: 0, ocorrencias: 0, aprovacoes: 0 }, atestadosAtivos: [], coberturas: [], proximasFerias: [] }
+  }
+
+  const postoIds = postos.map(p => p.id)
+
+  // 2. Funcionários nos postos
+  const { data: funcs } = await supabase
+    .from('funcionarios')
+    .select('id, nome, posto_id, status')
+    .in('posto_id', postoIds)
+    .in('status', ['ativo', 'atestado', 'ferias'])
+
+  // 3. Atestados ativos com data_fim
+  const funcIds = (funcs ?? []).map(f => f.id)
+  const { data: atestadosDb } = funcIds.length > 0
+    ? await supabase
+        .from('atestados')
+        .select('id, funcionario_id, data_fim, funcionarios!funcionario_id(nome, posto_id, postos!posto_id(nome))')
+        .in('funcionario_id', funcIds)
+        .gte('data_fim', hoje)
+        .order('data_fim', { ascending: true })
+    : { data: [] }
+
+  // 4. Coberturas ativas nos postos
+  const ausenteIds = (funcs ?? []).filter(f => f.status === 'atestado' || f.status === 'ferias').map(f => f.id)
+  const { data: coberturaDb } = ausenteIds.length > 0
+    ? await supabase
+        .from('coberturas_temporarias')
+        .select('id, funcionario_ausente_id, data_prevista_retorno, funcionarios!funcionario_ausente_id(nome, postos!posto_id(nome)), substitutos:funcionarios!substituto_id(nome)')
+        .in('funcionario_ausente_id', ausenteIds)
+        .eq('status', 'ativa')
+    : { data: [] }
+
+  // 5. Próximas férias
+  const { data: feriasDb } = await supabase
+    .from('ferias')
+    .select('id, data_inicio, status, funcionarios!funcionario_id(nome, posto_id)')
+    .in('status', ['agendado', 'aprovado'])
+    .gte('data_inicio', hoje)
+    .lte('data_inicio', plusDias)
+    .order('data_inicio', { ascending: true })
+
+  // 6. Ocorrências e aprovações (filtradas aos postos)
+  const [{ count: ocorrencias }, { count: aprovacoes }] = await Promise.all([
+    supabase
+      .from('ocorrencias')
+      .select('*', { count: 'exact', head: true })
+      .in('posto_id', postoIds)
+      .gte('created_at', new Date(Date.now() - 30 * 86400000).toISOString()),
+    supabase
+      .from('solicitacoes')
+      .select('*', { count: 'exact', head: true })
+      .eq('supervisor_id', supervisorId)
+      .eq('status', 'pendente'),
+  ])
+
+  // Montar mapas
+  type CobRow = {
+    id: string
+    funcionario_ausente_id: string
+    data_prevista_retorno: string | null
+    funcionarios: { nome: string; postos: { nome: string } | null } | null
+    substitutos: { nome: string } | null
+  }
+  const coberturasPorAusente: Record<string, boolean> = {}
+  const coberturas: SupervisorCobertura[] = []
+  for (const c of (coberturaDb ?? []) as unknown as CobRow[]) {
+    coberturasPorAusente[c.funcionario_ausente_id] = true
+    coberturas.push({
+      id: c.id,
+      ausente_nome: c.funcionarios?.nome ?? '—',
+      substituto_nome: c.substitutos?.nome ?? '—',
+      posto_nome: c.funcionarios?.postos?.nome ?? null,
+      data_prevista_retorno: c.data_prevista_retorno,
+      venceHoje: c.data_prevista_retorno === hoje,
+      venceAmanha: c.data_prevista_retorno === amanha,
+    })
+  }
+
+  // Atestados ativos com dias restantes
+  type AteRow = {
+    id: string
+    funcionario_id: string
+    data_fim: string
+    funcionarios: { nome: string; posto_id: string | null; postos: { nome: string } | null } | null
+  }
+  const dataFimPorFunc: Record<string, string> = {}
+  const atestadosAtivos: SupervisorAtestadoAtivo[] = []
+  for (const a of (atestadosDb ?? []) as unknown as AteRow[]) {
+    if (dataFimPorFunc[a.funcionario_id]) continue
+    dataFimPorFunc[a.funcionario_id] = a.data_fim
+    const fim = new Date(a.data_fim + 'T00:00:00')
+    const diasRestantes = Math.ceil((fim.getTime() - new Date(hoje + 'T00:00:00').getTime()) / 86400000)
+    atestadosAtivos.push({
+      id: a.id,
+      funcionario_nome: a.funcionarios?.nome ?? '—',
+      posto_nome: a.funcionarios?.postos?.nome ?? null,
+      data_fim: a.data_fim,
+      dias_restantes: diasRestantes,
+    })
+  }
+
+  // Próximas férias filtradas ao supervisor
+  type FeriasRow = { id: string; data_inicio: string; status: string; funcionarios: { nome: string; posto_id: string | null } | null }
+  const postoNomeMap = new Map(postos.map(p => [p.id, p.nome]))
+  const proximasFerias: SupervisorFerias[] = ((feriasDb ?? []) as unknown as FeriasRow[])
+    .filter(r => r.funcionarios?.posto_id && postoIds.includes(r.funcionarios.posto_id))
+    .map(r => ({
+      id: r.id,
+      funcionario_nome: r.funcionarios?.nome ?? '—',
+      posto_nome: r.funcionarios?.posto_id ? (postoNomeMap.get(r.funcionarios.posto_id) ?? null) : null,
+      data_inicio: r.data_inicio,
+      status: r.status,
+    }))
+
+  // Agregar por posto
+  const ativosPorPosto: Record<string, number> = {}
+  const atestadosPorPosto: Record<string, number> = {}
+  const feriasPorPosto: Record<string, number> = {}
+  for (const f of funcs ?? []) {
+    const pid = f.posto_id as string
+    if (f.status === 'ativo') ativosPorPosto[pid] = (ativosPorPosto[pid] ?? 0) + 1
+    if (f.status === 'atestado') atestadosPorPosto[pid] = (atestadosPorPosto[pid] ?? 0) + 1
+    if (f.status === 'ferias') feriasPorPosto[pid] = (feriasPorPosto[pid] ?? 0) + 1
+  }
+  const coberturasAtivasPorPosto: Record<string, number> = {}
+  for (const c of coberturas) {
+    const pid = (funcs ?? []).find(f => f.nome === c.ausente_nome)?.posto_id as string | undefined
+    if (pid) coberturasAtivasPorPosto[pid] = (coberturasAtivasPorPosto[pid] ?? 0) + 1
+  }
+
+  const postosKpi: SupervisorPostoKpi[] = postos.map(p => {
+    const ausentes = (atestadosPorPosto[p.id] ?? 0) + (feriasPorPosto[p.id] ?? 0)
+    const cobsAusenteIds = ausenteIds.filter(id => (funcs ?? []).find(f => f.id === id)?.posto_id === p.id)
+    const descoberto = cobsAusenteIds.some(id => !coberturasPorAusente[id])
+    return {
+      id: p.id,
+      nome: p.nome,
+      secretaria: p.secretaria,
+      efetivo_previsto: p.efetivo_previsto ?? 0,
+      ativos: ativosPorPosto[p.id] ?? 0,
+      atestados: atestadosPorPosto[p.id] ?? 0,
+      ferias: feriasPorPosto[p.id] ?? 0,
+      descoberto: ausentes > 0 && descoberto,
+      coberturas_ativas: coberturasAtivasPorPosto[p.id] ?? 0,
+    }
+  })
+
+  const totalAtivos    = postosKpi.reduce((s, p) => s + p.ativos, 0)
+  const totalAtestados = postosKpi.reduce((s, p) => s + p.atestados, 0)
+  const totalFerias    = postosKpi.reduce((s, p) => s + p.ferias, 0)
+  const totalDesc      = postosKpi.filter(p => p.descoberto).length
+
+  return {
+    postos: postosKpi,
+    kpis: {
+      ativos: totalAtivos,
+      atestados: totalAtestados,
+      ferias: totalFerias,
+      descobertos: totalDesc,
+      coberturas_ativas: coberturas.length,
+      ocorrencias: ocorrencias ?? 0,
+      aprovacoes: aprovacoes ?? 0,
+    },
+    atestadosAtivos,
+    coberturas,
+    proximasFerias,
+  }
+}
