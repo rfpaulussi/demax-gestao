@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import { EfetivoClient } from '@/components/efetivo/efetivo-client'
 import type { FuncionarioRow } from '@/components/efetivo/funcionarios-table'
@@ -39,6 +40,7 @@ type ConfigRow = {
 
 export default async function EfetivoPage() {
   const supabase = createClient()
+  const supabaseAdmin = createAdminClient()
   const auth = await getUser()
   const isAdmin = auth?.perfil.role === 'admin'
 
@@ -75,7 +77,7 @@ export default async function EfetivoPage() {
       .from('config_supervisores_postos')
       .select('supervisor_id, posto_id, perfis!supervisor_id(id, nome)')
       .eq('ativo', true),
-    supabase.from('postos').select('id, nome, secretaria').order('nome'),
+    supabaseAdmin.from('postos').select('id, nome, secretaria').order('nome'),
     supabase.from('funcoes').select('id, nome').order('nome'),
     supabase.from('cid_referencia').select('codigo, descricao').order('codigo'),
     // KPIs via COUNT — bypassa o max_rows do PostgREST (head:true não retorna linhas)

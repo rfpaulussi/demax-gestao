@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo, useTransition } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Download } from 'lucide-react'
+import * as XLSX from 'xlsx-js-style'
 import { cn } from '@/lib/utils'
 import { deleteAtestado } from '@/app/(admin)/atestados/actions'
 import { solicitarAfastamento } from '@/app/(admin)/efetivo/actions'
@@ -70,6 +71,44 @@ type InssModalState = {
   data_inicio: string
   dias: number
   motivo: string
+}
+
+function exportExcel(rows: AtestadoRow[]) {
+  const header = ['Funcionário', 'Posto', 'Secretaria', 'Supervisor', 'Início', 'Fim', 'Dias', 'CID', 'Descrição CID', 'Origem', 'Cobertura', 'Acum. 30d', 'Alerta INSS']
+  const data = rows.map(a => [
+    a.funcionario_nome,
+    a.posto_nome,
+    a.secretaria,
+    a.supervisor_nome ?? '',
+    a.data_inicio.split('-').reverse().join('/'),
+    a.data_fim.split('-').reverse().join('/'),
+    a.dias,
+    a.cid_codigo ?? '',
+    a.cid_desc ?? '',
+    a.origem_ocupacional ?? '',
+    a.tem_cobertura ? 'Sim' : 'Não',
+    a.acumulado,
+    a.alerta ? 'Sim' : 'Não',
+  ])
+
+  const ws = XLSX.utils.aoa_to_sheet([header, ...data])
+  header.forEach((_, ci) => {
+    const cell = ws[XLSX.utils.encode_cell({ r: 0, c: ci })]
+    if (cell) cell.s = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '0F172A' } } }
+  })
+  rows.forEach((a, ri) => {
+    if (a.alerta) {
+      header.forEach((_, ci) => {
+        const cell = ws[XLSX.utils.encode_cell({ r: ri + 1, c: ci })]
+        if (cell) cell.s = { fill: { fgColor: { rgb: 'FEE2E2' } } }
+      })
+    }
+  })
+  ws['!cols'] = [28, 30, 12, 18, 12, 12, 6, 8, 30, 20, 10, 10, 12].map(w => ({ wch: w }))
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Atestados')
+  const hoje = new Date().toISOString().split('T')[0]
+  XLSX.writeFile(wb, `atestados_${hoje}.xlsx`)
 }
 
 function addDays(dateStr: string, days: number): string {
@@ -168,6 +207,89 @@ function ModalSolicitarInss({
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  )
+}
+
+const MEDAL = ['🥇', '🥈', '🥉']
+
+const ACCENT_STYLES = {
+  red:   { bar: 'bg-red-500',   text: 'text-red-600',   badge: 'bg-red-50 text-red-700 ring-red-200',   header: 'border-t-red-500'   },
+  amber: { bar: 'bg-amber-500', text: 'text-amber-600', badge: 'bg-amber-50 text-amber-700 ring-amber-200', header: 'border-t-amber-500' },
+  blue:  { bar: 'bg-blue-500',  text: 'text-blue-700',  badge: 'bg-blue-50 text-blue-700 ring-blue-200',  header: 'border-t-blue-500'  },
+}
+
+type RankingItem = {
+  key: string
+  titulo: string
+  subtitulo: string
+  valor: number
+  unidade: string
+  badge: string
+  maxValor: number
+  tituloDestaque?: boolean
+}
+
+function RankingCard({
+  titulo,
+  accentColor,
+  items,
+}: {
+  titulo: string
+  accentColor: 'red' | 'amber' | 'blue'
+  items: RankingItem[]
+}) {
+  const style = ACCENT_STYLES[accentColor]
+  return (
+    <div className={cn('rounded-xl border border-gray-100 border-t-4 bg-white shadow-sm', style.header)}>
+      <div className="border-b border-gray-100 px-5 py-3">
+        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">{titulo}</p>
+      </div>
+      <div className="divide-y divide-gray-50">
+        {items.length === 0 ? (
+          <p className="px-5 py-8 text-center text-sm text-gray-400">Sem dados</p>
+        ) : (
+          items.map((r, i) => {
+            const pct = Math.round((r.valor / r.maxValor) * 100)
+            const isTop3 = i < 3
+            return (
+              <div
+                key={r.key}
+                className={cn(
+                  'px-5 py-3 transition-colors',
+                  i === 0 ? 'bg-gray-50/70' : 'hover:bg-gray-50/50',
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <span className={cn('mt-0.5 w-6 shrink-0 text-center text-sm', isTop3 ? '' : 'text-xs font-bold text-gray-300 leading-5')}>
+                    {isTop3 ? MEDAL[i] : i + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className={cn('truncate text-sm font-semibold', r.tituloDestaque ? style.text : 'text-gray-900')}>
+                        {r.titulo}
+                      </p>
+                      <div className="shrink-0 text-right">
+                        <span className={cn('text-base font-black tabular-nums', style.text)}>{r.valor}{r.unidade}</span>
+                        <span className={cn('ml-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset', style.badge)}>
+                          {r.badge}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-gray-400">{r.subtitulo}</p>
+                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                      <div
+                        className={cn('h-full rounded-full transition-all', style.bar, i === 0 ? 'opacity-100' : i === 1 ? 'opacity-80' : i === 2 ? 'opacity-65' : 'opacity-40')}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })
+        )}
       </div>
     </div>
   )
@@ -313,26 +435,38 @@ export function AtestadosClient({ atestados, cids }: Props) {
             Ranking
           </button>
         </div>
-        {aba === 'ranking' && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">Janela:</span>
-            {([30, 60, 90, 180] as const).map(j => (
-              <button
-                key={j}
-                type="button"
-                onClick={() => setJanelaRanking(j)}
-                className={cn(
-                  'rounded-md px-2.5 py-1 text-xs font-medium',
-                  janelaRanking === j
-                    ? 'bg-slate-900 text-white'
-                    : 'border border-gray-200 text-gray-500 hover:bg-gray-50',
-                )}
-              >
-                {j}d
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {aba === 'lista' && (
+            <button
+              type="button"
+              onClick={() => exportExcel(sorted)}
+              className="inline-flex items-center gap-1.5 rounded border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+            >
+              <Download size={13} />
+              Exportar Excel
+            </button>
+          )}
+          {aba === 'ranking' && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">Janela:</span>
+              {([30, 60, 90, 180] as const).map(j => (
+                <button
+                  key={j}
+                  type="button"
+                  onClick={() => setJanelaRanking(j)}
+                  className={cn(
+                    'rounded-md px-2.5 py-1 text-xs font-medium',
+                    janelaRanking === j
+                      ? 'bg-slate-900 text-white'
+                      : 'border border-gray-200 text-gray-500 hover:bg-gray-50',
+                  )}
+                >
+                  {j}d
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Seção Ranking */}
@@ -340,82 +474,50 @@ export function AtestadosClient({ atestados, cids }: Props) {
         <div className="p-5">
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             {/* Top Funcionários — Dias */}
-            <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
-              <div className="border-b border-gray-100 px-5 py-3">
-                <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Top Funcionários — Dias</p>
-              </div>
-              <div className="divide-y divide-gray-50">
-                {rankingFuncionarios.length === 0 ? (
-                  <p className="px-5 py-8 text-center text-sm text-gray-400">Sem dados</p>
-                ) : (
-                  rankingFuncionarios.map((r, i) => (
-                    <div key={r.nome} className="flex items-center gap-3 px-5 py-3">
-                      <span className="w-5 text-xs font-bold text-gray-300">{i + 1}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-gray-900">{r.nome}</p>
-                        <p className="truncate text-xs text-gray-400">{r.supervisor ?? '—'} · {r.secretaria}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-red-600">{r.dias}d</p>
-                        <p className="text-xs text-gray-400">{r.ocorrencias}x</p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+            <RankingCard
+              titulo="Top Funcionários — Dias"
+              accentColor="red"
+              items={rankingFuncionarios.map(r => ({
+                key: r.nome,
+                titulo: r.nome,
+                subtitulo: `${r.supervisor ?? '—'} · ${r.secretaria}`,
+                valor: r.dias,
+                unidade: 'd',
+                badge: `${r.ocorrencias}x`,
+                maxValor: rankingFuncionarios[0]?.dias ?? 1,
+              }))}
+            />
 
             {/* Top Unidades — Dias */}
-            <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
-              <div className="border-b border-gray-100 px-5 py-3">
-                <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Top Unidades — Dias</p>
-              </div>
-              <div className="divide-y divide-gray-50">
-                {rankingPostos.length === 0 ? (
-                  <p className="px-5 py-8 text-center text-sm text-gray-400">Sem dados</p>
-                ) : (
-                  rankingPostos.map((r, i) => (
-                    <div key={r.posto} className="flex items-center gap-3 px-5 py-3">
-                      <span className="w-5 text-xs font-bold text-gray-300">{i + 1}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-gray-900">{r.posto}</p>
-                        <p className="truncate text-xs text-gray-400">{r.supervisor ?? '—'} · {r.secretaria}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-amber-600">{r.dias}d</p>
-                        <p className="text-xs text-gray-400">{r.ocorrencias}x</p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+            <RankingCard
+              titulo="Top Unidades — Dias"
+              accentColor="amber"
+              items={rankingPostos.map(r => ({
+                key: r.posto,
+                titulo: r.posto,
+                subtitulo: `${r.supervisor ?? '—'} · ${r.secretaria}`,
+                valor: r.dias,
+                unidade: 'd',
+                badge: `${r.ocorrencias}x`,
+                maxValor: rankingPostos[0]?.dias ?? 1,
+              }))}
+            />
 
             {/* CIDs Mais Recorrentes */}
-            <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
-              <div className="border-b border-gray-100 px-5 py-3">
-                <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">CIDs Mais Recorrentes</p>
-              </div>
-              <div className="divide-y divide-gray-50">
-                {rankingCids.length === 0 ? (
-                  <p className="px-5 py-8 text-center text-sm text-gray-400">Sem dados</p>
-                ) : (
-                  rankingCids.map((r, i) => (
-                    <div key={r.codigo} className="flex items-center gap-3 px-5 py-3">
-                      <span className="w-5 text-xs font-bold text-gray-300">{i + 1}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-blue-700">{r.codigo}</p>
-                        <p className="truncate text-xs text-gray-400">{r.descricao}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-gray-700">{r.ocorrencias}x</p>
-                        <p className="text-xs text-gray-400">{r.dias}d</p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
+            <RankingCard
+              titulo="CIDs Mais Recorrentes"
+              accentColor="blue"
+              items={rankingCids.map(r => ({
+                key: r.codigo,
+                titulo: r.codigo,
+                subtitulo: r.descricao,
+                valor: r.ocorrencias,
+                unidade: 'x',
+                badge: `${r.dias}d`,
+                maxValor: rankingCids[0]?.ocorrencias ?? 1,
+                tituloDestaque: true,
+              }))}
+            />
           </div>
         </div>
       )}
