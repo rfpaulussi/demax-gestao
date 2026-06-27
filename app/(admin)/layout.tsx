@@ -65,6 +65,14 @@ export default async function AdminLayout({
           <div className="w-10 shrink-0 md:hidden" aria-hidden />
 
           <div className="ml-auto flex items-center gap-2">
+            <div className="hidden items-center gap-1.5 rounded-lg bg-slate-50 px-3 py-1.5 sm:flex">
+              <span className="text-xs font-semibold text-slate-500">
+                {new Date().toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}
+              </span>
+            </div>
+
+            <div className="h-6 w-px bg-gray-200 hidden sm:block" aria-hidden />
+
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold text-gray-900">{displayName}</p>
               {roleLabel && (
