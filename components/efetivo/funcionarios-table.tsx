@@ -200,14 +200,19 @@ export function FuncionariosTable({
                             <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset', badge.className)}>
                               {badge.label}
                             </span>
-                            {f.status === 'afastado' && f.origem_ocupacional_cat && (
+                            {f.status === 'afastado' && f.motivo_afastamento === 'inss' && (
+                              <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-semibold text-purple-700 ring-1 ring-inset ring-purple-200">
+                                INSS
+                              </span>
+                            )}
+                            {f.status === 'afastado' && f.motivo_afastamento !== 'inss' && f.origem_ocupacional_cat && (
                               <span className="text-[10px] font-semibold text-orange-600 pl-0.5">
                                 {ORIGEM_SUBTEXT[f.origem_ocupacional_cat] ?? f.origem_ocupacional_cat}
                               </span>
                             )}
-                            {f.status === 'afastado' && !f.origem_ocupacional_cat && f.motivo_afastamento && (
-                              <span className="text-[10px] text-gray-400 pl-0.5">
-                                {f.motivo_afastamento === 'inss' ? 'INSS' : 'Temporário'}
+                            {f.status === 'afastado' && f.motivo_afastamento === 'ausencia_temporaria' && !f.origem_ocupacional_cat && (
+                              <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-600 ring-1 ring-inset ring-amber-200">
+                                Atestado
                               </span>
                             )}
                             {faltasAtivas?.[f.id] && (
