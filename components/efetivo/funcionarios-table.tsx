@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { FileMinus, UserMinus, ArrowUpRight, ClipboardList, Clock, Pencil } from 'lucide-react'
+import { FileMinus, UserMinus, ArrowUpRight, ClipboardList, Clock, Pencil, UserCheck } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { calcularStatusExperiencia } from '@/lib/experiencia'
+import { marcarRetornoFaltante } from '@/app/(admin)/efetivo/actions'
 import { ModalAtestado } from './modal-atestado'
 import { ModalAfastar } from './modal-afastar'
 import { ModalNovaSolicitacao } from './modal-nova-solicitacao'
@@ -16,7 +17,7 @@ export type FuncionarioRow = {
   nome: string
   registro: string | null
   cpf: string | null
-  status: 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado' | null
+  status: 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado' | 'faltante' | null
   motivo_afastamento: 'ausencia_temporaria' | 'inss' | null
   origem_ocupacional_cat: string | null
   data_admissao: string | null
@@ -55,6 +56,7 @@ const STATUS_BADGE: Record<
   afastado:  { label: 'Afastado',  className: 'bg-red-50 text-red-700 ring-red-200'            },
   ferias:    { label: 'Férias',    className: 'bg-orange-50 text-orange-700 ring-orange-200'   },
   desligado: { label: 'Desligado', className: 'bg-gray-100 text-gray-500 ring-gray-200'        },
+  faltante:  { label: '⚑ FALTANTE', className: 'bg-rose-100 text-rose-800 ring-rose-400 font-bold' },
 }
 
 const STATUS_ROW: Record<
@@ -66,6 +68,7 @@ const STATUS_ROW: Record<
   afastado:  { bg: 'bg-red-50',   hover: 'hover:bg-red-100',    borderLeft: 'border-l-[3px] border-l-red-400',    dimmed: false },
   ferias:    { bg: 'bg-blue-50',  hover: 'hover:bg-blue-100',   borderLeft: 'border-l-[3px] border-l-blue-400',   dimmed: false },
   desligado: { bg: 'bg-gray-50',  hover: 'hover:bg-gray-100',   borderLeft: '',                                    dimmed: true  },
+  faltante:  { bg: 'bg-rose-50',  hover: 'hover:bg-rose-100',   borderLeft: 'border-l-[3px] border-l-rose-500',   dimmed: false },
 }
 
 const COLS: { label: string; sortKey?: string }[] = [
@@ -262,6 +265,21 @@ export function FuncionariosTable({
                             >
                               <UserMinus className="h-3.5 w-3.5" />
                               Afastar
+                            </Button>
+                          )}
+                          {f.status === 'faltante' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-rose-400 text-rose-700 hover:bg-rose-50"
+                              onClick={async () => {
+                                if (!confirm(`Confirmar retorno de ${f.nome}?`)) return
+                                const res = await marcarRetornoFaltante(f.id)
+                                if (!res.success) alert(res.error ?? 'Erro ao registrar retorno')
+                              }}
+                            >
+                              <UserCheck className="h-3.5 w-3.5" />
+                              Retornou
                             </Button>
                           )}
                           {f.status !== 'desligado' && (

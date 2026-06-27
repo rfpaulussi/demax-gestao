@@ -3,7 +3,6 @@ import { getUser } from '@/lib/auth/get-user'
 import { cn } from '@/lib/utils'
 import { buscarInsalubridades, buscarFuncionariosParaDeclaracao } from './actions'
 import { InsalubridadeTable } from '@/components/insalubridade/insalubridade-table'
-import { ImportarCoberturasBtn } from '@/components/insalubridade/importar-coberturas-btn'
 
 const sel = 'h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
 
@@ -90,7 +89,6 @@ export default async function InsalubridadePage({
           <h1 className="text-lg font-bold text-gray-900">Cobertura Insalubre</h1>
           <p className="text-sm text-gray-400">Coberturas insalubres — {MESES[mes]} {ano}</p>
         </div>
-        {auth?.perfil.role !== 'supervisor' && <ImportarCoberturasBtn mes={mes} ano={ano} />}
       </div>
 
       {/* KPI Cards */}

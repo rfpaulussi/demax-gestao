@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { concluirFerias } from '@/app/(admin)/ferias/actions'
 import { ModalNovaFerias } from './modal-nova-ferias'
+import * as XLSX from 'xlsx-js-style'
 
 export type FeriasRow = {
   id: string
@@ -52,12 +53,31 @@ function ConcluirButton({ ferias }: { ferias: FeriasRow }) {
   )
 }
 
+function exportarExcel(ferias: FeriasRow[]) {
+  const rows = ferias.map(f => ({
+    'Funcionário': f.funcionarios?.nome ?? '',
+    'Posto': f.funcionarios?.postos?.nome ?? '',
+    'Secretaria': f.funcionarios?.postos?.secretaria ?? '',
+    'Data Início': fmt(f.data_inicio),
+    'Data Fim': fmt(f.data_fim),
+    'Status': f.status ? STATUS_BADGE[f.status]?.label ?? f.status : '',
+    'Observação': f.observacao ?? '',
+  }))
+  const ws = XLSX.utils.json_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Férias')
+  XLSX.writeFile(wb, 'ferias.xlsx')
+}
+
 export function FeriasTable({ ferias }: { ferias: FeriasRow[] }) {
   const [showModal, setShowModal] = useState(false)
 
   return (
     <>
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="outline" className="bg-amber-500 text-slate-900 hover:bg-amber-400 border-0" onClick={() => exportarExcel(ferias)}>
+          Exportar Excel
+        </Button>
         <Button size="sm" onClick={() => setShowModal(true)}>
           Nova Férias
         </Button>

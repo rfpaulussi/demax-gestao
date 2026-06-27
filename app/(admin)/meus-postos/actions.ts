@@ -61,7 +61,7 @@ export async function buscarMeusPostos(): Promise<PostoStatus[]> {
     .from('funcionarios')
     .select('id, nome, status, motivo_afastamento, posto_id')
     .in('posto_id', postoIds)
-    .in('status', ['ativo', 'atestado', 'ferias'])
+    .in('status', ['ativo', 'atestado', 'ferias', 'faltante'])
 
   // 3. Atestados ativos para pegar data_fim
   const funcIds = (funcs ?? []).map(f => f.id)
@@ -133,7 +133,7 @@ export async function buscarMeusPostos(): Promise<PostoStatus[]> {
       coberturas: coberturasPorAusente[f.id] ?? [],
     }))
 
-    const ausentes = funcionarios.filter(f => f.status === 'atestado' || f.status === 'ferias')
+    const ausentes = funcionarios.filter(f => f.status === 'atestado' || f.status === 'ferias' || f.status === 'faltante')
 
     // Cobertura vencendo = qualquer ausente tem cobertura vencendo hoje ou amanhã
     const coberturaVencendo = ausentes.some(f =>

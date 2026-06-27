@@ -168,12 +168,13 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
         }
       }
     } else if (isFalta) {
-      if (dias >= 4) {
+      if (dias >= 3) {
         const { error: errAusente } = await supabase
           .from('funcionarios')
-          .update({ status: 'afastado' })
+          .update({ status: 'faltante', motivo_afastamento: 'ausencia_temporaria' })
           .eq('id', ausenteId)
-        if (errAusente) console.error('[coberturas] registrarCobertura: marcar ausente como afastado:', errAusente.message)
+          .eq('status', 'ativo')
+        if (errAusente) console.error('[coberturas] registrarCobertura: marcar ausente como faltante:', errAusente.message)
       }
 
       if (lancarFalta && coberturaId) {
@@ -271,9 +272,9 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
       .eq('status', 'ativa')
     if (count === 0) {
       const { error: errRev } = await adminSupabase.from('funcionarios')
-        .update({ status: 'ativo' })
+        .update({ status: 'ativo', motivo_afastamento: null })
         .eq('id', cob.funcionario_ausente_id)
-        .in('status', ['afastado', 'atestado'])
+        .in('status', ['afastado', 'atestado', 'faltante'])
       if (errRev) console.error('[coberturas] encerrarCobertura: reverter status do ausente', cob.funcionario_ausente_id, ':', errRev.message)
     }
   }
@@ -335,9 +336,9 @@ export async function encerrarCoberturasVencidas(): Promise<{ encerradas: number
       .eq('status', 'ativa')
     if (count === 0) {
       const { error: errRev } = await supabase.from('funcionarios')
-        .update({ status: 'ativo' })
+        .update({ status: 'ativo', motivo_afastamento: null })
         .eq('id', ausenteId)
-        .in('status', ['afastado', 'atestado'])
+        .in('status', ['afastado', 'atestado', 'faltante'])
       if (errRev) console.error('[coberturas] encerrarCoberturasVencidas: reverter status do ausente', ausenteId, ':', errRev.message)
     }
   }

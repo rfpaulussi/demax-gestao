@@ -529,3 +529,21 @@ export async function admitirFuncionarioAdmin(formData: FormData): Promise<{ err
   return {}
 }
 
+export async function marcarRetornoFaltante(funcionarioId: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient()
+  const auth = await getUser()
+  if (!auth) return { success: false, error: 'Não autenticado' }
+
+  const { error } = await supabase
+    .from('funcionarios')
+    .update({ status: 'ativo', motivo_afastamento: null })
+    .eq('id', funcionarioId)
+    .eq('status', 'faltante')
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/efetivo')
+  revalidatePath('/dashboard')
+  return { success: true }
+}
+

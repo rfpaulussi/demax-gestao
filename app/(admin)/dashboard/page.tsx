@@ -66,7 +66,7 @@ function fmtDateFull(d: string) {
 
 function SupervisorDashboard({ dados, nomeUsuario }: { dados: DadosSupervisor; nomeUsuario: string }) {
   const { kpis, postos, coberturas, proximasFerias, atestadosRecentes, postosDeficit } = dados
-  const totalAusentes = kpis.atestados + kpis.afastados + kpis.ferias
+  const totalAusentes = kpis.atestados + kpis.afastados + kpis.ferias + kpis.faltantes
 
   const iniciais = nomeUsuario.trim().split(/\s+/).filter(Boolean)
     .reduce((acc: string[], p, i, arr) => i === 0 || i === arr.length - 1 ? [...acc, p[0].toUpperCase()] : acc, [])
@@ -94,8 +94,14 @@ function SupervisorDashboard({ dados, nomeUsuario }: { dados: DadosSupervisor; n
       {/* ── Row 1: KPI Cards ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCardPrincipal label="Efetivo Ativo"      valor={kpis.ativos}      corBorda="border-t-blue-500"  href="/efetivo?status=ativo"   />
-        <KpiCardPrincipal label="Ausentes"           valor={totalAusentes}    corBorda="border-t-amber-500" aviso={kpis.atestados > 0 ? `${kpis.atestados} atestado${kpis.atestados > 1 ? 's' : ''}` : kpis.afastados > 0 ? `${kpis.afastados} INSS` : undefined} />
-        <KpiCardPrincipal label="Em Férias"          valor={kpis.ferias}      corBorda="border-t-green-500" href="/efetivo?status=ferias"   />
+        <KpiCardPrincipal label="Ausentes"           valor={totalAusentes}    corBorda="border-t-amber-500" aviso={(() => {
+          const partes: string[] = []
+          if (kpis.atestados > 0) partes.push(`${kpis.atestados} atestado${kpis.atestados > 1 ? 's' : ''}`)
+          if (kpis.afastados > 0) partes.push(`${kpis.afastados} INSS`)
+          if (kpis.faltantes > 0) partes.push(`${kpis.faltantes} faltante${kpis.faltantes > 1 ? 's' : ''}`)
+          return partes.length > 0 ? partes.join(', ') : undefined
+        })()} />
+        <KpiCardPrincipal label="Em Férias"          valor={kpis.ferias}      corBorda="border-t-green-500" href="/efetivo?status=ferias" aviso={kpis.feriasAgendadas > 0 ? `${kpis.feriasAgendadas} agendada${kpis.feriasAgendadas > 1 ? 's' : ''}` : undefined} />
         <KpiCardPrincipal label="Postos em Déficit"  valor={postosDeficit.length} corBorda="border-t-red-500" criticos={kpis.descobertos > 0 ? kpis.descobertos : undefined} />
       </div>
 

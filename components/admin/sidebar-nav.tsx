@@ -25,7 +25,6 @@ import {
   ArrowLeftRight,
   ScrollText,
   FileSignature,
-  MapPinned,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import { NAV_GROUPS } from './nav-config'
@@ -35,7 +34,6 @@ import type { Role } from '@/types'
 
 const ICONS: Record<string, React.ElementType> = {
   '/dashboard':     LayoutDashboard,
-  '/meus-postos':   MapPinned,
   '/efetivo':       Users,
   '/postos':        Building2,
   '/aprovacoes':    ClipboardCheck,
@@ -80,8 +78,7 @@ function NavLinks({
               {group.label}
             </p>
             <div className="flex flex-col gap-0.5">
-              {group.items.map(({ href, label, badge, supervisorOnly }) => {
-                if (supervisorOnly && role !== 'supervisor') return null
+              {group.items.map(({ href, label, badge }) => {
                 const Icon = ICONS[href]
                 const active = pathname === href || pathname.startsWith(href + '/')
                 const showBadge = badge && pendingCount > 0

@@ -137,7 +137,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
       supabase
         .from('funcionarios')
         .select('id, posto_id, status, funcao_id, eh_encarregado_volante')
-        .in('status', ['ativo', 'ferias', 'atestado', 'afastado'])
+        .in('status', ['ativo', 'ferias', 'atestado', 'afastado', 'faltante'])
         .order('id', { ascending: true })
         .range(from, to) as unknown as PromiseLike<{ data: FuncionarioRow[] | null; error: { message: string } | null }>,
     ),
@@ -171,8 +171,8 @@ export async function getPostosData(): Promise<PostoRow[]> {
       // Postos AFASTADOS: conta todos os afastados sem restrição de função ou volante
       if (f.status !== 'afastado' && f.status !== 'atestado') continue
     } else {
-      // Postos operacionais: só ativo/ferias, excluindo funções fora do efetivo e volantes
-      if (f.status === 'afastado' || f.status === 'atestado') continue
+      // Postos operacionais: só ativo/ferias, excluindo ausentes e volantes
+      if (f.status === 'afastado' || f.status === 'atestado' || f.status === 'faltante') continue
       if (f.funcao_id && excludedFuncaoIds.has(f.funcao_id)) continue
       if (f.eh_encarregado_volante === true) continue
       // Contagem separada de quem está de férias
