@@ -3,7 +3,10 @@ import { redirect } from 'next/navigation'
 import { LogOut } from 'lucide-react'
 import { getUser } from '@/lib/auth/get-user'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { SidebarNav } from '@/components/admin/sidebar-nav'
+import { NotificacoesBell } from '@/components/admin/notificacoes-bell'
+import type { LogAcao } from '@/components/admin/notificacoes-bell'
 import { ROLE_LABELS } from '@/types'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -27,10 +30,27 @@ export default async function AdminLayout({
   const displayName = perfil.nome ?? perfil.email ?? 'Usuário'
   const roleLabel = perfil.role ? ROLE_LABELS[perfil.role] : ''
 
+  const isAdminOrCoord = perfil.role === 'admin' || perfil.role === 'coordenador'
+
   const { count: pendingCount } = await createClient()
     .from('solicitacoes')
     .select('*', { count: 'exact', head: true })
     .eq('status', 'pendente')
+
+  // Notificações de ações de supervisores (só para admin/coordenador)
+  let notifUnread = 0
+  let notifLogs: LogAcao[] = []
+  if (isAdminOrCoord) {
+    const admin = createAdminClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any
+    const [{ count }, { data: logsData }] = await Promise.all([
+      adminAny.from('log_supervisor_acoes').select('*', { count: 'exact', head: true }).eq('lido', false),
+      adminAny.from('log_supervisor_acoes').select('id, created_at, supervisor_nome, tipo, acao, funcionario_nome, detalhes, lido').order('created_at', { ascending: false }).limit(30),
+    ])
+    notifUnread = count ?? 0
+    notifLogs   = (logsData ?? []) as LogAcao[]
+  }
 
   return (
     <div className={`${inter.className} min-h-screen bg-gray-50`}>
@@ -44,7 +64,7 @@ export default async function AdminLayout({
           {/* Spacer keeps header content from overlapping mobile hamburger */}
           <div className="w-10 shrink-0 md:hidden" aria-hidden />
 
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-2">
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold text-gray-900">{displayName}</p>
               {roleLabel && (
@@ -53,6 +73,10 @@ export default async function AdminLayout({
                 </p>
               )}
             </div>
+
+            {isAdminOrCoord && (
+              <NotificacoesBell unread={notifUnread} logs={notifLogs} />
+            )}
 
             <div className="h-6 w-px bg-gray-200 hidden sm:block" aria-hidden />
 

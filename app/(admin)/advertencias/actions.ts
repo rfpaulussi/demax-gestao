@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
+import { logSupervisorAcao } from '@/lib/log-supervisor'
 
 export type AdvertenciaGrau = 'verbal' | 'escrita' | 'suspensao'
 export type AdvertenciaStatus = 'pendente' | 'gerada' | 'entregue'
@@ -109,6 +110,7 @@ export async function buscarFuncionariosAtivos(): Promise<FuncionarioOpt[]> {
 export async function criarAdvertencia(formData: FormData) {
   const supabase = createClient()
   const adminSupabase = createAdminClient()
+  const auth = await getUser()
 
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -153,6 +155,11 @@ export async function criarAdvertencia(formData: FormData) {
       } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (faltaError) console.error('[advertencias] falha ao registrar falta de suspensão:', faltaError.message)
     }
+  }
+
+  if (auth?.perfil.role === 'supervisor' && user) {
+    const { data: func } = await adminSupabase.from('funcionarios').select('nome').eq('id', formData.get('funcionario_id') as string).single()
+    await logSupervisorAcao({ supervisorId: user.id, tipo: 'advertencia', acao: 'criou', funcionarioNome: (func as any)?.nome ?? null, detalhes: grau ?? null }) // eslint-disable-line @typescript-eslint/no-explicit-any
   }
 
   revalidatePath('/advertencias')
@@ -285,6 +292,7 @@ export async function editarAdvertencia(data: {
   defesa_colaborador?: string | null
 }) {
   const supabase = createClient()
+  const auth = await getUser()
   const { error } = await supabase
     .from('advertencias')
     .update({
@@ -303,15 +311,27 @@ export async function editarAdvertencia(data: {
     })
     .eq('id', data.id)
   if (error) throw new Error(error.message)
+
+  if (auth?.perfil.role === 'supervisor') {
+    const { data: func } = await createAdminClient().from('funcionarios').select('nome').eq('id', data.funcionario_id).single()
+    await logSupervisorAcao({ supervisorId: auth.user.id, tipo: 'advertencia', acao: 'editou', funcionarioNome: (func as any)?.nome ?? null }) // eslint-disable-line @typescript-eslint/no-explicit-any
+  }
+
   revalidatePath('/advertencias')
 }
 
 export async function excluirAdvertencia(id: string) {
   const supabase = createClient()
-  const { error } = await supabase
-    .from('advertencias')
-    .delete()
-    .eq('id', id)
+  const auth = await getUser()
+
+  const { data: adv } = await supabase.from('advertencias').select('funcionario_id, funcionarios!funcionario_id(nome)').eq('id', id).single()
+  const { error } = await supabase.from('advertencias').delete().eq('id', id)
   if (error) throw new Error(error.message)
+
+  if (auth?.perfil.role === 'supervisor') {
+    const nomeFuncionario = (adv as any)?.funcionarios?.nome ?? null // eslint-disable-line @typescript-eslint/no-explicit-any
+    await logSupervisorAcao({ supervisorId: auth.user.id, tipo: 'advertencia', acao: 'excluiu', funcionarioNome: nomeFuncionario })
+  }
+
   revalidatePath('/advertencias')
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
+import { logSupervisorAcao } from '@/lib/log-supervisor'
 
 export async function updateAtestado(
   id: string,
@@ -27,6 +28,13 @@ export async function updateAtestado(
 
   if (error) return { error: error.message }
 
+  if (auth.perfil.role === 'supervisor') {
+    const { data: at } = await createAdminClient()
+      .from('atestados').select('funcionarios!funcionario_id(nome)').eq('id', id).single()
+    const nomeFuncionario = (at as any)?.funcionarios?.nome ?? null // eslint-disable-line @typescript-eslint/no-explicit-any
+    await logSupervisorAcao({ supervisorId: auth.user.id, tipo: 'atestado', acao: 'editou', funcionarioNome: nomeFuncionario })
+  }
+
   revalidatePath('/atestados')
   return {}
 }
@@ -48,6 +56,12 @@ export async function deleteAtestado(id: string): Promise<{ error?: string }> {
   const { error } = await adminSupabase.from('atestados').delete().eq('id', id)
 
   if (error) return { error: error.message }
+
+  if (auth.perfil.role === 'supervisor') {
+    const { data: func } = await adminSupabase
+      .from('funcionarios').select('nome').eq('id', atestado?.funcionario_id ?? '').single()
+    await logSupervisorAcao({ supervisorId: auth.user.id, tipo: 'atestado', acao: 'excluiu', funcionarioNome: (func as any)?.nome ?? null }) // eslint-disable-line @typescript-eslint/no-explicit-any
+  }
 
   if (atestado) {
     await adminSupabase.from('movimentacoes').insert({

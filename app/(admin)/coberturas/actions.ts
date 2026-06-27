@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
+import { logSupervisorAcao } from '@/lib/log-supervisor'
 
 export type RegisterResult =
   | { success: false; error: string }
@@ -211,6 +212,17 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
       }
     }
     // folga / outros: cobertura registrada normalmente, ausente permanece 'ativo'
+  }
+
+  const authUser = await getUser()
+  if (authUser?.perfil.role === 'supervisor') {
+    await logSupervisorAcao({
+      supervisorId:    authUser.user.id,
+      tipo:            'cobertura',
+      acao:            'criou',
+      funcionarioNome: ausenteNome,
+      detalhes:        tipoMotivo ?? null,
+    })
   }
 
   revalidatePath('/coberturas')

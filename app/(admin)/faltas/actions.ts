@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import type { FaltaTipo } from '@/components/faltas/faltas-config'
+import { logSupervisorAcao } from '@/lib/log-supervisor'
 
 export type { FaltaTipo }
 
@@ -306,6 +307,11 @@ export async function registrarFalta(fd: FormData) {
       .eq('status', 'ativo') // só muda se estiver ativo (não sobrescreve férias etc.)
   }
 
+  if (auth.perfil.role === 'supervisor') {
+    const { data: func } = await createAdminClient().from('funcionarios').select('nome').eq('id', funcionario_id).single()
+    await logSupervisorAcao({ supervisorId: auth.user.id, tipo: 'falta', acao: 'criou', funcionarioNome: (func as any)?.nome ?? null, detalhes: tipo }) // eslint-disable-line @typescript-eslint/no-explicit-any
+  }
+
   revalidatePath('/faltas')
   revalidatePath('/efetivo')
   revalidatePath('/dashboard')
@@ -317,9 +323,13 @@ export async function editarFalta(
   data: { data_falta: string; data_fim: string | null; tipo: FaltaTipo; observacao: string | null }
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = createClient()
+  const auth = await getUser()
   const dias = data.data_fim && data.data_fim > data.data_falta
     ? Math.ceil((new Date(data.data_fim).getTime() - new Date(data.data_falta).getTime()) / 86400000) + 1
     : 1
+
+  const { data: faltaExist } = await supabase.from('faltas').select('funcionario_id, funcionarios!funcionario_id(nome)').eq('id', id).single()
+
   const { error } = await supabase.from('faltas').update({
     data_falta: data.data_falta,
     data_fim:   data.data_fim,
@@ -329,14 +339,28 @@ export async function editarFalta(
   } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
     .eq('id', id)
   if (error) return { success: false, error: error.message }
+
+  if (auth?.perfil.role === 'supervisor') {
+    const nomeFuncionario = (faltaExist as any)?.funcionarios?.nome ?? null // eslint-disable-line @typescript-eslint/no-explicit-any
+    await logSupervisorAcao({ supervisorId: auth.user.id, tipo: 'falta', acao: 'editou', funcionarioNome: nomeFuncionario, detalhes: data.tipo })
+  }
+
   revalidatePath('/faltas')
   return { success: true }
 }
 
 export async function removerFalta(id: string) {
   const supabase = createClient()
+  const auth = await getUser()
+  const { data: falta } = await supabase.from('faltas').select('funcionario_id, funcionarios!funcionario_id(nome)').eq('id', id).single()
   const { error } = await supabase.from('faltas').delete().eq('id', id)
   if (error) return { success: false, error: error.message }
+
+  if (auth?.perfil.role === 'supervisor') {
+    const nomeFuncionario = (falta as any)?.funcionarios?.nome ?? null // eslint-disable-line @typescript-eslint/no-explicit-any
+    await logSupervisorAcao({ supervisorId: auth.user.id, tipo: 'falta', acao: 'excluiu', funcionarioNome: nomeFuncionario })
+  }
+
   revalidatePath('/faltas')
   return { success: true }
 }
