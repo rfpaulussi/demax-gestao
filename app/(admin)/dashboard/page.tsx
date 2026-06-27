@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getUser } from '@/lib/auth/get-user'
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { processarRetornosAtestado } from '@/lib/processar-retornos'
 import {
@@ -156,6 +157,9 @@ export default async function DashboardPage({
 }) {
   const periodo = searchParams?.periodo ?? '30d'
   const dias = periodo === 'hoje' ? 1 : periodo === '7d' ? 7 : 30
+
+  const authCheck = await getUser()
+  if (authCheck?.perfil.role === 'supervisor') redirect('/meus-postos')
 
   const supabase = createClient()
 
