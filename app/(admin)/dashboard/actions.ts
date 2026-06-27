@@ -585,6 +585,7 @@ export type SupervisorPostoKpi = {
   ativos: number
   atestados: number
   ferias: number
+  afastados: number
   insalubridade: number
   descoberto: boolean
   coberturas_ativas: number
@@ -631,6 +632,7 @@ export type DadosSupervisor = {
   kpis: {
     ativos: number
     atestados: number
+    afastados: number
     ferias: number
     descobertos: number
     coberturas_ativas: number
@@ -664,7 +666,7 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
     .filter(p => (p!.secretaria ?? '').toUpperCase() !== 'AFASTADOS') as { id: string; nome: string; secretaria: string | null; efetivo_previsto: number | null; cota_insalubridade: number | null }[]
 
   if (postos.length === 0) {
-    return { postos: [], kpis: { ativos: 0, atestados: 0, ferias: 0, descobertos: 0, coberturas_ativas: 0, ocorrencias: 0, aprovacoes: 0 }, atestadosAtivos: [], coberturas: [], proximasFerias: [], atestadosRecentes: [], postosDeficit: [] }
+    return { postos: [], kpis: { ativos: 0, atestados: 0, afastados: 0, ferias: 0, descobertos: 0, coberturas_ativas: 0, ocorrencias: 0, aprovacoes: 0 }, atestadosAtivos: [], coberturas: [], proximasFerias: [], atestadosRecentes: [], postosDeficit: [] }
   }
 
   const postoIds = postos.map(p => p.id)
@@ -674,7 +676,7 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
     .from('funcionarios')
     .select('id, nome, posto_id, status, funcao_id')
     .in('posto_id', postoIds)
-    .in('status', ['ativo', 'atestado', 'ferias'])
+    .in('status', ['ativo', 'atestado', 'ferias', 'afastado'])
 
   // Busca nomes de funções para calcular insalubridade
   const funcaoIds = Array.from(new Set((funcs ?? []).map(f => f.funcao_id).filter(Boolean))) as string[]
@@ -807,6 +809,7 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
   const ativosPorPosto: Record<string, number> = {}
   const atestadosPorPosto: Record<string, number> = {}
   const feriasPorPosto: Record<string, number> = {}
+  const afastadosPorPosto: Record<string, number> = {}
   const insalubridadePorPosto: Record<string, number> = {}
 
   const postoSecretariaMap = new Map(postos.map(p => [p.id, (p.secretaria ?? '').toUpperCase()]))
@@ -814,9 +817,10 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
   type FuncWithFuncao = { id: string; nome: string; posto_id: string | null; status: string; funcao_id: string | null }
   for (const f of (funcs ?? []) as unknown as FuncWithFuncao[]) {
     const pid = f.posto_id as string
-    if (f.status === 'ativo') ativosPorPosto[pid] = (ativosPorPosto[pid] ?? 0) + 1
+    if (f.status === 'ativo')    ativosPorPosto[pid]    = (ativosPorPosto[pid]    ?? 0) + 1
     if (f.status === 'atestado') atestadosPorPosto[pid] = (atestadosPorPosto[pid] ?? 0) + 1
-    if (f.status === 'ferias') feriasPorPosto[pid] = (feriasPorPosto[pid] ?? 0) + 1
+    if (f.status === 'ferias')   feriasPorPosto[pid]    = (feriasPorPosto[pid]    ?? 0) + 1
+    if (f.status === 'afastado') afastadosPorPosto[pid] = (afastadosPorPosto[pid] ?? 0) + 1
     // Insalubridade: só ativos
     if (f.status === 'ativo' && f.funcao_id) {
       const sec = postoSecretariaMap.get(pid) ?? ''
@@ -846,6 +850,7 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
       ativos: ativosPorPosto[p.id] ?? 0,
       atestados: atestadosPorPosto[p.id] ?? 0,
       ferias: feriasPorPosto[p.id] ?? 0,
+      afastados: afastadosPorPosto[p.id] ?? 0,
       insalubridade: insalubridadePorPosto[p.id] ?? 0,
       descoberto: ausentes > 0 && descoberto,
       coberturas_ativas: coberturasAtivasPorPosto[p.id] ?? 0,
@@ -854,6 +859,7 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
 
   const totalAtivos    = postosKpi.reduce((s, p) => s + p.ativos, 0)
   const totalAtestados = postosKpi.reduce((s, p) => s + p.atestados, 0)
+  const totalAfastados = postosKpi.reduce((s, p) => s + p.afastados, 0)
   const totalFerias    = postosKpi.reduce((s, p) => s + p.ferias, 0)
   const totalDesc      = postosKpi.filter(p => p.descoberto).length
 
@@ -896,6 +902,7 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
     kpis: {
       ativos: totalAtivos,
       atestados: totalAtestados,
+      afastados: totalAfastados,
       ferias: totalFerias,
       descobertos: totalDesc,
       coberturas_ativas: coberturas.length,
