@@ -24,7 +24,7 @@ const labelClass = 'mb-1 block text-xs font-semibold uppercase tracking-widest t
 const inputClass = 'w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600'
 
 export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onClose }: Props) {
-  const isStatusLocked = funcionario.status === 'afastado' || funcionario.status === 'ferias'
+  const isStatusLocked = funcionario.status === 'afastado' || funcionario.status === 'atestado' || funcionario.status === 'ferias'
 
   const [nome,               setNome]               = useState(funcionario.nome)
   const [funcaoId,           setFuncaoId]           = useState(funcionario.funcoes?.id ?? '')
@@ -85,7 +85,7 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
 
     // Quando status está bloqueado (afastado/ferias), preserva o status original
     const statusEnviado = isStatusLocked
-      ? (funcionario.status as 'ativo' | 'afastado' | 'ferias' | 'desligado')
+      ? (funcionario.status as 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado')
       : status
 
     start(async () => {

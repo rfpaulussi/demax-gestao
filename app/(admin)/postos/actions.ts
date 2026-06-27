@@ -169,10 +169,10 @@ export async function getPostosData(): Promise<PostoRow[]> {
 
     if (isPostoAfastados) {
       // Postos AFASTADOS: conta todos os afastados sem restrição de função ou volante
-      if (f.status !== 'afastado') continue
+      if (f.status !== 'afastado' && f.status !== 'atestado') continue
     } else {
       // Postos operacionais: só ativo/ferias, excluindo funções fora do efetivo e volantes
-      if (f.status === 'afastado') continue
+      if (f.status === 'afastado' || f.status === 'atestado') continue
       if (f.funcao_id && excludedFuncaoIds.has(f.funcao_id)) continue
       if (f.eh_encarregado_volante === true) continue
       // Contagem separada de quem está de férias

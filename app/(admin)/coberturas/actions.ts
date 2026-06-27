@@ -273,7 +273,7 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
       const { error: errRev } = await adminSupabase.from('funcionarios')
         .update({ status: 'ativo' })
         .eq('id', cob.funcionario_ausente_id)
-        .eq('status', 'afastado')
+        .in('status', ['afastado', 'atestado'])
       if (errRev) console.error('[coberturas] encerrarCobertura: reverter status do ausente', cob.funcionario_ausente_id, ':', errRev.message)
     }
   }
@@ -337,7 +337,7 @@ export async function encerrarCoberturasVencidas(): Promise<{ encerradas: number
       const { error: errRev } = await supabase.from('funcionarios')
         .update({ status: 'ativo' })
         .eq('id', ausenteId)
-        .eq('status', 'afastado')
+        .in('status', ['afastado', 'atestado'])
       if (errRev) console.error('[coberturas] encerrarCoberturasVencidas: reverter status do ausente', ausenteId, ':', errRev.message)
     }
   }

@@ -436,7 +436,8 @@ export default function FeriasPage() {
                     </td>
                     <td className="px-3 py-3">
                       {item.funcionario_status === 'ativo'    && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Ativo</span>}
-                      {item.funcionario_status === 'afastado' && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Afastado</span>}
+                      {item.funcionario_status === 'afastado' && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Afastado</span>}
+                      {item.funcionario_status === 'atestado' && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Atestado</span>}
                       {item.funcionario_status === 'inativo'  && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">Inativo</span>}
                     </td>
                     <td className="px-3 py-3 text-slate-600">{item.posto_nome}</td>

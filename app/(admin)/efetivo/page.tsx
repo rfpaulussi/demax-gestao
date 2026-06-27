@@ -83,7 +83,7 @@ export default async function EfetivoPage() {
     // KPIs via COUNT — bypassa o max_rows do PostgREST (head:true não retorna linhas)
     supabase.from('funcionarios').select('*', { count: 'exact', head: true }),
     supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'ativo'),
-    supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'afastado'),
+    supabase.from('funcionarios').select('*', { count: 'exact', head: true }).in('status', ['afastado', 'atestado']),
     supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'ferias'),
   ])
 
@@ -100,7 +100,7 @@ export default async function EfetivoPage() {
   // e usar a origem_ocupacional dele — o status 'afastado' já garante que
   // esse é o motivo atual; o que importa é a origem, não se a data_fim passou.
   const rawFuncs = (raw ?? []) as unknown as FuncionarioRow[]
-  const afastadoIds = rawFuncs.filter(f => f.status === 'afastado').map(f => f.id)
+  const afastadoIds = rawFuncs.filter(f => f.status === 'afastado' || f.status === 'atestado').map(f => f.id)
   const catOrigemMap = new Map<string, string | null>()
   if (afastadoIds.length > 0) {
     const { data: catData } = await supabase
