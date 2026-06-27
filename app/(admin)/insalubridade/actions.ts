@@ -315,7 +315,7 @@ export async function buscarFuncionariosParaDeclaracao(): Promise<FuncOpt[]> {
   const { data } = await supabase
     .from('funcionarios')
     .select('id, nome, postos!posto_id(id, nome, secretaria), funcoes!funcionarios_funcao_id_fkey(nome)')
-    .in('status', ['ativo', 'ferias', 'afastado'])
+    .in('status', ['ativo', 'ferias', 'atestado', 'afastado'])
     .order('nome')
   return (data ?? []) as unknown as FuncOpt[]
 }
@@ -336,7 +336,7 @@ export async function buscarAgentesHigienizacao(postoId?: string): Promise<FuncO
   let q = supabase
     .from('funcionarios')
     .select('id, nome, postos!posto_id(id, nome, secretaria), funcoes!funcao_id(nome)')
-    .in('status', ['ativo', 'afastado'])
+    .in('status', ['ativo', 'atestado', 'afastado'])
     .order('nome')
 
   if (postoId) {

@@ -94,7 +94,7 @@ export async function buscarFuncionariosAtivos(): Promise<FuncionarioOpt[]> {
   let query = supabase
     .from('funcionarios')
     .select('id, nome, postos!posto_id(nome, secretaria)')
-    .in('status', ['ativo', 'ferias', 'afastado'])
+    .in('status', ['ativo', 'ferias', 'atestado', 'afastado'])
     .order('nome')
 
   if (auth?.perfil.role === 'supervisor') {
