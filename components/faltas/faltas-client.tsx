@@ -24,11 +24,26 @@ function fmt(iso: string | null): string {
   return `${d}/${m}/${y}`
 }
 
-function KpiCard({ label, value, color }: { label: string; value: number; color: string }) {
+function KpiCard({
+  label,
+  value,
+  sub,
+  color,
+  valueColor,
+}: {
+  label: string
+  value: number
+  sub?: string
+  color: string
+  valueColor?: string
+}) {
   return (
-    <div className={`rounded-xl border border-gray-100 border-t-4 bg-white p-3 shadow-sm ${color}`}>
-      <p className="text-2xl font-black tracking-tight text-gray-900">{value}</p>
+    <div className={`rounded-xl border border-gray-100 border-t-4 bg-white p-4 shadow-sm ${color}`}>
+      <p className={`text-3xl font-bold tracking-tight ${valueColor ?? 'text-gray-900'}`}>
+        {value === 0 && label === 'Sem Justificativa' ? '—' : value}
+      </p>
       <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
+      {sub && <p className="mt-0.5 text-xs text-gray-400">{sub}</p>}
     </div>
   )
 }
@@ -78,10 +93,10 @@ export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtiv
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <KpiCard label="Total Ocorrências"  value={dash.total_ocorrencias}  color="border-t-slate-500"  />
-        <KpiCard label="Dias Perdidos"      value={dash.total_dias_geral}    color="border-t-red-500"    />
-        <KpiCard label="Sem Justificativa"  value={dash.sem_justificativa}   color="border-t-orange-500" />
-        <KpiCard label="Reincidentes (3+)"  value={dash.reincidentes}        color="border-t-purple-500" />
+        <KpiCard label="Total Ocorrências" value={dash.total_ocorrencias} sub="faltas + atestados"   color="border-t-red-400"    />
+        <KpiCard label="Dias Perdidos"     value={dash.total_dias_geral}  sub="no mês"               color="border-t-amber-400"  />
+        <KpiCard label="Sem Justificativa" value={dash.sem_justificativa} sub={dash.sem_justificativa === 0 ? '0 ocorrências' : `${dash.sem_justificativa} registro${dash.sem_justificativa > 1 ? 's' : ''}`} color="border-t-blue-400" />
+        <KpiCard label="Reincidentes (3+)" value={dash.reincidentes}      sub={dash.reincidentes > 0 ? 'requer atenção' : 'nenhum no período'} color="border-t-orange-400" valueColor={dash.reincidentes > 0 ? 'text-orange-600' : undefined} />
       </div>
 
       {/* Charts */}
@@ -89,14 +104,14 @@ export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtiv
         <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
           <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-500">Ausências por Secretaria</p>
           <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={dash.por_secretaria} margin={{ top: 4, right: 8, left: 0, bottom: 80 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-              <XAxis dataKey="secretaria" tick={{ fontSize: 10 }} angle={-40} textAnchor="end" interval={0} />
-              <YAxis tick={{ fontSize: 11 }} />
+            <BarChart data={dash.por_secretaria} layout="vertical" margin={{ top: 4, right: 32, left: 8, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
+              <XAxis type="number" tick={{ fontSize: 11 }} />
+              <YAxis type="category" dataKey="secretaria" tick={{ fontSize: 12 }} width={70} />
               <Tooltip />
               <Legend verticalAlign="top" height={36} />
-              <Bar dataKey="dias_faltas"    name="Faltas"    fill="#ef4444" stackId="a" />
-              <Bar dataKey="dias_atestados" name="Atestados" fill="#f97316" stackId="a" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="dias_atestados" name="Atestados" fill="#f97316" stackId="a" />
+              <Bar dataKey="dias_faltas"    name="Faltas"    fill="#ef4444" stackId="a" radius={[0, 3, 3, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -122,40 +137,71 @@ export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtiv
         <div className="border-b border-gray-100 px-5 py-4">
           <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Top 10 — Funcionários com Mais Ausências</p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-50 bg-gray-50/50">
-                {['#', 'Funcionário', 'Secretaria', 'Ocorrências', 'Dias Totais'].map(h => (
-                  <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {dash.top_funcionarios.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-400">Nenhuma ocorrência no período.</td>
-                </tr>
-              ) : dash.top_funcionarios.map((f, i) => (
-                <tr key={i} className="hover:bg-gray-50/80">
-                  <td className="px-4 py-2.5 font-mono text-xs text-gray-400">{i + 1}</td>
-                  <td className="px-4 py-2.5 font-medium text-gray-900">{f.nome}</td>
-                  <td className="px-4 py-2.5 text-gray-500">{f.secretaria ?? '—'}</td>
-                  <td className="px-4 py-2.5">
-                    <span className={cn(
-                      'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold',
-                      f.ocorrencias >= 3 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
-                    )}>
-                      {f.ocorrencias}
-                      {f.ocorrencias >= 3 && <span>⚠</span>}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5 font-semibold text-gray-700">{f.dias}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {dash.top_funcionarios.length === 0 ? (
+          <p className="px-5 py-8 text-center text-sm text-gray-400">Nenhuma ocorrência no período.</p>
+        ) : (() => {
+          const maxDias = dash.top_funcionarios[0]?.dias ?? 1
+          const MEDALS = ['🥇', '🥈', '🥉']
+          return (
+            <div className="divide-y divide-gray-50">
+              {dash.top_funcionarios.map((f, i) => {
+                const pct = Math.round((f.dias / maxDias) * 100)
+                const isReincidente = f.ocorrencias >= 3
+                const badgeClass = f.ocorrencias >= 3
+                  ? 'bg-red-100 text-red-700'
+                  : f.ocorrencias === 2
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-green-100 text-green-700'
+                const barColor = f.ocorrencias >= 3
+                  ? 'bg-red-400'
+                  : f.ocorrencias === 2
+                    ? 'bg-amber-400'
+                    : 'bg-green-400'
+                const daysColor = f.ocorrencias >= 3
+                  ? 'text-red-600'
+                  : f.ocorrencias === 2
+                    ? 'text-amber-600'
+                    : 'text-gray-600'
+                return (
+                  <div key={i} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50/60">
+                    {/* Posição */}
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm"
+                      style={{ background: i === 0 ? '#FFF3CD' : i === 1 ? '#E8E8E8' : i === 2 ? '#FFE5CC' : '#F3F4F6' }}
+                    >
+                      {i < 3 ? MEDALS[i] : <span className="text-xs font-semibold text-gray-500">{i + 1}</span>}
+                    </div>
+
+                    {/* Nome + secretaria */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="truncate text-sm font-medium text-gray-900">{f.nome}</span>
+                        {isReincidente && (
+                          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-700">
+                            reincidente
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400">{f.secretaria ?? '—'}</p>
+                    </div>
+
+                    {/* Barra + dias */}
+                    <div className="w-28 flex-shrink-0">
+                      <div className="flex items-center justify-between">
+                        <span className={cn('text-sm font-semibold', daysColor)}>{f.dias}d</span>
+                        <span className={cn('rounded-full px-2 py-0.5 text-xs font-semibold', badgeClass)}>
+                          {f.ocorrencias} oc.
+                        </span>
+                      </div>
+                      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-100">
+                        <div className={cn('h-full rounded-full', barColor)} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
       </div>
 
       {/* Filtros */}
