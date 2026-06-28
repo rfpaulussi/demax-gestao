@@ -44,20 +44,31 @@ async function assertAdmin(): Promise<AdminGuard> {
 
 // ─── buscarSolicitacoes ────────────────────────────────────────────────────────
 
-const SOL_SELECT = `
+const SOL_SELECT_COM_CPF = `
   id, tipo, status, motivo, observacao_admin, dados_antes, dados_depois, created_at,
   funcionarios!funcionario_id ( nome, cpf ),
   perfis!supervisor_id ( nome, email )
 `
 
+const SOL_SELECT_SEM_CPF = `
+  id, tipo, status, motivo, observacao_admin, dados_antes, dados_depois, created_at,
+  funcionarios!funcionario_id ( nome ),
+  perfis!supervisor_id ( nome, email )
+`
+
+
 export async function buscarSolicitacoes(
   filtros: SolicitacaoFiltros = {},
 ): Promise<SolicitacaoRow[]> {
+  const auth = await getUser()
+  if (!auth) return []
+
+  const podeVerCpf = auth.perfil.role === 'admin' || auth.perfil.role === 'coordenador'
   const supabase = createClient()
 
   let query = supabase
     .from('solicitacoes')
-    .select(SOL_SELECT)
+    .select(podeVerCpf ? SOL_SELECT_COM_CPF : SOL_SELECT_SEM_CPF)
     .order('created_at', { ascending: false })
 
   if (filtros.tipo)          query = query.eq('tipo', filtros.tipo as unknown as 'desligamento')
@@ -65,7 +76,17 @@ export async function buscarSolicitacoes(
   if (filtros.supervisor_id) query = query.eq('supervisor_id', filtros.supervisor_id)
 
   const { data } = await query
-  return (data ?? []) as unknown as SolicitacaoRow[]
+  const rows = (data ?? []) as unknown as SolicitacaoRow[]
+
+  // Para roles sem acesso ao CPF completo, garantimos que nenhum dado vaze
+  if (!podeVerCpf) {
+    return rows.map(r => ({
+      ...r,
+      funcionarios: r.funcionarios ? { nome: r.funcionarios.nome, cpf: null } : null,
+    }))
+  }
+
+  return rows
 }
 
 // ─── aprovarSolicitacao ────────────────────────────────────────────────────────

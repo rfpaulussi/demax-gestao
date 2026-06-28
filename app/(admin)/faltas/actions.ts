@@ -226,8 +226,15 @@ export async function buscarDashFaltas(mes: number, ano: number): Promise<DashFa
     const mfStr = `${y}-${String(m).padStart(2, '0')}-${String(mfDate.getDate()).padStart(2, '0')}`
     const label = d.toLocaleString('pt-BR', { month: 'short', year: '2-digit' })
 
-    const { data: mf2 } = await supabase.from('faltas').select('dias').gte('data_falta', mi).lte('data_falta', mfStr)
-    const { data: ma } = await supabase.from('atestados').select('data_inicio, data_fim').gte('data_inicio', mi).lte('data_inicio', mfStr)
+    let mfQuery = supabase.from('faltas').select('dias').gte('data_falta', mi).lte('data_falta', mfStr)
+    let maQuery = supabase.from('atestados').select('data_inicio, data_fim').gte('data_inicio', mi).lte('data_inicio', mfStr)
+    if (funcIds !== null) {
+      const ids = funcIds.length > 0 ? funcIds : ['no-match']
+      mfQuery = mfQuery.in('funcionario_id', ids)
+      maQuery = maQuery.in('funcionario_id', ids)
+    }
+    const { data: mf2 } = await mfQuery
+    const { data: ma } = await maQuery
 
     const diasF = (mf2 ?? []).reduce((a, f) => a + (f.dias ?? 1), 0)
     const diasA = (ma ?? []).reduce((a, at) => {

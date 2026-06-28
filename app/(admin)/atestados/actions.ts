@@ -6,12 +6,35 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import { logSupervisorAcao } from '@/lib/log-supervisor'
 
+async function verificarAcessoAtestado(
+  atestadoId: string,
+  userId: string,
+  role: string | null,
+): Promise<boolean> {
+  if (role === 'admin' || role === 'coordenador') return true
+  const supabase = createClient()
+  const { data: at } = await supabase
+    .from('atestados').select('posto_id').eq('id', atestadoId).single()
+  if (!at?.posto_id) return false
+  const { data: cfg } = await supabase
+    .from('config_supervisores_postos')
+    .select('posto_id')
+    .eq('supervisor_id', userId)
+    .eq('posto_id', at.posto_id)
+    .eq('ativo', true)
+    .maybeSingle()
+  return !!cfg
+}
+
 export async function updateAtestado(
   id: string,
   formData: FormData,
 ): Promise<{ error?: string }> {
   const auth = await getUser()
   if (!auth) return { error: 'Não autenticado' }
+
+  const temAcesso = await verificarAcessoAtestado(id, auth.user.id, auth.perfil.role)
+  if (!temAcesso) return { error: 'Acesso negado' }
 
   const adminSupabase = createAdminClient()
 
@@ -42,6 +65,9 @@ export async function updateAtestado(
 export async function deleteAtestado(id: string): Promise<{ error?: string }> {
   const auth = await getUser()
   if (!auth) return { error: 'Não autenticado' }
+
+  const temAcesso = await verificarAcessoAtestado(id, auth.user.id, auth.perfil.role)
+  if (!temAcesso) return { error: 'Acesso negado' }
 
   const supabase = createClient()
   const adminSupabase = createAdminClient()
