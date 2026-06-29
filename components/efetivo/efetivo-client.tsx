@@ -45,7 +45,7 @@ interface Props {
 
 export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cids, isAdmin, faltasAtivas, coberturaSubstitutos, coberturaAusentes }: Props) {
   const [values, setValues] = useState<FiltrosValues>({
-    busca: '', status: '', secretaria: '', supervisor: '',
+    busca: '', status: '', secretaria: '', supervisor: '', posto: '',
   })
   const [sortCol, setSortCol] = useState<string>('nome')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
@@ -83,6 +83,7 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
     } else if (values.supervisor) {
       list = list.filter(f => f.supervisor_id === values.supervisor)
     }
+    if (values.posto) list = list.filter(f => f.posto_id === values.posto)
     return list
   }, [funcionarios, values])
 
@@ -105,18 +106,20 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
     const statusCounts: Record<string, number> = {}
     const secretariaCounts: Record<string, number> = {}
     const supervisorCounts: Record<string, number> = {}
+    const postoCounts: Record<string, number> = {}
     let semSupervisorCount = 0
     for (const f of funcionarios) {
       if (f.status) statusCounts[f.status] = (statusCounts[f.status] ?? 0) + 1
       const sec = f.postos?.secretaria
       if (sec) secretariaCounts[sec] = (secretariaCounts[sec] ?? 0) + 1
+      if (f.posto_id) postoCounts[f.posto_id] = (postoCounts[f.posto_id] ?? 0) + 1
       if (f.supervisor_id) {
         supervisorCounts[f.supervisor_id] = (supervisorCounts[f.supervisor_id] ?? 0) + 1
       } else {
         semSupervisorCount++
       }
     }
-    return { statusCounts, secretariaCounts, supervisorCounts, semSupervisorCount }
+    return { statusCounts, secretariaCounts, supervisorCounts, semSupervisorCount, postoCounts }
   }, [funcionarios])
 
   function handleChange(key: keyof FiltrosValues, value: string) {
@@ -150,6 +153,7 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
           <FiltrosEfetivo
             secretarias={secretarias}
             supervisores={supervisores}
+            postos={postos}
             counts={counts}
             values={values}
             onChange={handleChange}

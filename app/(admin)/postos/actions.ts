@@ -175,9 +175,10 @@ export async function getPostosData(): Promise<PostoRow[]> {
       if (f.status === 'afastado' || f.status === 'atestado' || f.status === 'faltante') continue
       if (f.funcao_id && excludedFuncaoIds.has(f.funcao_id)) continue
       if (f.eh_encarregado_volante === true) continue
-      // Contagem separada de quem está de férias
+      // Férias: registra badge mas NÃO entra no efetivo_atual (posto fica com déficit)
       if (f.status === 'ferias') {
         feriasMap.set(f.posto_id, (feriasMap.get(f.posto_id) ?? 0) + 1)
+        continue
       }
     }
     efetivoMap.set(f.posto_id, (efetivoMap.get(f.posto_id) ?? 0) + 1)

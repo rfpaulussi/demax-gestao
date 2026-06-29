@@ -7,9 +7,11 @@ import {
   BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
+import { FileSpreadsheet } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { removerFalta } from '@/app/(admin)/faltas/actions'
 import type { FaltaCompleta, FuncOpt, DashFaltas } from '@/app/(admin)/faltas/actions'
+import { exportToExcel } from '@/lib/export-excel'
 import { FALTA_TIPO_LABELS, FALTA_TIPO_COLORS } from './faltas-config'
 import type { FaltaTipo } from './faltas-config'
 import { ModalRegistrarFalta } from './modal-registrar-falta'
@@ -70,6 +72,34 @@ interface Props {
   ano: number
   tipoAtivo: string
   anos: number[]
+}
+
+const FALTA_TIPO_EXCEL: Record<string, string> = {
+  sem_justificativa: 'Sem Justificativa',
+  atestado:          'Atestado Médico',
+  declaracao:        'Declaração',
+  licenca:           'Licença',
+  outro:             'Outro',
+}
+
+function exportFaltasExcel(faltas: FaltaCompleta[], mes: number, ano: number) {
+  const nomeMes = MESES[mes]
+  exportToExcel(
+    faltas,
+    [
+      { label: 'Funcionário',    value: r => r.funcionarios?.nome ?? '' },
+      { label: 'Função',         value: r => r.funcionarios?.funcoes?.nome ?? '' },
+      { label: 'Posto',          value: r => r.funcionarios?.postos?.nome ?? '' },
+      { label: 'Secretaria',     value: r => r.funcionarios?.postos?.secretaria ?? '' },
+      { label: 'Data Início',    value: r => fmt(r.data_falta) },
+      { label: 'Data Fim',       value: r => fmt(r.data_fim) },
+      { label: 'Tipo',           value: r => FALTA_TIPO_EXCEL[r.tipo] ?? r.tipo },
+      { label: 'Dias',           value: r => r.dias },
+      { label: 'Registrado por', value: r => r.perfis?.nome ?? '' },
+      { label: 'Observação',     value: r => r.observacao ?? '' },
+    ],
+    `faltas_${nomeMes}_${ano}.xlsx`,
+  )
 }
 
 export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtivo, anos }: Props) {
@@ -238,17 +268,28 @@ export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtiv
       </form>
 
       {/* Header tabela */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
           {faltas.length} registro{faltas.length !== 1 ? 's' : ''}
         </p>
-        <button
-          type="button"
-          onClick={() => setShowModal(true)}
-          className="flex h-9 items-center rounded-lg bg-amber-500 px-4 text-sm font-semibold text-slate-900 transition-colors hover:bg-amber-400"
-        >
-          + Registrar Falta
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => exportFaltasExcel(faltas, mes, ano)}
+            disabled={faltas.length === 0}
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-40"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Excel
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowModal(true)}
+            className="flex h-9 items-center rounded-lg bg-amber-500 px-4 text-sm font-semibold text-slate-900 transition-colors hover:bg-amber-400"
+          >
+            + Registrar Falta
+          </button>
+        </div>
       </div>
 
       {/* Tabela */}
