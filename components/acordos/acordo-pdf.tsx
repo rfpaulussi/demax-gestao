@@ -11,24 +11,25 @@ function fmtDataExtenso(iso: string): string {
 }
 
 const s = StyleSheet.create({
-  page:        { fontFamily: 'Helvetica', fontSize: 10, paddingHorizontal: 50, paddingVertical: 40, lineHeight: 1.5 },
-  title:       { fontSize: 13, fontFamily: 'Helvetica-Bold', textAlign: 'center', marginBottom: 16 },
-  para:        { marginBottom: 10, textAlign: 'justify' },
-  bold:        { fontFamily: 'Helvetica-Bold' },
-  tableWrap:   { marginVertical: 10, borderWidth: 1, borderColor: '#000' },
-  tableRow:    { flexDirection: 'row', borderBottomWidth: 1, borderColor: '#000' },
-  tableRowLast:{ flexDirection: 'row' },
-  cellDay:     { width: '45%', padding: 4, borderRightWidth: 1, borderColor: '#000', fontFamily: 'Helvetica-Bold', fontSize: 9 },
-  cellHour:    { width: '55%', padding: 4, fontSize: 9 },
-  sectionTitle:{ fontFamily: 'Helvetica-Bold', fontSize: 10, marginTop: 6 },
-  signBlock:   { marginTop: 8, paddingBottom: 6, borderBottomWidth: 0.5, borderColor: '#aaa' },
-  signName:    { fontSize: 10, marginBottom: 2 },
-  signLine:    { borderBottomWidth: 0.5, borderColor: '#000', marginTop: 14, marginBottom: 2 },
-  signLabel:   { fontSize: 8, color: '#555', textAlign: 'center' },
-  cityDate:    { marginTop: 20, marginBottom: 6 },
-  empresa:     { fontFamily: 'Helvetica-Bold', marginBottom: 20 },
-  empLine:     { borderBottomWidth: 0.5, borderColor: '#000', marginTop: 20, width: 200, alignSelf: 'center' },
-  empLineLabel:{ fontSize: 8, color: '#555', textAlign: 'center', width: 200, alignSelf: 'center' },
+  page:         { fontFamily: 'Helvetica', fontSize: 10, paddingHorizontal: 50, paddingVertical: 40, lineHeight: 1.5 },
+  title:        { fontSize: 13, fontFamily: 'Helvetica-Bold', textAlign: 'center', marginBottom: 16 },
+  para:         { marginBottom: 10, textAlign: 'justify' },
+  bold:         { fontFamily: 'Helvetica-Bold' },
+  tableWrap:    { marginVertical: 6, borderWidth: 1, borderColor: '#000' },
+  tableRow:     { flexDirection: 'row', borderBottomWidth: 1, borderColor: '#000' },
+  tableRowLast: { flexDirection: 'row' },
+  cellDay:      { width: '45%', padding: 4, borderRightWidth: 1, borderColor: '#000', fontFamily: 'Helvetica-Bold', fontSize: 9 },
+  cellHour:     { width: '55%', padding: 4, fontSize: 9 },
+  turnoTitle:   { fontFamily: 'Helvetica-Bold', fontSize: 10, marginTop: 8, marginBottom: 2, textDecoration: 'underline' },
+  sectionTitle: { fontFamily: 'Helvetica-Bold', fontSize: 10, marginTop: 6 },
+  signBlock:    { marginTop: 8, paddingBottom: 6, borderBottomWidth: 0.5, borderColor: '#aaa' },
+  signName:     { fontSize: 10, marginBottom: 2 },
+  signLine:     { borderBottomWidth: 0.5, borderColor: '#000', marginTop: 14, marginBottom: 2 },
+  signLabel:    { fontSize: 8, color: '#555', textAlign: 'center' },
+  cityDate:     { marginTop: 20, marginBottom: 6 },
+  empresa:      { fontFamily: 'Helvetica-Bold', marginBottom: 20 },
+  empLine:      { borderBottomWidth: 0.5, borderColor: '#000', marginTop: 20, width: 200, alignSelf: 'center' },
+  empLineLabel: { fontSize: 8, color: '#555', textAlign: 'center', width: 200, alignSelf: 'center' },
 })
 
 const DIAS = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado','Domingo']
@@ -36,10 +37,14 @@ const DIAS = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sext
 interface Props { acordo: AcordoCompensacao }
 
 export function AcordoPdfDoc({ acordo }: Props) {
+  const multiTurno = acordo.horarios.length > 1
+
+  // Lookup funcId → funcionario
+  const funcMap = new Map(acordo.funcionarios.map(f => [f.id, f]))
+
   return (
     <Document>
       <Page size="A4" style={s.page}>
-        {/* Título */}
         <Text style={s.title}>ACORDO DE COMPENSAÇÃO DE HORAS</Text>
 
         {/* Intro */}
@@ -56,21 +61,26 @@ export function AcordoPdfDoc({ acordo }: Props) {
           horário normal de trabalho semanal:
         </Text>
 
-        {/* Tabela de horários */}
-        <View style={s.tableWrap}>
-          {DIAS.map((dia, i) => {
-            const horario = acordo.horario_semana[dia] ?? '—'
-            const isLast = i === DIAS.length - 1
-            return (
-              <View key={dia} style={isLast ? s.tableRowLast : s.tableRow}>
-                <Text style={s.cellDay}>{dia}</Text>
-                <Text style={s.cellHour}>{horario}</Text>
-              </View>
-            )
-          })}
-        </View>
+        {/* Tabela(s) de horário — uma por turno */}
+        {acordo.horarios.map(turno => (
+          <View key={turno.label}>
+            {multiTurno && <Text style={s.turnoTitle}>{turno.label}</Text>}
+            <View style={s.tableWrap}>
+              {DIAS.map((dia, i) => {
+                const horario = turno.horario[dia] ?? '—'
+                const isLast = i === DIAS.length - 1
+                return (
+                  <View key={dia} style={isLast ? s.tableRowLast : s.tableRow}>
+                    <Text style={s.cellDay}>{dia}</Text>
+                    <Text style={s.cellHour}>{horario}</Text>
+                  </View>
+                )
+              })}
+            </View>
+          </View>
+        ))}
 
-        {/* Texto livre do acordo */}
+        {/* Texto livre */}
         <Text style={s.para}>
           {'     '}As partes celebram o presente acordo de compensação de horas, com a finalidade
           de que os funcionários{' '}{acordo.descricao_acordo}
@@ -108,22 +118,31 @@ export function AcordoPdfDoc({ acordo }: Props) {
         </Text>
 
         {/* Data e empresa */}
-        <Text style={s.cityDate}>
-          Mogi das Cruzes, {fmtDataExtenso(acordo.data_documento)}
-        </Text>
+        <Text style={s.cityDate}>Mogi das Cruzes, {fmtDataExtenso(acordo.data_documento)}</Text>
         <Text style={s.empresa}>DEMAX SERVIÇOS E COMÉRCIO LTDA</Text>
 
-        {/* Assinaturas dos funcionários */}
-        <Text style={s.sectionTitle}>EMPREGADOS:</Text>
-        {acordo.funcionarios.map((f) => (
-          <View key={f.id} style={s.signBlock} wrap={false}>
-            <Text style={s.signName}>{f.nome}{f.funcao ? ` — ${f.funcao}` : ''}</Text>
-            <View style={s.signLine} />
-            <Text style={s.signLabel}>Assinatura</Text>
-          </View>
-        ))}
+        {/* Assinaturas — agrupadas por turno quando houver múltiplos */}
+        {acordo.horarios.map(turno => {
+          const funcs = turno.funcionario_ids
+            .map(id => funcMap.get(id))
+            .filter(Boolean) as typeof acordo.funcionarios
+          if (!funcs.length) return null
+          return (
+            <View key={turno.label}>
+              {multiTurno && <Text style={s.sectionTitle}>EMPREGADOS — {turno.label.toUpperCase()}:</Text>}
+              {!multiTurno && <Text style={s.sectionTitle}>EMPREGADOS:</Text>}
+              {funcs.map(f => (
+                <View key={f.id} style={s.signBlock} wrap={false}>
+                  <Text style={s.signName}>{f.nome}{f.funcao ? ` — ${f.funcao}` : ''}</Text>
+                  <View style={s.signLine} />
+                  <Text style={s.signLabel}>Assinatura</Text>
+                </View>
+              ))}
+            </View>
+          )
+        })}
 
-        {/* Assinatura da empresa ao final */}
+        {/* Assinatura da empresa */}
         <View style={{ marginTop: 30 }} wrap={false}>
           <View style={s.empLine} />
           <Text style={s.empLineLabel}>DEMAX SERVIÇOS E COMÉRCIO LTDA</Text>

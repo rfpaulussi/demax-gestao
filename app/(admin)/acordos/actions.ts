@@ -14,9 +14,27 @@ export interface AcordoFuncionarioItem {
   id: string
   nome: string
   funcao: string | null
+  status: string
 }
 
-export type HorarioSemana = Record<string, string>
+export interface TurnoHorario {
+  label: string
+  horario: Record<string, string>   // dia -> "07:00 às 12:00 / 13:12 às 17:00"
+  funcionario_ids: string[]
+}
+
+// ─── Normaliza horario_semana v1 ou v2 → TurnoHorario[] ──────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizarHorarios(raw: any, funcionarios: AcordoFuncionarioItem[]): TurnoHorario[] {
+  if (!raw) return []
+  if (raw._v === 2 && Array.isArray(raw.turnos)) return raw.turnos as TurnoHorario[]
+  // v1: objeto dia→string, todos os funcionários num turno único
+  return [{
+    label: 'Turno Único',
+    horario: raw as Record<string, string>,
+    funcionario_ids: funcionarios.map(f => f.id),
+  }]
+}
 
 export interface AcordoCompensacao {
   id: string
@@ -24,7 +42,7 @@ export interface AcordoCompensacao {
   tipo: 'individual' | 'coletivo'
   postos: AcordoPostoItem[]
   funcionarios: AcordoFuncionarioItem[]
-  horario_semana: HorarioSemana
+  horarios: TurnoHorario[]
   descricao_acordo: string
   data_documento: string
   criado_por: string | null
@@ -40,7 +58,22 @@ export async function listarAcordos(): Promise<AcordoCompensacao[]> {
     .from('acordos_compensacao')
     .select('*')
     .order('created_at', { ascending: false })
-  return (data ?? []) as AcordoCompensacao[]
+
+  return ((data ?? []) as AnyClient[]).map(r => {
+    const funcionarios = (r.funcionarios ?? []) as AcordoFuncionarioItem[]
+    return {
+      id: r.id,
+      titulo: r.titulo,
+      tipo: r.tipo,
+      postos: r.postos ?? [],
+      funcionarios,
+      horarios: normalizarHorarios(r.horario_semana, funcionarios),
+      descricao_acordo: r.descricao_acordo,
+      data_documento: r.data_documento,
+      criado_por: r.criado_por,
+      created_at: r.created_at,
+    } as AcordoCompensacao
+  })
 }
 
 export async function criarAcordo(dados: {
@@ -48,14 +81,21 @@ export async function criarAcordo(dados: {
   tipo: 'individual' | 'coletivo'
   postos: AcordoPostoItem[]
   funcionarios: AcordoFuncionarioItem[]
-  horario_semana: HorarioSemana
+  horarios: TurnoHorario[]
   descricao_acordo: string
   data_documento: string
 }): Promise<{ id: string } | { error: string }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (createAdminClient() as any)
+  const { data, error } = await (createAdminClient() as AnyClient)
     .from('acordos_compensacao')
-    .insert(dados)
+    .insert({
+      titulo: dados.titulo,
+      tipo: dados.tipo,
+      postos: dados.postos,
+      funcionarios: dados.funcionarios,
+      horario_semana: { _v: 2, turnos: dados.horarios },
+      descricao_acordo: dados.descricao_acordo,
+      data_documento: dados.data_documento,
+    })
     .select('id')
     .single()
   if (error) return { error: error.message }
@@ -64,8 +104,7 @@ export async function criarAcordo(dados: {
 }
 
 export async function excluirAcordo(id: string): Promise<{ error?: string }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (createAdminClient() as any).from('acordos_compensacao').delete().eq('id', id)
+  const { error } = await (createAdminClient() as AnyClient).from('acordos_compensacao').delete().eq('id', id)
   if (error) return { error: error.message }
   revalidatePath('/acordos')
   return {}
@@ -88,13 +127,14 @@ export async function buscarFuncionariosPorPostos(
   const supabase = createClient()
   const { data } = await supabase
     .from('funcionarios')
-    .select('id, nome, funcoes!funcao_id(nome)')
+    .select('id, nome, status, funcoes!funcao_id(nome)')
     .in('posto_id', postoIds)
-    .in('status', ['ativo', 'ferias'])
+    .not('status', 'eq', 'desligado')
     .order('nome')
   return ((data ?? []) as unknown as Array<{
     id: string
     nome: string
+    status: string
     funcoes: { nome: string } | null
-  }>).map(f => ({ id: f.id, nome: f.nome, funcao: f.funcoes?.nome ?? null }))
+  }>).map(f => ({ id: f.id, nome: f.nome, status: f.status, funcao: f.funcoes?.nome ?? null }))
 }
