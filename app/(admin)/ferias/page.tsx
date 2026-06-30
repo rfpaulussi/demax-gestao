@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useTransition } from 'react'
 import Link from 'next/link'
 import { ModalNovaFerias } from '@/components/ferias/modal-nova-ferias'
 import { ModalImportarHistoricoFerias } from '@/components/ferias/modal-importar-historico-ferias'
@@ -8,6 +8,8 @@ import { ModalEditarFerias } from '@/components/ferias/modal-editar-ferias'
 import {
   buscarFeriasLista,
   buscarSupervisoresParaFiltro,
+  iniciarFerias,
+  concluirFerias,
   type FeriasListaItem,
   type SupervisorFiltro,
 } from './actions'
@@ -157,6 +159,32 @@ type SortKey =
   | 'data_fim'
   | 'dias_direito'
   | 'status'
+
+function IniciarButton({ id, onDone }: { id: string; onDone: () => void }) {
+  const [pending, start] = useTransition()
+  return (
+    <button
+      onClick={() => start(async () => { await iniciarFerias(id); onDone() })}
+      disabled={pending}
+      className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700 hover:bg-green-200 font-medium"
+    >
+      {pending ? '...' : 'Iniciar'}
+    </button>
+  )
+}
+
+function ConcluirButton({ id, onDone }: { id: string; onDone: () => void }) {
+  const [pending, start] = useTransition()
+  return (
+    <button
+      onClick={() => start(async () => { await concluirFerias(id); onDone() })}
+      disabled={pending}
+      className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium"
+    >
+      {pending ? '...' : 'Concluir'}
+    </button>
+  )
+}
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
@@ -458,7 +486,13 @@ export default function FeriasPage() {
                     <td className="px-3 py-3">
                       <StatusBadge status={item.status} />
                     </td>
-                    <td className="px-3 py-3">
+                    <td className="px-3 py-3 flex items-center gap-2">
+                      {item.status === 'aprovado' && (
+                        <IniciarButton id={item.id} onDone={() => buscarFeriasLista().then(setFerias)} />
+                      )}
+                      {item.status === 'em_curso' && (
+                        <ConcluirButton id={item.id} onDone={() => buscarFeriasLista().then(setFerias)} />
+                      )}
                       <button
                         onClick={() => setItemEditando(item)}
                         className="text-xs text-slate-500 hover:text-slate-800 underline"

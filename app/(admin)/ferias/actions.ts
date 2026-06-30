@@ -119,27 +119,54 @@ export async function aprovarFerias(id: string) {
   return { ok: true }
 }
 
+export async function iniciarFerias(id: string) {
+  const adminSupabase = createAdminClient()
+
+  const { data: fer, error: fetchErr } = await adminSupabase
+    .from('ferias').select('funcionario_id').eq('id', id).single()
+  if (fetchErr) throw new Error(fetchErr.message)
+
+  const { error } = await adminSupabase.from('ferias').update({ status: 'em_curso' }).eq('id', id)
+  if (error) throw new Error(error.message)
+
+  await adminSupabase.from('funcionarios').update({ status: 'ferias' }).eq('id', fer.funcionario_id)
+
+  revalidatePath('/ferias')
+  revalidatePath('/postos')
+  return { ok: true }
+}
+
 export async function concluirFerias(id: string) {
   const adminSupabase = createAdminClient()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const concludeUpdate: any = { status: 'concluido' }
-  const { error } = await adminSupabase.from('ferias').update(concludeUpdate).eq('id', id)
+  const { data: fer, error: fetchErr } = await adminSupabase
+    .from('ferias').select('funcionario_id').eq('id', id).single()
+  if (fetchErr) throw new Error(fetchErr.message)
 
+  const { error } = await adminSupabase.from('ferias').update({ status: 'concluido' }).eq('id', id)
   if (error) throw new Error(error.message)
+
+  await adminSupabase.from('funcionarios').update({ status: 'ativo' }).eq('id', fer.funcionario_id)
+
   revalidatePath('/ferias')
+  revalidatePath('/postos')
   return { ok: true }
 }
 
 export async function cancelarFerias(id: string, motivo?: string) {
   const adminSupabase = createAdminClient()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cancelUpdate: any = { status: 'cancelado', observacao: motivo }
-  const { error } = await adminSupabase.from('ferias').update(cancelUpdate).eq('id', id)
+  const { data: fer, error: fetchErr } = await adminSupabase
+    .from('ferias').select('funcionario_id').eq('id', id).single()
+  if (fetchErr) throw new Error(fetchErr.message)
 
+  const { error } = await adminSupabase.from('ferias').update({ status: 'cancelado', observacao: motivo }).eq('id', id)
   if (error) throw new Error(error.message)
+
+  await adminSupabase.from('funcionarios').update({ status: 'ativo' }).eq('id', fer.funcionario_id)
+
   revalidatePath('/ferias')
+  revalidatePath('/postos')
   return { ok: true }
 }
 
@@ -308,7 +335,12 @@ export async function editarFerias(id: string, data: {
   status: string
   observacao?: string | null
 }) {
-  const supabase = createClient()
+  const adminSupabase = createAdminClient()
+
+  const { data: fer, error: fetchErr } = await adminSupabase
+    .from('ferias').select('funcionario_id').eq('id', id).single()
+  if (fetchErr) throw new Error(fetchErr.message)
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const payload: any = {
     data_inicio: data.data_inicio,
@@ -317,12 +349,18 @@ export async function editarFerias(id: string, data: {
     status: data.status,
     observacao: data.observacao ?? null,
   }
-  const { error } = await supabase
-    .from('ferias')
-    .update(payload)
-    .eq('id', id)
+  const { error } = await adminSupabase.from('ferias').update(payload).eq('id', id)
   if (error) throw new Error(error.message)
+
+  // Sincroniza status do funcionário
+  if (data.status === 'em_curso') {
+    await adminSupabase.from('funcionarios').update({ status: 'ferias' }).eq('id', fer.funcionario_id)
+  } else if (['concluido', 'cancelado', 'agendado', 'aprovado'].includes(data.status)) {
+    await adminSupabase.from('funcionarios').update({ status: 'ativo' }).eq('id', fer.funcionario_id)
+  }
+
   revalidatePath('/ferias')
+  revalidatePath('/postos')
   return { ok: true }
 }
 
