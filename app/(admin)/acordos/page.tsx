@@ -1,11 +1,23 @@
 import { listarAcordos, buscarPostosParaAcordo } from './actions'
 import { AcordosClient } from '@/components/acordos/acordos-client'
 
-export default async function AcordosPage() {
+export default async function AcordosPage({
+  searchParams,
+}: {
+  searchParams: { mes?: string; ano?: string }
+}) {
+  const agora = new Date()
+  const mes = searchParams.mes ? Number(searchParams.mes) : agora.getMonth() + 1
+  const ano = searchParams.ano ? Number(searchParams.ano) : agora.getFullYear()
+
   const [acordos, postos] = await Promise.all([
-    listarAcordos(),
+    listarAcordos({ mes, ano }),
     buscarPostosParaAcordo(),
   ])
+
+  // Anos disponíveis: de 2024 até este ano + 1
+  const anoAtual = agora.getFullYear()
+  const anos = Array.from({ length: anoAtual - 2023 }, (_, i) => 2024 + i)
 
   return (
     <div className="space-y-6">
@@ -58,7 +70,7 @@ export default async function AcordosPage() {
         </div>
       </div>
 
-      <AcordosClient acordos={acordos} postos={postos} />
+      <AcordosClient acordos={acordos} postos={postos} mes={mes} ano={ano} anos={anos} />
     </div>
   )
 }

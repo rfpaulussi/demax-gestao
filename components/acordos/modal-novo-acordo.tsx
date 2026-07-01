@@ -118,6 +118,7 @@ export function ModalNovoAcordo({ postos, onClose }: Props) {
 
   const [titulo, setTitulo]         = useState('')
   const [tipo, setTipo]             = useState<'individual' | 'coletivo'>('individual')
+  const [subtipo, setSubtipo]       = useState<'evento' | 'antecipado' | ''>('')
   const [postosSel, setPostosSel]   = useState<string[]>([])
   const [descricao, setDescricao]   = useState('')
   const [dataDoc, setDataDoc]       = useState(new Date().toISOString().split('T')[0])
@@ -236,6 +237,7 @@ export function ModalNovoAcordo({ postos, onClose }: Props) {
       const res = await criarAcordo({
         titulo: titulo.trim(),
         tipo,
+        subtipo: subtipo || null,
         postos: postosObj,
         funcionarios: selectedFuncs,
         horarios,
@@ -282,6 +284,24 @@ export function ModalNovoAcordo({ postos, onClose }: Props) {
                   <div>
                     <p className="text-sm font-semibold text-gray-900">{label}</p>
                     <p className="text-xs text-gray-400">{sub}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Subtipo */}
+          <div>
+            <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-500">Tipo de Uso</label>
+            <div className="flex gap-3">
+              {([['', 'Não classificar', ''], ['evento', 'Evento', 'Horas já trabalhadas'], ['antecipado', 'Antecipado', 'Banco de horas']] as const).map(([val, label, sub]) => (
+                <label key={val} className={`flex flex-1 cursor-pointer items-center gap-3 rounded-xl border-2 px-3 py-2.5 transition-colors ${
+                  subtipo === val ? 'border-slate-900 bg-slate-50' : 'border-gray-200 hover:border-gray-300'
+                }`}>
+                  <input type="radio" checked={subtipo === val} onChange={() => setSubtipo(val as 'evento' | 'antecipado' | '')} className="accent-slate-900" />
+                  <div>
+                    <p className="text-xs font-semibold text-gray-900">{label}</p>
+                    {sub && <p className="text-[10px] text-gray-400">{sub}</p>}
                   </div>
                 </label>
               ))}

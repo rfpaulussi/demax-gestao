@@ -7,6 +7,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { SidebarNav } from '@/components/admin/sidebar-nav'
 import { NotificacoesBell } from '@/components/admin/notificacoes-bell'
 import type { LogAcao } from '@/components/admin/notificacoes-bell'
+import { SupervisorBell } from '@/components/admin/supervisor-bell'
+import type { SolicitacaoNotif } from '@/components/admin/supervisor-bell'
 import { ROLE_LABELS } from '@/types'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -52,6 +54,37 @@ export default async function AdminLayout({
     notifLogs   = (logsData ?? []) as LogAcao[]
   }
 
+  // Notificações de solicitações processadas (só para supervisor)
+  let supNotifUnread = 0
+  let supNotifs: SolicitacaoNotif[] = []
+  if (perfil.role === 'supervisor') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = createClient() as any
+    const [{ count: cnt }, { data: solsData }] = await Promise.all([
+      sb.from('solicitacoes')
+        .select('*', { count: 'exact', head: true })
+        .eq('supervisor_id', perfil.id)
+        .neq('status', 'pendente')
+        .eq('lida_supervisor', false),
+      sb.from('solicitacoes')
+        .select('id, tipo, status, created_at, observacao_admin, lida_supervisor, funcionarios!funcionario_id(nome)')
+        .eq('supervisor_id', perfil.id)
+        .neq('status', 'pendente')
+        .order('created_at', { ascending: false })
+        .limit(30),
+    ])
+    supNotifUnread = cnt ?? 0
+    supNotifs = ((solsData ?? []) as {
+      id: string; tipo: string; status: string; created_at: string | null
+      observacao_admin: string | null; lida_supervisor: boolean
+      funcionarios: { nome: string | null } | null
+    }[]).map(s => ({
+      id: s.id, tipo: s.tipo, status: s.status, created_at: s.created_at,
+      observacao_admin: s.observacao_admin, lida_supervisor: s.lida_supervisor,
+      funcionario_nome: s.funcionarios?.nome ?? null,
+    }))
+  }
+
   return (
     <div className={`${inter.className} min-h-screen bg-gray-50`}>
       <SidebarNav role={perfil.role} pendingCount={pendingCount ?? 0} />
@@ -84,6 +117,9 @@ export default async function AdminLayout({
 
             {isAdminOrCoord && (
               <NotificacoesBell unread={notifUnread} logs={notifLogs} />
+            )}
+            {perfil.role === 'supervisor' && (
+              <SupervisorBell unread={supNotifUnread} notifs={supNotifs} />
             )}
 
             <div className="h-6 w-px bg-gray-200 hidden sm:block" aria-hidden />

@@ -40,12 +40,14 @@ export interface AcordoCompensacao {
   id: string
   titulo: string
   tipo: 'individual' | 'coletivo'
+  subtipo: 'evento' | 'antecipado' | null
   postos: AcordoPostoItem[]
   funcionarios: AcordoFuncionarioItem[]
   horarios: TurnoHorario[]
   descricao_acordo: string
   data_documento: string
   criado_por: string | null
+  criado_por_nome: string | null
   created_at: string
   entregue_rh: boolean
   entregue_em: string | null
@@ -54,28 +56,65 @@ export interface AcordoCompensacao {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyClient = any
 
-export async function listarAcordos(): Promise<AcordoCompensacao[]> {
+export async function listarAcordos(filters?: {
+  mes?: number
+  ano?: number
+}): Promise<AcordoCompensacao[]> {
   const supabase = createClient() as AnyClient
-  const { data } = await supabase
+
+  let query = supabase
     .from('acordos_compensacao')
     .select('*')
-    .order('created_at', { ascending: false })
+    .order('data_documento', { ascending: false })
 
-  return ((data ?? []) as AnyClient[]).map(r => {
+  if (filters?.mes && filters?.ano) {
+    const y = filters.ano
+    const m = String(filters.mes).padStart(2, '0')
+    const nextM = filters.mes === 12 ? 1 : filters.mes + 1
+    const nextY = filters.mes === 12 ? y + 1 : y
+    query = query
+      .gte('data_documento', `${y}-${m}-01`)
+      .lt('data_documento', `${nextY}-${String(nextM).padStart(2, '0')}-01`)
+  } else if (filters?.ano) {
+    query = query
+      .gte('data_documento', `${filters.ano}-01-01`)
+      .lt('data_documento', `${filters.ano + 1}-01-01`)
+  }
+
+  const { data } = await query
+
+  const rows = (data ?? []) as AnyClient[]
+
+  // Resolve criado_por → nome via perfis
+  const criadoPorIds = Array.from(new Set(rows.map((r: AnyClient) => r.criado_por).filter(Boolean))) as string[]
+  const nomesMap: Record<string, string> = {}
+  if (criadoPorIds.length > 0) {
+    const { data: perfisData } = await (createClient() as AnyClient)
+      .from('perfis')
+      .select('id, nome')
+      .in('id', criadoPorIds)
+    for (const p of (perfisData ?? []) as { id: string; nome: string | null }[]) {
+      if (p.nome) nomesMap[p.id] = p.nome
+    }
+  }
+
+  return rows.map((r: AnyClient) => {
     const funcionarios = (r.funcionarios ?? []) as AcordoFuncionarioItem[]
     return {
-      id: r.id,
-      titulo: r.titulo,
-      tipo: r.tipo,
-      postos: r.postos ?? [],
+      id:              r.id,
+      titulo:          r.titulo,
+      tipo:            r.tipo,
+      subtipo:         r.subtipo ?? null,
+      postos:          r.postos ?? [],
       funcionarios,
-      horarios: normalizarHorarios(r.horario_semana, funcionarios),
+      horarios:        normalizarHorarios(r.horario_semana, funcionarios),
       descricao_acordo: r.descricao_acordo,
-      data_documento: r.data_documento,
-      criado_por: r.criado_por,
-      created_at: r.created_at,
-      entregue_rh: r.entregue_rh ?? false,
-      entregue_em: r.entregue_em ?? null,
+      data_documento:  r.data_documento,
+      criado_por:      r.criado_por,
+      criado_por_nome: r.criado_por ? (nomesMap[r.criado_por] ?? null) : null,
+      created_at:      r.created_at,
+      entregue_rh:     r.entregue_rh ?? false,
+      entregue_em:     r.entregue_em ?? null,
     } as AcordoCompensacao
   })
 }
@@ -83,6 +122,7 @@ export async function listarAcordos(): Promise<AcordoCompensacao[]> {
 export async function criarAcordo(dados: {
   titulo: string
   tipo: 'individual' | 'coletivo'
+  subtipo: 'evento' | 'antecipado' | null
   postos: AcordoPostoItem[]
   funcionarios: AcordoFuncionarioItem[]
   horarios: TurnoHorario[]
@@ -94,6 +134,7 @@ export async function criarAcordo(dados: {
     .insert({
       titulo: dados.titulo,
       tipo: dados.tipo,
+      subtipo: dados.subtipo,
       postos: dados.postos,
       funcionarios: dados.funcionarios,
       horario_semana: { _v: 2, turnos: dados.horarios },
@@ -155,7 +196,7 @@ export async function marcarEntregueRH(id: string): Promise<{ error?: string }> 
 
 export async function editarAcordo(
   id: string,
-  dados: { titulo: string; data_documento: string; descricao_acordo: string }
+  dados: { titulo: string; data_documento: string; descricao_acordo: string; subtipo?: 'evento' | 'antecipado' | null }
 ): Promise<{ error?: string }> {
   const { error } = await (createAdminClient() as AnyClient)
     .from('acordos_compensacao')
@@ -163,6 +204,7 @@ export async function editarAcordo(
       titulo: dados.titulo,
       data_documento: dados.data_documento,
       descricao_acordo: dados.descricao_acordo,
+      subtipo: dados.subtipo ?? null,
     })
     .eq('id', id)
   if (error) return { error: error.message }

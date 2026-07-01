@@ -385,10 +385,10 @@ export function MudancasFuncaoAdminClient({ dados, mes, ano, anos, funcoes }: Pr
       ) : (
         <div className="w-full overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
           <div className="overflow-x-auto w-full">
-            <table className="w-full text-sm" style={{ minWidth: '1100px' }}>
+            <table className="w-full text-xs" style={{ minWidth: '820px' }}>
               <thead>
                 <tr className="border-b border-gray-100 bg-slate-50">
-                  {['Data', 'Registro', 'Nome', 'Função Anterior', 'Nova Função', 'Posto', 'Secretaria', 'Supervisor', 'Motivo', 'Ações'].map(h => (
+                  {['Data', 'Colaborador', 'Função Anterior', 'Nova Função', 'Supervisor', 'Motivo', 'Ações'].map(h => (
                     <th key={h} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">
                       {h}
                     </th>
@@ -398,15 +398,16 @@ export function MudancasFuncaoAdminClient({ dados, mes, ano, anos, funcoes }: Pr
               <tbody className="divide-y divide-gray-50">
                 {dadosFiltrados.map(r => (
                   <tr key={r.id} className="hover:bg-gray-50/80">
-                    <td className="whitespace-nowrap px-3 py-2.5 text-gray-500">{fmtDt(r.created_at)}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 font-mono text-xs text-gray-400">{r.registro ?? '—'}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 font-medium text-gray-900">{r.nome}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-gray-500">{r.funcao_anterior}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 font-medium text-indigo-600">{r.funcao_nova}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-gray-600">{r.posto}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-gray-500">{r.secretaria}</td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-gray-500">{r.supervisor}</td>
-                    <td className="max-w-xs truncate px-3 py-2.5 text-gray-400">{r.motivo ?? '—'}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-gray-400">{fmtDt(r.created_at)}</td>
+                    <td className="px-3 py-2">
+                      <p className="font-medium text-gray-900 whitespace-nowrap">{r.nome}</p>
+                      <p className="text-[10px] text-gray-400 whitespace-nowrap">{r.posto} · {r.secretaria}</p>
+                      {r.registro && <p className="font-mono text-[10px] text-gray-300">{r.registro}</p>}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-gray-500">{r.funcao_anterior}</td>
+                    <td className="whitespace-nowrap px-3 py-2 font-medium text-indigo-600">{r.funcao_nova}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-gray-500">{r.supervisor}</td>
+                    <td className="max-w-xs truncate px-3 py-2 text-gray-400">{r.motivo ?? '—'}</td>
                     <td className="whitespace-nowrap px-3 py-2.5">
                       <div className="flex items-center gap-1">
                         <button
