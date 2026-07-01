@@ -13,21 +13,42 @@ async function assertAdmin(): Promise<ActionResult | null> {
   return null
 }
 
+// Sem constraint unique na tabela: faz select → update-ou-insert manualmente
+async function vincularPostoInterno(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  adminAny: any,
+  supervisorId: string,
+  postoId: string,
+): Promise<string | null> {
+  const { data: existing } = await adminAny
+    .from('config_supervisores_postos')
+    .select('id')
+    .eq('supervisor_id', supervisorId)
+    .eq('posto_id', postoId)
+    .maybeSingle()
+
+  if (existing) {
+    const { error } = await adminAny
+      .from('config_supervisores_postos')
+      .update({ ativo: true })
+      .eq('id', existing.id)
+    return error?.message ?? null
+  } else {
+    const { error } = await adminAny
+      .from('config_supervisores_postos')
+      .insert({ supervisor_id: supervisorId, posto_id: postoId, ativo: true })
+    return error?.message ?? null
+  }
+}
+
 export async function vincularPosto(supervisorId: string, postoId: string): Promise<ActionResult> {
   const denied = await assertAdmin()
   if (denied) return denied
 
-  const admin = createAdminClient()
-  // Upsert: se já existe registro (ativo=false), reativa; senão insere
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (admin as any)
-    .from('config_supervisores_postos')
-    .upsert(
-      { supervisor_id: supervisorId, posto_id: postoId, ativo: true },
-      { onConflict: 'supervisor_id,posto_id', ignoreDuplicates: false },
-    )
-
-  if (error) return { success: false, error: error.message }
+  const adminAny = createAdminClient() as any
+  const err = await vincularPostoInterno(adminAny, supervisorId, postoId)
+  if (err) return { success: false, error: err }
 
   revalidatePath('/supervisores')
   return { success: true }
@@ -37,9 +58,8 @@ export async function desvincularPosto(supervisorId: string, postoId: string): P
   const denied = await assertAdmin()
   if (denied) return denied
 
-  const admin = createAdminClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (admin as any)
+  const { error } = await (createAdminClient() as any)
     .from('config_supervisores_postos')
     .update({ ativo: false })
     .eq('supervisor_id', supervisorId)
@@ -59,11 +79,9 @@ export async function transferirPostos(
   if (denied) return denied
 
   const supabase = createClient()
-  const admin = createAdminClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const adminAny = admin as any
+  const adminAny = createAdminClient() as any
 
-  // Busca todos os postos ativos do supervisor de origem
   const { data: postos, error: fetchError } = await supabase
     .from('config_supervisores_postos')
     .select('posto_id')
@@ -82,13 +100,11 @@ export async function transferirPostos(
 
   if (desvError) return { success: false, error: desvError.message }
 
-  // Vincula ao destino (upsert para cada posto)
-  const rows = postos.map(p => ({ supervisor_id: toSupervisorId, posto_id: p.posto_id, ativo: true }))
-  const { error: vincError } = await adminAny
-    .from('config_supervisores_postos')
-    .upsert(rows, { onConflict: 'supervisor_id,posto_id', ignoreDuplicates: false })
-
-  if (vincError) return { success: false, error: vincError.message }
+  // Vincula ao destino um por um (sem constraint unique)
+  for (const { posto_id } of postos) {
+    const err = await vincularPostoInterno(adminAny, toSupervisorId, posto_id)
+    if (err) return { success: false, error: err }
+  }
 
   revalidatePath('/supervisores')
   return { success: true }
