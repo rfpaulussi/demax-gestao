@@ -1,0 +1,3 @@
+ALTER TABLE acordos_compensacao
+  ADD COLUMN IF NOT EXISTS entregue_rh BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS entregue_em TIMESTAMPTZ;

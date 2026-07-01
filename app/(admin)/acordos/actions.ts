@@ -47,6 +47,8 @@ export interface AcordoCompensacao {
   data_documento: string
   criado_por: string | null
   created_at: string
+  entregue_rh: boolean
+  entregue_em: string | null
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -72,6 +74,8 @@ export async function listarAcordos(): Promise<AcordoCompensacao[]> {
       data_documento: r.data_documento,
       criado_por: r.criado_por,
       created_at: r.created_at,
+      entregue_rh: r.entregue_rh ?? false,
+      entregue_em: r.entregue_em ?? null,
     } as AcordoCompensacao
   })
 }
@@ -137,4 +141,31 @@ export async function buscarFuncionariosPorPostos(
     status: string
     funcoes: { nome: string } | null
   }>).map(f => ({ id: f.id, nome: f.nome, status: f.status, funcao: f.funcoes?.nome ?? null }))
+}
+
+export async function marcarEntregueRH(id: string): Promise<{ error?: string }> {
+  const { error } = await (createAdminClient() as AnyClient)
+    .from('acordos_compensacao')
+    .update({ entregue_rh: true, entregue_em: new Date().toISOString() })
+    .eq('id', id)
+  if (error) return { error: error.message }
+  revalidatePath('/acordos')
+  return {}
+}
+
+export async function editarAcordo(
+  id: string,
+  dados: { titulo: string; data_documento: string; descricao_acordo: string }
+): Promise<{ error?: string }> {
+  const { error } = await (createAdminClient() as AnyClient)
+    .from('acordos_compensacao')
+    .update({
+      titulo: dados.titulo,
+      data_documento: dados.data_documento,
+      descricao_acordo: dados.descricao_acordo,
+    })
+    .eq('id', id)
+  if (error) return { error: error.message }
+  revalidatePath('/acordos')
+  return {}
 }

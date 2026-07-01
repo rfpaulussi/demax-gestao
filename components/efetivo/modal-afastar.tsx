@@ -24,12 +24,13 @@ function addDays(dateStr: string, days: number): string {
 }
 
 export function ModalAfastar({ funcionario, open, onClose }: Props) {
-  const [erro, setErro]           = useState<string | null>(null)
-  const [pending, start]          = useTransition()
-  const [motivo, setMotivo]       = useState('')
-  const [dataInicio, setDataInicio] = useState('')
-  const [dias, setDias]           = useState('')
-  const [dataRetorno, setDataRetorno] = useState('')
+  const [erro, setErro]                       = useState<string | null>(null)
+  const [pending, start]                      = useTransition()
+  const [motivo, setMotivo]                   = useState('')
+  const [dataInicio, setDataInicio]           = useState('')
+  const [dias, setDias]                       = useState('')
+  const [dataRetorno, setDataRetorno]         = useState('')
+  const [incluirAtestado, setIncluirAtestado] = useState(true)
 
   const ehMedico = MOTIVOS_MEDICOS.includes(motivo)
 
@@ -57,6 +58,7 @@ export function ModalAfastar({ funcionario, open, onClose }: Props) {
     setDataInicio('')
     setDias('')
     setDataRetorno('')
+    setIncluirAtestado(true)
   }
 
   function handleClose() {
@@ -72,7 +74,7 @@ export function ModalAfastar({ funcionario, open, onClose }: Props) {
     fd.set('funcionario_id', funcionario.id)
     fd.set('data_inicio', dataInicio)
     fd.set('data_retorno_prevista', dataRetorno)
-    fd.set('eh_medico', ehMedico ? 'true' : 'false')
+    fd.set('eh_medico', (ehMedico && incluirAtestado) ? 'true' : 'false')
     if (dias) fd.set('dias', dias)
 
     start(async () => {
@@ -130,12 +132,12 @@ export function ModalAfastar({ funcionario, open, onClose }: Props) {
                 />
               </div>
               <div>
-                <label className={labelClass}>Dias de Atestado</label>
+                <label className={labelClass}>Dias de Afastamento</label>
                 <input
                   type="number"
                   min="1"
-                  max="730"
-                  placeholder="Ex: 45"
+                  max="1825"
+                  placeholder="Ex: 180"
                   value={dias}
                   onChange={e => handleDiasChange(e.target.value)}
                   className={inputClass}
@@ -159,8 +161,25 @@ export function ModalAfastar({ funcionario, open, onClose }: Props) {
             </div>
 
             {ehMedico && (
-              <div className="rounded border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-                ✓ Atestado médico será registrado automaticamente junto com a solicitação.
+              <div className="space-y-2">
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={incluirAtestado}
+                    onChange={e => setIncluirAtestado(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 accent-slate-900"
+                  />
+                  <span className="text-sm text-gray-700">Registrar atestado junto</span>
+                </label>
+                {incluirAtestado ? (
+                  <div className="rounded border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                    ✓ Atestado médico será registrado automaticamente junto com a solicitação.
+                  </div>
+                ) : (
+                  <div className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                    Afastamento registrado sem atestado — recomendado para INSS de longa duração.
+                  </div>
+                )}
               </div>
             )}
 

@@ -13,13 +13,15 @@ export async function solicitarAdmissao(fd: FormData): Promise<ActionResult> {
   const auth = await getUser()
   if (!auth) return { success: false, error: 'Não autenticado' }
 
-  const nome               = (fd.get('nome') as string)?.trim()
+  const nome               = (fd.get('nome') as string)?.trim().toUpperCase()
+  const registro           = (fd.get('registro') as string)?.trim()
   const funcao_id          = fd.get('funcao_id') as string
   const posto_id           = fd.get('posto_id') as string
   const data_admissao      = fd.get('data_admissao') as string
   const periodo_experiencia = fd.get('periodo_experiencia') as string
 
   if (!nome)          return { success: false, error: 'Nome obrigatório' }
+  if (!registro)      return { success: false, error: 'Registro (PIS/NIT) obrigatório' }
   if (!funcao_id)     return { success: false, error: 'Função obrigatória' }
   if (!posto_id)      return { success: false, error: 'Posto obrigatório' }
   if (!data_admissao) return { success: false, error: 'Data de admissão obrigatória' }
@@ -42,6 +44,7 @@ export async function solicitarAdmissao(fd: FormData): Promise<ActionResult> {
     dados_antes:    null,
     dados_depois: {
       nome,
+      registro,
       funcao_id,
       funcao_nome:          funcao?.nome ?? null,
       posto_id,

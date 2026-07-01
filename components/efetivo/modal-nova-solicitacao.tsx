@@ -58,6 +58,9 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
   const [postoOpen, setPostoOpen]               = useState(false)
   const [postoSelecionado, setPostoSelecionado] = useState<{ id: string; nome: string; secretaria: string | null } | null>(null)
 
+  // Mudança de função junto com transferência
+  const [mudarFuncao, setMudarFuncao]   = useState(false)
+
   // Combobox posto retorno (retorno_afastamento)
   const [postoRetornoSearch, setPostoRetornoSearch]           = useState('')
   const [postoRetornoOpen, setPostoRetornoOpen]               = useState(false)
@@ -79,6 +82,7 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
     setTipoDeslig('')
     setErro(null)
     setPostoSearch(''); setPostoOpen(false); setPostoSelecionado(null)
+    setMudarFuncao(false)
     setPostoRetornoSearch(''); setPostoRetornoOpen(false); setPostoRetornoSelecionado(null)
     onClose()
   }
@@ -175,6 +179,7 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
 
             {/* transferencia */}
             {tipo === 'transferencia' && (
+              <>
               <div>
                 <label className={labelClass}>Posto Destino</label>
                 <input type="hidden" name="posto_destino_id" value={postoSelecionado?.id ?? ''} required />
@@ -222,6 +227,32 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
                   </p>
                 )}
               </div>
+
+              {/* Mudar função junto */}
+              <div>
+                <label className="flex cursor-pointer items-center gap-2 py-1">
+                  <input
+                    type="checkbox"
+                    checked={mudarFuncao}
+                    onChange={e => setMudarFuncao(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 accent-slate-900"
+                  />
+                  <span className="text-sm text-gray-600">Mudar função junto com a transferência</span>
+                </label>
+              </div>
+
+              {mudarFuncao && (
+                <div>
+                  <label className={labelClass}>Nova Função</label>
+                  <select name="nova_funcao_id" required className={inputClass}>
+                    <option value="">Selecione...</option>
+                    {funcoes
+                      .filter(f => f.id !== funcionario.funcoes?.id)
+                      .map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                  </select>
+                </div>
+              )}
+              </>
             )}
 
             {/* mudanca_funcao */}

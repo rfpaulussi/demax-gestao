@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo, useTransition } from 'react'
-import { FileSpreadsheet, Pencil, Trash2 } from 'lucide-react'
+import { FileSpreadsheet, Pencil, Printer, Trash2 } from 'lucide-react'
+import { pdf } from '@react-pdf/renderer'
 import { exportToExcel } from '@/lib/export-excel'
 import { editarMudancaFuncao, excluirMudancaFuncao } from '@/app/(admin)/mudancas-funcao/actions'
 import {
@@ -208,6 +209,38 @@ export function MudancasFuncaoAdminClient({ dados, mes, ano, anos, funcoes }: Pr
   const [busca, setBusca]                       = useState('')
   const [editando, setEditando]                 = useState<MudancaFuncaoAdminRow | null>(null)
   const [excluindo, setExcluindo]               = useState<MudancaFuncaoAdminRow | null>(null)
+  const [loadingPdfId, setLoadingPdfId]         = useState<string | null>(null)
+
+  async function handlePrintRow(r: MudancaFuncaoAdminRow) {
+    setLoadingPdfId(r.id)
+    try {
+      const { MudancasFuncaoDoc } = await import('@/components/relatorios/mudancas-funcao-pdf')
+      const rowMes = Number(r.created_at.slice(5, 7))
+      const rowAno = Number(r.created_at.slice(0, 4))
+      const pdfRow = {
+        id: r.id,
+        data_evento: r.created_at.slice(0, 10),
+        funcionario_nome: r.nome,
+        registro: r.registro,
+        funcao_anterior: r.funcao_anterior,
+        funcao_nova: r.funcao_nova,
+        posto_nome: r.posto,
+        secretaria: r.secretaria,
+        supervisor: r.supervisor,
+      }
+      const blob = await pdf(
+        <MudancasFuncaoDoc rows={[pdfRow]} mes={rowMes} ano={rowAno} MESES={MESES_LABEL} />
+      ).toBlob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `mudanca-funcao-${r.registro ?? r.nome.split(' ')[0]}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setLoadingPdfId(null)
+    }
+  }
 
   const supervisores = useMemo(
     () => Array.from(new Set(dados.map(r => r.supervisor).filter(Boolean))).sort(),
@@ -366,6 +399,15 @@ export function MudancasFuncaoAdminClient({ dados, mes, ano, anos, funcoes }: Pr
                     <td className="max-w-xs truncate px-3 py-2.5 text-gray-400">{r.motivo ?? '—'}</td>
                     <td className="whitespace-nowrap px-3 py-2.5">
                       <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handlePrintRow(r)}
+                          disabled={loadingPdfId === r.id}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-amber-200 text-amber-600 hover:bg-amber-50 hover:text-amber-700 disabled:opacity-40"
+                          title="Imprimir PDF"
+                        >
+                          <Printer className="h-3.5 w-3.5" />
+                        </button>
                         <button
                           type="button"
                           onClick={() => setEditando(r)}

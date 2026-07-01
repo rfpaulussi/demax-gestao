@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 
 // ─── execução direta ──────────────────────────────────────────────────────────
@@ -151,6 +152,7 @@ export async function solicitarTransferencia(formData: FormData): Promise<Action
   const funcionarioId  = formData.get('funcionario_id') as string
   const postoDestinoId = formData.get('posto_destino_id') as string
   const motivo         = (formData.get('motivo') as string) || null
+  const novaFuncaoId   = (formData.get('nova_funcao_id') as string) || null
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -160,15 +162,21 @@ export async function solicitarTransferencia(formData: FormData): Promise<Action
 
   const postoOrigemId = func?.posto_id ?? null
 
-  const [{ data: postoDestino }, postoOrigemResult] = await Promise.all([
-    supabase.from('postos').select('nome').eq('id', postoDestinoId).single(),
+  // Usar admin client para buscar nomes de postos (supervisor pode não ter acesso ao posto destino via RLS)
+  const adminDb = createAdminClient() as unknown as typeof supabase
+  const [{ data: postoDestino }, postoOrigemResult, novaFuncaoResult] = await Promise.all([
+    adminDb.from('postos').select('nome').eq('id', postoDestinoId).single(),
     postoOrigemId
-      ? supabase.from('postos').select('nome').eq('id', postoOrigemId).single()
+      ? adminDb.from('postos').select('nome').eq('id', postoOrigemId).single()
+      : Promise.resolve({ data: null }),
+    novaFuncaoId
+      ? adminDb.from('funcoes').select('nome').eq('id', novaFuncaoId).single()
       : Promise.resolve({ data: null }),
   ])
 
   const postoOrigemNome  = (postoOrigemResult as { data: { nome: string } | null }).data?.nome ?? null
-  const postoDestinoNome = postoDestino?.nome ?? null
+  const postoDestinoNome = (postoDestino as { nome: string } | null)?.nome ?? null
+  const novaFuncaoNome   = (novaFuncaoResult as { data: { nome: string } | null }).data?.nome ?? null
 
   const { error } = await supabase.from('solicitacoes').insert({
     tipo: 'transferencia',
@@ -176,7 +184,12 @@ export async function solicitarTransferencia(formData: FormData): Promise<Action
     funcionario_id: funcionarioId,
     supervisor_id: auth.user.id,
     dados_antes: { posto_id: postoOrigemId, posto_nome: postoOrigemNome },
-    dados_depois: { posto_destino_id: postoDestinoId, posto_destino_nome: postoDestinoNome, motivo },
+    dados_depois: {
+      posto_destino_id: postoDestinoId,
+      posto_destino_nome: postoDestinoNome,
+      motivo,
+      ...(novaFuncaoId ? { nova_funcao_id: novaFuncaoId, nova_funcao_nome: novaFuncaoNome } : {}),
+    },
     motivo,
   })
 

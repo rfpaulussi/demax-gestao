@@ -133,10 +133,23 @@ export async function aprovarSolicitacao(
     }
 
     case 'transferencia': {
+      const updateTransf: Record<string, unknown> = { posto_id: dadosDepois.posto_destino_id as string }
+      if (dadosDepois.nova_funcao_id) updateTransf.funcao_id = dadosDepois.nova_funcao_id as string
       await supabase
         .from('funcionarios')
-        .update({ posto_id: dadosDepois.posto_destino_id as string })
+        .update(updateTransf as { posto_id: string })
         .eq('id', sol.funcionario_id)
+      if (dadosDepois.nova_funcao_id) {
+        await supabase.from('movimentacoes').insert({
+          funcionario_id:  sol.funcionario_id,
+          tipo:            'mudanca_funcao',
+          campo_alterado:  'funcao_id',
+          valor_antes:     func?.funcao_id ?? null,
+          valor_depois:    dadosDepois.nova_funcao_id as string,
+          executado_por:   guard.userId,
+          solicitacao_id:  id,
+        })
+      }
       break
     }
 
@@ -215,6 +228,7 @@ export async function aprovarSolicitacao(
         .from('funcionarios')
         .insert({
           nome:                dadosDepois.nome as string,
+          registro:            (dadosDepois.registro as string | undefined) ?? null,
           funcao_id:           dadosDepois.funcao_id as string,
           posto_id:            dadosDepois.posto_id as string,
           data_admissao:       dadosDepois.data_admissao as string,
