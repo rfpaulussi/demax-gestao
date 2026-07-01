@@ -66,7 +66,10 @@ function SolicitacaoCard({ sol, canApprove }: { sol: SolicitacaoPendente; canApp
   const [rejeitando, setRejeitando] = useState(false)
   const [motivo, setMotivo] = useState('')
 
-  const badge = TIPO_BADGE[sol.tipo]
+  const isTransfComFuncao = sol.tipo === 'transferencia' && !!sol.dados_depois?.nova_funcao_id
+  const badge = isTransfComFuncao
+    ? { label: 'Transferência + Função', className: 'bg-amber-50 text-amber-700 ring-amber-200' }
+    : TIPO_BADGE[sol.tipo]
 
   function handleAprovar() {
     startTransition(async () => {

@@ -24,17 +24,17 @@ export default async function MudancasFuncaoAdminPage({
 
   const supabase = createClient()
 
-  const [{ data: raw }, { data: funcoesList }] = await Promise.all([
+  const [{ data: raw }, { data: funcoesList }, { data: escalasData }] = await Promise.all([
     (supabase as unknown as AnyQ)
       .from('movimentacoes')
       .select(`
         id, created_at, funcionario_id, solicitacao_id, valor_antes, valor_depois,
         funcionarios!funcionario_id (
           nome, registro,
-          postos!posto_id ( nome, secretaria )
+          postos!posto_id ( id, nome, secretaria )
         ),
         solicitacoes!solicitacao_id (
-          dados_antes, dados_depois, motivo,
+          tipo, dados_antes, dados_depois, motivo,
           perfis!supervisor_id ( nome )
         )
       `)
@@ -44,17 +44,27 @@ export default async function MudancasFuncaoAdminPage({
       .order('created_at', { ascending: false }),
     supabase
       .from('funcoes')
-      .select('id, nome')
+      .select('id, nome, insalubridade_perc, salario_base')
       .order('nome'),
+    supabase
+      .from('config_escalas_postos')
+      .select('posto_id, regime'),
   ])
+
+  // posto_id → regime lookup
+  const escalasMap: Record<string, string> = {}
+  for (const e of (escalasData ?? []) as { posto_id: string; regime: string }[]) {
+    escalasMap[e.posto_id] = e.regime
+  }
 
   type FuncJoin = {
     nome: string
     registro: string | null
-    postos: { nome: string; secretaria: string | null } | null
+    postos: { id: string; nome: string; secretaria: string | null } | null
   } | null
 
   type SolJoin = {
+    tipo:         string | null
     dados_antes:  Record<string, unknown> | null
     dados_depois: Record<string, unknown> | null
     motivo:       string | null
@@ -72,9 +82,17 @@ export default async function MudancasFuncaoAdminPage({
     solicitacoes: SolJoin
   }
 
+  type FuncaoItem = { id: string; nome: string; insalubridade_perc: number | null; salario_base: number | null }
+  const fList = (funcoesList ?? []) as FuncaoItem[]
+
   const dados: MudancaFuncaoAdminRow[] = ((raw ?? []) as RawRow[]).map(r => {
     const func = r.funcionarios
     const sol  = r.solicitacoes
+    const postoId = func?.postos?.id ?? null
+
+    const insAnteriorPerc = fList.find(f => f.id === r.valor_antes)?.insalubridade_perc ?? null
+    const insNovaPerc     = fList.find(f => f.id === r.valor_depois)?.insalubridade_perc ?? null
+
     return {
       id:               r.id,
       created_at:       r.created_at,
@@ -86,10 +104,21 @@ export default async function MudancasFuncaoAdminPage({
       registro:         func?.registro ?? null,
       posto:            func?.postos?.nome ?? '—',
       secretaria:       func?.postos?.secretaria ?? '—',
-      funcao_anterior:  (sol?.dados_antes?.['funcao_nome'] as string | undefined) ?? '—',
-      funcao_nova:      (sol?.dados_depois?.['funcao_destino_nome'] as string | undefined) ?? '—',
+      funcao_anterior:  (sol?.dados_antes?.['funcao_nome'] as string | undefined)
+        ?? fList.find(f => f.id === r.valor_antes)?.nome
+        ?? '—',
+      funcao_nova:      (sol?.dados_depois?.['funcao_destino_nome'] as string | undefined)
+        ?? (sol?.dados_depois?.['nova_funcao_nome'] as string | undefined)
+        ?? fList.find(f => f.id === r.valor_depois)?.nome
+        ?? '—',
       supervisor:       sol?.perfis?.nome ?? '—',
       motivo:           sol?.motivo ?? null,
+      tipo_solicitacao: sol?.tipo ?? null,
+      salario_anterior: fList.find(f => f.id === r.valor_antes)?.salario_base ?? null,
+      salario_nova:     fList.find(f => f.id === r.valor_depois)?.salario_base ?? null,
+      escala:           postoId ? (escalasMap[postoId] ?? null) : null,
+      insalubridade_anterior_perc: insAnteriorPerc,
+      insalubridade_nova_perc:     insNovaPerc,
     }
   })
 
@@ -107,7 +136,7 @@ export default async function MudancasFuncaoAdminPage({
         mes={mes}
         ano={ano}
         anos={anos}
-        funcoes={(funcoesList ?? []) as { id: string; nome: string }[]}
+        funcoes={fList}
       />
     </div>
   )

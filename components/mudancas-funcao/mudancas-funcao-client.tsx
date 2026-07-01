@@ -29,6 +29,12 @@ export interface MudancaFuncaoAdminRow {
   funcao_nova: string
   supervisor: string
   motivo: string | null
+  tipo_solicitacao: string | null
+  salario_anterior: number | null
+  salario_nova: number | null
+  escala: string | null
+  insalubridade_anterior_perc: number | null
+  insalubridade_nova_perc: number | null
 }
 
 const MESES_LABEL = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -214,27 +220,31 @@ export function MudancasFuncaoAdminClient({ dados, mes, ano, anos, funcoes }: Pr
   async function handlePrintRow(r: MudancaFuncaoAdminRow) {
     setLoadingPdfId(r.id)
     try {
-      const { MudancasFuncaoDoc } = await import('@/components/relatorios/mudancas-funcao-pdf')
-      const rowMes = Number(r.created_at.slice(5, 7))
-      const rowAno = Number(r.created_at.slice(0, 4))
-      const pdfRow = {
-        id: r.id,
-        data_evento: r.created_at.slice(0, 10),
-        funcionario_nome: r.nome,
-        registro: r.registro,
-        funcao_anterior: r.funcao_anterior,
-        funcao_nova: r.funcao_nova,
-        posto_nome: r.posto,
-        secretaria: r.secretaria,
-        supervisor: r.supervisor,
-      }
+      const { MovimentacaoColaboradorDoc } = await import('@/components/relatorios/movimentacao-colaborador-pdf')
+      const [y, m, d] = r.created_at.slice(0, 10).split('-')
+      const vigencia = `${d}/${m}/${y}`
       const blob = await pdf(
-        <MudancasFuncaoDoc rows={[pdfRow]} mes={rowMes} ano={rowAno} MESES={MESES_LABEL} />
+        <MovimentacaoColaboradorDoc
+          registro={r.registro}
+          nome={r.nome}
+          supervisor={r.supervisor}
+          funcao_anterior={r.funcao_anterior}
+          funcao_nova={r.funcao_nova}
+          posto={r.posto}
+          vigencia={vigencia}
+          tipo_solicitacao={r.tipo_solicitacao}
+          motivo={r.motivo}
+          salario_anterior={r.salario_anterior}
+          salario_nova={r.salario_nova}
+          escala={r.escala}
+          insalubridade_anterior_perc={r.insalubridade_anterior_perc}
+          insalubridade_nova_perc={r.insalubridade_nova_perc}
+        />
       ).toBlob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `mudanca-funcao-${r.registro ?? r.nome.split(' ')[0]}.pdf`
+      a.download = `MUD_FUNCAO_${r.nome.replace(/\s+/g, '_')}.pdf`
       a.click()
       URL.revokeObjectURL(url)
     } finally {
