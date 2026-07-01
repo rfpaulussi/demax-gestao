@@ -383,6 +383,7 @@ export async function editarFuncionario(
   id: string,
   campos: {
     nome: string
+    registro?: string | null
     funcao_id: string
     posto_id: string
     data_admissao: string | null
@@ -404,6 +405,7 @@ export async function editarFuncionario(
 
   const updatePayload: Record<string, unknown> = {
     nome:                campos.nome,
+    registro:            campos.registro?.trim() || null,
     funcao_id:           campos.funcao_id || null,
     posto_id:            campos.posto_id || null,
     data_admissao:       campos.data_admissao || null,

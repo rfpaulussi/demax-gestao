@@ -27,6 +27,7 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
   const isStatusLocked = funcionario.status === 'afastado' || funcionario.status === 'atestado' || funcionario.status === 'ferias'
 
   const [nome,               setNome]               = useState(funcionario.nome)
+  const [registro,           setRegistro]           = useState(funcionario.registro ?? '')
   const [funcaoId,           setFuncaoId]           = useState(funcionario.funcoes?.id ?? '')
   const [postoId,            setPostoId]            = useState(funcionario.posto_id ?? '')
   const [dataAdmissao,       setDataAdmissao]       = useState(funcionario.data_admissao ?? '')
@@ -91,6 +92,7 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
     start(async () => {
       const result = await editarFuncionario(funcionario.id, {
         nome,
+        registro:            registro || null,
         funcao_id:           funcaoId,
         posto_id:            postoId,
         data_admissao:       dataAdmissao || null,
@@ -124,6 +126,17 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
                 value={nome}
                 onChange={e => setNome(e.target.value)}
                 required
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label className={labelClass}>Registro (RE)</label>
+              <input
+                type="text"
+                value={registro}
+                onChange={e => setRegistro(e.target.value)}
+                placeholder="ex: 107903"
                 className={inputClass}
               />
             </div>
