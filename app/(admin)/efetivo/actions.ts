@@ -400,11 +400,7 @@ export async function editarFuncionario(
 
   const supabase = createClient()
 
-  let periodoExperiencia = campos.periodo_experiencia ?? null
-
-  if (campos.status === 'ativo' && !periodoExperiencia && campos.data_admissao) {
-    periodoExperiencia = '45+45'
-  }
+  const periodoExperiencia = campos.periodo_experiencia ?? null
 
   const updatePayload: Record<string, unknown> = {
     nome:                campos.nome,
