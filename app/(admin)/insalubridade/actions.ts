@@ -142,12 +142,12 @@ export async function buscarInsalubridades(
   return result
 }
 
-export async function criarInsalubridade(formData: FormData) {
+export async function criarInsalubridade(formData: FormData): Promise<{ error?: string }> {
   const adminSupabase = createAdminClient()
 
   const funcionarioId = formData.get('funcionario_id') as string
   const dataCobertura = formData.get('data_cobertura') as string
-  if (!funcionarioId || !dataCobertura) throw new Error('Campos obrigatórios ausentes: funcionario_id e data_cobertura')
+  if (!funcionarioId || !dataCobertura) return { error: 'Campos obrigatórios ausentes.' }
 
   const [ano, mes] = dataCobertura.split('-').map(Number)
   const periodoDias = parseInt(formData.get('periodo_dias') as string) || 1
@@ -169,11 +169,12 @@ export async function criarInsalubridade(formData: FormData) {
   })
 
   if (error) {
-    if (error.code === '23505') throw new Error('Este funcionário já possui uma cobertura registrada nesta data.')
-    throw new Error(error.message)
+    if (error.code === '23505') return { error: 'Este funcionário já possui uma cobertura registrada nesta data.' }
+    return { error: error.message }
   }
 
   revalidatePath('/insalubridade')
+  return {}
 }
 
 

@@ -91,12 +91,12 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos,
     }
     setErroSubmit(null)
     startTransition(async () => {
-      try {
-        await criarInsalubridade(formData)
+      const res = await criarInsalubridade(formData)
+      if (res?.error) {
+        setErroSubmit(res.error)
+      } else {
         form.reset()
         handleClose()
-      } catch (err) {
-        setErroSubmit(err instanceof Error ? err.message : 'Erro ao registrar declaração.')
       }
     })
   }
