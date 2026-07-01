@@ -11,6 +11,7 @@ export type FuncionarioParaPDF = {
   posto: string | null
   secretaria: string | null
   data_admissao: string | null
+  supervisor: string | null
 }
 
 // ─── Labels ───────────────────────────────────────────────────────────────────
@@ -42,7 +43,7 @@ const s = StyleSheet.create({
   companyName:  { fontSize: 20, fontFamily: 'Helvetica-Bold', letterSpacing: 3 },
   companySub:   { fontSize: 8, color: '#6b7280', marginTop: 2 },
   regBlock:     { alignItems: 'flex-end' },
-  regLabel:     { fontSize: 7, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 1 },
+  regLabel:     { fontSize: 7, color: '#9ca3af', letterSpacing: 1 },
   regValue:     { fontSize: 11, fontFamily: 'Helvetica-Bold' },
   docTitle:     { textAlign: 'center', fontSize: 12, fontFamily: 'Helvetica-Bold', letterSpacing: 1, marginVertical: 14, borderWidth: 1, borderColor: '#111827', paddingVertical: 7, paddingHorizontal: 10 },
   section:      { marginBottom: 14 },
@@ -75,19 +76,42 @@ function fmtHora(iso: string | null): string {
   return t || '—'
 }
 
+function resolveValor(
+  campo: string | null,
+  valor: string | null,
+  postoNomeMap: Record<string, string>,
+  funcaoNomeMap: Record<string, string>,
+): string {
+  if (!valor) return '—'
+  if (campo === 'posto_id')  return postoNomeMap[valor]  ?? valor
+  if (campo === 'funcao_id') return funcaoNomeMap[valor] ?? valor
+  return valor
+}
+
 // ─── Document ─────────────────────────────────────────────────────────────────
 
 function MovimentacaoDocument({
   mov,
   func,
+  postoNomeMap,
+  funcaoNomeMap,
 }: {
   mov: MovimentacaoItem
   func: FuncionarioParaPDF
+  postoNomeMap: Record<string, string>
+  funcaoNomeMap: Record<string, string>
 }) {
-  const idShort     = mov.id.substring(0, 8).toUpperCase()
-  const tipoLabel   = TIPO_LABELS[mov.tipo] ?? mov.tipo.replace(/_/g, ' ')
-  const campoLabel  = mov.campo_alterado ? (CAMPO_LABELS[mov.campo_alterado] ?? mov.campo_alterado) : null
-  const emitidoEm   = fmt(new Date().toISOString())
+  const idShort    = mov.id.substring(0, 8).toUpperCase()
+  const tipoLabel  = TIPO_LABELS[mov.tipo] ?? mov.tipo.replace(/_/g, ' ')
+  const campoLabel = mov.campo_alterado ? (CAMPO_LABELS[mov.campo_alterado] ?? mov.campo_alterado) : null
+  const emitidoEm  = fmt(new Date().toISOString())
+
+  const valorAntes  = resolveValor(mov.campo_alterado, mov.valor_antes,  postoNomeMap, funcaoNomeMap)
+  const valorDepois = resolveValor(mov.campo_alterado, mov.valor_depois, postoNomeMap, funcaoNomeMap)
+
+  // Supervisor: quem solicitou (perfis da solicitação) ou supervisor atual do posto
+  const supervisorNome = (mov.solicitacoes as { perfis?: { nome: string | null } | null } | null)
+    ?.perfis?.nome ?? func.supervisor ?? '—'
 
   return (
     <Document>
@@ -100,7 +124,7 @@ function MovimentacaoDocument({
             <Text style={s.companySub}>Serviços e Comércio LTDA</Text>
           </View>
           <View style={s.regBlock}>
-            <Text style={s.regLabel}>Registro</Text>
+            <Text style={s.regLabel}>REGISTRO</Text>
             <Text style={s.regValue}>MOV-{idShort}</Text>
           </View>
         </View>
@@ -166,9 +190,9 @@ function MovimentacaoDocument({
               <View style={[s.row, { alignItems: 'center' }]}>
                 <Text style={s.label}>Alteração:</Text>
                 <Text style={s.value}>
-                  <Text style={{ color: '#9ca3af' }}>{mov.valor_antes ?? '—'}</Text>
+                  <Text style={{ color: '#9ca3af' }}>{valorAntes}</Text>
                   <Text style={s.arrow}>{' → '}</Text>
-                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>{mov.valor_depois ?? '—'}</Text>
+                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>{valorDepois}</Text>
                 </Text>
               </View>
             </>
@@ -186,7 +210,7 @@ function MovimentacaoDocument({
           </Text>
         </View>
 
-        {/* Assinaturas */}
+        {/* IV. Ciência */}
         <View style={[s.section, { marginTop: 10 }]}>
           <Text style={s.sectionTitle}>IV. CIÊNCIA</Text>
           <View style={s.sigGrid}>
@@ -195,8 +219,8 @@ function MovimentacaoDocument({
               <Text style={s.sigRole}>Colaborador(a)</Text>
             </View>
             <View style={s.sigBox}>
-              <Text style={s.sigName}>{mov.perfis?.nome ?? 'Responsável'}</Text>
-              <Text style={s.sigRole}>Responsável / Coordenação</Text>
+              <Text style={s.sigName}>{supervisorNome}</Text>
+              <Text style={s.sigRole}>Supervisor(a) / Coord.</Text>
             </View>
             <View style={s.sigBoxLast}>
               <Text style={s.sigName}>Rodolfo Paulussi</Text>
@@ -221,6 +245,8 @@ function MovimentacaoDocument({
 export async function downloadMovimentacaoPDF(
   mov: MovimentacaoItem,
   func: FuncionarioParaPDF,
+  postoNomeMap: Record<string, string> = {},
+  funcaoNomeMap: Record<string, string> = {},
 ): Promise<void> {
   const nomeSlug = func.nome
     .normalize('NFD')
@@ -236,7 +262,9 @@ export async function downloadMovimentacaoPDF(
   const filename = `MOV_${idShort}_${nomeSlug}_${dataSlug}.pdf`
 
   const { pdf } = await import('@react-pdf/renderer')
-  const blob = await pdf(<MovimentacaoDocument mov={mov} func={func} />).toBlob()
+  const blob = await pdf(
+    <MovimentacaoDocument mov={mov} func={func} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} />
+  ).toBlob()
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement('a')
   a.href     = url

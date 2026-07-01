@@ -24,6 +24,7 @@ export type MovimentacaoItem = {
     dados_antes: Record<string, unknown> | null
     dados_depois: Record<string, unknown> | null
     motivo: string | null
+    perfis: { nome: string | null } | null
   } | null
 }
 
@@ -46,6 +47,17 @@ export type SolicitacaoItem = {
 }
 
 type Tab = 'movimentacoes' | 'afastamentos' | 'advertencias' | 'solicitacoes'
+
+const TIPO_LABELS: Record<string, string> = {
+  desligamento:       'Desligamento',
+  transferencia:      'Transferência',
+  mudanca_funcao:     'Mudança de Função',
+  promocao:           'Promoção',
+  mudanca_supervisor: 'Mudança de Supervisor',
+  alteracao_salario:  'Alteração Salarial',
+  afastamento:        'Afastamento',
+  atestado:           'Atestado Médico',
+}
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -157,15 +169,37 @@ function TabMovimentacoes({
         )
         if (dados) await downloadMovColaboradorPDF(dados, mov.tipo)
       } else {
-        await downloadMovimentacaoPDF(mov, funcionario)
+        await downloadMovimentacaoPDF(mov, funcionario, postoNomeMap, funcaoNomeMap)
       }
     } finally {
       setBaixando(null)
     }
   }
 
+  const ultimaMov = items[0]
+
   return (
-    <ol className="relative ml-3 border-l border-gray-200">
+    <div className="space-y-4">
+      {/* Acesso rápido — última movimentação */}
+      <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-amber-700">Último Termo</p>
+          <p className="text-sm text-amber-900">
+            {TIPO_LABELS[ultimaMov.tipo] ?? ultimaMov.tipo.replace(/_/g, ' ')}
+            {ultimaMov.created_at ? ` · ${ultimaMov.created_at.split('T')[0].split('-').reverse().join('/')}` : ''}
+          </p>
+        </div>
+        <button
+          onClick={() => handleDownload(ultimaMov)}
+          disabled={baixando === ultimaMov.id}
+          className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-400 disabled:opacity-50"
+        >
+          <FileDown className="h-4 w-4" />
+          {baixando === ultimaMov.id ? '...' : 'Imprimir Termo'}
+        </button>
+      </div>
+
+      <ol className="relative ml-3 border-l border-gray-200">
       {items.map(m => (
         <li key={m.id} className="mb-6 ml-5">
           <span className="absolute -left-1.5 mt-1 h-3 w-3 rounded-full border-2 border-white bg-slate-400" />
@@ -192,7 +226,8 @@ function TabMovimentacoes({
           </div>
         </li>
       ))}
-    </ol>
+      </ol>
+    </div>
   )
 }
 

@@ -64,7 +64,7 @@ export default async function PerfilFuncionarioPage({
       .select(`
         id, tipo, campo_alterado, valor_antes, valor_depois, created_at, solicitacao_id,
         perfis!executado_por(nome),
-        solicitacoes!solicitacao_id(dados_antes, dados_depois, motivo)
+        solicitacoes!solicitacao_id(dados_antes, dados_depois, motivo, perfis!supervisor_id(nome))
       `)
       .eq('funcionario_id', id)
       .order('created_at', { ascending: false }),
@@ -234,6 +234,7 @@ export default async function PerfilFuncionarioPage({
             posto:         f.postos?.nome ?? null,
             secretaria:    f.postos?.secretaria ?? null,
             data_admissao: f.data_admissao,
+            supervisor:    supervisorNome,
           } satisfies FuncionarioParaPDF}
         />
       </div>
