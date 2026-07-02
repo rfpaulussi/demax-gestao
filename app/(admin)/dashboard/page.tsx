@@ -558,11 +558,39 @@ export default async function DashboardPage({
           href="/efetivo?status=ferias"
         />
         <KpiCardPrincipal
-          label="Postos em Déficit"
-          valor={kpis.deficit}
+          label="Postos c/ Problema"
+          valor={kpis.postoVago + kpis.postoDeficit}
           corBorda="border-t-red-500"
+          aviso={kpis.postoVago > 0 ? `${kpis.postoVago} vago${kpis.postoVago > 1 ? 's' : ''}` : undefined}
           criticos={kpis.postosCriticos}
         />
+      </div>
+
+      {/* ── Status dos Postos ───────────────────────────────────────────────── */}
+      <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-400">Status dos Postos</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="flex flex-col gap-0.5 rounded-lg bg-red-50 px-3 py-2.5">
+            <span className="text-2xl font-black text-red-600">{kpis.postoVago}</span>
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-red-400">Vago</span>
+            <span className="text-[10px] text-red-400">Nenhum alocado</span>
+          </div>
+          <div className="flex flex-col gap-0.5 rounded-lg bg-amber-50 px-3 py-2.5">
+            <span className="text-2xl font-black text-amber-600">{kpis.postoDeficit}</span>
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-amber-400">Déficit</span>
+            <span className="text-[10px] text-amber-400">Abaixo do previsto</span>
+          </div>
+          <div className="flex flex-col gap-0.5 rounded-lg bg-green-50 px-3 py-2.5">
+            <span className="text-2xl font-black text-green-600">{kpis.postoOk}</span>
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-green-400">OK</span>
+            <span className="text-[10px] text-green-400">Efetivo exato</span>
+          </div>
+          <div className="flex flex-col gap-0.5 rounded-lg bg-blue-50 px-3 py-2.5">
+            <span className="text-2xl font-black text-blue-600">{kpis.postoExcesso}</span>
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-blue-400">Excesso</span>
+            <span className="text-[10px] text-blue-400">Acima do previsto</span>
+          </div>
+        </div>
       </div>
 
       {/* ── Row 2: Alertas | [Mini KPIs + Próximas Férias] ─────────────────── */}

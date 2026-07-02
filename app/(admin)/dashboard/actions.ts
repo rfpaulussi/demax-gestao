@@ -5,6 +5,7 @@ import { addBusinessDays } from '@/lib/utils'
 import { calcularKPIsAtuais } from '@/lib/dashboard-kpis'
 import { FUNCOES_FORA_DO_EFETIVO } from '@/lib/constants'
 import { calcularStatusExperiencia } from '@/lib/experiencia'
+import { getPostosData } from '@/app/(admin)/postos/actions'
 
 // ─── Tipos exportados ─────────────────────────────────────────────────────────
 
@@ -14,9 +15,47 @@ export type KPIDashboard = {
   emFerias: number
   coberturasAtivas: number
   solicitacoesPendentes: number
-  deficit: number
+  postoVago: number
+  postoDeficit: number
+  postoOk: number
+  postoExcesso: number
   postosCriticos: number
   feriasTerminando30dias: number
+}
+
+export type PostoStatusBreakdown = {
+  vago: number
+  deficit: number
+  ok: number
+  excesso: number
+  postosCriticos: number
+  postosDeficit: PostoDeficit[]
+}
+
+export async function buscarPostoStatus(): Promise<PostoStatusBreakdown> {
+  const postos = await getPostosData()
+  const operacionais = postos.filter(p => p.secretaria.toUpperCase() !== 'AFASTADOS')
+
+  let vago = 0, deficit = 0, ok = 0, excesso = 0, postosCriticos = 0
+  const postosDeficit: PostoDeficit[] = []
+
+  for (const p of operacionais) {
+    const gap = p.efetivo_previsto - p.efetivo_atual
+    if (gap > 0 && p.efetivo_atual === 0 && p.efetivo_previsto > 0) vago++
+    else if (gap > 0) deficit++
+    else if (gap === 0) ok++
+    else excesso++
+
+    if (gap >= 2) postosCriticos++
+    if (gap > 0) {
+      postosDeficit.push({ id: p.id, nome: p.nome, secretaria: p.secretaria, gap })
+    }
+  }
+
+  return {
+    vago, deficit, ok, excesso, postosCriticos,
+    postosDeficit: postosDeficit.sort((a, b) => b.gap - a.gap),
+  }
 }
 
 export type PostoDeficit = {
@@ -104,16 +143,22 @@ function currentDateStr(): string {
 
 export async function buscarKPIsDashboard(): Promise<KPIDashboard> {
   const supabase = createClient()
-  const kpis = await calcularKPIsAtuais(supabase)
+  const [kpis, postoStatus] = await Promise.all([
+    calcularKPIsAtuais(supabase),
+    buscarPostoStatus(),
+  ])
   return {
     totalAtivos: kpis.ativos,
     afastados: kpis.afastados,
     emFerias: kpis.em_ferias,
     coberturasAtivas: kpis.coberturas_ativas,
     solicitacoesPendentes: kpis.aprovacoes_pendentes,
-    deficit: kpis.postos_deficit,
-    postosCriticos: kpis.postosCriticos,
     feriasTerminando30dias: kpis.feriasTerminando30dias,
+    postoVago: postoStatus.vago,
+    postoDeficit: postoStatus.deficit,
+    postoOk: postoStatus.ok,
+    postoExcesso: postoStatus.excesso,
+    postosCriticos: postoStatus.postosCriticos,
   }
 }
 
@@ -126,14 +171,11 @@ export async function buscarAlertasDashboard(): Promise<AlertasDashboard> {
   const thirtyDaysAgoStr = new Date(Date.now() - 30 * 86_400_000).toISOString().split('T')[0]
 
   const [
-    { data: postosData },
-    { data: funcAtivosData },
     { count: funcSemPosto },
     { count: feriasLimiteVencendo },
     { data: catData },
+    postoStatus,
   ] = await Promise.all([
-    supabase.from('postos').select('id, nome, secretaria, efetivo_previsto').eq('ativo', true),
-    supabase.from('funcionarios').select('posto_id').eq('status', 'ativo').not('posto_id', 'is', null),
     supabase
       .from('funcionarios')
       .select('*', { count: 'exact', head: true })
@@ -154,24 +196,10 @@ export async function buscarAlertasDashboard(): Promise<AlertasDashboard> {
       .eq('origem_ocupacional', 'acidente_trabalho')
       .gte('data_inicio', thirtyDaysAgoStr)
       .order('data_inicio', { ascending: false }),
+    buscarPostoStatus(),
   ])
 
-  // Calcular gap por posto
-  const funcPorPosto: Record<string, number> = {}
-  for (const f of funcAtivosData ?? []) {
-    const pid = f.posto_id as string
-    funcPorPosto[pid] = (funcPorPosto[pid] ?? 0) + 1
-  }
-
-  const postosDeficit: PostoDeficit[] = (postosData ?? [])
-    .map(p => ({
-      id: p.id,
-      nome: p.nome,
-      secretaria: p.secretaria as string | null,
-      gap: (p.efetivo_previsto ?? 0) - (funcPorPosto[p.id] ?? 0),
-    }))
-    .filter(p => p.gap > 0)
-    .sort((a, b) => b.gap - a.gap)
+  const postosDeficit = postoStatus.postosDeficit
 
   type CatRow = { id: string; data_inicio: string; funcionarios: { nome: string } | null }
   const hoje = new Date()
