@@ -43,7 +43,7 @@ const SECOES: Secao[] = [
       'Clique em "Registrar"',
     ],
     dica: 'Faltas com 3 dias ou mais mudam o status do funcionário para "Faltante" automaticamente.',
-    prints: ['/ajuda/falta-form.jpg'],
+    prints: ['/ajuda/img-1.png'],
   },
   {
     id: 'cobertura',
@@ -59,7 +59,7 @@ const SECOES: Secao[] = [
       'Clique em "Salvar Cobertura"',
     ],
     dica: 'A urgência é calculada automaticamente pela data de retorno: até 1 dia = alta, até 3 dias = média, acima disso = baixa. A cobertura fica pendente até o admin aprovar.',
-    prints: ['/ajuda/cobertura-form.jpg'],
+    prints: ['/ajuda/img-2.png'],
   },
   {
     id: 'cobertura-insalubre',
@@ -75,7 +75,7 @@ const SECOES: Secao[] = [
       'Clique em "Registrar"',
     ],
     dica: 'Usada quando alguém cobre a função insalubre de outro funcionário (ex: adicional de insalubridade), sem necessariamente virar uma cobertura temporária completa.',
-    prints: ['/ajuda/cobertura-insalubre-form.jpg'],
+    prints: ['/ajuda/img-3.png'],
   },
   {
     id: 'ferias',
@@ -91,7 +91,7 @@ const SECOES: Secao[] = [
       'Clique em "Salvar Férias"',
     ],
     dica: 'O agendamento fica pendente até o admin aprovar. Você recebe a resposta no sino de notificações.',
-    prints: ['/ajuda/ferias-form.jpg'],
+    prints: ['/ajuda/img-4.png'],
   },
   {
     id: 'advertencia',
@@ -107,13 +107,13 @@ const SECOES: Secao[] = [
       'Clique em "Registrar Advertência"',
     ],
     dica: 'Se o funcionário já teve advertências anteriores, um aviso vermelho de reincidência aparece antes de você continuar.',
-    prints: ['/ajuda/advertencia-form.jpg'],
+    prints: ['/ajuda/img-5.png', '/ajuda/img-5-1.png'],
   },
   {
     id: 'atestado',
     icon: Stethoscope,
-    titulo: 'Registrar ou editar atestado',
-    onde: 'Menu → Atestados (ou junto de uma Falta/Cobertura)',
+    titulo: 'Registrar Atestado do dia a dia',
+    onde: 'Menu → Atestados',
     passos: [
       'Informe data de início e quantidade de dias — a data fim é calculada automaticamente',
       'Descreva o motivo (ex: consulta, exame, cirurgia)',
@@ -121,12 +121,12 @@ const SECOES: Secao[] = [
       'Se for acidente ou doença ocupacional, selecione em "Origem"',
       'Clique em "Salvar"',
     ],
-    prints: ['/ajuda/atestado-form.jpg'],
+    prints: ['/ajuda/img-6.png'],
   },
   {
     id: 'afastamento',
     icon: UserMinus,
-    titulo: 'Registrar afastamento (INSS, doença prolongada)',
+    titulo: 'Registrar Afastamento INSS',
     onde: 'Perfil do funcionário → Solicitar Afastamento',
     passos: [
       'Escolha o motivo do afastamento (ex: INSS — Doença)',
@@ -135,12 +135,12 @@ const SECOES: Secao[] = [
       'Clique em "Enviar Solicitação"',
     ],
     dica: 'Igual às demais solicitações, fica pendente até o admin aprovar antes de valer.',
-    prints: ['/ajuda/afastamento-form.jpg'],
+    prints: ['/ajuda/img-7.png'],
   },
   {
     id: 'ocorrencia',
     icon: Siren,
-    titulo: 'Registrar ocorrência ou alerta',
+    titulo: 'Registrar Ocorrência ou Alerta',
     onde: 'Menu → Ocorrências',
     passos: [
       'Clique em "Nova Ocorrência"',
@@ -150,12 +150,12 @@ const SECOES: Secao[] = [
       'Clique em "Salvar"',
       'Acompanhe o status depois: Aberta → Em Análise → Resolvida',
     ],
-    prints: ['/ajuda/ocorrencia-form.jpg'],
+    prints: ['/ajuda/img-8.png'],
   },
   {
     id: 'solicitacoes',
     icon: ArrowLeftRight,
-    titulo: 'Transferência ou mudança de função',
+    titulo: 'Transferência ou Transferência + Mudança de Função',
     onde: 'Perfil do funcionário → Nova Solicitação',
     passos: [
       'Clique em "Nova Solicitação" e escolha o tipo: Transferência, Mudança de Função, Desligamento ou Rescisão Indireta',
@@ -164,12 +164,12 @@ const SECOES: Secao[] = [
       'Clique em "Enviar Solicitação"',
     ],
     dica: 'Toda solicitação fica pendente até o admin aprovar — você acompanha pelo sino de notificações.',
-    prints: ['/ajuda/solicitacao-transferencia.jpg', '/ajuda/solicitacao-mudanca-funcao.jpg'],
+    prints: ['/ajuda/img-9.png', '/ajuda/img-9-1.png'],
   },
   {
     id: 'desligamento',
     icon: UserX,
-    titulo: 'Solicitar desligamento',
+    titulo: 'Solicitação de Desligamento',
     onde: 'Perfil do funcionário → Nova Solicitação → Desligamento',
     passos: [
       'Escolha "Desligamento" no tipo e informe a data',
@@ -177,17 +177,12 @@ const SECOES: Secao[] = [
       'Se for Judicial, escolha a motivação (ex: Rescisão Indireta — Art. 483 CLT) — falta de pagamento, desvio de função, assédio moral, condições inadequadas, alteração contratual ilícita, ou outros',
       'Clique em "Enviar Solicitação"',
     ],
-    dica: 'Use "Rescisão Indireta" quando o funcionário simplesmente avisa e para de trabalhar por conta própria — antes de qualquer audiência ou processo formal. Registre o motivo alegado por ele.',
-    prints: [
-      '/ajuda/solicitacao-desligamento.jpg',
-      '/ajuda/solicitacao-desligamento-pt2.jpg',
-      '/ajuda/solicitacao-rescisao-indireta.jpg',
-    ],
+    prints: ['/ajuda/img-10.png', '/ajuda/img-10-1.png'],
   },
   {
     id: 'postos',
     icon: Building2,
-    titulo: 'Ver status dos meus postos',
+    titulo: 'Ver Status dos Meus Postos',
     onde: 'Menu → Postos',
     passos: [
       'Veja, por posto, o efetivo alocado x previsto e a situação da insalubridade/cota',
@@ -195,7 +190,7 @@ const SECOES: Secao[] = [
       'Use os filtros de secretaria, supervisor ou status pra achar rápido um posto específico',
       'Clique em um posto para ver mais detalhes',
     ],
-    prints: ['/ajuda/postos-dashboard.jpg'],
+    prints: ['/ajuda/img-11.png'],
   },
   {
     id: 'sino',
@@ -207,19 +202,33 @@ const SECOES: Secao[] = [
       'Verde/check = aprovada, vermelho = rejeitada — o texto explica o motivo',
       'Clique em "Lidas" para limpar o badge de novas',
     ],
-    prints: ['/ajuda/sino-notificacoes.jpg'],
+    prints: ['/ajuda/img-12.png'],
   },
   {
     id: 'dashboard',
     icon: LayoutDashboard,
-    titulo: 'Ver o dashboard',
+    titulo: 'Ver Dashboard',
     onde: 'Menu → Dashboard',
     passos: [
       'Veja os KPIs gerais: efetivo ativo, ausentes, em férias, postos em déficit',
       'Alertas críticos mostram postos com falta de gente',
       'Confira próximas férias e coberturas em andamento',
     ],
-    prints: ['/ajuda/dashboard.jpg'],
+    prints: ['/ajuda/img-13.png'],
+  },
+  {
+    id: 'rescisao-indireta',
+    icon: UserX,
+    titulo: 'Rescisão Indireta',
+    onde: 'Perfil do funcionário → Nova Solicitação → Rescisão Indireta',
+    passos: [
+      'Use quando o funcionário avisa que vai parar de trabalhar por conta própria — antes de qualquer audiência ou processo formal',
+      'Clique em "Nova Solicitação" e escolha "Rescisão Indireta"',
+      'Informe a data e registre o motivo alegado pelo funcionário',
+      'Clique em "Enviar Solicitação"',
+    ],
+    dica: 'Rescisão Indireta é quando o empregado alega justa causa do empregador (Art. 483 CLT) e deixa o emprego. Registre aqui assim que o funcionário comunicar — mesmo sem audiência ou processo ainda.',
+    prints: ['/ajuda/img-14.png'],
   },
 ]
 
