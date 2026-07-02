@@ -43,7 +43,7 @@ export function AlertasCriticos({ alertas }: Props) {
           ))}
 
           {postosDeficit.length > 5 && (
-            <Link href="/efetivo" className="block text-right text-xs font-semibold text-red-600 hover:text-red-800">
+            <Link href="/postos" className="block text-right text-xs font-semibold text-red-600 hover:text-red-800">
               +{postosDeficit.length - 5} postos → ver todos
             </Link>
           )}
