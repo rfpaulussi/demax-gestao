@@ -40,21 +40,27 @@ export async function registrarAtestado(formData: FormData) {
   })
   if (errAtestado) throw new Error(errAtestado.message)
 
-  const { error: errStatus } = await supabase
-    .from('funcionarios')
-    .update({ status: 'atestado', motivo_afastamento: 'ausencia_temporaria' })
-    .eq('id', funcionarioId)
-  if (errStatus) throw new Error(errStatus.message)
+  // Só altera status se o atestado ainda está vigente (data_fim >= hoje)
+  const hoje = new Date().toISOString().slice(0, 10)
+  const atestadoVigente = !dataFim || dataFim >= hoje
 
-  const { error: errMov } = await supabase.from('movimentacoes').insert({
-    funcionario_id: funcionarioId,
-    tipo: 'atestado',
-    campo_alterado: 'status',
-    valor_antes: func?.status ?? null,
-    valor_depois: 'atestado',
-    executado_por: auth.user.id,
-  })
-  if (errMov) throw new Error(errMov.message)
+  if (atestadoVigente) {
+    const { error: errStatus } = await supabase
+      .from('funcionarios')
+      .update({ status: 'atestado', motivo_afastamento: 'ausencia_temporaria' })
+      .eq('id', funcionarioId)
+    if (errStatus) throw new Error(errStatus.message)
+
+    const { error: errMov } = await supabase.from('movimentacoes').insert({
+      funcionario_id: funcionarioId,
+      tipo: 'atestado',
+      campo_alterado: 'status',
+      valor_antes: func?.status ?? null,
+      valor_depois: 'atestado',
+      executado_por: auth.user.id,
+    })
+    if (errMov) throw new Error(errMov.message)
+  }
 
   revalidatePath('/efetivo')
   revalidatePath('/dashboard')
