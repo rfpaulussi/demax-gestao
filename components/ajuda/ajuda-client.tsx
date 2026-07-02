@@ -266,7 +266,7 @@ function PrintTela({ src, titulo, multi }: { src: string; titulo: string; multi?
     <img
       src={src}
       alt={`Tela: ${titulo}`}
-      className={`rounded-xl border border-slate-200 object-contain ${multi ? 'flex-1 min-w-0 max-w-[49%] max-h-64' : 'max-w-sm max-h-80'}`}
+      className={`rounded-xl border border-slate-200 object-contain ${multi ? 'flex-1 min-w-0 max-w-[49%] max-h-80' : 'max-w-md max-h-96'}`}
       style={{ imageRendering: 'auto' }}
     />
   )
@@ -325,6 +325,12 @@ function SecaoItem({ secao, aberto, onToggle }: { secao: Secao; aberto: boolean;
   )
 }
 
+function limpar(texto: string) {
+  // remove marcadores ** e emojis antes de comparar
+  // eslint-disable-next-line no-control-regex
+  return texto.replace(/\*\*/g, '').replace(/[^\x00-\x7FÀ-ɏ]/g, '').toLowerCase()
+}
+
 export function AjudaClient() {
   const [abertoId, setAbertoId] = useState<string | null>(SECOES[0].id)
   const [busca, setBusca] = useState('')
@@ -333,10 +339,20 @@ export function AjudaClient() {
     if (!busca.trim()) return SECOES
     const q = busca.toLowerCase()
     return SECOES.filter((s) =>
-      s.titulo.toLowerCase().includes(q) ||
-      s.onde.toLowerCase().includes(q) ||
-      s.passos.some((p) => p.toLowerCase().includes(q))
+      limpar(s.titulo).includes(q) ||
+      limpar(s.onde).includes(q) ||
+      s.passos.some((p) => limpar(p).includes(q))
     )
+  }, [busca])
+
+  // Ao buscar: abre o primeiro resultado automaticamente
+  useMemo(() => {
+    if (busca.trim()) {
+      setAbertoId(secoesFiltradas[0]?.id ?? null)
+    } else {
+      setAbertoId(SECOES[0].id)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busca])
 
   return (
