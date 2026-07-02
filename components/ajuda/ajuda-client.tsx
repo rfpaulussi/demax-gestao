@@ -44,7 +44,7 @@ const SECOES: Secao[] = [
       '✅ Clique em **"Registrar"**',
     ],
     dica: 'Faltas com 3 dias ou mais mudam o status do funcionário para "Faltante" automaticamente.',
-    prints: ['/ajuda/img-15.png', '/ajuda/img-1.png'],
+    prints: ['/ajuda/15.png', '/ajuda/img-1.png'],
   },
   {
     id: 'cobertura',
