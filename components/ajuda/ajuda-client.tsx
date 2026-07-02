@@ -266,7 +266,7 @@ function PrintTela({ src, titulo, multi }: { src: string; titulo: string; multi?
     <img
       src={src}
       alt={`Tela: ${titulo}`}
-      className={`rounded-xl border border-slate-200 ${multi ? 'flex-1 min-w-0 max-w-[49%]' : 'max-w-full'}`}
+      className={`rounded-xl border border-slate-200 object-contain ${multi ? 'flex-1 min-w-0 max-w-[49%] max-h-64' : 'max-w-sm max-h-80'}`}
       style={{ imageRendering: 'auto' }}
     />
   )
