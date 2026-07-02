@@ -38,7 +38,6 @@ const ICONS: Record<string, React.ElementType> = {
   '/dashboard':     LayoutDashboard,
   '/efetivo':       Users,
   '/postos':        Building2,
-  '/meus-postos':   Building2,
   '/aprovacoes':    ClipboardCheck,
   '/coberturas':    Repeat2,
   '/ferias':        Palmtree,

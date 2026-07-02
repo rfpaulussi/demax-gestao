@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { aprovarSolicitacao, rejeitarSolicitacao } from '@/app/(admin)/aprovacoes/actions'
 import type { TipoSolicitacao } from '@/types'
@@ -65,6 +66,8 @@ function SolicitacaoCard({ sol, canApprove }: { sol: SolicitacaoPendente; canApp
   const [isPending, startTransition] = useTransition()
   const [rejeitando, setRejeitando] = useState(false)
   const [motivo, setMotivo] = useState('')
+  const [erro, setErro] = useState<string | null>(null)
+  const router = useRouter()
 
   const isTransfComFuncao = sol.tipo === 'transferencia' && !!sol.dados_depois?.nova_funcao_id
   const badge = isTransfComFuncao
@@ -72,8 +75,11 @@ function SolicitacaoCard({ sol, canApprove }: { sol: SolicitacaoPendente; canApp
     : TIPO_BADGE[sol.tipo]
 
   function handleAprovar() {
+    setErro(null)
     startTransition(async () => {
-      await aprovarSolicitacao(sol.id)
+      const result = await aprovarSolicitacao(sol.id)
+      if (!result.success) { setErro(result.error); return }
+      if (result.redirect_url) router.push(result.redirect_url)
     })
   }
 
@@ -113,6 +119,10 @@ function SolicitacaoCard({ sol, canApprove }: { sol: SolicitacaoPendente; canApp
         {renderDados(sol.dados_antes, 'Situação atual', 'antes')}
         {renderDados(sol.dados_depois, 'Solicitado', 'depois')}
       </div>
+
+      {erro && (
+        <p className="mb-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{erro}</p>
+      )}
 
       {canApprove && (!rejeitando ? (
         <div className="flex items-center gap-2">

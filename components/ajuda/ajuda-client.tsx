@@ -188,12 +188,12 @@ const SECOES: Secao[] = [
     id: 'postos',
     icon: Building2,
     titulo: 'Ver status dos meus postos',
-    onde: 'Menu → Meus Postos ou Postos',
+    onde: 'Menu → Postos',
     passos: [
       'Veja, por posto, o efetivo alocado x previsto e a situação da insalubridade/cota',
       'Status "Aloc: Déficit" = faltam pessoas; "Aloc: Excesso" = tem gente sobrando no posto',
-      'Confira as coberturas ativas e quem é o substituto',
-      'Clique em um posto ou funcionário para ver mais detalhes',
+      'Use os filtros de secretaria, supervisor ou status pra achar rápido um posto específico',
+      'Clique em um posto para ver mais detalhes',
     ],
     prints: ['/ajuda/postos-dashboard.jpg'],
   },
@@ -241,7 +241,8 @@ function PrintTela({ src, titulo }: { src: string; titulo: string }) {
     <img
       src={src}
       alt={`Tela: ${titulo}`}
-      className="w-full rounded-xl border border-slate-200"
+      className="max-w-full rounded-xl border border-slate-200"
+      style={{ imageRendering: 'auto' }}
     />
   )
 }

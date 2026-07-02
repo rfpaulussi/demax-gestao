@@ -75,6 +75,7 @@ export function ModalNovaAdmissao({ open, onClose, onSuccess, postos, funcoes }:
     const fd = new FormData(e.currentTarget)
     fd.set('nome', nome.toUpperCase())
     fd.set('registro', registro.trim())
+    fd.set('periodo_experiencia', periodoExp) // garante valor mesmo com select disabled
     start(async () => {
       const result = await solicitarAdmissao(fd)
       if (!result.success) { setErro(result.error); return }
