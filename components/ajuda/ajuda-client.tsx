@@ -250,6 +250,7 @@ function renderPasso(texto: string): React.ReactNode {
 
 function PrintTela({ src, titulo, multi }: { src: string; titulo: string; multi?: boolean }) {
   const [existe, setExiste] = useState(false)
+  const [zoom, setZoom] = useState(false)
 
   useEffect(() => {
     let ativo = true
@@ -262,13 +263,35 @@ function PrintTela({ src, titulo, multi }: { src: string; titulo: string; multi?
   if (!existe) return null
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      alt={`Tela: ${titulo}`}
-      className={`rounded-xl border border-slate-200 object-contain ${multi ? 'flex-1 min-w-0 max-w-[49%] max-h-80' : 'max-w-md max-h-96'}`}
-      style={{ imageRendering: 'auto' }}
-    />
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={`Tela: ${titulo}`}
+        onClick={() => setZoom(true)}
+        className={`cursor-zoom-in rounded-xl border border-slate-200 ${multi ? 'flex-1 min-w-0 w-[calc(50%-4px)]' : 'w-full'}`}
+      />
+      {zoom && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={() => setZoom(false)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src}
+            alt={`Tela: ${titulo}`}
+            className="max-h-full max-w-full rounded-xl shadow-2xl cursor-zoom-out"
+            onClick={e => e.stopPropagation()}
+          />
+          <button
+            onClick={() => setZoom(false)}
+            className="absolute right-4 top-4 rounded-full bg-white/20 p-2 text-white hover:bg-white/30"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+    </>
   )
 }
 
