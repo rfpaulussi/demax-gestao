@@ -248,7 +248,7 @@ function renderPasso(texto: string): React.ReactNode {
   )
 }
 
-function PrintTela({ src, titulo, multi }: { src: string; titulo: string; multi?: boolean }) {
+function PrintTela({ src, titulo }: { src: string; titulo: string; multi?: boolean }) {
   const [existe, setExiste] = useState(false)
   const [zoom, setZoom] = useState(false)
 
@@ -269,18 +269,18 @@ function PrintTela({ src, titulo, multi }: { src: string; titulo: string; multi?
         src={src}
         alt={`Tela: ${titulo}`}
         onClick={() => setZoom(true)}
-        className={`cursor-zoom-in rounded-xl border border-slate-200 ${multi ? 'flex-1 min-w-0 w-[calc(50%-4px)]' : 'w-full'}`}
+        className="w-full cursor-zoom-in rounded-xl border border-slate-200"
       />
       {zoom && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
           onClick={() => setZoom(false)}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={src}
             alt={`Tela: ${titulo}`}
-            className="max-h-full max-w-full rounded-xl shadow-2xl cursor-zoom-out"
+            className="w-full max-w-[95vw] max-h-[95vh] rounded-xl shadow-2xl cursor-zoom-out object-contain"
             onClick={e => e.stopPropagation()}
           />
           <button
@@ -297,7 +297,6 @@ function PrintTela({ src, titulo, multi }: { src: string; titulo: string; multi?
 
 function SecaoItem({ secao, aberto, onToggle }: { secao: Secao; aberto: boolean; onToggle: () => void }) {
   const Icon = secao.icon
-  const multiPrints = (secao.prints?.length ?? 0) > 1
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
@@ -336,9 +335,9 @@ function SecaoItem({ secao, aberto, onToggle }: { secao: Secao; aberto: boolean;
           )}
 
           {secao.prints && secao.prints.length > 0 && (
-            <div className={`flex gap-2 ${multiPrints ? 'flex-row flex-wrap items-start' : 'flex-col'}`}>
+            <div className="flex flex-col gap-3">
               {secao.prints.map((src) => (
-                <PrintTela key={src} src={src} titulo={secao.titulo} multi={multiPrints} />
+                <PrintTela key={src} src={src} titulo={secao.titulo} />
               ))}
             </div>
           )}
