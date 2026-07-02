@@ -680,26 +680,30 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
   const postoIds = postos.map(p => p.id)
 
   // 2. Funcionários nos postos (com funcao para insalubridade e volante)
-  const { data: funcs } = await supabase
+  type FuncRow = { id: string; nome: string; posto_id: string | null; status: string; funcao_id: string | null; eh_encarregado_volante: boolean | null }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: funcsRaw } = await (supabase as unknown as any)
     .from('funcionarios')
     .select('id, nome, posto_id, status, funcao_id, eh_encarregado_volante')
     .in('posto_id', postoIds)
     .in('status', ['ativo', 'atestado', 'ferias', 'afastado', 'faltante'])
+  const funcs = (funcsRaw ?? []) as FuncRow[]
 
   // Busca nomes de funções para insalubridade e exclusão (FUNCOES_FORA_DO_EFETIVO)
-  const funcaoIds = Array.from(new Set((funcs ?? []).map(f => f.funcao_id).filter(Boolean))) as string[]
-  const { data: funcoesDb } = funcaoIds.length > 0
+  const funcaoIds = Array.from(new Set(funcs.map(f => f.funcao_id).filter(Boolean))) as string[]
+  const { data: funcoesDbRaw } = funcaoIds.length > 0
     ? await supabase.from('funcoes').select('id, nome').in('id', funcaoIds)
-    : { data: [] }
-  const funcaoNomeMap = new Map<string, string>((funcoesDb ?? []).map(f => [f.id, f.nome.trim().toUpperCase()]))
+    : { data: [] as { id: string; nome: string }[] }
+  const funcoesDb = (funcoesDbRaw ?? []) as { id: string; nome: string }[]
+  const funcaoNomeMap = new Map<string, string>(funcoesDb.map(f => [f.id, f.nome.trim().toUpperCase()]))
 
   // IDs de funções que ficam fora do efetivo contratual (mesma lógica de getPostosData)
   const excludedFuncaoIds = new Set(
-    (funcoesDb ?? []).filter(f => (FUNCOES_FORA_DO_EFETIVO as readonly string[]).includes(f.nome.trim().toUpperCase())).map(f => f.id)
+    funcoesDb.filter(f => (FUNCOES_FORA_DO_EFETIVO as readonly string[]).includes(f.nome.trim().toUpperCase())).map(f => f.id)
   )
 
   // 3. Atestados ativos com data_fim
-  const funcIds = (funcs ?? []).map(f => f.id)
+  const funcIds = funcs.map(f => f.id)
   const { data: atestadosDb } = funcIds.length > 0
     ? await supabase
         .from('atestados')
@@ -710,7 +714,7 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
     : { data: [] }
 
   // 4. Coberturas ativas nos postos
-  const ausenteIds = (funcs ?? []).filter(f => f.status === 'atestado' || f.status === 'ferias' || f.status === 'faltante').map(f => f.id)
+  const ausenteIds = funcs.filter(f => f.status === 'atestado' || f.status === 'ferias' || f.status === 'faltante').map(f => f.id)
   const { data: coberturaDb } = ausenteIds.length > 0
     ? await supabase
         .from('coberturas_temporarias')
@@ -835,8 +839,7 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
 
   const postoSecretariaMap = new Map(postos.map(p => [p.id, (p.secretaria ?? '').toUpperCase()]))
 
-  type FuncWithFuncao = { id: string; nome: string; posto_id: string | null; status: string; funcao_id: string | null; eh_encarregado_volante: boolean | null }
-  for (const f of (funcs ?? []) as unknown as FuncWithFuncao[]) {
+  for (const f of funcs) {
     const pid = f.posto_id as string
     // Sempre contar atestado/afastado/faltante/ferias para KPIs de ausência
     if (f.status === 'atestado')  atestadosPorPosto[pid] = (atestadosPorPosto[pid] ?? 0) + 1
