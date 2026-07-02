@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ChevronDown,
   UserMinus,
@@ -12,6 +12,10 @@ import {
   Building2,
   Bell,
   LayoutDashboard,
+  Biohazard,
+  ArrowLeftRight,
+  UserX,
+  Search,
 } from 'lucide-react'
 
 type Secao = {
@@ -21,7 +25,7 @@ type Secao = {
   onde: string
   passos: string[]
   dica?: string
-  print?: string
+  prints?: string[]
 }
 
 const SECOES: Secao[] = [
@@ -39,7 +43,7 @@ const SECOES: Secao[] = [
       'Clique em "Registrar"',
     ],
     dica: 'Faltas com 3 dias ou mais mudam o status do funcionário para "Faltante" automaticamente.',
-    print: '/ajuda/falta-form.jpg',
+    prints: ['/ajuda/falta-form.jpg'],
   },
   {
     id: 'cobertura',
@@ -48,16 +52,30 @@ const SECOES: Secao[] = [
     onde: 'Menu → Cobertura Temp.',
     passos: [
       'Clique em "Nova Cobertura"',
-      'Selecione o funcionário ausente',
-      'Selecione o substituto (deve estar ativo)',
-      'Informe o posto de destino do substituto',
-      'Informe a data de início da ausência e a data prevista de retorno',
-      'Escolha o motivo (férias, afastamento, etc.)',
-      'Se necessário, marque para registrar atestado da pessoa ausente',
-      'Clique em "Solicitar"',
+      'Selecione o substituto e, se for para reforço, marque "Reforço de posto"; se for para substituir alguém ausente, marque "Substituindo funcionário ausente" e selecione quem está fora',
+      'Escolha o supervisor e o posto de destino do substituto',
+      'Escolha o tipo do motivo (férias, afastamento, etc.) e, se quiser, uma observação',
+      'Informe a data de início e fim da cobertura, e o início/fim da ausência do funcionário substituído',
+      'Clique em "Salvar Cobertura"',
     ],
     dica: 'A urgência é calculada automaticamente pela data de retorno: até 1 dia = alta, até 3 dias = média, acima disso = baixa. A cobertura fica pendente até o admin aprovar.',
-    print: '/ajuda/cobertura-form.jpg',
+    prints: ['/ajuda/cobertura-form.jpg'],
+  },
+  {
+    id: 'cobertura-insalubre',
+    icon: Biohazard,
+    titulo: 'Registrar cobertura insalubre',
+    onde: 'Menu → Cobertura Insalubre',
+    passos: [
+      'Clique em "Nova Declaração"',
+      'Confirme o posto e selecione o substituto',
+      'Selecione o agente ausente que está sendo coberto',
+      'Informe a data da cobertura e o período em dias',
+      'Adicione uma observação (ex: motivo do afastamento do titular)',
+      'Clique em "Registrar"',
+    ],
+    dica: 'Usada quando alguém cobre a função insalubre de outro funcionário (ex: adicional de insalubridade), sem necessariamente virar uma cobertura temporária completa.',
+    prints: ['/ajuda/cobertura-insalubre-form.jpg'],
   },
   {
     id: 'ferias',
@@ -66,14 +84,14 @@ const SECOES: Secao[] = [
     onde: 'Menu → Férias',
     passos: [
       'Clique em "Agendar Férias"',
-      'Selecione o funcionário',
-      'Escolha o período de direito (1º, 2º ou 3º)',
-      'Informe a data de início e fim das férias',
+      'Selecione o funcionário — o sistema mostra os períodos aquisitivos já registrados e o status de cada um',
+      'Confira o período aquisitivo (número, início e fim) e o limite de gozo calculado automaticamente',
+      'Informe a data de início do gozo — o sistema calcula a data de fim com base nos dias de direito',
       'Adicione uma observação, se necessário',
-      'Clique em "Agendar"',
+      'Clique em "Salvar Férias"',
     ],
     dica: 'O agendamento fica pendente até o admin aprovar. Você recebe a resposta no sino de notificações.',
-    print: '/ajuda/ferias-form.jpg',
+    prints: ['/ajuda/ferias-form.jpg'],
   },
   {
     id: 'advertencia',
@@ -82,28 +100,42 @@ const SECOES: Secao[] = [
     onde: 'Menu → Advertências',
     passos: [
       'Clique em "Nova Advertência"',
-      'Selecione o funcionário',
-      'Escolha o tipo (comportamento, inassiduidade, etc.) e o grau (verbal, escrita, suspensão)',
-      'Informe data e horário da ocorrência e a natureza do fato',
-      'Descreva o relato, testemunhas e defesa do colaborador (se houver)',
-      'Clique em "Criar"',
-      'Depois de analisada, marque "Gerada" e, após entrega, "Entregue"',
-      'Use "Gerar PDF" para imprimir o documento',
+      'Busque e selecione o funcionário — o sistema já mostra o histórico disciplinar dele, incluindo reincidência',
+      'Informe data e horário da ocorrência e escolha a natureza da infração (o relato sugerido é preenchido automaticamente, mas pode editar)',
+      'Escolha o grau (verbal, escrita, suspensão) e a data de aplicação',
+      'Preencha testemunhas e a defesa do colaborador, se houver',
+      'Clique em "Registrar Advertência"',
     ],
-    print: '/ajuda/advertencia-form.jpg',
+    dica: 'Se o funcionário já teve advertências anteriores, um aviso vermelho de reincidência aparece antes de você continuar.',
+    prints: ['/ajuda/advertencia-form.jpg'],
   },
   {
     id: 'atestado',
     icon: Stethoscope,
     titulo: 'Registrar ou editar atestado',
-    onde: 'Menu → Atestados',
+    onde: 'Menu → Atestados (ou junto de uma Falta/Cobertura)',
     passos: [
-      'Atestados novos são registrados junto com uma Cobertura Temporária (opção "Registrar atestado")',
-      'Para editar um atestado existente, clique nele na lista',
-      'Atualize datas, motivo, CID e se é acidente ou doença ocupacional',
+      'Informe data de início e quantidade de dias — a data fim é calculada automaticamente',
+      'Descreva o motivo (ex: consulta, exame, cirurgia)',
+      'Se quiser, informe o CID (ou marque "Atestado sem CID")',
+      'Se for acidente ou doença ocupacional, selecione em "Origem"',
       'Clique em "Salvar"',
     ],
-    print: '/ajuda/atestado-form.jpg',
+    prints: ['/ajuda/atestado-form.jpg'],
+  },
+  {
+    id: 'afastamento',
+    icon: UserMinus,
+    titulo: 'Registrar afastamento (INSS, doença prolongada)',
+    onde: 'Perfil do funcionário → Solicitar Afastamento',
+    passos: [
+      'Escolha o motivo do afastamento (ex: INSS — Doença)',
+      'Informe a data de início e a quantidade de dias de afastamento — a data prevista de retorno é calculada automaticamente',
+      'Marque "Registrar atestado junto" para já lançar o atestado correspondente',
+      'Clique em "Enviar Solicitação"',
+    ],
+    dica: 'Igual às demais solicitações, fica pendente até o admin aprovar antes de valer.',
+    prints: ['/ajuda/afastamento-form.jpg'],
   },
   {
     id: 'ocorrencia',
@@ -112,25 +144,58 @@ const SECOES: Secao[] = [
     onde: 'Menu → Ocorrências',
     passos: [
       'Clique em "Nova Ocorrência"',
-      'Escolha o tipo: Ocorrência (vinculada a um posto) ou Alerta (só seu, sem posto)',
-      'Preencha título, descrição, data e gravidade (baixa, média, alta, crítica)',
-      'Clique em "Registrar"',
-      'Acompanhe o status: Aberta → Em Análise → Resolvida',
+      'Confirme o posto e o supervisor',
+      'Informe a data e a gravidade (baixa, média, alta, crítica)',
+      'Descreva o que aconteceu com o máximo de detalhes',
+      'Clique em "Salvar"',
+      'Acompanhe o status depois: Aberta → Em Análise → Resolvida',
     ],
-    print: '/ajuda/ocorrencia-form.jpg',
+    prints: ['/ajuda/ocorrencia-form.jpg'],
+  },
+  {
+    id: 'solicitacoes',
+    icon: ArrowLeftRight,
+    titulo: 'Transferência ou mudança de função',
+    onde: 'Perfil do funcionário → Nova Solicitação',
+    passos: [
+      'Clique em "Nova Solicitação" e escolha o tipo: Transferência, Mudança de Função, Desligamento ou Rescisão Indireta',
+      'Transferência: escolha o posto de destino; se a função também mudar, marque "Mudar função junto com a transferência" e escolha a nova função',
+      'Mudança de Função: escolha a nova função e justifique o motivo',
+      'Clique em "Enviar Solicitação"',
+    ],
+    dica: 'Toda solicitação fica pendente até o admin aprovar — você acompanha pelo sino de notificações.',
+    prints: ['/ajuda/solicitacao-transferencia.jpg', '/ajuda/solicitacao-mudanca-funcao.jpg'],
+  },
+  {
+    id: 'desligamento',
+    icon: UserX,
+    titulo: 'Solicitar desligamento',
+    onde: 'Perfil do funcionário → Nova Solicitação → Desligamento',
+    passos: [
+      'Escolha "Desligamento" no tipo e informe a data',
+      'Escolha o tipo: Voluntária (pedido do funcionário), Demissão (iniciativa da empresa), Reprova de Experiência (até 90 dias) ou Judicial (rescisão indireta, ação trabalhista)',
+      'Se for Judicial, escolha a motivação (ex: Rescisão Indireta — Art. 483 CLT) — falta de pagamento, desvio de função, assédio moral, condições inadequadas, alteração contratual ilícita, ou outros',
+      'Clique em "Enviar Solicitação"',
+    ],
+    dica: 'Use "Rescisão Indireta" quando o funcionário simplesmente avisa e para de trabalhar por conta própria — antes de qualquer audiência ou processo formal. Registre o motivo alegado por ele.',
+    prints: [
+      '/ajuda/solicitacao-desligamento.jpg',
+      '/ajuda/solicitacao-desligamento-pt2.jpg',
+      '/ajuda/solicitacao-rescisao-indireta.jpg',
+    ],
   },
   {
     id: 'postos',
     icon: Building2,
     titulo: 'Ver status dos meus postos',
-    onde: 'Menu → Meus Postos',
+    onde: 'Menu → Meus Postos ou Postos',
     passos: [
-      'Veja, por posto, o efetivo previsto e os funcionários ativos, em atestado, em férias ou faltantes',
+      'Veja, por posto, o efetivo alocado x previsto e a situação da insalubridade/cota',
+      'Status "Aloc: Déficit" = faltam pessoas; "Aloc: Excesso" = tem gente sobrando no posto',
       'Confira as coberturas ativas e quem é o substituto',
-      'Fique atento às marcações em vermelho: posto descoberto ou cobertura vencendo hoje/amanhã',
-      'Clique em um funcionário faltante para ir direto ao histórico dele',
+      'Clique em um posto ou funcionário para ver mais detalhes',
     ],
-    print: '/ajuda/postos-dashboard.jpg',
+    prints: ['/ajuda/postos-dashboard.jpg'],
   },
   {
     id: 'sino',
@@ -138,12 +203,11 @@ const SECOES: Secao[] = [
     titulo: 'Acompanhar minhas solicitações',
     onde: 'Sino de notificações (topo direito)',
     passos: [
-      'Clique no sino para ver as respostas às suas solicitações (férias, coberturas, etc.)',
-      'Verde = aprovada, vermelho = rejeitada',
-      'Se rejeitada, leia a observação do admin explicando o motivo',
-      'Clique em "Marcar como lidas" para limpar o badge',
+      'Clique no sino para ver as respostas às suas solicitações (férias, coberturas, transferências, etc.)',
+      'Verde/check = aprovada, vermelho = rejeitada — o texto explica o motivo',
+      'Clique em "Lidas" para limpar o badge de novas',
     ],
-    print: '/ajuda/sino-notificacoes.jpg',
+    prints: ['/ajuda/sino-notificacoes.jpg'],
   },
   {
     id: 'dashboard',
@@ -151,11 +215,11 @@ const SECOES: Secao[] = [
     titulo: 'Ver o dashboard',
     onde: 'Menu → Dashboard',
     passos: [
-      'Veja os KPIs dos seus postos: ausentes por atestado, férias e faltas',
-      'Confira coberturas vencendo e próximas férias',
-      'Cards em destaque avisam sobre postos descobertos ou coberturas críticas',
+      'Veja os KPIs gerais: efetivo ativo, ausentes, em férias, postos em déficit',
+      'Alertas críticos mostram postos com falta de gente',
+      'Confira próximas férias e coberturas em andamento',
     ],
-    print: '/ajuda/dashboard.jpg',
+    prints: ['/ajuda/dashboard.jpg'],
   },
 ]
 
@@ -163,9 +227,11 @@ function PrintTela({ src, titulo }: { src: string; titulo: string }) {
   const [existe, setExiste] = useState(false)
 
   useEffect(() => {
+    let ativo = true
     const img = new Image()
-    img.onload = () => setExiste(true)
+    img.onload = () => { if (ativo) setExiste(true) }
     img.src = src
+    return () => { ativo = false }
   }, [src])
 
   if (!existe) return null
@@ -219,7 +285,9 @@ function SecaoItem({ secao, aberto, onToggle }: { secao: Secao; aberto: boolean;
             </div>
           )}
 
-          {secao.print && <PrintTela src={secao.print} titulo={secao.titulo} />}
+          {secao.prints?.map((src) => (
+            <PrintTela key={src} src={src} titulo={secao.titulo} />
+          ))}
         </div>
       )}
     </div>
@@ -228,17 +296,43 @@ function SecaoItem({ secao, aberto, onToggle }: { secao: Secao; aberto: boolean;
 
 export function AjudaClient() {
   const [abertoId, setAbertoId] = useState<string | null>(SECOES[0].id)
+  const [busca, setBusca] = useState('')
+
+  const secoesFiltradas = useMemo(() => {
+    if (!busca.trim()) return SECOES
+    const q = busca.toLowerCase()
+    return SECOES.filter((s) =>
+      s.titulo.toLowerCase().includes(q) ||
+      s.onde.toLowerCase().includes(q) ||
+      s.passos.some((p) => p.toLowerCase().includes(q))
+    )
+  }, [busca])
 
   return (
-    <div className="space-y-3">
-      {SECOES.map((secao) => (
-        <SecaoItem
-          key={secao.id}
-          secao={secao}
-          aberto={abertoId === secao.id}
-          onToggle={() => setAbertoId(abertoId === secao.id ? null : secao.id)}
+    <div className="space-y-4">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="O que aconteceu? Ex: funcionário faltou, precisa trocar de posto..."
+          className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
         />
-      ))}
+      </div>
+
+      <div className="space-y-3">
+        {secoesFiltradas.length === 0 && (
+          <p className="py-8 text-center text-sm text-slate-400">Nada encontrado. Tente outro termo.</p>
+        )}
+        {secoesFiltradas.map((secao) => (
+          <SecaoItem
+            key={secao.id}
+            secao={secao}
+            aberto={abertoId === secao.id}
+            onToggle={() => setAbertoId(abertoId === secao.id ? null : secao.id)}
+          />
+        ))}
+      </div>
     </div>
   )
 }
