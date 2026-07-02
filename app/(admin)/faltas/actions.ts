@@ -63,18 +63,15 @@ const FALTA_SELECT = `
   perfis!registrado_por ( nome )
 `
 
-export async function buscarFaltas(mes: number, ano: number, tipo?: string): Promise<FaltaCompleta[]> {
+export async function buscarFaltas(dataInicio: string, dataFim: string, tipo?: string): Promise<FaltaCompleta[]> {
   const supabase = createClient()
   const auth = await getUser()
-  const inicio = `${ano}-${String(mes).padStart(2, '0')}-01`
-  const fim = new Date(ano, mes, 0)
-  const fimStr = `${ano}-${String(mes).padStart(2, '0')}-${String(fim.getDate()).padStart(2, '0')}`
 
   let query = supabase
     .from('faltas')
     .select(FALTA_SELECT)
-    .gte('data_falta', inicio)
-    .lte('data_falta', fimStr)
+    .gte('data_falta', dataInicio)
+    .lte('data_falta', dataFim)
     .order('data_falta', { ascending: false })
 
   if (auth?.perfil.role === 'supervisor' && auth.user.id) {

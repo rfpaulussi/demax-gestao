@@ -17,6 +17,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/dashboard',     label: 'Dashboard'     },
       { href: '/efetivo',       label: 'Efetivo'       },
       { href: '/postos',        label: 'Postos'        },
+      { href: '/meus-postos',   label: 'Meus Postos'   },
       { href: '/aprovacoes',    label: 'Aprovações',   badge: true },
       { href: '/coberturas',    label: 'Cobertura Temp.' },
       { href: '/ferias',        label: 'Férias'        },
@@ -26,6 +27,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/insalubridade', label: 'Cobertura Insalubre' },
       { href: '/ocorrencias',   label: 'Ocorrências'   },
       { href: '/acordos',       label: 'Acordos'        },
+      { href: '/ajuda',         label: 'Ajuda'          },
     ],
   },
   {

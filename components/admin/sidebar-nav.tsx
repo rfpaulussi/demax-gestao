@@ -26,6 +26,7 @@ import {
   ScrollText,
   FileSignature,
   UserCheck,
+  HelpCircle,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import { NAV_GROUPS } from './nav-config'
@@ -37,6 +38,7 @@ const ICONS: Record<string, React.ElementType> = {
   '/dashboard':     LayoutDashboard,
   '/efetivo':       Users,
   '/postos':        Building2,
+  '/meus-postos':   Building2,
   '/aprovacoes':    ClipboardCheck,
   '/coberturas':    Repeat2,
   '/ferias':        Palmtree,
@@ -55,6 +57,7 @@ const ICONS: Record<string, React.ElementType> = {
   '/usuarios':      UserCog,
   '/auditoria':     ScrollText,
   '/acordos':       FileSignature,
+  '/ajuda':         HelpCircle,
 }
 
 // ─── shared nav content ──────────────────────────────────────────────────────

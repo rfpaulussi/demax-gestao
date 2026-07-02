@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -72,6 +72,7 @@ interface Props {
   ano: number
   tipoAtivo: string
   anos: number[]
+  periodo: number
 }
 
 const FALTA_TIPO_EXCEL: Record<string, string> = {
@@ -102,10 +103,17 @@ function exportFaltasExcel(faltas: FaltaCompleta[], mes: number, ano: number) {
   )
 }
 
-export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtivo, anos }: Props) {
+export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtivo, anos, periodo }: Props) {
   const [showModal, setShowModal] = useState(false)
   const [editando, setEditando] = useState<FaltaCompleta | null>(null)
+  const [busca, setBusca] = useState('')
   const router = useRouter()
+
+  const faltasFiltradas = useMemo(() => {
+    if (!busca.trim()) return faltas
+    const q = busca.toLowerCase()
+    return faltas.filter(f => f.funcionarios?.nome?.toLowerCase().includes(q))
+  }, [faltas, busca])
 
   function handleFilter(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -115,6 +123,8 @@ export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtiv
     params.set('ano', fd.get('ano') as string)
     const tipo = fd.get('tipo') as string
     if (tipo) params.set('tipo', tipo)
+    const per = fd.get('periodo') as string
+    if (per && per !== '1') params.set('periodo', per)
     router.push(`/faltas?${params.toString()}`)
   }
 
@@ -235,48 +245,79 @@ export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtiv
       </div>
 
       {/* Filtros */}
-      <form onSubmit={handleFilter} className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end sm:gap-3">
-        <div className="space-y-1">
-          <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Mês</label>
-          <select name="mes" defaultValue={mes} className={`${sel} w-full sm:w-auto`}>
-            {MESES.slice(1).map((m, i) => (
-              <option key={i + 1} value={i + 1}>{m}</option>
-            ))}
-          </select>
+      <div className="space-y-3">
+        <form onSubmit={handleFilter} className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end sm:gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Mês</label>
+            <select name="mes" defaultValue={mes} className={`${sel} w-full sm:w-auto`}>
+              {MESES.slice(1).map((m, i) => (
+                <option key={i + 1} value={i + 1}>{m}</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Ano</label>
+            <select name="ano" defaultValue={ano} className={`${sel} w-full sm:w-auto`}>
+              {anos.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Período</label>
+            <select name="periodo" defaultValue={periodo} className={`${sel} w-full sm:w-auto`}>
+              <option value={1}>1 mês</option>
+              <option value={3}>3 meses</option>
+              <option value={6}>6 meses</option>
+              <option value={12}>12 meses</option>
+            </select>
+          </div>
+          <div className="space-y-1 col-span-2 sm:col-span-1">
+            <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Tipo</label>
+            <select name="tipo" defaultValue={tipoAtivo} className={`${sel} w-full sm:w-auto`}>
+              <option value="">Todos</option>
+              {(Object.entries(FALTA_TIPO_LABELS) as [FaltaTipo, string][]).map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </select>
+          </div>
+          <button type="submit" className="flex h-9 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 sm:w-auto sm:self-end">
+            Filtrar
+          </button>
+          <Link href="/faltas" className="flex h-9 w-full items-center justify-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-500 hover:bg-gray-50 sm:w-auto sm:self-end">
+            Limpar
+          </Link>
+        </form>
+
+        {/* Busca por funcionário (client-side) */}
+        <div className="relative max-w-xs">
+          <input
+            type="text"
+            value={busca}
+            onChange={e => setBusca(e.target.value)}
+            placeholder="Buscar funcionário..."
+            className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 pr-8 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400"
+          />
+          {busca && (
+            <button
+              type="button"
+              onClick={() => setBusca('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              ✕
+            </button>
+          )}
         </div>
-        <div className="space-y-1">
-          <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Ano</label>
-          <select name="ano" defaultValue={ano} className={`${sel} w-full sm:w-auto`}>
-            {anos.map(a => <option key={a} value={a}>{a}</option>)}
-          </select>
-        </div>
-        <div className="space-y-1 col-span-2 sm:col-span-1">
-          <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">Tipo</label>
-          <select name="tipo" defaultValue={tipoAtivo} className={`${sel} w-full sm:w-auto`}>
-            <option value="">Todos</option>
-            {(Object.entries(FALTA_TIPO_LABELS) as [FaltaTipo, string][]).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
-        </div>
-        <button type="submit" className="flex h-9 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 sm:w-auto sm:self-end">
-          Filtrar
-        </button>
-        <Link href="/faltas" className="flex h-9 w-full items-center justify-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-500 hover:bg-gray-50 sm:w-auto sm:self-end">
-          Limpar
-        </Link>
-      </form>
+      </div>
 
       {/* Header tabela */}
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-          {faltas.length} registro{faltas.length !== 1 ? 's' : ''}
+          {faltasFiltradas.length}{busca ? ` de ${faltas.length}` : ''} registro{faltasFiltradas.length !== 1 ? 's' : ''}
         </p>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => exportFaltasExcel(faltas, mes, ano)}
-            disabled={faltas.length === 0}
+            onClick={() => exportFaltasExcel(faltasFiltradas, mes, ano)}
+            disabled={faltasFiltradas.length === 0}
             className="flex h-9 items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-40"
           >
             <FileSpreadsheet className="h-4 w-4" />
@@ -293,9 +334,9 @@ export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtiv
       </div>
 
       {/* Tabela */}
-      {faltas.length === 0 ? (
+      {faltasFiltradas.length === 0 ? (
         <div className="rounded-xl border border-gray-100 bg-white py-12 text-center shadow-sm">
-          <p className="text-sm text-gray-400">Nenhuma falta encontrada para o período.</p>
+          <p className="text-sm text-gray-400">{busca ? 'Nenhum funcionário encontrado para a busca.' : 'Nenhuma falta encontrada para o período.'}</p>
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
@@ -309,7 +350,7 @@ export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtiv
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {faltas.map(f => (
+                {faltasFiltradas.map(f => (
                   <tr key={f.id} className="hover:bg-gray-50/80">
                     <td className="px-4 py-3 font-medium text-gray-900">{f.funcionarios?.nome ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-500">{f.funcionarios?.funcoes?.nome ?? '—'}</td>

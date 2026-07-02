@@ -22,6 +22,9 @@ Após qualquer alteração de código, rodar `npm run build` e corrigir todos os
 - `app/(admin)/` — área protegida com sidebar; layout em `app/(admin)/layout.tsx`
 - Cada feature tem sua pasta com `page.tsx` (Server Component) + `actions.ts` (Server Actions)
 - Middleware (`middleware.ts`) protege rotas e redireciona por autenticação/role
+- `app/(admin)/auditoria/` — log de auditoria de ações no sistema
+- `app/(admin)/pendencias/` — pendências e aprovações pendentes
+- `app/api/cron/snapshot-diario/route.ts` — cron job (chamado via Vercel Cron) que gera snapshot diário do efetivo
 
 ### Autenticação e roles
 - `lib/auth/get-user.ts` — `getUser()` retorna `{ user, perfil }` ou `null`; usar em Server Components/Actions
@@ -36,7 +39,8 @@ Após qualquer alteração de código, rodar `npm run build` e corrigir todos os
 - `lib/supabase/server.ts` — server-side (Server Components, Actions, Route Handlers)
 - `lib/supabase/admin.ts` — service role (operações privilegiadas)
 - `lib/supabase/fetch-all.ts` — `fetchAllRows(factory)` para paginar além do limite de 1000 linhas do PostgREST
-- Tipagem via `types/database.ts` (gerada do schema Supabase)
+- Tipagem via `types/database.ts` (gerada do schema Supabase); reexportada por `types/index.ts`
+- `lib/export-excel.ts` — utilitário compartilhado para gerar planilhas Excel (usado em fechamento, relatórios)
 
 ### Padrões de dados
 - **CPF**: sempre mascarado em toda interface
