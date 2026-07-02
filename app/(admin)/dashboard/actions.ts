@@ -23,6 +23,13 @@ export type KPIDashboard = {
   feriasTerminando30dias: number
 }
 
+export type PostoExcedente = {
+  id: string
+  nome: string
+  secretaria: string | null
+  excesso: number
+}
+
 export type PostoStatusBreakdown = {
   vago: number
   deficit: number
@@ -30,6 +37,7 @@ export type PostoStatusBreakdown = {
   excesso: number
   postosCriticos: number
   postosDeficit: PostoDeficit[]
+  postosExcedentes: PostoExcedente[]
 }
 
 export async function buscarPostoStatus(): Promise<PostoStatusBreakdown> {
@@ -38,6 +46,7 @@ export async function buscarPostoStatus(): Promise<PostoStatusBreakdown> {
 
   let vago = 0, deficit = 0, ok = 0, excesso = 0, postosCriticos = 0
   const postosDeficit: PostoDeficit[] = []
+  const postosExcedentes: PostoExcedente[] = []
 
   for (const p of operacionais) {
     const gap = p.efetivo_previsto - p.efetivo_atual
@@ -50,11 +59,15 @@ export async function buscarPostoStatus(): Promise<PostoStatusBreakdown> {
     if (gap > 0) {
       postosDeficit.push({ id: p.id, nome: p.nome, secretaria: p.secretaria, gap })
     }
+    if (gap < 0) {
+      postosExcedentes.push({ id: p.id, nome: p.nome, secretaria: p.secretaria, excesso: Math.abs(gap) })
+    }
   }
 
   return {
     vago, deficit, ok, excesso, postosCriticos,
     postosDeficit: postosDeficit.sort((a, b) => b.gap - a.gap),
+    postosExcedentes: postosExcedentes.sort((a, b) => b.excesso - a.excesso),
   }
 }
 
@@ -74,6 +87,7 @@ export type CatAlerta = {
 
 export type AlertasDashboard = {
   postosDeficit: PostoDeficit[]
+  postosExcedentes: PostoExcedente[]
   funcSemPosto: number
   feriasLimiteVencendo: number
   catAlertas: CatAlerta[]
@@ -219,6 +233,7 @@ export async function buscarAlertasDashboard(): Promise<AlertasDashboard> {
 
   return {
     postosDeficit,
+    postosExcedentes: postoStatus.postosExcedentes,
     funcSemPosto: funcSemPosto ?? 0,
     feriasLimiteVencendo: feriasLimiteVencendo ?? 0,
     catAlertas,
