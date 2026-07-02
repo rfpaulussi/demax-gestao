@@ -723,13 +723,20 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
     .lte('data_inicio', plusDias)
     .order('data_inicio', { ascending: true })
 
-  // 6. Ocorrências e aprovações (filtradas aos postos)
+  // 6. Ocorrências e aprovações (filtradas aos postos + alertas do próprio supervisor)
+  // Alertas têm posto_id=null, então precisam do filtro OR por supervisor_id
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let ocorrQuery = (supabase as unknown as any)
+    .from('ocorrencias')
+    .select('*', { count: 'exact', head: true })
+    .gte('created_at', new Date(Date.now() - 30 * 86400000).toISOString())
+  if (postoIds.length > 0) {
+    ocorrQuery = ocorrQuery.or(`posto_id.in.(${postoIds.join(',')}),and(tipo.eq.alerta,supervisor_id.eq.${supervisorId})`)
+  } else {
+    ocorrQuery = ocorrQuery.eq('tipo', 'alerta').eq('supervisor_id', supervisorId)
+  }
   const [{ count: ocorrencias }, { count: aprovacoes }] = await Promise.all([
-    supabase
-      .from('ocorrencias')
-      .select('*', { count: 'exact', head: true })
-      .in('posto_id', postoIds)
-      .gte('created_at', new Date(Date.now() - 30 * 86400000).toISOString()),
+    ocorrQuery,
     supabase
       .from('solicitacoes')
       .select('*', { count: 'exact', head: true })
