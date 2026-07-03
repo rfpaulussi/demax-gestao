@@ -20,5 +20,18 @@
       "Edit(hooks/*)",
       "Edit(public/*)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | grep -q '\\.env' && echo 'BLOCKED: edit .env.local manually' && exit 1 || exit 0"
+          }
+        ]
+      }
+    ]
   }
 }
