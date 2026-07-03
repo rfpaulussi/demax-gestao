@@ -5,7 +5,7 @@ import { readFileSync } from 'fs'
 import { createClient } from '@supabase/supabase-js'
 
 const url  = 'https://fwdhnipekbmeqozkpfyh.supabase.co'
-const key  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ3ZGhuaXBla2JtZXFvemtwZnloIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDA1ODc4MiwiZXhwIjoyMDk1NjM0NzgyfQ.bxsLPe9ZVwda-uzzbIetRoiWPjVxY90RS0Ca43kHdxc'
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const supabase = createClient(url, key)
 
