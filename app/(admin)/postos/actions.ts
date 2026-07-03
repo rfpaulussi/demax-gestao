@@ -65,6 +65,13 @@ export async function solicitarAdmissao(fd: FormData): Promise<ActionResult> {
 
 const CONTRATO_ID = 'c73a81ae-0104-4c05-b7d6-e6266f6be1b2'
 
+export type PostoFuncionario = {
+  id: string
+  nome: string
+  funcao_nome: string
+  status: string
+}
+
 export type PostoRow = {
   id: string
   nome: string
@@ -78,6 +85,7 @@ export type PostoRow = {
   supervisor_nome: string | null
   cobertura_como_origem: boolean
   cobertura_como_destino: boolean
+  funcionarios: PostoFuncionario[]
 }
 
 type ConfigRow = {
@@ -106,10 +114,12 @@ const INSALUBRIDADE_POR_SECRETARIA: Record<string, string> = {
 // Tipo local até eh_encarregado_volante ser adicionado aos tipos gerados do Supabase
 interface FuncionarioRow {
   id: string
+  nome: string
   posto_id: string | null
   status: string
   funcao_id: string | null
   eh_encarregado_volante: boolean | null
+  funcoes: { nome: string } | null
 }
 
 export async function getPostosData(): Promise<PostoRow[]> {
@@ -139,7 +149,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
     fetchAllRows<FuncionarioRow>((from, to) =>
       supabase
         .from('funcionarios')
-        .select('id, posto_id, status, funcao_id, eh_encarregado_volante')
+        .select('id, nome, posto_id, status, funcao_id, eh_encarregado_volante, funcoes!funcao_id(nome)')
         .in('status', ['ativo', 'ferias', 'atestado', 'afastado', 'faltante'])
         .order('id', { ascending: true })
         .range(from, to) as unknown as PromiseLike<{ data: FuncionarioRow[] | null; error: { message: string } | null }>,
@@ -165,8 +175,19 @@ export async function getPostosData(): Promise<PostoRow[]> {
   const efetivoMap = new Map<string, number>()
   const insalubMap = new Map<string, number>()
   const feriasMap  = new Map<string, number>()
+  const funcionariosPorPosto = new Map<string, PostoFuncionario[]>()
   for (const f of funcionariosRaw) {
     if (!f.posto_id) continue
+
+    const lista = funcionariosPorPosto.get(f.posto_id) ?? []
+    lista.push({
+      id: f.id,
+      nome: f.nome,
+      funcao_nome: f.funcoes?.nome ?? '—',
+      status: f.status,
+    })
+    funcionariosPorPosto.set(f.posto_id, lista)
+
     const secretaria = postoSecretariaMap.get(f.posto_id) ?? ''
     const isPostoAfastados = secretaria === 'AFASTADOS'
 
@@ -223,6 +244,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
     supervisor_nome: supervisorMap.get(p.id) ?? null,
     cobertura_como_origem:  coberturaOrigemIds.has(p.id),
     cobertura_como_destino: coberturaDestinoIds.has(p.id),
+    funcionarios: funcionariosPorPosto.get(p.id) ?? [],
   }))
 }
 
