@@ -30,14 +30,13 @@ export type FiltrosCounts = {
 export function FiltrosEfetivo({
   secretarias,
   supervisores,
-  postos,
   counts,
   values,
   onChange,
 }: {
   secretarias: string[]
   supervisores: { id: string; nome: string | null }[]
-  postos: { id: string; nome: string }[]
+  postos?: { id: string; nome: string }[]
   counts: FiltrosCounts
   values: FiltrosValues
   onChange: (key: keyof FiltrosValues, value: string) => void
@@ -94,18 +93,13 @@ export function FiltrosEfetivo({
         ))}
       </select>
 
-      <select
+      <input
+        type="text"
+        placeholder="Filtrar posto..."
         value={values.posto}
         onChange={e => onChange('posto', e.target.value)}
         className={inputClass}
-      >
-        <option value="">Todos os postos</option>
-        {postos.map(p => (
-          <option key={p.id} value={p.id}>
-            {p.nome} ({counts.postoCounts[p.id] ?? 0})
-          </option>
-        ))}
-      </select>
+      />
 
       <select
         value={values.status}

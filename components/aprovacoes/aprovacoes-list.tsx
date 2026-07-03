@@ -39,25 +39,12 @@ const TIPO_BADGE: Record<TipoSolicitacao, { label: string; className: string }> 
   admissao:            { label: 'Admissão',            className: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
 }
 
-function renderDados(dados: Record<string, unknown> | null, label: string, side: 'antes' | 'depois') {
-  if (!dados) return <p className="text-xs text-gray-400 italic">—</p>
-  const bg = side === 'antes' ? 'bg-gray-50' : 'bg-green-50'
-  const entries = Object.entries(dados).filter(([k]) => !k.endsWith('_id'))
-  return (
-    <div className={cn('rounded p-2 text-xs', bg)}>
-      <p className="mb-1 font-semibold uppercase tracking-widest text-gray-400">{label}</p>
-      {entries.length === 0 ? (
-        <p className="text-gray-400 italic">sem dados</p>
-      ) : (
-        entries.map(([k, v]) => (
-          <p key={k} className="text-gray-700">
-            <span className="font-medium">{k.replace(/_/g, ' ')}:</span>{' '}
-            {String(v ?? '—')}
-          </p>
-        ))
-      )}
-    </div>
-  )
+function renderInline(dados: Record<string, unknown> | null): string {
+  if (!dados) return '—'
+  return Object.entries(dados)
+    .filter(([k]) => !k.endsWith('_id'))
+    .map(([, v]) => String(v ?? '—'))
+    .join(' / ')
 }
 
 // ─── card ─────────────────────────────────────────────────────────────────────
@@ -93,79 +80,82 @@ function SolicitacaoCard({ sol, canApprove }: { sol: SolicitacaoPendente; canApp
   }
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <span className={cn('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset', badge.className)}>
-            {badge.label}
-          </span>
-          <p className="mt-2 text-sm font-semibold text-gray-900">
-            {sol.funcionarios?.nome ?? '—'}
-            <span className="ml-2 font-normal text-gray-400">
-              {sol.funcionarios?.cpf ? '***.***.***-**' : ''}
-            </span>
-          </p>
-          <p className="text-xs text-gray-400">
-            Solicitado por {sol.perfis?.nome ?? sol.perfis?.email ?? 'supervisor'}{' '}
-            {sol.created_at ? `· ${fmt(sol.created_at)}` : ''}
-          </p>
-          {sol.motivo && (
-            <p className="mt-1 text-xs text-gray-500">Motivo: {sol.motivo}</p>
-          )}
-        </div>
+    <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md">
+      {/* Header compacto */}
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset', badge.className)}>
+          {badge.label}
+        </span>
+        <span className="shrink-0 text-[10px] text-gray-400">
+          {sol.created_at ? fmt(sol.created_at) : ''}
+        </span>
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3">
-        {renderDados(sol.dados_antes, 'Situação atual', 'antes')}
-        {renderDados(sol.dados_depois, 'Solicitado', 'depois')}
+      {/* Funcionário */}
+      <p className="mb-0.5 text-sm font-semibold text-gray-900 leading-tight">
+        {sol.funcionarios?.nome ?? '—'}
+      </p>
+
+      {/* Solicitante + motivo */}
+      <p className="mb-2 text-xs text-gray-500">
+        <span className="font-medium text-slate-700">{sol.perfis?.nome ?? sol.perfis?.email ?? 'supervisor'}</span>
+        {sol.motivo ? ` · ${sol.motivo}` : ''}
+      </p>
+
+      {/* Antes → Depois inline */}
+      <div className="mb-3 flex items-center gap-1.5 flex-wrap">
+        <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">
+          {renderInline(sol.dados_antes)}
+        </span>
+        <span className="text-xs text-gray-400">→</span>
+        <span className="rounded bg-green-50 px-2 py-1 text-xs font-medium text-green-700">
+          {renderInline(sol.dados_depois)}
+        </span>
       </div>
 
       {erro && (
-        <p className="mb-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{erro}</p>
+        <p className="mb-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-600">{erro}</p>
       )}
 
       {canApprove && (!rejeitando ? (
-        <div className="flex items-center gap-2">
+        <div className="flex gap-2">
           <button
             onClick={handleAprovar}
             disabled={isPending}
-            className="rounded-lg bg-green-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition-colors hover:bg-green-700 disabled:opacity-50"
+            className="flex-1 rounded-lg bg-green-600 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-green-700 disabled:opacity-50"
           >
-            {isPending ? 'Processando...' : 'Aprovar'}
+            {isPending ? '...' : 'Aprovar'}
           </button>
           <button
             onClick={() => setRejeitando(true)}
             disabled={isPending}
-            className="rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+            className="flex-1 rounded-lg border border-red-300 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
           >
             Rejeitar
           </button>
         </div>
       ) : (
-        <div className="space-y-2 border-t border-gray-100 pt-3">
-          <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-            Motivo da rejeição (obrigatório)
-          </p>
+        <div className="space-y-1.5 border-t border-gray-100 pt-2">
           <textarea
             value={motivo}
             onChange={e => setMotivo(e.target.value)}
             rows={2}
-            className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600"
-            placeholder="Informe o motivo..."
+            className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-slate-600"
+            placeholder="Motivo da rejeição..."
           />
           <div className="flex gap-2">
             <button
               onClick={() => { setRejeitando(false); setMotivo('') }}
-              className="rounded-lg px-4 py-2 text-xs font-semibold uppercase tracking-widest text-gray-600 hover:bg-gray-100"
+              className="flex-1 rounded-lg border border-gray-200 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
             >
               Cancelar
             </button>
             <button
               onClick={handleRejeitar}
               disabled={!motivo.trim() || isPending}
-              className="rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white hover:bg-red-700 disabled:opacity-50"
+              className="flex-1 rounded-lg bg-red-600 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
             >
-              {isPending ? 'Processando...' : 'Confirmar Rejeição'}
+              {isPending ? '...' : 'Confirmar'}
             </button>
           </div>
         </div>
@@ -176,6 +166,12 @@ function SolicitacaoCard({ sol, canApprove }: { sol: SolicitacaoPendente; canApp
 
 // ─── lista principal ──────────────────────────────────────────────────────────
 
+const TIPO_ORDEM: TipoSolicitacao[] = [
+  'transferencia', 'mudanca_funcao', 'desligamento', 'rescisao_indireta',
+  'promocao', 'mudanca_supervisor', 'alteracao_salario', 'afastamento',
+  'retorno_afastamento', 'admissao',
+]
+
 export function AprovacoesList({ solicitacoes, canApprove = true }: { solicitacoes: SolicitacaoPendente[]; canApprove?: boolean }) {
   if (solicitacoes.length === 0) {
     return (
@@ -184,10 +180,28 @@ export function AprovacoesList({ solicitacoes, canApprove = true }: { solicitaco
       </div>
     )
   }
+
+  const porTipo = solicitacoes.reduce<Record<string, SolicitacaoPendente[]>>((acc, s) => {
+    acc[s.tipo] = acc[s.tipo] ?? []
+    acc[s.tipo].push(s)
+    return acc
+  }, {})
+
+  const tiposOrdenados = TIPO_ORDEM.filter(t => porTipo[t])
+
   return (
-    <div className="space-y-4">
-      {solicitacoes.map(sol => (
-        <SolicitacaoCard key={sol.id} sol={sol} canApprove={canApprove} />
+    <div className="space-y-6">
+      {tiposOrdenados.map(tipo => (
+        <div key={tipo}>
+          <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
+            {TIPO_BADGE[tipo]?.label ?? tipo} ({porTipo[tipo].length})
+          </h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {porTipo[tipo].map(sol => (
+              <SolicitacaoCard key={sol.id} sol={sol} canApprove={canApprove} />
+            ))}
+          </div>
+        </div>
       ))}
     </div>
   )

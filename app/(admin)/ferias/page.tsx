@@ -2,9 +2,11 @@
 
 import { useEffect, useState, useMemo, useTransition } from 'react'
 import Link from 'next/link'
+import { FileSpreadsheet } from 'lucide-react'
 import { ModalNovaFerias } from '@/components/ferias/modal-nova-ferias'
 import { ModalImportarHistoricoFerias } from '@/components/ferias/modal-importar-historico-ferias'
 import { ModalEditarFerias } from '@/components/ferias/modal-editar-ferias'
+import { exportToExcel } from '@/lib/export-excel'
 import {
   buscarFeriasLista,
   buscarSupervisoresParaFiltro,
@@ -202,6 +204,7 @@ export default function FeriasPage() {
   const [filtroSecretaria, setFiltroSecretaria] = useState('todas')
   const [filtroSupervisor, setFiltroSupervisor] = useState('todos')
   const [filtroVencimento, setFiltroVencimento] = useState('todos')
+  const [filtroPosto, setFiltroPosto] = useState('')
 
   // Ordenação
   const [sortKey, setSortKey] = useState<SortKey>('funcionario_nome')
@@ -246,6 +249,7 @@ export default function FeriasPage() {
     if (filtroStatus !== 'todos') list = list.filter(f => f.status === filtroStatus)
     if (filtroSecretaria !== 'todas') list = list.filter(f => f.secretaria === filtroSecretaria)
     if (filtroSupervisor !== 'todos') list = list.filter(f => f.supervisor_nome === filtroSupervisor)
+    if (filtroPosto.trim()) list = list.filter(f => f.posto_nome.toLowerCase().includes(filtroPosto.toLowerCase()))
 
     if (filtroVencimento !== 'todos') {
       list = list.filter(f => {
@@ -269,11 +273,32 @@ export default function FeriasPage() {
     })
 
     return list
-  }, [ferias, filtroBusca, filtroStatus, filtroSecretaria, filtroSupervisor, filtroVencimento, sortKey, sortAsc])
+  }, [ferias, filtroBusca, filtroStatus, filtroSecretaria, filtroSupervisor, filtroVencimento, filtroPosto, sortKey, sortAsc])
 
   function handleSort(key: SortKey) {
     if (sortKey === key) setSortAsc(p => !p)
     else { setSortKey(key); setSortAsc(true) }
+  }
+
+  function handleExportFerias() {
+    exportToExcel(
+      filtered,
+      [
+        { label: 'Registro', value: r => r.funcionario_registro, asText: true },
+        { label: 'Funcionário', value: r => r.funcionario_nome },
+        { label: 'Posto', value: r => r.posto_nome },
+        { label: 'Secretaria', value: r => r.secretaria },
+        { label: 'Supervisor', value: r => r.supervisor_nome },
+        { label: 'Período', value: r => `${r.numero_periodo ?? ''}º` },
+        { label: 'Período Aquisitivo', value: r => r.periodo_inicio && r.periodo_fim ? `${r.periodo_inicio} – ${r.periodo_fim}` : '' },
+        { label: 'Limite Gozo', value: r => r.limite_gozo ?? '' },
+        { label: 'Dias', value: r => String(r.dias_direito ?? '') },
+        { label: 'Início', value: r => r.data_inicio ?? '' },
+        { label: 'Fim', value: r => r.data_fim ?? '' },
+        { label: 'Status', value: r => r.status },
+      ],
+      `ferias-${new Date().toISOString().split('T')[0]}`
+    )
   }
 
   function SortIcon({ k }: { k: SortKey }) {
@@ -315,6 +340,14 @@ export default function FeriasPage() {
           >
             ✦ Relação por Supervisor
           </Link>
+          <button
+            type="button"
+            onClick={handleExportFerias}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-white border border-green-500 text-green-700 rounded-lg hover:bg-green-50 transition"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Excel
+          </button>
           <button
             type="button"
             onClick={() => setModalHistoricoAberto(true)}
@@ -401,6 +434,15 @@ export default function FeriasPage() {
           <option value="todos">Todos os supervisores</option>
           {supervisores.map(s => <option key={s.nome} value={s.nome}>{s.nome}</option>)}
         </select>
+
+        {/* Posto */}
+        <input
+          type="text"
+          value={filtroPosto}
+          onChange={e => setFiltroPosto(e.target.value)}
+          placeholder="Filtrar posto..."
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300 sm:w-auto"
+        />
 
         {/* Vencimento — filtro rápido */}
         <select

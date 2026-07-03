@@ -564,3 +564,29 @@ export async function marcarRetornoFaltante(funcionarioId: string): Promise<{ su
   return { success: true }
 }
 
+export async function excluirFuncionarioCompleto(id: string): Promise<{ success: boolean; error?: string }> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role !== 'admin') return { success: false, error: 'Acesso negado' }
+
+  const admin = createAdminClient()
+
+  // Deletar em ordem de FK (mais dependentes primeiro)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const adm = admin as any
+  await adm.from('faltas').delete().eq('funcionario_id', id)
+  await adm.from('advertencias').delete().eq('funcionario_id', id)
+  await adm.from('atestados').delete().eq('funcionario_id', id)
+  await adm.from('afastamentos').delete().eq('funcionario_id', id)
+  await adm.from('coberturas_insalubres').delete().eq('funcionario_id', id)
+  await adm.from('coberturas_temporarias').delete().eq('funcionario_ausente_id', id)
+  await adm.from('ferias').delete().eq('funcionario_id', id)
+  await adm.from('transferencias').delete().eq('funcionario_id', id)
+  await adm.from('movimentacoes').delete().eq('funcionario_id', id)
+  // historico_funcionarios tem CASCADE, deletado automaticamente com funcionarios
+  const { error } = await adm.from('funcionarios').delete().eq('id', id)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/efetivo')
+  revalidatePath('/dashboard')
+  return { success: true }
+}

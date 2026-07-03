@@ -2,11 +2,11 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { FileMinus, UserMinus, ArrowUpRight, ClipboardList, Clock, Pencil, UserCheck } from 'lucide-react'
+import { FileMinus, UserMinus, ArrowUpRight, ClipboardList, Clock, Pencil, UserCheck, Trash2 } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { calcularStatusExperiencia } from '@/lib/experiencia'
-import { marcarRetornoFaltante } from '@/app/(admin)/efetivo/actions'
+import { marcarRetornoFaltante, excluirFuncionarioCompleto } from '@/app/(admin)/efetivo/actions'
 import { ModalAtestado } from './modal-atestado'
 import { ModalAfastar } from './modal-afastar'
 import { ModalNovaSolicitacao } from './modal-nova-solicitacao'
@@ -249,6 +249,7 @@ export function FuncionariosTable({
                             <Button
                               size="sm"
                               variant="outline"
+                              className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
                               onClick={() => setAtestadoFuncionario(f)}
                               disabled={!f.posto_id}
                               title={!f.posto_id ? 'Sem posto vinculado' : undefined}
@@ -261,6 +262,7 @@ export function FuncionariosTable({
                             <Button
                               size="sm"
                               variant="outline"
+                              className="border-amber-400 text-amber-700 hover:bg-amber-50"
                               onClick={() => setAfastarFuncionario(f)}
                             >
                               <UserMinus className="h-3.5 w-3.5" />
@@ -286,6 +288,7 @@ export function FuncionariosTable({
                             <Button
                               size="sm"
                               variant="outline"
+                              className="border-blue-300 text-blue-700 hover:bg-blue-50"
                               onClick={() => setSolicitarFuncionario(f)}
                             >
                               <ClipboardList className="h-3.5 w-3.5" />
@@ -308,6 +311,21 @@ export function FuncionariosTable({
                           >
                             <Clock className="h-3.5 w-3.5" />
                           </Link>
+                          {isAdmin && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-red-300 text-red-600 hover:bg-red-50"
+                              title="Excluir cadastro permanentemente"
+                              onClick={async () => {
+                                if (!confirm(`Excluir PERMANENTEMENTE ${f.nome}?\n\nTodos os registros (férias, faltas, afastamentos, atestados) serão deletados. Esta ação é IRREVERSÍVEL.`)) return
+                                const res = await excluirFuncionarioCompleto(f.id)
+                                if (!res.success) alert('Erro: ' + res.error)
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>

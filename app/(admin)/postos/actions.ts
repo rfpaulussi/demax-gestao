@@ -109,6 +109,7 @@ const INSALUBRIDADE_POR_SECRETARIA: Record<string, string> = {
   SMASA: 'AGENTE DE HIGIENIZAÇÃO B',
   SMGOV: 'AGENTE DE HIGIENIZAÇÃO B',
   SMSUZ: 'AGENTE DE HIGIENIZAÇÃO B',
+  SEDE:  'AGENTE DE HIGIENIZAÇÃO B',
 }
 
 // Tipo local até eh_encarregado_volante ser adicionado aos tipos gerados do Supabase

@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Bell, X, CheckCheck, AlertTriangle, FileText, UserMinus, Shield } from 'lucide-react'
+import { Bell, X, CheckCheck, AlertTriangle, FileText, UserMinus, Shield, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { marcarTodasLidas } from '@/app/(admin)/notificacoes/actions'
+import { marcarTodasLidas, excluirNotificacoesLidas, excluirNotificacaoIndividual } from '@/app/(admin)/notificacoes/actions'
 
 export type LogAcao = {
   id: string
@@ -66,6 +66,22 @@ export function NotificacoesBell({ unread: initialUnread, logs: initialLogs }: P
     })
   }
 
+  function handleExcluirLidas() {
+    startTransition(async () => {
+      await excluirNotificacoesLidas()
+      setLogs(logs.filter(l => !l.lido))
+    })
+  }
+
+  function handleExcluirIndividual(id: string) {
+    startTransition(async () => {
+      await excluirNotificacaoIndividual(id)
+      const removed = logs.find(l => l.id === id)
+      setLogs(logs.filter(l => l.id !== id))
+      if (removed && !removed.lido) setUnread(u => Math.max(0, u - 1))
+    })
+  }
+
   return (
     <div className="relative">
       <button
@@ -113,6 +129,18 @@ export function NotificacoesBell({ unread: initialUnread, logs: initialLogs }: P
                     Lidas
                   </button>
                 )}
+                {logs.some(l => l.lido) && (
+                  <button
+                    type="button"
+                    onClick={handleExcluirLidas}
+                    disabled={pending}
+                    title="Excluir mensagens lidas"
+                    className="flex items-center gap-1 rounded px-2 py-1 text-xs text-red-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                  >
+                    <Trash2 size={13} />
+                    Excluir lidas
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
@@ -153,8 +181,18 @@ export function NotificacoesBell({ unread: initialUnread, logs: initialLogs }: P
                       </p>
                       <p className="mt-0.5 text-[10px] text-gray-400">{fmtRelativo(log.created_at)}</p>
                     </div>
-                    {!log.lido && (
+                    {!log.lido ? (
                       <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500" />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); handleExcluirIndividual(log.id) }}
+                        className="shrink-0 text-gray-300 hover:text-red-400 disabled:opacity-50"
+                        disabled={pending}
+                        title="Excluir notificação"
+                      >
+                        <X size={13} />
+                      </button>
                     )}
                   </div>
                 ))

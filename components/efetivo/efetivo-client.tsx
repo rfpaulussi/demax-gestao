@@ -83,7 +83,7 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
     } else if (values.supervisor) {
       list = list.filter(f => f.supervisor_id === values.supervisor)
     }
-    if (values.posto) list = list.filter(f => f.posto_id === values.posto)
+    if (values.posto) list = list.filter(f => (f.postos?.nome ?? '').toLowerCase().includes(values.posto.toLowerCase()))
     return list
   }, [funcionarios, values])
 
