@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
-import { UserPlus, FileSpreadsheet } from 'lucide-react'
+import { useState, useMemo, useEffect, Fragment } from 'react'
+import { UserPlus, FileSpreadsheet, ChevronRight } from 'lucide-react'
 import * as XLSX from 'xlsx-js-style'
 import { cn } from '@/lib/utils'
 import type { PostoRow } from '@/app/(admin)/postos/actions'
@@ -41,6 +41,18 @@ const STATUS_ORDER: Record<StatusPosto, number> = {
   vago: 0, deficit: 1, ok: 2, excesso: 3,
 }
 
+const NOME_COR_STATUS: Record<string, string> = {
+  ativo:     'text-green-700',
+  ferias:    'text-orange-600',
+  afastado:  'text-red-600',
+  atestado:  'text-red-600',
+  faltante:  'text-amber-600',
+}
+
+const STATUS_ORDER_LISTA: Record<string, number> = {
+  ativo: 0, ferias: 1, faltante: 2, afastado: 3, atestado: 3,
+}
+
 // ─── KPI card ─────────────────────────────────────────────────────────────────
 
 function CounterCard({
@@ -72,12 +84,13 @@ function CounterCard({
 
 // ─── column definitions ───────────────────────────────────────────────────────
 
-type ColDef = { label: string; sortKey: SortCol | null; align: 'left' | 'center' }
+type ColDef = { label: string; sortKey: SortCol | null; align: 'left' | 'center'; padTight?: boolean }
 
 const COLS: ColDef[] = [
-  { label: 'Posto',              sortKey: 'nome',             align: 'left'   },
-  { label: 'Secretaria',         sortKey: 'secretaria',       align: 'left'   },
-  { label: 'Supervisor',         sortKey: 'supervisor',       align: 'left'   },
+  { label: '',                   sortKey: null,               align: 'center', padTight: true },
+  { label: 'Posto',              sortKey: 'nome',             align: 'left',   padTight: true },
+  { label: 'Secretaria',         sortKey: 'secretaria',       align: 'left',   padTight: true },
+  { label: 'Supervisor',         sortKey: 'supervisor',       align: 'left',   padTight: true },
   { label: 'Aloc / Prev',        sortKey: 'efetivo_atual',    align: 'center' },
   { label: 'Insalub / Cota',     sortKey: null,               align: 'center' },
   { label: 'Status',             sortKey: 'status',           align: 'center' },
@@ -178,6 +191,7 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
   const [toast, setToast]                   = useState(false)
   const [loadingXlsx, setLoadingXlsx]       = useState(false)
   const [aba, setAba]                        = useState<'visao' | 'gerenciar'>('visao')
+  const [expandidos, setExpandidos]          = useState<Set<string>>(new Set())
   const [modalPosto, setModalPosto]          = useState<'criar' | PostoRow | null>(null)
   const [confirmDesativar, setConfirmDesativar] = useState<PostoRow | null>(null)
   const [saving, setSaving]                  = useState(false)
@@ -341,6 +355,15 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
     else { setSortCol(col); setSortDir('asc') }
   }
 
+  function toggleExpandir(id: string) {
+    setExpandidos(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   // ── render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -452,7 +475,7 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                       key={col.label}
                       onClick={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
                       className={[
-                        `px-4 py-3 ${col.align === 'center' ? 'text-center' : 'text-left'} text-xs font-semibold uppercase tracking-widest`,
+                        `${col.padTight ? 'px-2' : 'px-4'} py-3 ${col.align === 'center' ? 'text-center' : 'text-left'} text-xs font-semibold uppercase tracking-widest`,
                         col.sortKey === sortCol ? 'text-gray-700' : 'text-gray-400',
                         col.sortKey ? 'cursor-pointer select-none hover:text-gray-600' : '',
                       ].join(' ')}
@@ -480,11 +503,23 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                       st === 'vago'                ? 'bg-red-50' :
                       !p.supervisor_nome           ? 'bg-amber-50' :
                       'hover:bg-gray-50'
+                    const expandido = expandidos.has(p.id)
                     return (
-                      <tr key={p.id} className={rowBg}>
-                        <td className="px-4 py-3 font-medium text-gray-900">{p.nome}</td>
-                        <td className="px-4 py-3 text-gray-600">{p.secretaria || '—'}</td>
-                        <td className="px-4 py-3">
+                      <Fragment key={p.id}>
+                      <tr className={rowBg}>
+                        <td className="px-2 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => toggleExpandir(p.id)}
+                            className="text-gray-400 hover:text-gray-700"
+                            aria-label={expandido ? 'Recolher' : 'Expandir'}
+                          >
+                            <ChevronRight className={cn('h-4 w-4 transition-transform', expandido && 'rotate-90')} />
+                          </button>
+                        </td>
+                        <td className="px-2 py-3 font-medium text-gray-900">{p.nome}</td>
+                        <td className="px-2 py-3 text-gray-600">{p.secretaria || '—'}</td>
+                        <td className="px-2 py-3">
                           {p.supervisor_nome ? (
                             <span className="text-gray-600">{p.supervisor_nome}</span>
                           ) : (
@@ -552,6 +587,32 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                           </div>
                         </td>
                       </tr>
+                      {expandido && (
+                        <tr>
+                          <td colSpan={7} className="bg-gray-50 px-6 py-3">
+                            {p.funcionarios.length === 0 ? (
+                              <p className="text-xs text-gray-400">Nenhum funcionário vinculado</p>
+                            ) : (
+                              <ul className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                                {[...p.funcionarios]
+                                  .sort((a, b) =>
+                                    (STATUS_ORDER_LISTA[a.status] ?? 9) - (STATUS_ORDER_LISTA[b.status] ?? 9) ||
+                                    a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
+                                  )
+                                  .map(f => (
+                                    <li key={f.id} className="flex items-baseline gap-1.5 text-xs">
+                                      <span className={cn('font-medium', NOME_COR_STATUS[f.status] ?? 'text-gray-700')}>
+                                        {f.nome}
+                                      </span>
+                                      <span className="text-gray-400">— {f.funcao_nome}</span>
+                                    </li>
+                                  ))}
+                              </ul>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     )
                   })
                 )}
