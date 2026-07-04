@@ -410,7 +410,7 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
             <input
               type="text"
-              placeholder="Buscar posto..."
+              placeholder="Buscar posto…"
               value={busca}
               onChange={e => setBusca(e.target.value)}
               className={`${selectClass} col-span-2 w-full sm:w-56`}
@@ -441,7 +441,7 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
               disabled={loadingXlsx || filtered.length === 0}
               className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 sm:w-auto sm:justify-start"
             >
-              <FileSpreadsheet className="h-4 w-4 text-green-600" />
+              <FileSpreadsheet className="h-4 w-4 text-green-600" aria-hidden="true" />
               {loadingXlsx ? 'Gerando…' : 'Excel'}
             </button>
 
@@ -451,7 +451,7 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                 onClick={() => setNovaAdmissaoOpen(true)}
                 className="col-span-2 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 transition-colors sm:ml-auto sm:w-auto"
               >
-                <UserPlus className="h-3.5 w-3.5" />
+                <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />
                 Nova Admissão
               </button>
             )}
@@ -571,7 +571,7 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                             })()}
                             {p.em_ferias > 0 && (
                               <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
-                                🌴 {p.em_ferias} em férias
+                                <span aria-hidden="true">🌴</span> {p.em_ferias} em férias
                               </span>
                             )}
                             {p.cobertura_como_origem && (
@@ -747,7 +747,7 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
               </button>
               <button type="button" onClick={handleDesativar} disabled={saving}
                 className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
-                {saving ? '...' : 'Desativar'}
+                {saving ? '…' : 'Desativar'}
               </button>
             </div>
           </div>
