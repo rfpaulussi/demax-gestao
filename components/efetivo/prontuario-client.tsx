@@ -127,7 +127,7 @@ function buildHistoricoMes(
           if (d.status)      state.status     = d.status
           break
         case 'mudanca_posto':
-          if (d.posto)       state.posto      = d.posto
+          if (d.posto_nome)  state.posto      = d.posto_nome
           if (d.secretaria)  state.secretaria = d.secretaria
           break
         case 'mudanca_funcao':
@@ -179,8 +179,9 @@ function fmt(iso: string | null | undefined): string {
 
 function dadosList(dados: Record<string, unknown> | null): [string, string][] {
   if (!dados) return []
+  const hasPostoNome = dados.posto_nome != null && dados.posto_nome !== ''
   return Object.entries(dados)
-    .filter(([, v]) => v != null && v !== '')
+    .filter(([k, v]) => v != null && v !== '' && !(hasPostoNome && k === 'posto_id'))
     .map(([k, v]) => [k, String(v)])
 }
 

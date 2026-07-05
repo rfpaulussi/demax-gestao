@@ -38,6 +38,11 @@ function fmt(iso: string | null | undefined): string {
   return `${day}/${m}/${y}`
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+function isUUID(v: unknown): v is string {
+  return typeof v === 'string' && UUID_REGEX.test(v)
+}
+
 export default async function ProntuarioPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
   const { id } = params
@@ -256,6 +261,43 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
   }
   const eventosFinal = Array.from(deduped.values())
   eventosFinal.sort((a, b) => b.data.localeCompare(a.data))
+
+  // S2: Resolve posto_id UUIDs to human-readable names
+  const postoIdSet = new Set<string>()
+  for (const e of eventosFinal) {
+    const dn = e.dados_novos
+    const da = e.dados_anteriores
+    if (dn && isUUID(dn.posto_id)) postoIdSet.add(dn.posto_id)
+    if (da && isUUID(da.posto_id)) postoIdSet.add(da.posto_id)
+  }
+  // DIAG TEMPORÁRIO — remover após confirmar S2
+  console.log('[S2-DIAG] postoIdSet:', postoIdSet.size, [...postoIdSet])
+  if (postoIdSet.size > 0) {
+    const { data: postosRows } = await supabase
+      .from('postos')
+      .select('id, nome')
+      .in('id', Array.from(postoIdSet))
+    const postoNomeMap: Record<string, string> = Object.fromEntries(
+      (postosRows ?? []).map(p => [p.id, p.nome])
+    )
+    // DIAG TEMPORÁRIO — remover após confirmar S2
+    console.log('[S2-DIAG] postoNomeMap:', postoNomeMap)
+    for (const e of eventosFinal) {
+      const dn = e.dados_novos
+      const da = e.dados_anteriores
+      if (dn && isUUID(dn.posto_id)) {
+        e.dados_novos = { ...dn, posto_nome: postoNomeMap[dn.posto_id] ?? 'Posto não encontrado' }
+      }
+      if (da && isUUID(da.posto_id)) {
+        e.dados_anteriores = { ...da, posto_nome: postoNomeMap[da.posto_id] ?? 'Posto não encontrado' }
+      }
+    }
+  }
+  // DIAG TEMPORÁRIO — remover após confirmar S2
+  const mudancaPosto = eventosFinal.find(e => e.tipo === 'mudanca_posto')
+  if (mudancaPosto) {
+    console.log('[S2-DIAG] evento mudanca_posto:', JSON.stringify({ dados_anteriores: mudancaPosto.dados_anteriores, dados_novos: mudancaPosto.dados_novos }, null, 2))
+  }
 
   return (
     <div className="space-y-6">

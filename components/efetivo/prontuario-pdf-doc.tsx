@@ -48,8 +48,9 @@ function fmt(iso: string | null | undefined): string {
 
 function dadosText(dados: Record<string, unknown> | null): string {
   if (!dados) return ''
+  const hasPostoNome = dados.posto_nome != null && dados.posto_nome !== ''
   return Object.entries(dados)
-    .filter(([, v]) => v != null && v !== '')
+    .filter(([k, v]) => v != null && v !== '' && !(hasPostoNome && k === 'posto_id'))
     .map(([k, v]) => `${k}: ${v}`)
     .join('  ·  ')
 }
