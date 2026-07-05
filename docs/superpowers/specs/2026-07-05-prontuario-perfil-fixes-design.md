@@ -14,13 +14,25 @@ Análise das telas Ver Perfil, Prontuário (linha do tempo + histórico por mês
 
 ## Seção 1 — Deduplicação de eventos (B1 + B2)
 
-**Arquivo:** `app/(admin)/efetivo/[id]/historico/page.tsx`
-
 **Problema:**
-- B1: `historico_funcionarios` contém entradas duplicadas para advertências de mesma data (09/04 e 14/05 aparecem 2x cada no prontuário/PDF)
-- B2: Dois pares de `afastamento` + `retorno_afastamento` no mesmo dia 18/06 (4 eventos no lugar de 2)
+- B1: `historico_funcionarios` contém entradas duplicadas para advertências de 09/04 e 14/05. Causa raiz confirmada: backfill manual rodou duas vezes em 18/06/2026 (18:41 e 18:48), inserindo os mesmos registros em ambas as rodadas. Registros duplicados identificados: `38af4003-67d0-4884-8db1-2e79ad6ca44c` e `85a2fae5-49ba-42c9-bce7-0b00269b3f45`.
+- B2: Dois pares de `afastamento` + `retorno_afastamento` no mesmo dia 18/06 (4 eventos no lugar de 2).
 
-**Solução:** Após montar o array `eventos` (que inclui historico + suplementares), aplicar dedup por `tipo + data`. Usar `Map<string, ProntuarioEvento>` — primeira ocorrência vence, demais descartadas. Aplicar antes do `sort` final.
+**Solução — duas camadas:**
+
+**1a. Limpeza no banco (B1 apenas):** Deletar os 2 registros da segunda rodada do backfill. Conteúdo é idêntico ao par original — sem perda de informação.
+
+```sql
+DELETE FROM historico_funcionarios
+WHERE id IN (
+  '38af4003-67d0-4884-8db1-2e79ad6ca44c',
+  '85a2fae5-49ba-42c9-bce7-0b00269b3f45'
+);
+```
+
+A ser executado via Supabase Dashboard → SQL Editor, antes do deploy.
+
+**1b. Dedup em código (B1 + B2 — salvaguarda):** Em `app/(admin)/efetivo/[id]/historico/page.tsx`, após montar o array `eventos`, aplicar dedup por `tipo + data`. Protege contra duplicatas futuras de qualquer origem.
 
 ```ts
 const deduped = new Map<string, ProntuarioEvento>()
@@ -32,9 +44,9 @@ const eventosFinal = [...deduped.values()]
 eventosFinal.sort((a, b) => b.data.localeCompare(a.data))
 ```
 
-**Ordem de execução em `historico/page.tsx`:** S2 (UUID resolution) roda antes de S1 (dedup), pois o dedup opera nos dados já com nomes resolvidos.
+**Ordem de execução em `historico/page.tsx`:** S2 (UUID resolution) roda antes de S1b (dedup), pois o dedup opera nos dados já com nomes resolvidos.
 
-**Impacto:** Remove duplicatas visíveis na timeline e no PDF. Não altera dados do banco.
+**Impacto:** Banco limpo + exibição protegida para futuros casos similares.
 
 ---
 
