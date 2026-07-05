@@ -271,7 +271,7 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
     if (da && isUUID(da.posto_id)) postoIdSet.add(da.posto_id)
   }
   // DIAG TEMPORÁRIO — remover após confirmar S2
-  console.log('[S2-DIAG] postoIdSet:', postoIdSet.size, [...postoIdSet])
+  console.log('[S2-DIAG] postoIdSet:', postoIdSet.size, Array.from(postoIdSet))
   if (postoIdSet.size > 0) {
     const { data: postosRows } = await supabase
       .from('postos')
