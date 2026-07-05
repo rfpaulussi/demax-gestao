@@ -29,6 +29,21 @@
           {
             "type": "command",
             "command": "echo \"$CLAUDE_TOOL_INPUT\" | grep -q '\\.env' && echo 'BLOCKED: edit .env.local manually' && exit 1 || exit 0"
+          },
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'types/database\\.ts' && echo 'BLOCKED: types/database.ts is auto-generated. Run: npx supabase gen types typescript --project-id fwdhnipekbmeqozkpfyh > types/database.ts' && exit 1 || exit 0"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | grep -qE '\"(app|lib|types|hooks|components)/' && npx tsc --noEmit 2>&1 | head -30 || exit 0"
           }
         ]
       }
