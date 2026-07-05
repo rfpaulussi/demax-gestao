@@ -249,7 +249,13 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
       }),
   ]
 
-  eventos.sort((a, b) => b.data.localeCompare(a.data))
+  const deduped = new Map<string, ProntuarioEvento>()
+  for (const e of eventos) {
+    const key = `${e.tipo}:${e.data}`
+    if (!deduped.has(key)) deduped.set(key, e)
+  }
+  const eventosFinal = Array.from(deduped.values())
+  eventosFinal.sort((a, b) => b.data.localeCompare(a.data))
 
   return (
     <div className="space-y-6">
@@ -258,7 +264,7 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
         <h1 className="text-lg font-bold text-gray-900">Prontuário</h1>
         <p className="text-sm text-gray-400">Histórico completo do funcionário</p>
       </div>
-      <ProntuarioClient funcionario={funcionario} eventos={eventos} />
+      <ProntuarioClient funcionario={funcionario} eventos={eventosFinal} />
     </div>
   )
 }
