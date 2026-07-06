@@ -104,12 +104,11 @@ export default async function MudancasFuncaoAdminPage({
     const insAnteriorPerc = fList.find(f => f.id === r.valor_antes)?.insalubridade_perc ?? null
     const insNovaPerc     = fList.find(f => f.id === r.valor_depois)?.insalubridade_perc ?? null
 
-    // Determina tipo efetivo: compara nome origem vs nome destino gravados na mesma solicitação
-    // (mesma query, sem risco de formatação divergente). Se nomes iguais → mudança de setor interno,
-    // não uma transferência real de local → trata como 'mudanca_funcao' no PDF.
-    const normalize = (s: string) => (s ?? '').replace(/\s+/g, ' ').trim().toUpperCase()
-    const nomeOrigem  = normalize(sol?.dados_antes?.['posto_nome']         as string ?? '')
-    const nomeDestino = normalize(sol?.dados_depois?.['posto_destino_nome'] as string ?? '')
+    // Determina tipo efetivo: compara nome origem vs nome destino gravados na mesma solicitação.
+    // Remove tudo que não seja letra/dígito para tolerar variações de espaço, barra, hífen e acento.
+    const normalize = (s: unknown) => String(s ?? '').replace(/[^a-zA-ZÀ-ÿ0-9]/g, '').toUpperCase()
+    const nomeOrigem  = normalize(sol?.dados_antes?.['posto_nome'])
+    const nomeDestino = normalize(sol?.dados_depois?.['posto_destino_nome'])
     const postoNomeMudou = !!(nomeOrigem && nomeDestino && nomeOrigem !== nomeDestino)
     const tipoEfetivo    = sol?.tipo === 'transferencia' && !postoNomeMudou
       ? 'mudanca_funcao'
