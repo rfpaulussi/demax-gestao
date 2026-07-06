@@ -78,6 +78,27 @@ export async function editarMudancaFuncao(fd: FormData): Promise<ActionResult> {
   return { success: true }
 }
 
+export async function toggleEnviadoRH(fd: FormData): Promise<ActionResult> {
+  const guard = await assertAdmin()
+  if (!guard.success) return guard
+
+  const movId  = fd.get('movimentacao_id') as string
+  const valor  = fd.get('valor') === 'true'
+
+  if (!movId) return { success: false, error: 'ID da movimentação obrigatório' }
+
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('movimentacoes')
+    .update({ enviado_rh: valor })
+    .eq('id', movId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/mudancas-funcao')
+  return { success: true }
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function excluirMudancaFuncao(fd: FormData): Promise<ActionResult> {

@@ -854,6 +854,7 @@ export type Database = {
           executado_por: string | null
           solicitacao_id: string | null
           created_at: string | null
+          enviado_rh: boolean
         }
         Insert: {
           id?: string
@@ -865,6 +866,7 @@ export type Database = {
           executado_por?: string | null
           solicitacao_id?: string | null
           created_at?: string | null
+          enviado_rh?: boolean
         }
         Update: {
           id?: string
@@ -875,6 +877,7 @@ export type Database = {
           valor_depois?: string | null
           executado_por?: string | null
           solicitacao_id?: string | null
+          enviado_rh?: boolean
         }
         Relationships: []
       }

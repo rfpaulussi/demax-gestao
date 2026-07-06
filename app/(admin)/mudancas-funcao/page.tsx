@@ -24,18 +24,17 @@ export default async function MudancasFuncaoAdminPage({
 
   const supabase = createClient()
 
-  const [{ data: raw }, { data: funcoesList }, { data: escalasData }] = await Promise.all([
+  const [{ data: raw }, { data: funcoesList }, { data: escalasData }, { data: supervisoresData }] = await Promise.all([
     (supabase as unknown as AnyQ)
       .from('movimentacoes')
       .select(`
-        id, created_at, funcionario_id, solicitacao_id, valor_antes, valor_depois,
+        id, created_at, funcionario_id, solicitacao_id, valor_antes, valor_depois, enviado_rh,
         funcionarios!funcionario_id (
           nome, registro,
           postos!posto_id ( id, nome, secretaria )
         ),
         solicitacoes!solicitacao_id (
-          tipo, dados_antes, dados_depois, motivo,
-          perfis!supervisor_id ( nome )
+          tipo, dados_antes, dados_depois, motivo
         )
       `)
       .eq('tipo', 'mudanca_funcao')
@@ -49,12 +48,24 @@ export default async function MudancasFuncaoAdminPage({
     supabase
       .from('config_escalas_postos')
       .select('posto_id, regime'),
+    (supabase as unknown as AnyQ)
+      .from('config_supervisores_postos')
+      .select('posto_id, perfis!config_supervisores_postos_supervisor_id_fkey(nome)')
+      .eq('ativo', true),
   ])
 
   // posto_id → regime lookup
   const escalasMap: Record<string, string> = {}
   for (const e of (escalasData ?? []) as { posto_id: string; regime: string }[]) {
     escalasMap[e.posto_id] = e.regime
+  }
+
+  // posto_id → nome do supervisor atual (do efetivo)
+  const postoSupervisorMap: Record<string, string> = {}
+  for (const s of (supervisoresData ?? []) as { posto_id: string; perfis: { nome: string | null } | null }[]) {
+    if (s.perfis?.nome && !postoSupervisorMap[s.posto_id]) {
+      postoSupervisorMap[s.posto_id] = s.perfis.nome
+    }
   }
 
   type FuncJoin = {
@@ -68,7 +79,6 @@ export default async function MudancasFuncaoAdminPage({
     dados_antes:  Record<string, unknown> | null
     dados_depois: Record<string, unknown> | null
     motivo:       string | null
-    perfis:       { nome: string | null } | null
   } | null
 
   type RawRow = {
@@ -78,6 +88,7 @@ export default async function MudancasFuncaoAdminPage({
     solicitacao_id: string | null
     valor_antes: string | null
     valor_depois: string | null
+    enviado_rh: boolean
     funcionarios: FuncJoin
     solicitacoes: SolJoin
   }
@@ -111,8 +122,9 @@ export default async function MudancasFuncaoAdminPage({
         ?? (sol?.dados_depois?.['nova_funcao_nome'] as string | undefined)
         ?? fList.find(f => f.id === r.valor_depois)?.nome
         ?? '—',
-      supervisor:       sol?.perfis?.nome ?? '—',
+      supervisor:       postoSupervisorMap[func?.postos?.id ?? ''] ?? '—',
       motivo:           sol?.motivo ?? null,
+      enviado_rh:       r.enviado_rh ?? false,
       tipo_solicitacao: sol?.tipo ?? null,
       salario_anterior: fList.find(f => f.id === r.valor_antes)?.salario_base ?? null,
       salario_nova:     fList.find(f => f.id === r.valor_depois)?.salario_base ?? null,
