@@ -124,7 +124,7 @@ function buildHistoricoMes(
           if (d.posto)       state.posto      = d.posto
           if (d.cargo)       state.funcao     = d.cargo
           if (d.supervisor)  state.supervisor = d.supervisor
-          if (d.status)      state.status     = d.status
+          if (d.status)      state.status     = d.status.toLowerCase()
           break
         case 'mudanca_posto':
           if (d.posto_nome)  state.posto      = d.posto_nome
@@ -136,19 +136,19 @@ function buildHistoricoMes(
           break
         case 'transferencia':
           if (d.supervisor)  state.supervisor = d.supervisor
-          if (d.status)      state.status     = d.status
+          if (d.status)      state.status     = d.status.toLowerCase()
           break
         case 'desligamento':
-          state.status = 'desligado'
+          state.status = ('desligado' as string).toLowerCase()
           break
         case 'reativacao':
-          state.status = 'ativo'
+          state.status = ('ativo' as string).toLowerCase()
           break
         case 'afastamento':
-          state.status = 'afastado'
+          state.status = ('afastado' as string).toLowerCase()
           break
         case 'retorno_afastamento':
-          state.status = 'ativo'
+          state.status = ('ativo' as string).toLowerCase()
           break
       }
       ei++
