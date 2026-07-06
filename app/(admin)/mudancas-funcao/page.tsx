@@ -104,6 +104,15 @@ export default async function MudancasFuncaoAdminPage({
     const insAnteriorPerc = fList.find(f => f.id === r.valor_antes)?.insalubridade_perc ?? null
     const insNovaPerc     = fList.find(f => f.id === r.valor_depois)?.insalubridade_perc ?? null
 
+    // Determina tipo efetivo: se a solicitação era 'transferencia' mas o nome do posto não mudou
+    // (ex: mudança de setor interno com mesmo local), trata como 'mudanca_funcao' no PDF
+    const postoAnteriorNome = ((sol?.dados_antes?.['posto_nome'] as string | undefined) ?? '').trim().toUpperCase()
+    const postoAtualNome    = (func?.postos?.nome ?? '').trim().toUpperCase()
+    const postoNomeMudou    = !!(postoAnteriorNome && postoAnteriorNome !== postoAtualNome)
+    const tipoEfetivo       = sol?.tipo === 'transferencia' && !postoNomeMudou
+      ? 'mudanca_funcao'
+      : (sol?.tipo ?? null)
+
     return {
       id:               r.id,
       created_at:       r.created_at,
@@ -125,7 +134,7 @@ export default async function MudancasFuncaoAdminPage({
       supervisor:       postoSupervisorMap[func?.postos?.id ?? ''] ?? '—',
       motivo:           sol?.motivo ?? null,
       enviado_rh:       r.enviado_rh ?? false,
-      tipo_solicitacao: sol?.tipo ?? null,
+      tipo_solicitacao: tipoEfetivo,
       salario_anterior: fList.find(f => f.id === r.valor_antes)?.salario_base ?? null,
       salario_nova:     fList.find(f => f.id === r.valor_depois)?.salario_base ?? null,
       escala:           postoId ? (escalasMap[postoId] ?? null) : null,

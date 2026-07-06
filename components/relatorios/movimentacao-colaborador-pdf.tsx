@@ -141,11 +141,11 @@ export function MovimentacaoColaboradorDoc({
   salario_anterior, salario_nova, escala,
   insalubridade_anterior_perc, insalubridade_nova_perc,
 }: MovColaboradorData) {
-  const isTrans   = tipo_solicitacao === 'transferencia'
-  const isProm    = tipo_solicitacao === 'promocao'
-  // Transferência com troca de função → marca os dois; transferência pura → só Transferência
+  const isTrans     = tipo_solicitacao === 'transferencia'
+  const isProm      = tipo_solicitacao === 'promocao'
   const funcaoMudou = funcao_anterior?.trim().toUpperCase() !== funcao_nova?.trim().toUpperCase()
-  const isMudFunc = tipo_solicitacao === 'mudanca_funcao' || (isTrans && funcaoMudou)
+  // Só posto → só Transferência; posto + função → ambos; só função → só Mudança de Função
+  const isMudFunc   = (!isTrans && !isProm) || (isTrans && funcaoMudou)
 
   const emitidoEm     = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
   const salarioAntFmt = fmtSalario(salario_anterior)
