@@ -104,15 +104,12 @@ export default async function MudancasFuncaoAdminPage({
     const insAnteriorPerc = fList.find(f => f.id === r.valor_antes)?.insalubridade_perc ?? null
     const insNovaPerc     = fList.find(f => f.id === r.valor_depois)?.insalubridade_perc ?? null
 
-    // Compara nome origem vs destino ignorando acentos, espaços, barras e hífens.
-    // NFD decompõe acentos; em seguida remove diacríticos e tudo que não for alfanumérico.
-    // eslint-disable-next-line no-control-regex
-    const normalize = (s: unknown) =>
-      String(s ?? '').normalize('NFD').replace(/̀-ͯ/g, '').replace(/[^A-Z0-9]/gi, '').toUpperCase()
-    const nomeOrigem  = normalize(sol?.dados_antes?.['posto_nome'])
-    const nomeDestino = normalize(sol?.dados_depois?.['posto_destino_nome'])
-    const postoNomeMudou = !!(nomeOrigem && nomeDestino && nomeOrigem !== nomeDestino)
-    const tipoEfetivo    = sol?.tipo === 'transferencia' && !postoNomeMudou
+    // Compara pelo ID: se a solicitação era 'transferencia' mas posto_destino = posto_origem,
+    // é uma mudança interna (só função mudou) — trata como 'mudanca_funcao' no PDF.
+    const postoOrigemId  = sol?.dados_antes?.['posto_id']          as string | undefined
+    const postoDestinoId = sol?.dados_depois?.['posto_destino_id'] as string | undefined
+    const postoMudou     = !!(postoOrigemId && postoDestinoId && postoOrigemId !== postoDestinoId)
+    const tipoEfetivo    = sol?.tipo === 'transferencia' && !postoMudou
       ? 'mudanca_funcao'
       : (sol?.tipo ?? null)
 
