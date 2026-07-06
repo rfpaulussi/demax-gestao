@@ -104,9 +104,11 @@ export default async function MudancasFuncaoAdminPage({
     const insAnteriorPerc = fList.find(f => f.id === r.valor_antes)?.insalubridade_perc ?? null
     const insNovaPerc     = fList.find(f => f.id === r.valor_depois)?.insalubridade_perc ?? null
 
-    // Determina tipo efetivo: compara nome origem vs nome destino gravados na mesma solicitação.
-    // Remove tudo que não seja letra/dígito para tolerar variações de espaço, barra, hífen e acento.
-    const normalize = (s: unknown) => String(s ?? '').replace(/[^a-zA-ZÀ-ÿ0-9]/g, '').toUpperCase()
+    // Compara nome origem vs destino ignorando acentos, espaços, barras e hífens.
+    // NFD decompõe acentos; em seguida remove diacríticos e tudo que não for alfanumérico.
+    // eslint-disable-next-line no-control-regex
+    const normalize = (s: unknown) =>
+      String(s ?? '').normalize('NFD').replace(/̀-ͯ/g, '').replace(/[^A-Z0-9]/gi, '').toUpperCase()
     const nomeOrigem  = normalize(sol?.dados_antes?.['posto_nome'])
     const nomeDestino = normalize(sol?.dados_depois?.['posto_destino_nome'])
     const postoNomeMudou = !!(nomeOrigem && nomeDestino && nomeOrigem !== nomeDestino)
