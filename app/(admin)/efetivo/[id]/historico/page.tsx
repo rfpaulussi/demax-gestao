@@ -270,8 +270,6 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
     if (dn && isUUID(dn.posto_id)) postoIdSet.add(dn.posto_id)
     if (da && isUUID(da.posto_id)) postoIdSet.add(da.posto_id)
   }
-  // DIAG TEMPORÁRIO — remover após confirmar S2
-  console.log('[S2-DIAG] postoIdSet:', postoIdSet.size, Array.from(postoIdSet))
   if (postoIdSet.size > 0) {
     const { data: postosRows } = await supabase
       .from('postos')
@@ -280,8 +278,6 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
     const postoNomeMap: Record<string, string> = Object.fromEntries(
       (postosRows ?? []).map(p => [p.id, p.nome])
     )
-    // DIAG TEMPORÁRIO — remover após confirmar S2
-    console.log('[S2-DIAG] postoNomeMap:', postoNomeMap)
     for (const e of eventosFinal) {
       const dn = e.dados_novos
       const da = e.dados_anteriores
@@ -292,11 +288,6 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
         e.dados_anteriores = { ...da, posto_nome: postoNomeMap[da.posto_id] ?? 'Posto não encontrado' }
       }
     }
-  }
-  // DIAG TEMPORÁRIO — remover após confirmar S2
-  const mudancaPosto = eventosFinal.find(e => e.tipo === 'mudanca_posto')
-  if (mudancaPosto) {
-    console.log('[S2-DIAG] evento mudanca_posto:', JSON.stringify({ dados_anteriores: mudancaPosto.dados_anteriores, dados_novos: mudancaPosto.dados_novos }, null, 2))
   }
 
   return (

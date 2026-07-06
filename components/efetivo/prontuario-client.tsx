@@ -182,7 +182,7 @@ function dadosList(dados: Record<string, unknown> | null): [string, string][] {
   const hasPostoNome = dados.posto_nome != null && dados.posto_nome !== ''
   return Object.entries(dados)
     .filter(([k, v]) => v != null && v !== '' && !(hasPostoNome && k === 'posto_id'))
-    .map(([k, v]) => [k, String(v)])
+    .map(([k, v]) => [k === 'posto_nome' ? 'Posto' : k, String(v)])
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
