@@ -143,7 +143,9 @@ export function MovimentacaoColaboradorDoc({
 }: MovColaboradorData) {
   const isTrans   = tipo_solicitacao === 'transferencia'
   const isProm    = tipo_solicitacao === 'promocao'
-  const isMudFunc = !isTrans && !isProm
+  // Transferência com troca de função → marca os dois; transferência pura → só Transferência
+  const funcaoMudou = funcao_anterior?.trim().toUpperCase() !== funcao_nova?.trim().toUpperCase()
+  const isMudFunc = tipo_solicitacao === 'mudanca_funcao' || (isTrans && funcaoMudou)
 
   const emitidoEm     = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
   const salarioAntFmt = fmtSalario(salario_anterior)
