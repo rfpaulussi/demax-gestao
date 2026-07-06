@@ -104,12 +104,14 @@ export default async function MudancasFuncaoAdminPage({
     const insAnteriorPerc = fList.find(f => f.id === r.valor_antes)?.insalubridade_perc ?? null
     const insNovaPerc     = fList.find(f => f.id === r.valor_depois)?.insalubridade_perc ?? null
 
-    // Determina tipo efetivo: se a solicitação era 'transferencia' mas o nome do posto não mudou
-    // (ex: mudança de setor interno com mesmo local), trata como 'mudanca_funcao' no PDF
-    const postoAnteriorNome = ((sol?.dados_antes?.['posto_nome'] as string | undefined) ?? '').trim().toUpperCase()
-    const postoAtualNome    = (func?.postos?.nome ?? '').trim().toUpperCase()
-    const postoNomeMudou    = !!(postoAnteriorNome && postoAnteriorNome !== postoAtualNome)
-    const tipoEfetivo       = sol?.tipo === 'transferencia' && !postoNomeMudou
+    // Determina tipo efetivo: compara nome origem vs nome destino gravados na mesma solicitação
+    // (mesma query, sem risco de formatação divergente). Se nomes iguais → mudança de setor interno,
+    // não uma transferência real de local → trata como 'mudanca_funcao' no PDF.
+    const normalize = (s: string) => (s ?? '').replace(/\s+/g, ' ').trim().toUpperCase()
+    const nomeOrigem  = normalize(sol?.dados_antes?.['posto_nome']         as string ?? '')
+    const nomeDestino = normalize(sol?.dados_depois?.['posto_destino_nome'] as string ?? '')
+    const postoNomeMudou = !!(nomeOrigem && nomeDestino && nomeOrigem !== nomeDestino)
+    const tipoEfetivo    = sol?.tipo === 'transferencia' && !postoNomeMudou
       ? 'mudanca_funcao'
       : (sol?.tipo ?? null)
 
