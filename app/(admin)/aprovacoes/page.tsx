@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { getUser } from '@/lib/auth/get-user'
 import { buscarSolicitacoes } from './actions'
+import { calcularImpactoPosto } from '@/app/(admin)/efetivo/impacto'
+import type { ImpactoResult } from '@/app/(admin)/efetivo/impacto'
 import { AprovacoesList } from '@/components/aprovacoes/aprovacoes-list'
 import type { TipoSolicitacao } from '@/types'
 
@@ -56,6 +58,28 @@ export default async function AprovacoesPage() {
   const aprovadas  = todas.filter(s => s.status === 'aprovada')
   const rejeitadas = todas.filter(s => s.status === 'rejeitada')
 
+  // Pré-calcula impacto para transferências e mudanças de função pendentes
+  const impactos: Record<string, ImpactoResult> = {}
+  await Promise.all(
+    pendentes
+      .filter(s => (s.tipo === 'transferencia' || s.tipo === 'mudanca_funcao') && s.funcionario_id)
+      .map(async s => {
+        const fid = s.funcionario_id!
+        const params = s.tipo === 'transferencia'
+          ? {
+              funcionario_id:   fid,
+              posto_destino_id: s.dados_depois?.posto_destino_id as string | undefined,
+              nova_funcao_nome: s.dados_depois?.nova_funcao_nome as string | undefined,
+            }
+          : {
+              funcionario_id:  fid,
+              nova_funcao_nome: s.dados_depois?.funcao_destino_nome as string | undefined,
+            }
+        const r = await calcularImpactoPosto(params)
+        if (r) impactos[s.id] = r
+      })
+  )
+
   // Contagem por tipo entre as pendentes
   const porTipo = pendentes.reduce<Partial<Record<TipoSolicitacao, number>>>((acc, s) => {
     acc[s.tipo] = (acc[s.tipo] ?? 0) + 1
@@ -107,7 +131,11 @@ export default async function AprovacoesPage() {
       )}
 
       {/* Lista — supervisor vê todas, admin vê só pendentes com ação */}
-      <AprovacoesList solicitacoes={isSupervisor ? todas : pendentes} canApprove={canApprove} />
+      <AprovacoesList
+        solicitacoes={isSupervisor ? todas : pendentes}
+        canApprove={canApprove}
+        impactos={impactos}
+      />
     </div>
   )
 }

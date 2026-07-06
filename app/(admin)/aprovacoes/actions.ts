@@ -17,6 +17,7 @@ export type SolicitacaoFiltros = {
 
 export type SolicitacaoRow = {
   id: string
+  funcionario_id: string | null
   tipo: TipoSolicitacao
   status: 'pendente' | 'aprovada' | 'rejeitada'
   motivo: string | null
@@ -45,13 +46,13 @@ async function assertAdmin(): Promise<AdminGuard> {
 // ─── buscarSolicitacoes ────────────────────────────────────────────────────────
 
 const SOL_SELECT_COM_CPF = `
-  id, tipo, status, motivo, observacao_admin, dados_antes, dados_depois, created_at,
+  id, funcionario_id, tipo, status, motivo, observacao_admin, dados_antes, dados_depois, created_at,
   funcionarios!funcionario_id ( nome, cpf ),
   perfis!supervisor_id ( nome, email )
 `
 
 const SOL_SELECT_SEM_CPF = `
-  id, tipo, status, motivo, observacao_admin, dados_antes, dados_depois, created_at,
+  id, funcionario_id, tipo, status, motivo, observacao_admin, dados_antes, dados_depois, created_at,
   funcionarios!funcionario_id ( nome ),
   perfis!supervisor_id ( nome, email )
 `

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useTransition, useEffect, useRef } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import {
   solicitarDesligamento,
@@ -9,6 +9,9 @@ import {
   solicitarRetornoAfastamento,
   solicitarRescisaoIndireta,
 } from '@/app/(admin)/efetivo/actions'
+import { calcularImpactoPosto } from '@/app/(admin)/efetivo/impacto'
+import type { ImpactoResult } from '@/app/(admin)/efetivo/impacto'
+import { PostoImpactPanel } from '@/components/posto-impact-panel'
 import type { FuncionarioRow } from './funcionarios-table'
 import { TIPOS_DESLIGAMENTO, MOTIVOS_POR_TIPO, type TipoDesligamento } from './modal-desligar'
 
@@ -28,11 +31,11 @@ interface Props {
 }
 
 const TIPO_LABELS: Record<TipoSolicitacao, string> = {
-  desligamento:        'Desligamento',
-  transferencia:       'Transferência',
-  mudanca_funcao:      'Mudança de Função',
-  retorno_afastamento: 'Retorno de Afastamento',
-  rescisao_indireta:   'Rescisão Indireta',
+  desligamento:        '🔴 Desligamento',
+  transferencia:       '🔀 Transferência',
+  mudanca_funcao:      '🔄 Mudança de Função',
+  retorno_afastamento: '🔙 Retorno de Afastamento',
+  rescisao_indireta:   '⚠️ Rescisão Indireta',
 }
 
 const TIPOS_POR_STATUS: Partial<Record<string, TipoSolicitacao[]>> = {
@@ -59,7 +62,15 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
   const [postoSelecionado, setPostoSelecionado] = useState<{ id: string; nome: string; secretaria: string | null } | null>(null)
 
   // Mudança de função junto com transferência
-  const [mudarFuncao, setMudarFuncao]   = useState(false)
+  const [mudarFuncao, setMudarFuncao] = useState(false)
+
+  // Função selecionada (controlled) — usada em mudanca_funcao e transferencia+mudança
+  const [funcaoSelecionadaId, setFuncaoSelecionadaId] = useState('')
+
+  // Impacto nos postos
+  const [impacto, setImpacto]             = useState<ImpactoResult | null>(null)
+  const [loadingImpacto, setLoadingImpacto] = useState(false)
+  const latestReqRef                        = useRef(0)
 
   // Combobox posto retorno (retorno_afastamento)
   const [postoRetornoSearch, setPostoRetornoSearch]           = useState('')
@@ -76,6 +87,56 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Reset ao mudar tipo
+  useEffect(() => {
+    setFuncaoSelecionadaId('')
+    setImpacto(null)
+    setLoadingImpacto(false)
+  }, [tipo])
+
+  // Reset funcao ao desmarcar "mudar função junto"
+  useEffect(() => {
+    if (!mudarFuncao) setFuncaoSelecionadaId('')
+  }, [mudarFuncao])
+
+  // Calcula impacto quando as seleções relevantes mudam
+  useEffect(() => {
+    setImpacto(null)
+
+    const isTrans     = tipo === 'transferencia'
+    const isMudFunc   = tipo === 'mudanca_funcao'
+    const temPosto    = isTrans && !!postoSelecionado
+    const temFuncao   = isMudFunc && !!funcaoSelecionadaId
+
+    if (!temPosto && !temFuncao) {
+      setLoadingImpacto(false)
+      return
+    }
+
+    const reqId = ++latestReqRef.current
+    setLoadingImpacto(true)
+
+    const params = isTrans
+      ? {
+          funcionario_id:   funcionario.id,
+          posto_destino_id: postoSelecionado!.id,
+          nova_funcao_nome: mudarFuncao && funcaoSelecionadaId
+            ? funcoes.find(f => f.id === funcaoSelecionadaId)?.nome
+            : undefined,
+        }
+      : {
+          funcionario_id:  funcionario.id,
+          nova_funcao_nome: funcoes.find(f => f.id === funcaoSelecionadaId)?.nome,
+        }
+
+    calcularImpactoPosto(params).then(r => {
+      if (reqId !== latestReqRef.current) return
+      setImpacto(r)
+      setLoadingImpacto(false)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipo, postoSelecionado?.id, funcaoSelecionadaId, mudarFuncao])
+
   function handleClose() {
     if (pending) return
     setTipo('')
@@ -83,6 +144,8 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
     setErro(null)
     setPostoSearch(''); setPostoOpen(false); setPostoSelecionado(null)
     setMudarFuncao(false)
+    setFuncaoSelecionadaId('')
+    setImpacto(null)
     setPostoRetornoSearch(''); setPostoRetornoOpen(false); setPostoRetornoSelecionado(null)
     onClose()
   }
@@ -244,13 +307,24 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
               {mudarFuncao && (
                 <div>
                   <label className={labelClass}>Nova Função</label>
-                  <select name="nova_funcao_id" required className={inputClass}>
+                  <select
+                    name="nova_funcao_id"
+                    required
+                    value={funcaoSelecionadaId}
+                    onChange={e => setFuncaoSelecionadaId(e.target.value)}
+                    className={inputClass}
+                  >
                     <option value="">Selecione...</option>
                     {funcoes
                       .filter(f => f.id !== funcionario.funcoes?.id)
                       .map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
                   </select>
                 </div>
+              )}
+
+              {/* Resumo de impacto para transferência */}
+              {(impacto || loadingImpacto) && (
+                <PostoImpactPanel impacto={impacto} loading={loadingImpacto} />
               )}
               </>
             )}
@@ -260,7 +334,13 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
               <>
                 <div>
                   <label className={labelClass}>Nova Função</label>
-                  <select name="funcao_destino_id" required className={inputClass}>
+                  <select
+                    name="funcao_destino_id"
+                    required
+                    value={funcaoSelecionadaId}
+                    onChange={e => setFuncaoSelecionadaId(e.target.value)}
+                    className={inputClass}
+                  >
                     <option value="">Selecione...</option>
                     {funcoes
                       .filter(f => f.id !== funcionario.funcoes?.id)
@@ -271,6 +351,11 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
                   <label className={labelClass}>Motivo</label>
                   <input type="text" name="motivo" placeholder="Justificativa..." className={inputClass} />
                 </div>
+
+                {/* Resumo de impacto para mudança de função */}
+                {(impacto || loadingImpacto) && (
+                  <PostoImpactPanel impacto={impacto} loading={loadingImpacto} />
+                )}
               </>
             )}
 
