@@ -4,6 +4,8 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { aprovarSolicitacao, rejeitarSolicitacao } from '@/app/(admin)/aprovacoes/actions'
+import { PostoImpactPanel } from '@/components/posto-impact-panel'
+import type { ImpactoResult } from '@/app/(admin)/efetivo/impacto'
 import type { TipoSolicitacao } from '@/types'
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -49,7 +51,7 @@ function renderInline(dados: Record<string, unknown> | null): string {
 
 // ─── card ─────────────────────────────────────────────────────────────────────
 
-function SolicitacaoCard({ sol, canApprove }: { sol: SolicitacaoPendente; canApprove: boolean }) {
+function SolicitacaoCard({ sol, canApprove, impacto }: { sol: SolicitacaoPendente; canApprove: boolean; impacto?: ImpactoResult }) {
   const [isPending, startTransition] = useTransition()
   const [rejeitando, setRejeitando] = useState(false)
   const [motivo, setMotivo] = useState('')
@@ -103,7 +105,7 @@ function SolicitacaoCard({ sol, canApprove }: { sol: SolicitacaoPendente; canApp
       </p>
 
       {/* Antes → Depois inline */}
-      <div className="mb-3 flex items-center gap-1.5 flex-wrap">
+      <div className="mb-2 flex items-center gap-1.5 flex-wrap">
         <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">
           {renderInline(sol.dados_antes)}
         </span>
@@ -112,6 +114,13 @@ function SolicitacaoCard({ sol, canApprove }: { sol: SolicitacaoPendente; canApp
           {renderInline(sol.dados_depois)}
         </span>
       </div>
+
+      {/* Impacto nos postos */}
+      {impacto && (
+        <div className="mb-3">
+          <PostoImpactPanel impacto={impacto} />
+        </div>
+      )}
 
       {erro && (
         <p className="mb-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-600">{erro}</p>
@@ -172,7 +181,7 @@ const TIPO_ORDEM: TipoSolicitacao[] = [
   'retorno_afastamento', 'admissao',
 ]
 
-export function AprovacoesList({ solicitacoes, canApprove = true }: { solicitacoes: SolicitacaoPendente[]; canApprove?: boolean }) {
+export function AprovacoesList({ solicitacoes, canApprove = true, impactos = {} }: { solicitacoes: SolicitacaoPendente[]; canApprove?: boolean; impactos?: Record<string, ImpactoResult> }) {
   if (solicitacoes.length === 0) {
     return (
       <div className="rounded-xl border border-gray-100 bg-white px-6 py-12 text-center shadow-sm">
@@ -198,7 +207,7 @@ export function AprovacoesList({ solicitacoes, canApprove = true }: { solicitaco
           </h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {porTipo[tipo].map(sol => (
-              <SolicitacaoCard key={sol.id} sol={sol} canApprove={canApprove} />
+              <SolicitacaoCard key={sol.id} sol={sol} canApprove={canApprove} impacto={impactos[sol.id]} />
             ))}
           </div>
         </div>
