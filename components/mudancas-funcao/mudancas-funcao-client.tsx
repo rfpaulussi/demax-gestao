@@ -4,7 +4,7 @@ import { useState, useMemo, useTransition } from 'react'
 import { FileSpreadsheet, Pencil, Printer, Trash2 } from 'lucide-react'
 import { pdf } from '@react-pdf/renderer'
 import { exportToExcel } from '@/lib/export-excel'
-import { editarMudancaFuncao, excluirMudancaFuncao } from '@/app/(admin)/mudancas-funcao/actions'
+import { editarMudancaFuncao, excluirMudancaFuncao, toggleEnviadoRH } from '@/app/(admin)/mudancas-funcao/actions'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
@@ -35,6 +35,7 @@ export interface MudancaFuncaoAdminRow {
   escala: string | null
   insalubridade_anterior_perc: number | null
   insalubridade_nova_perc: number | null
+  enviado_rh: boolean
 }
 
 const MESES_LABEL = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -216,6 +217,21 @@ export function MudancasFuncaoAdminClient({ dados, mes, ano, anos, funcoes }: Pr
   const [editando, setEditando]                 = useState<MudancaFuncaoAdminRow | null>(null)
   const [excluindo, setExcluindo]               = useState<MudancaFuncaoAdminRow | null>(null)
   const [loadingPdfId, setLoadingPdfId]         = useState<string | null>(null)
+  const [enviadoMap, setEnviadoMap]             = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(dados.map(r => [r.id, r.enviado_rh]))
+  )
+
+  async function handleToggleEnviado(r: MudancaFuncaoAdminRow) {
+    const novoValor = !enviadoMap[r.id]
+    setEnviadoMap(prev => ({ ...prev, [r.id]: novoValor }))
+    const fd = new FormData()
+    fd.set('movimentacao_id', r.id)
+    fd.set('valor', String(novoValor))
+    const res = await toggleEnviadoRH(fd)
+    if (!res.success) {
+      setEnviadoMap(prev => ({ ...prev, [r.id]: !novoValor }))
+    }
+  }
 
   async function handlePrintRow(r: MudancaFuncaoAdminRow) {
     setLoadingPdfId(r.id)
@@ -388,7 +404,7 @@ export function MudancasFuncaoAdminClient({ dados, mes, ano, anos, funcoes }: Pr
             <table className="w-full text-xs" style={{ minWidth: '820px' }}>
               <thead>
                 <tr className="border-b border-gray-100 bg-slate-50">
-                  {['Data', 'Colaborador', 'Função Anterior', 'Nova Função', 'Supervisor', 'Motivo', 'Ações'].map(h => (
+                  {['Data', 'Colaborador', 'Função Anterior', 'Nova Função', 'Supervisor', 'Motivo', 'Env. RH', 'Ações'].map(h => (
                     <th key={h} className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">
                       {h}
                     </th>
@@ -397,7 +413,7 @@ export function MudancasFuncaoAdminClient({ dados, mes, ano, anos, funcoes }: Pr
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {dadosFiltrados.map(r => (
-                  <tr key={r.id} className="hover:bg-gray-50/80">
+                  <tr key={r.id} className={`transition-colors hover:bg-gray-50/80 ${enviadoMap[r.id] ? 'bg-green-50/40' : ''}`}>
                     <td className="whitespace-nowrap px-3 py-2 text-gray-400">{fmtDt(r.created_at)}</td>
                     <td className="px-3 py-2">
                       <p className="font-medium text-gray-900 whitespace-nowrap">{r.nome}</p>
@@ -408,6 +424,22 @@ export function MudancasFuncaoAdminClient({ dados, mes, ano, anos, funcoes }: Pr
                     <td className="whitespace-nowrap px-3 py-2 font-medium text-indigo-600">{r.funcao_nova}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-gray-500">{r.supervisor}</td>
                     <td className="max-w-xs truncate px-3 py-2 text-gray-400">{r.motivo ?? '—'}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleEnviado(r)}
+                        title={enviadoMap[r.id] ? 'Enviado ao RH — clique para desmarcar' : 'Marcar como enviado ao RH'}
+                        className={`inline-flex h-5 w-5 items-center justify-center rounded border transition-colors ${
+                          enviadoMap[r.id]
+                            ? 'border-green-500 bg-green-500 text-white'
+                            : 'border-gray-300 bg-white text-transparent hover:border-green-400'
+                        }`}
+                      >
+                        <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="1.5,6 4.5,9 10.5,3" />
+                        </svg>
+                      </button>
+                    </td>
                     <td className="whitespace-nowrap px-3 py-2.5">
                       <div className="flex items-center gap-1">
                         <button

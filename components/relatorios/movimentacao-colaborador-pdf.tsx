@@ -69,9 +69,8 @@ const s = StyleSheet.create({
 
   checks:       { flexDirection: 'row' },
   checkItem:    { flexDirection: 'row', alignItems: 'center', marginRight: 14 },
-  checkBox:     { width: 9, height: 9, borderWidth: 1, borderColor: c.gray, marginRight: 3 },
-  checkBoxX:    { width: 9, height: 9, borderWidth: 1, borderColor: c.gray, marginRight: 3, alignItems: 'center', justifyContent: 'center' },
-  checkX:       { fontSize: 7, fontFamily: 'Helvetica-Bold', color: c.black },
+  checkBox:        { width: 10, height: 10, borderWidth: 1, borderColor: c.gray, marginRight: 4 },
+  checkBoxFilled:  { width: 10, height: 10, borderWidth: 1, borderColor: c.black, backgroundColor: c.black, marginRight: 4 },
   checkText:    { fontSize: 7, color: c.black },
 
   vigRow:       { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 },
@@ -112,11 +111,7 @@ const s = StyleSheet.create({
 function Checkbox({ checked, label }: { checked: boolean; label: string }) {
   return (
     <View style={s.checkItem}>
-      {checked ? (
-        <View style={s.checkBoxX}><Text style={s.checkX}>X</Text></View>
-      ) : (
-        <View style={s.checkBox} />
-      )}
+      <View style={checked ? s.checkBoxFilled : s.checkBox} />
       <Text style={s.checkText}>{label}</Text>
     </View>
   )
