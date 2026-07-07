@@ -170,7 +170,8 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
 
   const eventos: ProntuarioEvento[] = [
     // Primary: historico entries (triggers + manual)
-    ...(historico ?? []).map(e => {
+    // Exclude monthly snapshot markers (em_ferias:true) — they duplicate the real férias event
+    ...(historico ?? []).filter(e => !(e.tipo === 'ferias' && (e.dados_novos as Record<string, unknown> | null)?.em_ferias === true)).map(e => {
       if (e.tipo === 'mudanca_funcao') {
         const funcAntesId = (e.dados_anteriores as Record<string, unknown> | null)?.['funcao_id'] as string | undefined
         const funcNovaId  = (e.dados_novos      as Record<string, unknown> | null)?.['funcao_id'] as string | undefined
@@ -187,10 +188,15 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
           }
         }
       }
+      // For admissao events, use data_admissao from the employee record when it predates
+      // the historico entry (which may be an import date, not the real admission date)
+      const admissaoData = e.tipo === 'admissao' && funcionario.data_admissao
+        ? (funcionario.data_admissao.split('T')[0] < e.data_evento ? funcionario.data_admissao.split('T')[0] : e.data_evento)
+        : e.data_evento
       return {
         id: e.id,
         tipo: e.tipo,
-        data: e.data_evento,
+        data: admissaoData,
         descricao: e.descricao ?? null,
         dados_anteriores: e.dados_anteriores as Record<string, unknown> | null,
         dados_novos: e.dados_novos as Record<string, unknown> | null,

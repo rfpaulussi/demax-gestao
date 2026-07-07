@@ -98,14 +98,18 @@ function buildHistoricoMes(
     cur = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`
   }
 
-  // Seed with current employee data as fallback for fields not covered by events
+  // Start with empty state — events drive all values.
+  // Supervisor intentionally starts empty and is only populated by explicit events.
   const state = {
-    posto:      funcionario.posto      ?? '',
-    secretaria: funcionario.secretaria ?? '',
-    funcao:     funcionario.funcao     ?? '',
-    status:     funcionario.status     ?? '',
+    posto:      '',
+    secretaria: '',
+    funcao:     '',
+    status:     funcionario.status ?? '',
     supervisor: '',
   }
+
+  // Last event YM is used to override the tail with current employee data
+  const lastEventYM = sorted.length > 0 ? sorted[sorted.length - 1].data.substring(0, 7) : ''
 
   const result: MesEntry[] = []
   let ei = 0
@@ -125,6 +129,7 @@ function buildHistoricoMes(
           if (d.cargo)       state.funcao     = d.cargo
           if (d.supervisor)  state.supervisor = d.supervisor
           if (d.status)      state.status     = d.status.toLowerCase()
+          if (d.secretaria)  state.secretaria = d.secretaria
           break
         case 'mudanca_posto':
           if (d.posto_nome)  state.posto      = d.posto_nome
@@ -139,27 +144,31 @@ function buildHistoricoMes(
           if (d.status)      state.status     = d.status.toLowerCase()
           break
         case 'desligamento':
-          state.status = ('desligado' as string).toLowerCase()
+          state.status = 'desligado'
           break
         case 'reativacao':
-          state.status = ('ativo' as string).toLowerCase()
+          state.status = 'ativo'
           break
         case 'afastamento':
-          state.status = ('afastado' as string).toLowerCase()
+          state.status = 'afastado'
           break
         case 'retorno_afastamento':
-          state.status = ('ativo' as string).toLowerCase()
+          state.status = 'ativo'
           break
       }
       ei++
     }
 
+    // For months after the last recorded event, current employee data is authoritative
+    // for posto/secretaria/funcao/status. Supervisor is NOT overridden here — it is only
+    // shown when explicitly recorded in a historico event.
+    const isAfterLastEvent = lastEventYM ? ym > lastEventYM : false
     result.push({
       ym,
-      posto:        state.posto,
-      secretaria:   state.secretaria,
-      funcao:       state.funcao,
-      status:       state.status,
+      posto:        isAfterLastEvent ? (funcionario.posto      ?? state.posto)      : (state.posto      || funcionario.posto      || ''),
+      secretaria:   isAfterLastEvent ? (funcionario.secretaria ?? state.secretaria) : (state.secretaria || funcionario.secretaria || ''),
+      funcao:       isAfterLastEvent ? (funcionario.funcao     ?? state.funcao)     : (state.funcao     || funcionario.funcao     || ''),
+      status:       isAfterLastEvent ? (funcionario.status     ?? state.status)     : state.status,
       supervisor:   state.supervisor,
       eventosNoMes: eventsThisMonth,
     })
