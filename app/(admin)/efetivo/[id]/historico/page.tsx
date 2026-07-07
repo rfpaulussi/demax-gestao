@@ -20,7 +20,8 @@ export interface ProntuarioFuncionario {
 export interface ProntuarioEvento {
   id: string
   tipo: string
-  data: string
+  data: string         // date used for simulation / sorting
+  dataDisplay?: string // date shown in UI (may differ from data for admissao events)
   descricao: string | null
   dados_anteriores: Record<string, unknown> | null
   dados_novos: Record<string, unknown> | null
@@ -188,15 +189,18 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
           }
         }
       }
-      // For admissao events, use data_admissao from the employee record when it predates
-      // the historico entry (which may be an import date, not the real admission date)
-      const admissaoData = e.tipo === 'admissao' && funcionario.data_admissao
-        ? (funcionario.data_admissao.split('T')[0] < e.data_evento ? funcionario.data_admissao.split('T')[0] : e.data_evento)
-        : e.data_evento
+      // For admissao events, keep data as the original data_evento (used by the simulation)
+      // but set dataDisplay to data_admissao when it predates the historico entry,
+      // so the UI shows the real admission date without affecting the simulation.
+      const admissaoDisplay = e.tipo === 'admissao' && funcionario.data_admissao
+        && funcionario.data_admissao.split('T')[0] < e.data_evento
+        ? funcionario.data_admissao.split('T')[0]
+        : undefined
       return {
         id: e.id,
         tipo: e.tipo,
-        data: admissaoData,
+        data: e.data_evento,
+        ...(admissaoDisplay ? { dataDisplay: admissaoDisplay } : {}),
         descricao: e.descricao ?? null,
         dados_anteriores: e.dados_anteriores as Record<string, unknown> | null,
         dados_novos: e.dados_novos as Record<string, unknown> | null,

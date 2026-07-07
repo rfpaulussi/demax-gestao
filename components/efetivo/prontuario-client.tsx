@@ -389,7 +389,7 @@ export function ProntuarioClient({ funcionario, eventos }: Props) {
                           <span className={cn('text-xs font-bold uppercase tracking-wide', cfg.text)}>
                             {cfg.label}
                           </span>
-                          <span className="text-xs font-medium text-gray-400">{fmt(evento.data)}</span>
+                          <span className="text-xs font-medium text-gray-400">{fmt(evento.dataDisplay ?? evento.data)}</span>
                         </div>
 
                         {evento.descricao && (

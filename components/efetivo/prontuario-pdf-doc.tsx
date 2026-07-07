@@ -146,7 +146,7 @@ export function ProntuarioPDFDoc({ funcionario, eventos, mesEntries }: Props) {
 
           return (
             <View key={e.id} style={s.eventRow}>
-              <Text style={s.eventDate}>{fmt(e.data)}</Text>
+              <Text style={s.eventDate}>{fmt(e.dataDisplay ?? e.data)}</Text>
               <Text style={[s.eventBadge, { color: cor }]}>
                 {TIPO_LABEL[e.tipo] ?? e.tipo}
               </Text>
