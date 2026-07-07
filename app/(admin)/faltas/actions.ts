@@ -334,7 +334,8 @@ export async function editarFalta(
 
   const { data: faltaExist } = await supabase.from('faltas').select('funcionario_id, funcionarios!funcionario_id(nome)').eq('id', id).single()
 
-  const { error } = await supabase.from('faltas').update({
+  const adminSupabase = createAdminClient()
+  const { error } = await adminSupabase.from('faltas').update({
     data_falta: data.data_falta,
     data_fim:   data.data_fim,
     tipo:       data.tipo,
