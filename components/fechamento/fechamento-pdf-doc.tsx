@@ -22,7 +22,8 @@ const s = StyleSheet.create({
   tdBold:      { fontSize: 8, fontWeight: 'bold', color: '#1d4ed8', paddingVertical: 3,
                  paddingHorizontal: 3, textAlign: 'center' },
   // column widths
-  cNome:   { width: 160 },
+  cNome:   { width: 140 },
+  cRE:     { width: 50 },
   cFuncao: { width: 100 },
   cReg:    { width: 32 },
   cN5:     { width: 32 },
@@ -40,6 +41,7 @@ function advLabel(f: FechamentoFuncionario) {
 
 const COLS = [
   { label: 'Nome',         style: s.cNome,   num: false },
+  { label: 'RE',           style: s.cRE,     num: false },
   { label: 'Função',       style: s.cFuncao, num: false },
   { label: 'Posto Princ.', style: s.cFuncao, num: false },
   { label: 'Regime',       style: s.cReg,    num: true  },
@@ -60,6 +62,7 @@ function cellValue(f: FechamentoFuncionario, idx: number): string {
     : '—'
   const vals = [
     f.funcionario_nome,
+    f.registro ?? '—',
     f.funcao ?? '—',
     postoPrinc,
     f.regime,
@@ -98,7 +101,8 @@ const sp = StyleSheet.create({
   td:          { fontSize: 8, color: '#374151', paddingVertical: 3, paddingHorizontal: 4 },
   tdC:         { fontSize: 8, color: '#374151', paddingVertical: 3, paddingHorizontal: 4, textAlign: 'center' },
   tdB:         { fontSize: 8, fontWeight: 'bold', color: '#1d4ed8', paddingVertical: 3, paddingHorizontal: 4, textAlign: 'center' },
-  cNome:  { width: 160 },
+  cNome:  { width: 140 },
+  cRE:    { width: 50 },
   cFuncao:{ width: 100 },
   cTipo:  { width: 55 },
   cPer:   { width: 80 },
@@ -145,6 +149,7 @@ export function FechamentoPorPostoPDF({ porPosto, mes, ano, MESES }: PropsPosto)
                     <View style={sp.thead}>
                       {[
                         { label: 'Nome',    style: sp.cNome  },
+                        { label: 'RE',      style: sp.cRE    },
                         { label: 'Função',  style: sp.cFuncao },
                         { label: 'Tipo',    style: sp.cTipo  },
                         { label: 'Período', style: sp.cPer   },
@@ -155,6 +160,7 @@ export function FechamentoPorPostoPDF({ porPosto, mes, ano, MESES }: PropsPosto)
                     {titulares.map(f => (
                       <View key={f.funcionario_id + '-t'} style={sp.row}>
                         <Text style={[sp.td,  sp.cNome]}>{f.funcionario_nome}</Text>
+                        <Text style={[sp.td,  sp.cRE]}>{f.registro ?? '—'}</Text>
                         <Text style={[sp.td,  sp.cFuncao]}>{f.funcao ?? '—'}</Text>
                         <Text style={[sp.tdC, sp.cTipo]}>
                           {f.multi_posto
@@ -174,6 +180,7 @@ export function FechamentoPorPostoPDF({ porPosto, mes, ano, MESES }: PropsPosto)
                     {coberturas.map((f, i) => (
                       <View key={f.funcionario_id + '-c-' + i} style={sp.rowCob}>
                         <Text style={[sp.td,  sp.cNome]}>{f.funcionario_nome}</Text>
+                        <Text style={[sp.td,  sp.cRE]}>{f.registro ?? '—'}</Text>
                         <Text style={[sp.td,  sp.cFuncao]}>{f.funcao ?? '—'}</Text>
                         <Text style={[sp.tdC, sp.cTipo]}>
                           {f.is_posto_preponderante ? 'Cobertura ★' : 'Cobertura'}

@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { getUser } from '@/lib/auth/get-user'
 
 const DIAS_COBERTURA_ATESTADO = 15
 
@@ -10,6 +11,7 @@ const DIAS_COBERTURA_ATESTADO = 15
 export interface FechamentoFuncionario {
   funcionario_id: string
   funcionario_nome: string
+  registro: string | null
   funcao: string | null
   posto_id: string | null
   posto_nome: string | null
@@ -53,6 +55,7 @@ export interface SegmentoCobertura {
 export interface FechamentoItemPosto {
   funcionario_id: string
   funcionario_nome: string
+  registro: string | null
   funcao: string | null
   tipo: 'titular' | 'cobertura'
   data_inicio_no_posto: string
@@ -166,6 +169,11 @@ function toDate(s: string) { return new Date(s + 'T12:00:00') }
 // ─── main ────────────────────────────────────────────────────────────────────
 
 export async function calcularFechamento(mes: number, ano: number): Promise<ResultadoFechamento> {
+  const userCtx = await getUser()
+  if (!userCtx || !userCtx.perfil.role || !['admin', 'coordenador'].includes(userCtx.perfil.role)) {
+    throw new Error('Acesso negado')
+  }
+
   const supabase = createClient()
 
   const mesStr      = String(mes).padStart(2, '0')
@@ -180,7 +188,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     supabase
       .from('funcionarios')
       .select(`
-        id, nome, data_admissao, data_desligamento, status, posto_id,
+        id, nome, registro, data_admissao, data_desligamento, status, posto_id,
         funcoes!funcionarios_funcao_id_fkey ( nome ),
         postos!posto_id ( nome, secretaria, config_escalas_postos ( regime ) )
       `)
@@ -220,6 +228,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
       supabase
         .from('advertencias')
         .select('funcionario_id, grau, dias_suspensao')
+        .in('status', ['gerada', 'entregue'])
         .gte('data_ocorrencia', mesStartStr)
         .lte('data_ocorrencia', mesEndStr),
 
@@ -241,10 +250,20 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
         .lte('data_inicio', mesEndStr)
         .or(`data_retorno_real.is.null,data_retorno_real.gte.${mesStartStr}`),
 
-      supabase.from('postos').select('id, nome, secretaria'),
+      supabase.from('postos').select('id, nome, secretaria').eq('ativo', true),
 
       supabase.from('config_escalas_postos').select('posto_id, regime'),
     ])
+
+  if (ferRes.error)       throw ferRes.error
+  if (atRes.error)        throw atRes.error
+  if (falRes.error)       throw falRes.error
+  if (advRes.error)       throw advRes.error
+  if (insRes.error)       throw insRes.error
+  if (afaRes.error)       throw afaRes.error
+  if (cobRes.error)       throw cobRes.error
+  if (todosPostosRes.error)  throw todosPostosRes.error
+  if (postoConfigRes.error)  throw postoConfigRes.error
 
   const ferias         = ferRes.data  ?? []
   const atestados      = atRes.data   ?? []
@@ -366,6 +385,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     return {
       funcionario_id:      func.id,
       funcionario_nome:    func.nome,
+      registro:            (func as { registro?: string | null }).registro ?? null,
       funcao:              funcoes?.nome ?? null,
       posto_id:            func.posto_id ?? null,
       posto_nome:          postos?.nome ?? null,
@@ -420,6 +440,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     posto.funcionarios.push({
       funcionario_id:       f.funcionario_id,
       funcionario_nome:     f.funcionario_nome,
+      registro:             f.registro,
       funcao:               f.funcao,
       tipo:                 'titular',
       data_inicio_no_posto: f.periodo_inicio,
@@ -451,6 +472,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     posto.funcionarios.push({
       funcionario_id:         funcData.funcionario_id,
       funcionario_nome:       funcData.funcionario_nome,
+      registro:               funcData.registro,
       funcao:                 funcData.funcao,
       tipo:                   'cobertura',
       data_inicio_no_posto:   inicio,

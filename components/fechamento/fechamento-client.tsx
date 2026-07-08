@@ -31,7 +31,7 @@ function exportExcel(
 
   // ── Sheet 1: Por Funcionário ──
   {
-    const HEADERS = ['Nome','Função','Posto','Posto Principal','Secretaria Principal','Regime','D.Úteis','Férias','Faltas','Atestados','Suspensão','Afastamento','Trabalhados','Ins.(dias)','Advertência']
+    const HEADERS = ['Nome','RE','Função','Posto','Posto Principal','Secretaria Principal','Regime','D.Úteis','Férias','Faltas','Atestados','Suspensão','Afastamento','Trabalhados','Ins.(dias)','Advertência']
     const NC = HEADERS.length
     const secretarias = Array.from(new Set(porFuncionario.map(f => f.secretaria ?? 'Sem Secretaria')))
       .sort((a, b) => { if (a === 'AFASTADOS') return 1; if (b === 'AFASTADOS') return -1; return a.localeCompare(b, 'pt-BR') })
@@ -48,7 +48,7 @@ function exportExcel(
         const prepDiferente = isMulti && f.posto_preponderante_id !== f.posto_id
         rows.push({
           data: [
-            f.funcionario_nome, f.funcao ?? '—', f.posto_nome ?? '—',
+            f.funcionario_nome, f.registro ?? '—', f.funcao ?? '—', f.posto_nome ?? '—',
             isMulti ? (f.posto_preponderante_nome ?? '—') : '',
             isMulti ? (f.secretaria_preponderante ?? '—') : '',
             f.regime,
@@ -61,7 +61,7 @@ function exportExcel(
         })
       }
       rows.push({ data: [
-        'TOTAL', '', '', '', '', '',
+        'TOTAL', '', '', '', '', '', '',
         grupo.reduce((s, f) => s + f.dias_uteis, 0),
         grupo.reduce((s, f) => s + (f.ferias_dias || 0), 0),
         grupo.reduce((s, f) => s + (f.faltas_dias || 0), 0),
@@ -85,12 +85,12 @@ function exportExcel(
         else if (row.style === 'totals')    ws[addr].s = { font: { bold: true }, fill: { patternType: 'solid', fgColor: { rgb: 'f1f5f9' } } }
         else if (row.style === 'colHeader') ws[addr].s = { font: { bold: true, color: { rgb: '475569' } }, fill: { patternType: 'solid', fgColor: { rgb: 'e2e8f0' } } }
         else if (row.style === 'multiPosto') {
-          // Colunas 3 e 4 (Posto Principal / Secretaria Principal) em amarelo
-          if (ci === 3 || ci === 4) ws[addr].s = { fill: { patternType: 'solid', fgColor: { rgb: 'fef08a' } }, font: { bold: true, color: { rgb: '713f12' } } }
+          // Colunas 4 e 5 (Posto Principal / Secretaria Principal) em amarelo
+          if (ci === 4 || ci === 5) ws[addr].s = { fill: { patternType: 'solid', fgColor: { rgb: 'fef08a' } }, font: { bold: true, color: { rgb: '713f12' } } }
         }
       }
     })
-    ws['!cols'] = [{ wch: 32 }, { wch: 18 }, { wch: 24 }, { wch: 24 }, { wch: 16 }, { wch: 7 }, ...Array(8).fill({ wch: 10 }), { wch: 13 }]
+    ws['!cols'] = [{ wch: 32 }, { wch: 10 }, { wch: 18 }, { wch: 24 }, { wch: 24 }, { wch: 16 }, { wch: 7 }, ...Array(8).fill({ wch: 10 }), { wch: 13 }]
     XLSX.utils.book_append_sheet(wb, ws, 'Por Funcionário')
   }
 
@@ -159,7 +159,7 @@ function exportExcel(
 
   // ── Sheet 3: Coberturas ──
   {
-    const HEADERS = ['Funcionário','Função','Posto Origem','Posto Destino','Secretaria Destino','Início','Fim','Dias']
+    const HEADERS = ['Funcionário','RE','Função','Posto Origem','Posto Destino','Secretaria Destino','Início','Fim','Dias']
     const NC = HEADERS.length
     type XRow = { data: (string | number)[]; style?: 'header' }
     const rows: XRow[] = [
@@ -171,7 +171,7 @@ function exportExcel(
     for (const f of porFuncionario) {
       for (const c of f.coberturas_prestadas) {
         rows.push({ data: [
-          f.funcionario_nome, f.funcao ?? '—',
+          f.funcionario_nome, f.registro ?? '—', f.funcao ?? '—',
           f.posto_nome ?? '—', c.posto_nome, c.secretaria,
           fmt(c.data_inicio), fmt(c.data_fim), c.dias_no_posto,
         ]})
@@ -187,7 +187,7 @@ function exportExcel(
         ws[addr].s = { font: { bold: true, color: { rgb: '475569' } }, fill: { patternType: 'solid', fgColor: { rgb: 'e2e8f0' } } }
       }
     })
-    ws['!cols'] = [{ wch: 32 }, { wch: 18 }, { wch: 24 }, { wch: 24 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 8 }]
+    ws['!cols'] = [{ wch: 32 }, { wch: 10 }, { wch: 18 }, { wch: 24 }, { wch: 24 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 8 }]
     XLSX.utils.book_append_sheet(wb, ws, 'Coberturas')
   }
 
@@ -265,6 +265,7 @@ function TabFuncionarios({ dados, mostrarVazias }: { dados: FechamentoFuncionari
               <th onClick={() => toggleSort('nome')} className="min-w-[220px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400 cursor-pointer select-none hover:text-gray-600">
                 Funcionário {sortCol === 'nome' ? (sortDir === 'asc' ? '↑' : '↓') : <span className="text-gray-300">↕</span>}
               </th>
+              <th className="min-w-[80px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">RE</th>
               <th className="min-w-[160px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Função</th>
               <th className="min-w-[200px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Posto</th>
               <th className="min-w-[80px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Secretaria</th>
@@ -310,6 +311,7 @@ function TabFuncionarios({ dados, mostrarVazias }: { dados: FechamentoFuncionari
                     )}
                   </div>
                 </td>
+                <td className="px-3 py-2.5 text-gray-500 font-mono whitespace-nowrap">{f.registro ?? '—'}</td>
                 <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{f.funcao ?? '—'}</td>
                 <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">{f.posto_nome ?? '—'}</td>
                 <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{f.secretaria ?? '—'}</td>
