@@ -100,11 +100,14 @@ function buildHistoricoMes(
 
   // Start with empty state — events drive all values.
   // Supervisor intentionally starts empty and is only populated by explicit events.
+  // status intentionally starts empty — using funcionario.status as default bleeds
+  // the current status (e.g. 'ferias') into all historical months for employees
+  // whose admissão event is missing from historico_funcionarios (bulk imports).
   const state = {
     posto:      '',
     secretaria: '',
     funcao:     '',
-    status:     funcionario.status ?? '',
+    status:     '',
     supervisor: '',
   }
 
@@ -154,6 +157,9 @@ function buildHistoricoMes(
           break
         case 'retorno_afastamento':
           state.status = 'ativo'
+          break
+        case 'ferias':
+          state.status = 'ferias'
           break
       }
       ei++
