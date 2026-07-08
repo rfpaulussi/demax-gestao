@@ -11,11 +11,15 @@ import type { AcordoPostoItem, AcordoFuncionarioItem, TurnoHorario } from '@/app
 
 const DIAS = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado','Domingo']
 
+const HORARIOS_EXTRA_30 = new Set([5,6,7,8,11,12,13,14,15,16,17,18])
 const HORARIOS: string[] = []
 for (let h = 5; h <= 23; h++) {
   for (let m = 0; m < 60; m += 12) {
     if (h === 23 && m > 0) break
     HORARIOS.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`)
+    if (m === 24 && HORARIOS_EXTRA_30.has(h)) {
+      HORARIOS.push(`${String(h).padStart(2,'0')}:30`)
+    }
   }
 }
 
@@ -251,7 +255,7 @@ export function ModalNovoAcordo({ postos, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 overflow-y-auto py-8 px-4">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 overflow-y-auto overflow-x-hidden py-8 px-4">
       <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
 
         <div className="rounded-t-2xl bg-slate-900 px-6 py-5">
@@ -429,18 +433,18 @@ export function ModalNovoAcordo({ postos, onClose }: Props) {
                     const t = turno.times[dia]
                     const isLast = i === DIAS.length - 1
                     return (
-                      <div key={dia} className={`flex items-center gap-3 px-4 py-2.5 ${!isLast ? 'border-b border-gray-100' : ''} ${t.folga ? 'bg-gray-50' : ''}`}>
-                        <span className="w-28 shrink-0 text-xs font-semibold text-slate-600">{dia}</span>
+                      <div key={dia} className={`flex items-center gap-2 px-4 py-2.5 min-w-0 ${!isLast ? 'border-b border-gray-100' : ''} ${t.folga ? 'bg-gray-50' : ''}`}>
+                        <span className="w-24 shrink-0 text-xs font-semibold text-slate-600">{dia}</span>
                         {t.folga ? (
                           <span className="flex-1 text-xs font-bold uppercase tracking-wider text-gray-400">Folga</span>
                         ) : (
-                          <div className="flex flex-1 items-center gap-1.5 text-xs text-gray-600">
+                          <div className="flex min-w-0 flex-1 overflow-x-auto items-center gap-1.5 text-xs text-gray-600 pb-0.5">
                             <TimeSelect value={t.e1} onChange={v => updateTime(turno.id, dia, 'e1', v)} />
-                            <span className="text-gray-400">–</span>
+                            <span className="text-gray-400 shrink-0">–</span>
                             <TimeSelect value={t.s1} onChange={v => updateTime(turno.id, dia, 's1', v)} />
-                            <span className="mx-1 text-gray-300">/</span>
+                            <span className="mx-1 text-gray-300 shrink-0">/</span>
                             <TimeSelect value={t.e2} onChange={v => updateTime(turno.id, dia, 'e2', v)} />
-                            <span className="text-gray-400">–</span>
+                            <span className="text-gray-400 shrink-0">–</span>
                             <TimeSelect value={t.s2} onChange={v => updateTime(turno.id, dia, 's2', v)} />
                           </div>
                         )}
