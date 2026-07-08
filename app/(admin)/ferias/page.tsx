@@ -238,10 +238,12 @@ export default function FeriasPage() {
   const filtered = useMemo(() => {
     let list = [...ferias]
 
+    const nfd = (s: string) => (s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+
     if (filtroBusca.trim()) {
-      const termo = filtroBusca.toLowerCase().trim()
+      const termo = nfd(filtroBusca.trim())
       list = list.filter(f =>
-        f.funcionario_nome.toLowerCase().includes(termo) ||
+        nfd(f.funcionario_nome).includes(termo) ||
         f.funcionario_registro.toLowerCase().includes(termo)
       )
     }
@@ -249,7 +251,7 @@ export default function FeriasPage() {
     if (filtroStatus !== 'todos') list = list.filter(f => f.status === filtroStatus)
     if (filtroSecretaria !== 'todas') list = list.filter(f => f.secretaria === filtroSecretaria)
     if (filtroSupervisor !== 'todos') list = list.filter(f => f.supervisor_nome === filtroSupervisor)
-    if (filtroPosto.trim()) list = list.filter(f => f.posto_nome.toLowerCase().includes(filtroPosto.toLowerCase()))
+    if (filtroPosto.trim()) list = list.filter(f => nfd(f.posto_nome).includes(nfd(filtroPosto.trim())))
 
     if (filtroVencimento !== 'todos') {
       list = list.filter(f => {

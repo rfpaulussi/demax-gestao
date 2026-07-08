@@ -245,18 +245,29 @@ export async function importarMudancasFuncao(
   const funcs2 = (funcsRaw2 ?? []) as unknown as { id: string; registro: string | null }[]
   const funcMap = new Map(funcs2.map(f => [String(f.registro), f.id]))
 
+  const nomesPostos = Array.from(new Set(
+    rows.flatMap(r => [r.posto_atual, r.posto_novo]).filter(Boolean)
+  ))
+  const { data: postosRaw } = await supabase.from('postos').select('id, nome').in('nome', nomesPostos)
+  const postoMap = new Map(
+    ((postosRaw ?? []) as unknown as { id: string; nome: string }[])
+      .map(p => [p.nome.trim().toLowerCase(), p.id])
+  )
+
   const toInsert: Record<string, unknown>[] = []
   for (const row of rows) {
     const funcionario_id = funcMap.get(row.registro)
     if (!funcionario_id) { errors.push(`Matrícula "${row.registro}" não encontrada`); continue }
     const dataEvento = parseBRDate(row.data) ?? new Date().toISOString().split('T')[0]
+    const postoAtualId = postoMap.get(row.posto_atual.trim().toLowerCase())
+    const postoNovoId  = postoMap.get(row.posto_novo.trim().toLowerCase())
     toInsert.push({
       funcionario_id,
       tipo:             'mudanca_funcao',
       data_evento:      dataEvento,
       descricao:        `Função: ${row.funcao_anterior} → ${row.nova_funcao}`,
-      dados_anteriores: { funcao: row.funcao_anterior, posto: row.posto_atual },
-      dados_novos:      { funcao: row.nova_funcao, posto: row.posto_novo },
+      dados_anteriores: { funcao: row.funcao_anterior, ...(postoAtualId ? { posto_id: postoAtualId } : { posto: row.posto_atual }) },
+      dados_novos:      { funcao: row.nova_funcao,     ...(postoNovoId  ? { posto_id: postoNovoId  } : { posto: row.posto_novo  }) },
     })
   }
 
