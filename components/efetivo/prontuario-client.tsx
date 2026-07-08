@@ -128,11 +128,13 @@ function buildHistoricoMes(
       const d = (e.dados_novos ?? {}) as Record<string, string>
       switch (e.tipo) {
         case 'admissao':
-          if (d.posto)       state.posto      = d.posto
-          if (d.cargo)       state.funcao     = d.cargo
-          if (d.supervisor)  state.supervisor = d.supervisor
-          if (d.status)      state.status     = d.status.toLowerCase()
-          if (d.secretaria)  state.secretaria = d.secretaria
+          // posto_nome: resolução via UUID (pós-migration) tem precedência sobre texto bruto
+          if (d.posto_nome)  state.posto      = String(d.posto_nome)
+          else if (d.posto)  state.posto      = String(d.posto)
+          if (d.cargo)       state.funcao     = String(d.cargo)
+          if (d.supervisor)  state.supervisor = String(d.supervisor)
+          if (d.status)      state.status     = String(d.status).toLowerCase()
+          if (d.secretaria)  state.secretaria = String(d.secretaria)
           break
         case 'mudanca_posto':
           if (d.posto_nome)  state.posto      = d.posto_nome

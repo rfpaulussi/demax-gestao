@@ -266,8 +266,8 @@ export async function importarMudancasFuncao(
       tipo:             'mudanca_funcao',
       data_evento:      dataEvento,
       descricao:        `Função: ${row.funcao_anterior} → ${row.nova_funcao}`,
-      dados_anteriores: { funcao: row.funcao_anterior, ...(postoAtualId ? { posto_id: postoAtualId } : { posto: row.posto_atual }) },
-      dados_novos:      { funcao: row.nova_funcao,     ...(postoNovoId  ? { posto_id: postoNovoId  } : { posto: row.posto_novo  }) },
+      dados_anteriores: { funcao: row.funcao_anterior, ...(postoAtualId ? { posto_id: postoAtualId } : {}) },
+      dados_novos:      { funcao: row.nova_funcao,     ...(postoNovoId  ? { posto_id: postoNovoId  } : {}) },
     })
   }
 
