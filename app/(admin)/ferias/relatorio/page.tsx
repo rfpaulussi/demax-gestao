@@ -133,6 +133,7 @@ export default function RelatorioFeriasPage() {
   const [erro, setErro]       = useState<string | null>(null)
   const [isPending, start]    = useTransition()
   const [isDownloading, setIsDownloading] = useState(false)
+  const [statusFiltro, setStatusFiltro] = useState<'ambos' | 'agendado' | 'em_curso'>('ambos')
 
   const anos = Array.from({ length: 4 }, (_, i) => new Date().getFullYear() - 1 + i)
 
@@ -165,7 +166,7 @@ export default function RelatorioFeriasPage() {
   }
 
   async function handleDownload() {
-    if (!supervisores) return
+    if (!supervisoresFiltrados) return
     setIsDownloading(true)
     try {
       const agora = new Date().toLocaleString('pt-BR', {
@@ -179,7 +180,7 @@ export default function RelatorioFeriasPage() {
         : undefined
 
       await downloadRelatorioFerias({
-        supervisores,
+        supervisores: supervisoresFiltrados,
         mesAno: mesAnoAtual,
         geradoEm: agora,
         geradoPor: nomeSupervisor ?? 'Coordenação',
@@ -192,9 +193,16 @@ export default function RelatorioFeriasPage() {
     }
   }
 
-  const total           = supervisores?.reduce((a, s) => a + s.itens.length, 0) ?? 0
-  const totalAprovados  = supervisores?.reduce((a, s) => a + s.itens.filter(i => i.status === 'aprovado').length, 0) ?? 0
-  const totalAgendados  = supervisores?.reduce((a, s) => a + s.itens.filter(i => i.status === 'agendado').length, 0) ?? 0
+  const supervisoresFiltrados = supervisores?.map(s => ({
+    ...s,
+    itens: statusFiltro === 'ambos'
+      ? s.itens
+      : s.itens.filter(i => i.status === statusFiltro),
+  })).filter(s => s.itens.length > 0) ?? null
+
+  const total           = supervisoresFiltrados?.reduce((a, s) => a + s.itens.length, 0) ?? 0
+  const totalAprovados  = supervisoresFiltrados?.reduce((a, s) => a + s.itens.filter(i => i.status === 'aprovado').length, 0) ?? 0
+  const totalAgendados  = supervisoresFiltrados?.reduce((a, s) => a + s.itens.filter(i => i.status === 'agendado').length, 0) ?? 0
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -261,6 +269,20 @@ export default function RelatorioFeriasPage() {
             </select>
           </div>
 
+          {/* Filtro de status para PDF */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1.5">Status no PDF</label>
+            <select
+              value={statusFiltro}
+              onChange={e => setStatusFiltro(e.target.value as 'ambos' | 'agendado' | 'em_curso')}
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300"
+            >
+              <option value="ambos">Agendados + Em Curso</option>
+              <option value="agendado">Somente Agendados</option>
+              <option value="em_curso">Somente Em Curso</option>
+            </select>
+          </div>
+
           {/* Prazo RH */}
           <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${
             prazoUrgente ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-600'
@@ -286,7 +308,7 @@ export default function RelatorioFeriasPage() {
           </button>
 
           {/* Baixar PDF — só aparece quando há resultados */}
-          {supervisores && supervisores.length > 0 && (
+          {supervisoresFiltrados && supervisoresFiltrados.length > 0 && (
             <button
               onClick={handleDownload}
               disabled={isDownloading}
@@ -307,7 +329,7 @@ export default function RelatorioFeriasPage() {
         {/* Resultado */}
         {supervisores !== null && (
           <>
-            {supervisores.length > 0 && (
+            {supervisoresFiltrados && supervisoresFiltrados.length > 0 && (
               <div className="grid grid-cols-4 gap-4 mb-6">
                 {[
                   { label: 'Total',        value: total,          color: 'border-slate-900' },
@@ -323,7 +345,7 @@ export default function RelatorioFeriasPage() {
               </div>
             )}
 
-            {supervisores.length === 0 ? (
+            {!supervisoresFiltrados || supervisoresFiltrados.length === 0 ? (
               <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
                 <p className="text-slate-400 text-sm">
                   Nenhuma féria encontrada para <strong>{MESES[mes - 1]} / {ano}</strong>
@@ -335,7 +357,7 @@ export default function RelatorioFeriasPage() {
               </div>
             ) : (
               <div className="bg-white border border-slate-200 rounded-xl p-6">
-                {supervisores.map((sup, idx) => (
+                {supervisoresFiltrados.map((sup, idx) => (
                   <TabelaSupervisor
                     key={idx}
                     supervisor={sup.supervisor_nome}
