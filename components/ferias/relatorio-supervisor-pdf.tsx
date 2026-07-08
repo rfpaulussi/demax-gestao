@@ -259,38 +259,38 @@ const s = StyleSheet.create({
   },
 
   th: {
-    paddingVertical: 5,
-    paddingHorizontal: 6,
-    fontSize: 6.5,
+    paddingVertical: 4,
+    paddingHorizontal: 5,
+    fontSize: 6,
     fontFamily: 'Helvetica-Bold',
     color: C.slate500,
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    letterSpacing: 0.5,
   },
   td: {
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-    fontSize: 7.5,
+    paddingVertical: 4,
+    paddingHorizontal: 5,
+    fontSize: 7,
     color: C.slate700,
   },
   tdBold: {
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-    fontSize: 7.5,
+    paddingVertical: 4,
+    paddingHorizontal: 5,
+    fontSize: 7,
     color: C.slate900,
     fontFamily: 'Helvetica-Bold',
   },
 
-  // Colunas
-  colNome:     { width: '22%' },
-  colMatricula:{ width: '8%' },
-  colCargo:    { width: '14%' },
-  colPosto:    { width: '18%' },
-  colPeriodo:  { width: '14%' },
-  colInicio:   { width: '9%' },
-  colFim:      { width: '9%' },
-  colDias:     { width: '6%' },
-  colStatus:   { width: '10%' },
+  // Colunas — landscape A4 (786pt útil após margens)
+  colNome:     { width: '18%' },
+  colMatricula:{ width: '6%' },
+  colCargo:    { width: '17%' },
+  colPosto:    { width: '20%' },
+  colPeriodo:  { width: '13%' },
+  colInicio:   { width: '8%' },
+  colFim:      { width: '8%' },
+  colDias:     { width: '4%' },
+  colStatus:   { width: '6%' },
 
   // Badge de status
   badge: {
@@ -473,7 +473,7 @@ function TabelaSupervisor({ itens }: { itens: FeriasItem[] }) {
             <Text style={[s.tdBold, s.colInicio]}>{formatDate(item.data_inicio)}</Text>
             <Text style={[s.tdBold, s.colFim]}>{formatDate(item.data_fim)}</Text>
             <Text style={[s.tdBold, s.colDias, { textAlign: 'center' }]}>{String(dias)}</Text>
-            <View style={[s.colStatus, { paddingVertical: 4, paddingHorizontal: 4 }]}>
+            <View style={[s.colStatus, { paddingVertical: 3, paddingHorizontal: 3 }]}>
               <StatusBadge status={item.status} />
             </View>
           </View>
@@ -621,7 +621,7 @@ function RelatorioDocument({
         </View>
 
         {/* Totalizador geral */}
-        <View style={s.totalBox}>
+        <View style={s.totalBox} wrap={false}>
           <Text style={s.totalTitle}>Resumo Geral — {mesAno}</Text>
           <View style={s.totalItems}>
             <View style={s.totalItem}>
