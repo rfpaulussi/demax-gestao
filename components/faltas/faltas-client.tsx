@@ -52,15 +52,26 @@ function KpiCard({
 
 function RemoverBtn({ id }: { id: string }) {
   const [pending, start] = useTransition()
+  const [erro, setErro] = useState<string | null>(null)
   return (
-    <button
-      type="button"
-      onClick={() => start(async () => { await removerFalta(id) })}
-      disabled={pending}
-      className="text-xs text-red-500 hover:text-red-700 disabled:opacity-40"
-    >
-      {pending ? '...' : 'Remover'}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          if (!confirm('Remover esta falta? Esta ação não pode ser desfeita.')) return
+          setErro(null)
+          start(async () => {
+            const res = await removerFalta(id)
+            if (!res.success) setErro(res.error ?? 'Erro ao remover')
+          })
+        }}
+        disabled={pending}
+        className="text-xs text-red-500 hover:text-red-700 disabled:opacity-40"
+      >
+        {pending ? '...' : 'Remover'}
+      </button>
+      {erro && <span className="text-xs text-red-500">{erro}</span>}
+    </>
   )
 }
 

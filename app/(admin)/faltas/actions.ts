@@ -358,7 +358,8 @@ export async function removerFalta(id: string) {
   const supabase = createClient()
   const auth = await getUser()
   const { data: falta } = await supabase.from('faltas').select('funcionario_id, funcionarios!funcionario_id(nome)').eq('id', id).single()
-  const { error } = await supabase.from('faltas').delete().eq('id', id)
+  const adminSupabase = createAdminClient()
+  const { error } = await adminSupabase.from('faltas').delete().eq('id', id)
   if (error) return { success: false, error: error.message }
 
   if (auth?.perfil.role === 'supervisor') {
