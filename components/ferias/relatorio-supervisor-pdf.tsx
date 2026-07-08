@@ -43,8 +43,8 @@ export interface RelatorioFeriasPDFProps {
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—'
   try {
-    const d = new Date(iso)
-    return d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+    const d = new Date(iso + 'T00:00:00')
+    return d.toLocaleDateString('pt-BR')
   } catch {
     return '—'
   }
