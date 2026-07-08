@@ -513,6 +513,9 @@ function RelatorioDocument({
     >
       <Page size="A4" orientation="landscape" style={s.page}>
 
+        {/* Espaço no topo das páginas 2+ */}
+        <View fixed render={({ pageNumber }) => pageNumber > 1 ? <View style={{ height: 20 }} /> : null} />
+
         {/* Cabeçalho */}
         <View style={s.header}>
           <View style={s.headerLeft}>

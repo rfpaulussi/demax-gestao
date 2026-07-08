@@ -12,6 +12,7 @@ import {
   buscarSupervisoresParaFiltro,
   iniciarFerias,
   concluirFerias,
+  excluirFerias,
   type FeriasListaItem,
   type SupervisorFiltro,
 } from './actions'
@@ -542,6 +543,16 @@ export default function FeriasPage() {
                         className="text-xs text-slate-500 hover:text-slate-800 underline"
                       >
                         Ver / Editar
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`Excluir registro de férias de ${item.funcionario_nome}? Esta ação não pode ser desfeita.`)) return
+                          await excluirFerias(item.id)
+                          buscarFeriasLista().then(setFerias)
+                        }}
+                        className="text-xs text-red-400 hover:text-red-600 underline"
+                      >
+                        Excluir
                       </button>
                     </td>
                   </tr>
