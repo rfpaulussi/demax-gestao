@@ -186,13 +186,28 @@ export async function buscarFeriasParaRelatorio(
       mapaSuper.get(sup.supId)!.itens.push(item)
     }
 
+    const STATUS_PRIORITY: Record<string, number> = {
+      aprovado: 0, em_curso: 1, agendado: 2, concluido: 3, cancelado: 4, disponivel: 5,
+    }
+
     const supervisores: SupervisorRelatorio[] = Array.from(mapaSuper.values())
-      .map(s => ({
-        supervisor_nome: s.nome,
-        itens: s.itens.sort((a, b) =>
-          new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime()
-        ),
-      }))
+      .map(s => {
+        // Dedup por (registro, data_inicio) — mantém registro de maior prioridade de status
+        const seen = new Map<string, FeriasItem>()
+        for (const item of s.itens) {
+          const key = `${item.registro}|${item.data_inicio}`
+          const existing = seen.get(key)
+          if (!existing || (STATUS_PRIORITY[item.status] ?? 99) < (STATUS_PRIORITY[existing.status] ?? 99)) {
+            seen.set(key, item)
+          }
+        }
+        return {
+          supervisor_nome: s.nome,
+          itens: Array.from(seen.values()).sort((a, b) =>
+            new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime()
+          ),
+        }
+      })
       .sort((a, b) => a.supervisor_nome.localeCompare(b.supervisor_nome))
 
     const totalRegistros = supervisores.reduce((acc, s) => acc + s.itens.length, 0)

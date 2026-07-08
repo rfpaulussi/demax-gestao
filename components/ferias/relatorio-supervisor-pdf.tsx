@@ -585,7 +585,7 @@ function RelatorioDocument({
             const nEmCurso   = sup.itens.filter(i => i.status === 'em_curso').length
 
             return (
-              <View key={si} style={s.supervisorBlock} wrap={false}>
+              <View key={si} style={s.supervisorBlock}>
                 <View style={s.supervisorHeader}>
                   <Text style={s.supervisorName}>Supervisor: {sup.supervisor_nome}</Text>
                   <Text style={s.supervisorCount}>
