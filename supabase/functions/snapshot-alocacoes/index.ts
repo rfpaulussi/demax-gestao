@@ -1,5 +1,6 @@
 // Gatilho: cron no dia 1 de cada mês à meia-noite (schedule: "0 0 1 * *")
 // Registra em logs_alocacoes_mensais o efetivo real de cada posto no mês anterior.
+// Funcionários em cobertura ativa no último dia do mês são contados no posto de destino.
 // Operação idempotente: apaga e reinsere o snapshot do mês de referência.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -12,17 +13,18 @@ Deno.serve(async (_req) => {
     )
 
     // Cron roda no dia 1 do mês atual — captura o mês anterior
-    const agora         = new Date()
-    const mesAnterior   = new Date(agora.getFullYear(), agora.getMonth() - 1, 1)
+    const agora       = new Date()
+    const mesAnterior = new Date(agora.getFullYear(), agora.getMonth() - 1, 1)
+    const ultimoDia   = new Date(agora.getFullYear(), agora.getMonth(), 0)  // último dia do mês anterior
+
     const mesReferencia = mesAnterior.toISOString().split('T')[0]
-    const mesLabel      = mesAnterior.toLocaleDateString('pt-BR', {
-      month: 'long',
-      year:  'numeric',
-    })
+    const ultimoDiaStr  = ultimoDia.toISOString().split('T')[0]
+    const mesLabel      = mesAnterior.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 
     const [
       { data: postos,       error: postosErr },
       { data: funcionarios, error: funcsErr  },
+      { data: coberturas,   error: cobErr    },
     ] = await Promise.all([
       supabase
         .from('postos')
@@ -30,12 +32,20 @@ Deno.serve(async (_req) => {
         .eq('ativo', true),
       supabase
         .from('funcionarios')
-        .select('id, nome, posto_id')
+        .select('id, nome, registro, posto_id')
         .eq('status', 'ativo'),
+      // Coberturas ativas no último dia do mês anterior:
+      // data_inicio <= ultimo_dia AND (data_retorno_real IS NULL OR data_retorno_real >= ultimo_dia)
+      supabase
+        .from('coberturas_temporarias')
+        .select('funcionario_id, posto_destino_id')
+        .lte('data_inicio', ultimoDiaStr)
+        .or(`data_retorno_real.is.null,data_retorno_real.gte.${ultimoDiaStr}`),
     ])
 
     if (postosErr)  throw postosErr
     if (funcsErr)   throw funcsErr
+    if (cobErr)     throw cobErr
 
     if (!postos?.length) {
       console.log('[snapshot-alocacoes] Nenhum posto ativo encontrado.')
@@ -45,13 +55,19 @@ Deno.serve(async (_req) => {
       )
     }
 
-    // Agrupa funcionários ativos por posto
-    type FuncEntry = { id: string; nome: string }
+    // Funcionário em cobertura no último dia do mês → conta no posto de destino
+    const coberturaMap = new Map<string, string>()
+    for (const c of coberturas ?? []) {
+      coberturaMap.set(c.funcionario_id, c.posto_destino_id)
+    }
+
+    type FuncEntry = { id: string; nome: string; registro: string | null }
     const byPosto = new Map<string, FuncEntry[]>()
     for (const f of funcionarios ?? []) {
       if (!f.posto_id) continue
-      if (!byPosto.has(f.posto_id)) byPosto.set(f.posto_id, [])
-      byPosto.get(f.posto_id)!.push({ id: f.id, nome: f.nome })
+      const postoEfetivo = coberturaMap.get(f.id) ?? f.posto_id
+      if (!byPosto.has(postoEfetivo)) byPosto.set(postoEfetivo, [])
+      byPosto.get(postoEfetivo)!.push({ id: f.id, nome: f.nome, registro: (f as { registro?: string | null }).registro ?? null })
     }
 
     // Apaga snapshot anterior do mesmo mês (idempotência)
@@ -70,10 +86,7 @@ Deno.serve(async (_req) => {
       nomes_funcionarios: byPosto.get(p.id) ?? [],
     }))
 
-    const { error: insertErr } = await supabase
-      .from('logs_alocacoes_mensais')
-      .insert(rows)
-
+    const { error: insertErr } = await supabase.from('logs_alocacoes_mensais').insert(rows)
     if (insertErr) throw insertErr
 
     const totalAtivos  = funcionarios?.length ?? 0

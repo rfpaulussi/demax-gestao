@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getUser } from '@/lib/auth/get-user'
 import { MedicaoTable } from '@/components/medicao/medicao-table'
 import type { MedicaoRow } from '@/components/medicao/medicao-table'
 
@@ -26,6 +27,8 @@ function toSituacao(diff: number): MedicaoRow['situacao'] {
 
 export default async function MedicaoPage() {
   const supabase = createClient()
+  const auth = await getUser()
+  const canSnapshot = auth?.perfil.role === 'admin' || auth?.perfil.role === 'coordenador'
 
   const now = new Date()
   const mesReferencia = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -35,7 +38,7 @@ export default async function MedicaoPage() {
   const { data: logs } = await supabase
     .from('logs_alocacoes_mensais')
     .select(`
-      posto_id, efetivo_previsto, efetivo_real,
+      posto_id, efetivo_previsto, efetivo_real, nomes_funcionarios,
       postos!posto_id ( id, nome, secretaria )
     `)
     .eq('mes_referencia', mesReferencia)
@@ -50,6 +53,10 @@ export default async function MedicaoPage() {
       const prev = l.efetivo_previsto ?? 0
       const real = l.efetivo_real ?? 0
       const diff = real - prev
+
+      type FuncEntry = { id: string; nome: string; registro?: string | null }
+      const funcs = (l.nomes_funcionarios as unknown as FuncEntry[] | null) ?? []
+
       return {
         posto_id:         l.posto_id,
         posto_nome:       posto?.nome ?? '—',
@@ -58,30 +65,49 @@ export default async function MedicaoPage() {
         efetivo_real:     real,
         diferenca:        diff,
         situacao:         toSituacao(diff),
+        funcionarios:     funcs.map(f => ({ id: f.id, nome: f.nome, registro: f.registro ?? null })),
       }
     })
   } else {
     temSnapshot = false
-    const [{ data: postos }, { data: funcionarios }] = await Promise.all([
+
+    const [
+      { data: postos },
+      { data: funcionarios },
+      { data: coberturas },
+    ] = await Promise.all([
       supabase
         .from('postos')
         .select('id, nome, secretaria, efetivo_previsto')
         .eq('ativo', true),
       supabase
         .from('funcionarios')
-        .select('posto_id')
+        .select('id, nome, registro, posto_id')
         .eq('status', 'ativo'),
+      supabase
+        .from('coberturas_temporarias')
+        .select('funcionario_id, posto_destino_id')
+        .eq('status', 'ativa'),
     ])
 
-    const byPosto = new Map<string, number>()
+    // Funcionário em cobertura ativa → conta no posto de destino, não no origem
+    const coberturaMap = new Map<string, string>()
+    for (const c of coberturas ?? []) {
+      coberturaMap.set(c.funcionario_id, c.posto_destino_id)
+    }
+
+    const byPosto = new Map<string, { id: string; nome: string; registro: string | null }[]>()
     for (const f of funcionarios ?? []) {
       if (!f.posto_id) continue
-      byPosto.set(f.posto_id, (byPosto.get(f.posto_id) ?? 0) + 1)
+      const postoEfetivo = coberturaMap.get(f.id) ?? f.posto_id
+      if (!byPosto.has(postoEfetivo)) byPosto.set(postoEfetivo, [])
+      byPosto.get(postoEfetivo)!.push({ id: f.id, nome: f.nome, registro: f.registro ?? null })
     }
 
     rows = (postos ?? []).map(p => {
+      const funcs = byPosto.get(p.id) ?? []
       const prev = p.efetivo_previsto ?? 0
-      const real = byPosto.get(p.id) ?? 0
+      const real = funcs.length
       const diff = real - prev
       return {
         posto_id:         p.id,
@@ -91,6 +117,7 @@ export default async function MedicaoPage() {
         efetivo_real:     real,
         diferenca:        diff,
         situacao:         toSituacao(diff),
+        funcionarios:     funcs,
       }
     })
   }
@@ -129,7 +156,12 @@ export default async function MedicaoPage() {
         <CounterCard label="Em Excesso"       value={excesso}  topColor="border-t-indigo-500" />
       </div>
 
-      <MedicaoTable rows={rows} secretarias={secretarias} />
+      <MedicaoTable
+        rows={rows}
+        secretarias={secretarias}
+        canSnapshot={canSnapshot}
+        mesLabel={mesLabel}
+      />
     </div>
   )
 }
