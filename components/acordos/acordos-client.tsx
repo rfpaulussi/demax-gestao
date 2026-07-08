@@ -303,6 +303,7 @@ export function AcordosClient({ acordos, postos, mes, ano, anos }: Props) {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white shadow-sm">
+          <div className="min-w-[640px]">
           {/* Header */}
           <div className="border-b border-gray-100 bg-gray-50 px-5 py-2.5">
             <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-3 items-center">
@@ -386,6 +387,7 @@ export function AcordosClient({ acordos, postos, mes, ano, anos }: Props) {
                 </div>
               </div>
             ))}
+          </div>
           </div>
         </div>
       )}
