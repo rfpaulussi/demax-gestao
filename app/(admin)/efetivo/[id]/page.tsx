@@ -2,11 +2,13 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { getUser } from '@/lib/auth/get-user'
 import { cn } from '@/lib/utils'
 import { calcularStatusExperiencia } from '@/lib/experiencia'
 import { BannerExperiencia } from '@/components/efetivo/banner-experiencia'
 import { PerfilTabs } from '@/components/efetivo/perfil-tabs'
 import type { MovimentacaoItem, AdvertenciaItem, SolicitacaoItem } from '@/components/efetivo/perfil-tabs'
+import type { HorarioVigenteShape, HistoricoHorarioShape } from '@/components/efetivo/tab-horario'
 import type { FuncionarioParaPDF } from '@/components/efetivo/movimentacao-pdf'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -53,11 +55,16 @@ export default async function PerfilFuncionarioPage({
 
   const postoId = (func as unknown as { postos?: { id: string } }).postos?.id ?? null
 
+  const auth = await getUser()
+
   const [
     { data: movRaw },
     { data: advRaw },
     { data: solRaw },
     supervisorResult,
+    { data: horarioVigenteRaw },
+    { data: historicoRaw },
+    { data: escalaRaw },
   ] = await Promise.all([
     supabase
       .from('movimentacoes')
@@ -86,6 +93,37 @@ export default async function PerfilFuncionarioPage({
           .eq('ativo', true)
           .limit(1)
           .single()
+      : Promise.resolve({ data: null }),
+    // horário vigente
+    supabase
+      .from('horarios_funcionarios')
+      .select(`
+        id, data_inicio, data_fim,
+        turnos_postos!turno_id(
+          id, posto_id, nome,
+          hora_entrada, hora_saida_seg_qui, hora_saida_sex,
+          hora_inicio_almoco, hora_fim_almoco, ativo
+        )
+      `)
+      .eq('funcionario_id', id)
+      .is('data_fim', null)
+      .maybeSingle(),
+    // histórico de horários (excl. vigente)
+    supabase
+      .from('horarios_funcionarios')
+      .select(`
+        id, data_inicio, data_fim,
+        turnos_postos!turno_id(
+          nome, hora_entrada, hora_saida_seg_qui, hora_saida_sex,
+          hora_inicio_almoco, hora_fim_almoco
+        )
+      `)
+      .eq('funcionario_id', id)
+      .not('data_fim', 'is', null)
+      .order('data_inicio', { ascending: false }),
+    // regime do posto
+    postoId
+      ? supabase.from('config_escalas_postos').select('regime').eq('posto_id', postoId).maybeSingle()
       : Promise.resolve({ data: null }),
   ])
 
@@ -134,6 +172,11 @@ export default async function PerfilFuncionarioPage({
   const supervisorNome =
     (supervisorResult.data as unknown as { perfis?: { nome: string | null } } | null)
       ?.perfis?.nome ?? null
+
+  const horarioVigente   = horarioVigenteRaw as unknown as HorarioVigenteShape
+  const historicoHorario = (historicoRaw ?? []) as unknown as HistoricoHorarioShape
+  const regimePosto      = (escalaRaw as unknown as { regime?: string } | null)?.regime ?? null
+  const role             = auth?.perfil.role ?? null
 
   const f = func as unknown as {
     nome: string
@@ -226,6 +269,11 @@ export default async function PerfilFuncionarioPage({
           solicitacoes={solicitacoes}
           postoNomeMap={postoNomeMap}
           funcaoNomeMap={funcaoNomeMap}
+          horarioVigente={horarioVigente}
+          historicoHorario={historicoHorario}
+          regimePosto={regimePosto}
+          postoId={postoId}
+          role={role}
           funcionario={{
             id:            id,
             nome:          f.nome,
