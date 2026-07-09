@@ -42,6 +42,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/supervisores',      label: 'Supervisores'      },
       { href: '/usuarios',         label: 'Usuários'          },
       { href: '/auditoria',        label: 'Auditoria'         },
+      { href: '/convencoes',       label: 'Conv. Coletivas'   },
     ],
   },
 ]
