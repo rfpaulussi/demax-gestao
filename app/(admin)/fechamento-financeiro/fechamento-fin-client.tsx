@@ -124,9 +124,10 @@ interface Props {
   secretarias: string[]
   MESES: string[]
   anos: number[]
+  excluirAprendiz: boolean
 }
 
-export function FechamentoFinClient({ dados, mes, ano, secretarias, MESES, anos }: Props) {
+export function FechamentoFinClient({ dados, mes, ano, secretarias, MESES, anos, excluirAprendiz }: Props) {
   const [loadingXlsx, setLoadingXlsx] = useState(false)
   const [loadingPdf,  setLoadingPdf]  = useState(false)
 
@@ -155,6 +156,17 @@ export function FechamentoFinClient({ dados, mes, ano, secretarias, MESES, anos 
               {anos.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
+          {/* toggle Jovem Aprendiz */}
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 h-9 text-sm text-gray-700 select-none hover:bg-gray-50">
+            <input
+              type="checkbox"
+              name="excluirAprendiz"
+              value="1"
+              defaultChecked={excluirAprendiz}
+              className="h-4 w-4 rounded border-gray-300 accent-slate-800"
+            />
+            Excluir Jovem Aprendiz
+          </label>
           <button type="submit" className="h-9 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700">
             Calcular
           </button>

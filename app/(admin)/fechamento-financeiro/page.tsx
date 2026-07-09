@@ -38,7 +38,7 @@ function KpiCard({ label, value, borderColor, sub, subColor }: KpiProps) {
 export default async function FechamentoFinanceiroPage({
   searchParams,
 }: {
-  searchParams: { mes?: string; ano?: string }
+  searchParams: { mes?: string; ano?: string; excluirAprendiz?: string }
 }) {
   const userCtx = await getUser()
   if (!userCtx || !['admin', 'coordenador'].includes(userCtx.perfil.role ?? '')) {
@@ -48,14 +48,17 @@ export default async function FechamentoFinanceiroPage({
   const now = new Date()
   const mes = Number(searchParams.mes ?? now.getMonth() + 1)
   const ano = Number(searchParams.ano ?? now.getFullYear())
+  const excluirAprendiz = searchParams.excluirAprendiz === '1'
 
   const mesPrev = mes === 1 ? 12 : mes - 1
   const anoPrev = mes === 1 ? ano - 1 : ano
 
+  const opcoes = { excluirAprendiz }
+
   // Busca mês atual e anterior em paralelo
   const [dados, dadosPrev] = await Promise.all([
-    calcularFechamentoFinanceiro(mes, ano),
-    calcularFechamentoFinanceiro(mesPrev, anoPrev),
+    calcularFechamentoFinanceiro(mes, ano, opcoes),
+    calcularFechamentoFinanceiro(mesPrev, anoPrev, opcoes),
   ])
 
   const secretarias = Array.from(
@@ -159,6 +162,7 @@ export default async function FechamentoFinanceiroPage({
         secretarias={secretarias}
         MESES={MESES}
         anos={anos}
+        excluirAprendiz={excluirAprendiz}
       />
     </div>
   )

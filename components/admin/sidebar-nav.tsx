@@ -28,6 +28,8 @@ import {
   UserCheck,
   HelpCircle,
   Scale,
+  BadgeDollarSign,
+  Briefcase,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import { NAV_GROUPS } from './nav-config'
@@ -56,9 +58,11 @@ const ICONS: Record<string, React.ElementType> = {
   '/supervisores':  UserCheck,
   '/usuarios':      UserCog,
   '/auditoria':     ScrollText,
-  '/acordos':       FileSignature,
-  '/ajuda':         HelpCircle,
-  '/convencoes':    Scale,
+  '/acordos':               FileSignature,
+  '/ajuda':                 HelpCircle,
+  '/convencoes':            Scale,
+  '/fechamento-financeiro': BadgeDollarSign,
+  '/funcoes':               Briefcase,
 }
 
 // ─── shared nav content ──────────────────────────────────────────────────────

@@ -32,7 +32,11 @@ function clipToMes(date: string | null, fallback: string, mesStart: string, mesE
   return d
 }
 
-export async function calcularFechamentoFinanceiro(mes: number, ano: number): Promise<FechamentoFinanceiro[]> {
+export async function calcularFechamentoFinanceiro(
+  mes: number,
+  ano: number,
+  opcoes?: { excluirAprendiz?: boolean },
+): Promise<FechamentoFinanceiro[]> {
   const userCtx = await getUser()
   if (!userCtx || !['admin', 'coordenador'].includes(userCtx.perfil.role ?? '')) {
     throw new Error('Acesso negado')
@@ -65,9 +69,16 @@ export async function calcularFechamentoFinanceiro(mes: number, ano: number): Pr
       .range(from, to),
   )
 
-  const funcionarios = funcionariosRaw.sort((a, b) =>
+  let funcionarios = funcionariosRaw.sort((a, b) =>
     (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR', { sensitivity: 'base' }),
   )
+
+  if (opcoes?.excluirAprendiz) {
+    funcionarios = funcionarios.filter(f => {
+      const funcNome = ((f.funcoes as unknown as { nome?: string } | null)?.nome ?? '').toUpperCase()
+      return !funcNome.includes('JOVEM APRENDIZ') && !funcNome.includes('APRENDIZ')
+    })
+  }
 
   if (funcionarios.length === 0) return []
 
