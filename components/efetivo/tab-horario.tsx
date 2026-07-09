@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Clock, CalendarDays, ChevronDown, ChevronUp, X, Plus, AlertCircle } from 'lucide-react'
+import { Clock, CalendarDays, ChevronDown, ChevronUp, X, Plus, AlertCircle, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { listarTurnosDoPosto, alterarTurno } from '@/app/(admin)/efetivo/horario/actions'
+import { listarTurnosDoPosto, alterarTurno, deletarHorarioFuncionario } from '@/app/(admin)/efetivo/horario/actions'
 
 // ─── tipos de entrada ─────────────────────────────────────────────────────────
 
@@ -113,12 +113,14 @@ function ModalAlterarTurno({
   onClose,
   postoId,
   funcionarioId,
+  dataInicioVigente,
   onSucesso,
 }: {
   open: boolean
   onClose: () => void
   postoId: string
   funcionarioId: string
+  dataInicioVigente?: string
   onSucesso: () => void
 }) {
   const [turnos, setTurnos]         = useState<TurnoOpcao[]>([])
@@ -151,9 +153,12 @@ function ModalAlterarTurno({
 
   const turnoSelecionado = turnos.find(t => t.id === turnoId)
 
+  const dataInicioInvalida = !!dataInicio && !!dataInicioVigente && dataInicio <= dataInicioVigente
+
   async function handleSalvar() {
-    if (!turnoId)     { setErro('Selecione um turno'); return }
-    if (!dataInicio)  { setErro('Informe a data de início'); return }
+    if (!turnoId)          { setErro('Selecione um turno'); return }
+    if (!dataInicio)       { setErro('Informe a data de início'); return }
+    if (dataInicioInvalida) { setErro('A data de início deve ser posterior à do turno vigente'); return }
     setSaving(true)
     setErro(null)
     const res = await alterarTurno(funcionarioId, turnoId, dataInicio)
@@ -224,8 +229,22 @@ function ModalAlterarTurno({
               type="date"
               value={dataInicio}
               onChange={e => setDataInicio(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className={cn(
+                'w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-1',
+                dataInicioInvalida
+                  ? 'border-amber-400 focus:ring-amber-400'
+                  : 'border-gray-200 focus:ring-blue-400',
+              )}
             />
+            {dataInicioInvalida && dataInicioVigente && (() => {
+              const [y, m, d] = dataInicioVigente.split('-')
+              return (
+                <p className="mt-1.5 flex items-center gap-1 text-xs text-amber-700">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  Deve ser posterior a {d}/{m}/{y} (início do turno vigente)
+                </p>
+              )
+            })()}
           </div>
 
           {turnoSelecionado && dataInicio && (
@@ -276,10 +295,26 @@ export function TabHorario({
   funcionarioId: string
   role: string | null
 }) {
-  const [modalAberto, setModalAberto]       = useState(false)
+  const [modalAberto, setModalAberto]         = useState(false)
   const [historicoAberto, setHistoricoAberto] = useState(false)
+  const [confirmDelete, setConfirmDelete]     = useState<string | null>(null)
+  const [deleting, setDeleting]               = useState(false)
+  const [deleteErro, setDeleteErro]           = useState<string | null>(null)
 
   const canWrite = role === 'admin' || role === 'coordenador'
+
+  async function handleDeletar(id: string) {
+    setDeleting(true)
+    setDeleteErro(null)
+    const res = await deletarHorarioFuncionario(id)
+    setDeleting(false)
+    if (!res.success) {
+      setDeleteErro(res.error ?? 'Erro ao excluir')
+      setConfirmDelete(null)
+      return
+    }
+    setConfirmDelete(null)
+  }
   const regime   = regimePosto ?? '5x2'
   const regimeCfg = REGIME_CONFIG[regime] ?? REGIME_CONFIG['5x2']
 
@@ -427,6 +462,12 @@ export function TabHorario({
 
           {historicoAberto && (
             <div className="divide-y divide-gray-50 border-t border-gray-100">
+              {deleteErro && (
+                <p className="flex items-center gap-1.5 px-5 py-2 text-xs text-red-600">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  {deleteErro}
+                </p>
+              )}
               {historicoHorario.map((h) => (
                 <div key={h.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
                   <div>
@@ -440,9 +481,44 @@ export function TabHorario({
                       {fmtMes(h.data_inicio)} – {h.data_fim ? fmtMes(h.data_fim) : 'presente'}
                     </p>
                   </div>
-                  <p className="text-xs text-gray-400">
-                    Entrada {fmtH(h.turno.hora_entrada)} · Saída Seg–Qui {fmtH(h.turno.hora_saida_seg_qui)} · Sex {fmtH(h.turno.hora_saida_sex)}
-                  </p>
+
+                  {confirmDelete === h.id ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-red-600 font-medium">Excluir este registro?</span>
+                      <button
+                        type="button"
+                        disabled={deleting}
+                        onClick={() => handleDeletar(h.id)}
+                        className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                      >
+                        {deleting ? '…' : 'Sim'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={deleting}
+                        onClick={() => setConfirmDelete(null)}
+                        className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        Não
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-4">
+                      <p className="text-xs text-gray-400">
+                        Entrada {fmtH(h.turno.hora_entrada)} · Saída Seg–Qui {fmtH(h.turno.hora_saida_seg_qui)} · Sex {fmtH(h.turno.hora_saida_sex)}
+                      </p>
+                      {canWrite && (
+                        <button
+                          type="button"
+                          onClick={() => { setConfirmDelete(h.id); setDeleteErro(null) }}
+                          title="Excluir registro"
+                          className="rounded-md p-1 text-gray-300 hover:bg-red-50 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -457,6 +533,7 @@ export function TabHorario({
           onClose={() => setModalAberto(false)}
           postoId={postoId}
           funcionarioId={funcionarioId}
+          dataInicioVigente={horarioVigente?.data_inicio}
           onSucesso={() => {
             // revalidatePath no server action vai atualizar os dados via RSC
           }}

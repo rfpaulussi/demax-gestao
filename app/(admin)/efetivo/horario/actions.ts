@@ -30,10 +30,18 @@ export async function alterarTurno(
   // Fechar horário vigente, se houver
   const { data: vigente } = await supabase
     .from('horarios_funcionarios')
-    .select('id, turno_id')
+    .select('id, turno_id, data_inicio')
     .eq('funcionario_id', funcionarioId)
     .is('data_fim', null)
     .maybeSingle()
+
+  if (vigente && dataInicio <= vigente.data_inicio) {
+    const [y, m, d] = vigente.data_inicio.split('-')
+    return {
+      success: false,
+      error: `A data de início deve ser posterior a ${d}/${m}/${y} (início do turno vigente).`,
+    }
+  }
 
   if (vigente) {
     const d = new Date(dataInicio + 'T12:00:00')
@@ -66,5 +74,32 @@ export async function alterarTurno(
   })
 
   revalidatePath(`/efetivo/${funcionarioId}`)
+  return { success: true }
+}
+
+export async function deletarHorarioFuncionario(id: string) {
+  const auth = await getUser()
+  if (!auth || !['admin', 'coordenador'].includes(auth.perfil.role ?? '')) {
+    return { success: false, error: 'Acesso negado' }
+  }
+  const supabase = createClient()
+
+  const { data: registro, error: errFetch } = await supabase
+    .from('horarios_funcionarios')
+    .select('id, data_fim, funcionario_id')
+    .eq('id', id)
+    .single()
+
+  if (errFetch || !registro) return { success: false, error: 'Registro não encontrado' }
+  if (!registro.data_fim) return { success: false, error: 'Não é possível excluir o horário vigente' }
+
+  const { error } = await supabase
+    .from('horarios_funcionarios')
+    .delete()
+    .eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath(`/efetivo/${registro.funcionario_id}`)
   return { success: true }
 }
