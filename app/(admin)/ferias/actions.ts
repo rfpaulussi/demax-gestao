@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
+import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -77,9 +78,25 @@ export async function agendarFerias(data: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Não autenticado')
 
-  const dias_utilizados = data.data_inicio && data.data_fim
-    ? Math.ceil((new Date(data.data_fim).getTime() - new Date(data.data_inicio).getTime()) / (1000 * 60 * 60 * 24)) + 1
-    : null
+  let dias_utilizados: number | null = null
+  if (data.data_inicio && data.data_fim) {
+    const { data: func } = await supabase
+      .from('funcionarios')
+      .select('posto_id')
+      .eq('id', data.funcionario_id)
+      .single()
+    let regime = '5x2'
+    if (func?.posto_id) {
+      const { data: escala } = await supabase
+        .from('config_escalas_postos')
+        .select('regime')
+        .eq('posto_id', func.posto_id)
+        .maybeSingle()
+      if (escala?.regime) regime = escala.regime
+    }
+    const ano = new Date(data.data_inicio).getFullYear()
+    dias_utilizados = diasUteisNoPeriodo(toDate(data.data_inicio), toDate(data.data_fim), regime, feriadosDoAno(ano))
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const payload: any = {

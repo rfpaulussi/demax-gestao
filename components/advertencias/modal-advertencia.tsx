@@ -3,8 +3,8 @@
 import { useState, useTransition } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { cn } from '@/lib/utils'
-import { criarAdvertencia, buscarHistoricoAdvertencias } from '@/app/(admin)/advertencias/actions'
-import type { FuncionarioOpt, SupervisorOpt, HistoricoAdvertencia } from '@/app/(admin)/advertencias/actions'
+import { criarAdvertencia, buscarHistoricoAdvertencias, buscarTurnoVigenteFuncionario } from '@/app/(admin)/advertencias/actions'
+import type { FuncionarioOpt, SupervisorOpt, HistoricoAdvertencia, TurnoVigenteInfo } from '@/app/(admin)/advertencias/actions'
 
 const NATUREZA_OPTS = [
   { value: 'comportamento',  label: 'Mau Procedimento / Conduta Inadequada' },
@@ -78,6 +78,7 @@ export function ModalAdvertencia({ open, onClose, funcionarios, supervisores, re
   const [relato,           setRelato]           = useState('')
   const [historico,        setHistorico]        = useState<HistoricoAdvertencia[]>([])
   const [loadingHistorico, setLoadingHistorico] = useState(false)
+  const [turnoInfo,        setTurnoInfo]        = useState<TurnoVigenteInfo>(null)
   const [isPending,        startTransition]     = useTransition()
 
   const funcFiltradas = busca
@@ -92,11 +93,16 @@ export function ModalAdvertencia({ open, onClose, funcionarios, supervisores, re
     setSelectedFunc(func)
     if (id) {
       setLoadingHistorico(true)
-      const hist = await buscarHistoricoAdvertencias(id)
+      const [hist, turno] = await Promise.all([
+        buscarHistoricoAdvertencias(id),
+        buscarTurnoVigenteFuncionario(id),
+      ])
       setHistorico(hist)
+      setTurnoInfo(turno)
       setLoadingHistorico(false)
     } else {
       setHistorico([])
+      setTurnoInfo(null)
     }
   }
 
@@ -109,7 +115,7 @@ export function ModalAdvertencia({ open, onClose, funcionarios, supervisores, re
 
   function handleClose() {
     setSelectedId(''); setSelectedFunc(null); setGrau(''); setNatureza('')
-    setBusca(''); setRelato(''); setHistorico([]); onClose()
+    setBusca(''); setRelato(''); setHistorico([]); setTurnoInfo(null); onClose()
   }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -173,9 +179,25 @@ export function ModalAdvertencia({ open, onClose, funcionarios, supervisores, re
                   </select>
                 </div>
                 {selectedFunc && (
-                  <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-sm text-slate-600">
-                    <span className="font-medium">Posto:</span> {selectedFunc.postos?.nome ?? '—'} &nbsp;·&nbsp;
-                    <span className="font-medium">Secretaria:</span> {selectedFunc.postos?.secretaria ?? '—'}
+                  <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-sm text-slate-600 space-y-1">
+                    <div>
+                      <span className="font-medium">Posto:</span> {selectedFunc.postos?.nome ?? '—'} &nbsp;·&nbsp;
+                      <span className="font-medium">Secretaria:</span> {selectedFunc.postos?.secretaria ?? '—'}
+                    </div>
+                    {turnoInfo && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium">Turno:</span>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                          {turnoInfo.turno_nome}
+                        </span>
+                        {turnoInfo.hora_entrada && (
+                          <span className="text-slate-500 text-xs">
+                            {turnoInfo.hora_entrada.slice(0, 5)}
+                            {turnoInfo.hora_saida_seg_qui ? ` → ${turnoInfo.hora_saida_seg_qui.slice(0, 5)}` : ''}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
                 {reinc > 0 && (

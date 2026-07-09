@@ -15,6 +15,9 @@ export interface AcordoFuncionarioItem {
   nome: string
   funcao: string | null
   status: string
+  turno_nome?: string | null
+  hora_entrada?: string | null
+  hora_saida_seg_qui?: string | null
 }
 
 export interface TurnoHorario {
@@ -176,12 +179,35 @@ export async function buscarFuncionariosPorPostos(
     .in('posto_id', postoIds)
     .not('status', 'eq', 'desligado')
     .order('nome')
-  return ((data ?? []) as unknown as Array<{
+
+  const funcionarios = ((data ?? []) as unknown as Array<{
     id: string
     nome: string
     status: string
     funcoes: { nome: string } | null
   }>).map(f => ({ id: f.id, nome: f.nome, status: f.status, funcao: f.funcoes?.nome ?? null }))
+
+  if (!funcionarios.length) return funcionarios
+
+  const funcIds = funcionarios.map(f => f.id)
+  type TurnoRow = { funcionario_id: string; turnos_postos: { nome: string; hora_entrada: string; hora_saida_seg_qui: string } | null }
+  const { data: horarios } = await supabase
+    .from('horarios_funcionarios')
+    .select('funcionario_id, turnos_postos!turno_id(nome, hora_entrada, hora_saida_seg_qui)')
+    .in('funcionario_id', funcIds)
+    .is('data_fim', null)
+
+  const turnoMap = new Map<string, { nome: string; hora_entrada: string; hora_saida_seg_qui: string }>()
+  for (const h of (horarios ?? []) as unknown as TurnoRow[]) {
+    if (h.turnos_postos) turnoMap.set(h.funcionario_id, h.turnos_postos)
+  }
+
+  return funcionarios.map(f => ({
+    ...f,
+    turno_nome:        turnoMap.get(f.id)?.nome ?? null,
+    hora_entrada:      turnoMap.get(f.id)?.hora_entrada ?? null,
+    hora_saida_seg_qui: turnoMap.get(f.id)?.hora_saida_seg_qui ?? null,
+  }))
 }
 
 export async function marcarEntregueRH(id: string): Promise<{ error?: string }> {
