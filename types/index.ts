@@ -36,6 +36,10 @@ export type ComposicaoPosto         = Tables<'composicao_postos'>
 export type Atestado                = Tables<'atestados'>
 export type Solicitacao             = Tables<'solicitacoes'>
 export type Movimentacao            = Tables<'movimentacoes'>
+export type TurnoPosto              = Tables<'turnos_postos'>
+export type HorarioFuncionario      = Tables<'horarios_funcionarios'>
+export type ConvencaoColetiva       = Tables<'convencoes_coletivas'>
+export type ConvencaoValorFuncao    = Tables<'convencao_valores_funcoes'>
 
 // ----------------------------------------------------------
 // Tipos de domínio compostos (joins comuns no app)
@@ -171,3 +175,21 @@ export type TipoSolicitacao =
 
 /** Status de solicitação */
 export type StatusSolicitacao = 'pendente' | 'aprovada' | 'rejeitada'
+
+/** Turno com posto vinculado (para listagens) */
+export type TurnoComPosto = TurnoPosto & {
+  posto: Posto | null
+}
+
+/** Horário vigente de um funcionário com turno completo */
+export type HorarioVigente = HorarioFuncionario & {
+  turno: TurnoPosto
+}
+
+/** Convenção coletiva com valores por função */
+export type ConvencaoComValores = ConvencaoColetiva & {
+  valores: ConvencaoValorFuncao[]
+}
+
+/** Status de convenção coletiva */
+export type StatusConvencao = 'rascunho' | 'publicada' | 'aplicada'

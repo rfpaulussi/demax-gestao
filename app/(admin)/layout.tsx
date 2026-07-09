@@ -10,6 +10,7 @@ import type { LogAcao } from '@/components/admin/notificacoes-bell'
 import { SupervisorBell } from '@/components/admin/supervisor-bell'
 import type { SolicitacaoNotif } from '@/components/admin/supervisor-bell'
 import { ROLE_LABELS } from '@/types'
+import type { Role } from '@/types'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -30,7 +31,7 @@ export default async function AdminLayout({
 
   const { perfil } = auth
   const displayName = perfil.nome ?? perfil.email ?? 'Usuário'
-  const roleLabel = perfil.role ? ROLE_LABELS[perfil.role] : ''
+  const roleLabel = perfil.role ? (ROLE_LABELS[perfil.role as keyof typeof ROLE_LABELS] ?? '') : ''
 
   const isAdminOrCoord = perfil.role === 'admin' || perfil.role === 'coordenador'
 
@@ -87,7 +88,7 @@ export default async function AdminLayout({
 
   return (
     <div className={`${inter.className} min-h-screen bg-gray-50`}>
-      <SidebarNav role={perfil.role} pendingCount={pendingCount ?? 0} />
+      <SidebarNav role={perfil.role as Role | null} pendingCount={pendingCount ?? 0} />
 
       {/* Content area — offset by sidebar width on desktop */}
       <div className="flex min-h-screen flex-col md:pl-64">
