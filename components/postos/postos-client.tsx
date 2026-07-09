@@ -670,10 +670,12 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                     <td className="px-4 py-3 text-center tabular-nums text-gray-700">{p.cota_insalubridade ?? 0}</td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        <button type="button" onClick={() => setModalTurnos(p)}
-                          className="flex items-center gap-1 rounded border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
-                          <Clock className="h-3 w-3" /> Turnos
-                        </button>
+                        {p.secretaria !== 'AFASTADOS' && (
+                          <button type="button" onClick={() => setModalTurnos(p)}
+                            className="flex items-center gap-1 rounded border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                            <Clock className="h-3 w-3" /> Turnos
+                          </button>
+                        )}
                         <button type="button" onClick={() => abrirEditar(p)}
                           className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50">
                           Editar
