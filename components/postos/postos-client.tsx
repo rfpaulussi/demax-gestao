@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo, useEffect, Fragment } from 'react'
-import { UserPlus, FileSpreadsheet, ChevronRight } from 'lucide-react'
+import { UserPlus, FileSpreadsheet, ChevronRight, Clock } from 'lucide-react'
+import { ModalTurnosPosto } from './modal-turnos-posto'
 import * as XLSX from 'xlsx-js-style'
 import { cn } from '@/lib/utils'
 import type { PostoRow } from '@/app/(admin)/postos/actions'
@@ -194,6 +195,7 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
   const [expandidos, setExpandidos]          = useState<Set<string>>(new Set())
   const [modalPosto, setModalPosto]          = useState<'criar' | PostoRow | null>(null)
   const [confirmDesativar, setConfirmDesativar] = useState<PostoRow | null>(null)
+  const [modalTurnos, setModalTurnos]          = useState<PostoRow | null>(null)
   const [saving, setSaving]                  = useState(false)
   const [erroModal, setErroModal]            = useState('')
   const [formNome, setFormNome]              = useState('')
@@ -668,6 +670,10 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                     <td className="px-4 py-3 text-center tabular-nums text-gray-700">{p.cota_insalubridade ?? 0}</td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-2">
+                        <button type="button" onClick={() => setModalTurnos(p)}
+                          className="flex items-center gap-1 rounded border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                          <Clock className="h-3 w-3" /> Turnos
+                        </button>
                         <button type="button" onClick={() => abrirEditar(p)}
                           className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50">
                           Editar
@@ -761,6 +767,16 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
           onSuccess={() => setToast(true)}
           postos={supervisorPostos}
           funcoes={funcoes}
+        />
+      )}
+
+      {modalTurnos && (
+        <ModalTurnosPosto
+          postoId={modalTurnos.id}
+          postoNome={modalTurnos.nome}
+          open={true}
+          onClose={() => setModalTurnos(null)}
+          role={role}
         />
       )}
     </div>
