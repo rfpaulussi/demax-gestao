@@ -223,8 +223,9 @@ export async function aplicarConvencao(id: string) {
       updated_at:           new Date().toISOString(),
     }).eq('id', v.funcao_id)
 
-    // Atualizar custos_funcoes
-    await supabase.from('custos_funcoes').update({
+    // Upsert custos_funcoes — cria a linha se não existir (funções novas)
+    await supabase.from('custos_funcoes').upsert({
+      funcao_id:               v.funcao_id,
       va:                      v.va,
       vr:                      v.vr,
       vt:                      v.vt,
@@ -241,7 +242,7 @@ export async function aplicarConvencao(id: string) {
       multa_40_pct:            v.multa_40_pct,
       total_por_func:          v.total_por_func,
       updated_at:              new Date().toISOString(),
-    }).eq('funcao_id', v.funcao_id)
+    }, { onConflict: 'funcao_id' })
   }
 
   // Marcar convenção como aplicada
