@@ -68,19 +68,21 @@ export default async function ConvencaoDetalhePage({
   const cfg = STATUS_CFG[c.status]
   const StatusIcon = cfg.icon
 
+  type RawCustos = {
+    va: number | null; vr: number | null; vt: number | null
+    enc_inss: number | null; fgts: number | null
+    assid_asseio: number | null; bss: number | null; aux_saude: number | null
+    plr: number | null; um_doze_decimo_terceiro: number | null
+    um_terceiro_ferias: number | null; enc_provisorio: number | null
+    um_doze_lei_12506: number | null; multa_40_pct: number | null
+    total_por_func: number | null
+  }
+
   type RawFuncao = {
     id: string; nome: string; salario_base: number | null
     insalubridade_perc: number | null; insalubridade_valor: number | null
     periculosidade_perc: number | null; periculosidade_valor: number | null
-    custos_funcoes: Array<{
-      va: number | null; vr: number | null; vt: number | null
-      enc_inss: number | null; fgts: number | null
-      assid_asseio: number | null; bss: number | null; aux_saude: number | null
-      plr: number | null; um_doze_decimo_terceiro: number | null
-      um_terceiro_ferias: number | null; enc_provisorio: number | null
-      um_doze_lei_12506: number | null; multa_40_pct: number | null
-      total_por_func: number | null
-    }>
+    custos_funcoes: RawCustos | RawCustos[] | null
   }
 
   const funcoes = (funcoesRaw as unknown as RawFuncao[]).map(f => ({
@@ -91,7 +93,9 @@ export default async function ConvencaoDetalhePage({
     insalubridade_valor:  f.insalubridade_valor,
     periculosidade_perc:  f.periculosidade_perc,
     periculosidade_valor: f.periculosidade_valor,
-    custos:               f.custos_funcoes?.[0] ?? null,
+    custos:               Array.isArray(f.custos_funcoes)
+      ? (f.custos_funcoes[0] ?? null)
+      : (f.custos_funcoes ?? null),
   }))
 
   return (
