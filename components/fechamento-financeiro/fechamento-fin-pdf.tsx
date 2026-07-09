@@ -2,13 +2,17 @@ import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import type { FechamentoFinanceiro } from '@/app/(admin)/fechamento-financeiro/actions'
 
 const s = StyleSheet.create({
-  page:        { padding: 20, fontSize: 7.5, fontFamily: 'Helvetica', backgroundColor: '#ffffff' },
-  title:       { fontSize: 11, fontWeight: 'bold', marginBottom: 2 },
-  subtitle:    { fontSize: 7.5, color: '#6b7280', marginBottom: 14 },
-  groupHeader: { backgroundColor: '#1e293b', color: '#ffffff', fontSize: 7, fontWeight: 'bold',
-                 paddingVertical: 3, paddingHorizontal: 6, marginTop: 10 },
-  groupTotal:  { backgroundColor: '#e2e8f0', flexDirection: 'row', borderBottomWidth: 1,
-                 borderBottomColor: '#cbd5e1', paddingVertical: 3 },
+  page:              { padding: 20, fontSize: 7.5, fontFamily: 'Helvetica', backgroundColor: '#ffffff' },
+  title:             { fontSize: 11, fontWeight: 'bold', marginBottom: 2 },
+  subtitle:          { fontSize: 7.5, color: '#6b7280', marginBottom: 14 },
+  groupHeader:       { backgroundColor: '#1e293b', color: '#ffffff', fontSize: 7, fontWeight: 'bold',
+                       paddingVertical: 3, paddingHorizontal: 6, marginTop: 10 },
+  groupHeaderGray:   { backgroundColor: '#6b7280', color: '#ffffff', fontSize: 7, fontWeight: 'bold',
+                       paddingVertical: 3, paddingHorizontal: 6, marginTop: 10, flexDirection: 'row',
+                       justifyContent: 'space-between' },
+  groupHeaderGrayNote: { fontSize: 6.5, color: '#d1d5db' },
+  groupTotal:        { backgroundColor: '#e2e8f0', flexDirection: 'row', borderBottomWidth: 1,
+                       borderBottomColor: '#cbd5e1', paddingVertical: 3 },
   thead:       { flexDirection: 'row', backgroundColor: '#f8fafc', borderBottomWidth: 1,
                  borderBottomColor: '#e2e8f0' },
   th:          { fontSize: 6.5, fontWeight: 'bold', color: '#64748b', paddingVertical: 3,
@@ -44,9 +48,14 @@ interface Props {
 }
 
 export function FechamentoFinPdfDoc({ dados, mes, ano, MESES }: Props) {
-  const secretarias = Array.from(new Set(dados.map(d => d.secretaria ?? 'Sem Secretaria'))).sort()
+  const secretarias = Array.from(new Set(dados.map(d => d.secretaria ?? 'Sem Secretaria')))
+    .sort((a, b) => {
+      if (a === 'AFASTADOS') return 1
+      if (b === 'AFASTADOS') return -1
+      return a.localeCompare(b, 'pt-BR')
+    })
   const geradoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
-  const custoGeral = dados.reduce((s, d) => s + (d.custo_prop ?? 0), 0)
+  const custoGeral = dados.filter(d => !d.is_afastado).reduce((s, d) => s + (d.custo_prop ?? 0), 0)
 
   const COLS = [
     { label: 'Funcionário', style: s.cNome },
@@ -66,13 +75,21 @@ export function FechamentoFinPdfDoc({ dados, mes, ano, MESES }: Props) {
         </Text>
 
         {secretarias.map(sec => {
-          const grupo = dados.filter(d => (d.secretaria ?? 'Sem Secretaria') === sec)
-          const totalSalario = grupo.reduce((s, d) => s + d.salario_prop, 0)
-          const totalCusto   = grupo.reduce((s, d) => s + (d.custo_prop ?? 0), 0)
+          const grupo        = dados.filter(d => (d.secretaria ?? 'Sem Secretaria') === sec)
+          const isAfastados  = sec.toUpperCase() === 'AFASTADOS'
+          const totalSalario = grupo.reduce((acc, d) => acc + d.salario_prop, 0)
+          const totalCusto   = isAfastados ? 0 : grupo.reduce((acc, d) => acc + (d.custo_prop ?? 0), 0)
 
           return (
             <View key={sec} wrap={false}>
-              <Text style={s.groupHeader}>{sec.toUpperCase()} ({grupo.length})</Text>
+              {isAfastados ? (
+                <View style={s.groupHeaderGray}>
+                  <Text>{sec.toUpperCase()} ({grupo.length})</Text>
+                  <Text style={s.groupHeaderGrayNote}>Custo não computado</Text>
+                </View>
+              ) : (
+                <Text style={s.groupHeader}>{sec.toUpperCase()} ({grupo.length})</Text>
+              )}
 
               <View style={s.thead}>
                 {COLS.map(c => (
@@ -89,11 +106,15 @@ export function FechamentoFinPdfDoc({ dados, mes, ano, MESES }: Props) {
                     <View style={s.cNome}><Text style={s.td}>{d.funcionario_nome}</Text></View>
                     <View style={s.cFuncao}><Text style={s.td}>{d.funcao ?? '—'}</Text></View>
                     <View style={s.cPosto}><Text style={s.td}>{d.posto_nome ?? '—'}</Text></View>
-                    <View style={s.cDias}><Text style={s.tdNum}>{d.dias_trabalhados}/{d.dias_uteis}</Text></View>
-                    <View style={s.cSal}><Text style={s.tdNum}>{fmtBRL(d.salario_prop)}</Text></View>
+                    <View style={s.cDias}>
+                      <Text style={s.tdNum}>{isAfastados ? '—' : `${d.dias_trabalhados}/${d.dias_uteis}`}</Text>
+                    </View>
+                    <View style={s.cSal}>
+                      <Text style={s.tdNum}>{isAfastados ? '—' : fmtBRL(d.salario_prop)}</Text>
+                    </View>
                     <View style={s.cCusto}>
-                      <Text style={d.sem_custo ? s.tdAmber : s.tdIndigo}>
-                        {d.custo_prop != null ? fmtBRL(d.custo_prop) : '—'}
+                      <Text style={isAfastados ? s.td : d.sem_custo ? s.tdAmber : s.tdIndigo}>
+                        {isAfastados ? '—' : d.custo_prop != null ? fmtBRL(d.custo_prop) : '—'}
                       </Text>
                     </View>
                   </View>
@@ -105,8 +126,16 @@ export function FechamentoFinPdfDoc({ dados, mes, ano, MESES }: Props) {
                 <View style={s.cFuncao}><Text style={s.td} /></View>
                 <View style={s.cPosto}><Text style={s.td} /></View>
                 <View style={s.cDias}><Text style={s.td} /></View>
-                <View style={s.cSal}><Text style={[s.tdNum, { fontWeight: 'bold' }]}>{fmtBRL(totalSalario)}</Text></View>
-                <View style={s.cCusto}><Text style={[s.tdIndigo, { fontWeight: 'bold' }]}>{fmtBRL(totalCusto)}</Text></View>
+                <View style={s.cSal}>
+                  <Text style={[s.tdNum, { fontWeight: 'bold' }]}>
+                    {isAfastados ? '—' : fmtBRL(totalSalario)}
+                  </Text>
+                </View>
+                <View style={s.cCusto}>
+                  <Text style={[s.tdIndigo, { fontWeight: 'bold' }]}>
+                    {isAfastados ? '—' : fmtBRL(totalCusto)}
+                  </Text>
+                </View>
               </View>
             </View>
           )

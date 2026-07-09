@@ -22,6 +22,7 @@ export interface FechamentoFinanceiro {
   custo_total: number | null
   custo_prop: number | null
   sem_custo: boolean
+  is_afastado: boolean
 }
 
 function clipToMes(date: string | null, fallback: string, mesStart: string, mesEnd: string): string {
@@ -201,9 +202,14 @@ export async function calcularFechamentoFinanceiro(mes: number, ano: number): Pr
       ? (custosFuncoesRaw[0]?.total_por_func ?? null)
       : (custosFuncoesRaw?.total_por_func ?? null)
 
-    const proporcao   = diasUteis > 0 ? diasTrabalhados / diasUteis : 0
+    // Funcionários no posto AFASTADOS não geram custo contratual
+    const isAfastado = (postos?.secretaria ?? '').toUpperCase() === 'AFASTADOS'
+
+    const proporcao   = (!isAfastado && diasUteis > 0) ? diasTrabalhados / diasUteis : 0
     const salarioProp = Math.round(salarioBruto * proporcao * 100) / 100
-    const custoProp   = custoTotal != null ? Math.round(custoTotal * proporcao * 100) / 100 : null
+    const custoProp   = (!isAfastado && custoTotal != null)
+      ? Math.round(custoTotal * proporcao * 100) / 100
+      : null
 
     return {
       funcionario_id:   func.id,
@@ -214,12 +220,13 @@ export async function calcularFechamentoFinanceiro(mes: number, ano: number): Pr
       secretaria:       postos?.secretaria ?? null,
       regime,
       dias_uteis:       diasUteis,
-      dias_trabalhados: diasTrabalhados,
+      dias_trabalhados: isAfastado ? 0 : diasTrabalhados,
       salario_bruto:    salarioBruto,
       salario_prop:     salarioProp,
-      custo_total:      custoTotal,
+      custo_total:      isAfastado ? null : custoTotal,
       custo_prop:       custoProp,
-      sem_custo:        custoTotal == null || salarioBruto === 0,
+      sem_custo:        !isAfastado && (custoTotal == null || salarioBruto === 0),
+      is_afastado:      isAfastado,
     }
   })
 }

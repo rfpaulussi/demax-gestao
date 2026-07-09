@@ -32,12 +32,14 @@ function exportExcel(dados: FechamentoFinanceiro[], mes: number, ano: number, ME
   const HEADERS = ['Funcionário', 'RE', 'Função', 'Posto', 'Regime', 'D.Úteis', 'D.Trabalhados', 'Sal.Bruto (mês)', 'Sal.Prop.', 'Custo Total (mês)', 'Custo Prop.']
   const NC = HEADERS.length
 
-  type XRow = { data: (string | number)[]; style?: 'groupHeader' | 'colHeader' | 'totals' | 'semCusto' }
+  type XRow = { data: (string | number)[]; style?: 'groupHeader' | 'groupHeaderGray' | 'colHeader' | 'totals' | 'semCusto' | 'afastado' }
   const rows: XRow[] = [{ data: [titulo] }, { data: [] }]
 
   for (const sec of secretarias) {
-    const grupo = dados.filter(d => (d.secretaria ?? 'Sem Secretaria') === sec)
-    rows.push({ data: [sec.toUpperCase(), ...Array(NC - 1).fill('')], style: 'groupHeader' })
+    const grupo        = dados.filter(d => (d.secretaria ?? 'Sem Secretaria') === sec)
+    const isAfastados  = sec.toUpperCase() === 'AFASTADOS'
+    const headerLabel  = isAfastados ? `${sec.toUpperCase()}   (custo não computado)` : sec.toUpperCase()
+    rows.push({ data: [headerLabel, ...Array(NC - 1).fill('')], style: isAfastados ? 'groupHeaderGray' : 'groupHeader' })
     rows.push({ data: HEADERS, style: 'colHeader' })
     for (const d of grupo) {
       rows.push({
@@ -47,23 +49,23 @@ function exportExcel(dados: FechamentoFinanceiro[], mes: number, ano: number, ME
           d.funcao ?? '—',
           d.posto_nome ?? '—',
           d.regime,
-          d.dias_uteis,
-          d.dias_trabalhados,
-          d.salario_bruto,
-          d.salario_prop,
-          d.custo_total ?? '—',
-          d.custo_prop ?? '—',
+          isAfastados ? '—' : d.dias_uteis,
+          isAfastados ? '—' : d.dias_trabalhados,
+          d.salario_bruto > 0 ? d.salario_bruto : '—',
+          isAfastados ? '—' : d.salario_prop,
+          isAfastados ? '—' : (d.custo_total ?? '—'),
+          isAfastados ? '—' : (d.custo_prop ?? '—'),
         ],
-        style: d.sem_custo ? 'semCusto' : undefined,
+        style: isAfastados ? 'afastado' : d.sem_custo ? 'semCusto' : undefined,
       })
     }
-    const totalSalarioProp = grupo.reduce((s, d) => s + d.salario_prop, 0)
-    const totalCustoProp   = grupo.reduce((s, d) => s + (d.custo_prop ?? 0), 0)
+    const totalSalarioProp = isAfastados ? 0 : grupo.reduce((s, d) => s + d.salario_prop, 0)
+    const totalCustoProp   = isAfastados ? 0 : grupo.reduce((s, d) => s + (d.custo_prop ?? 0), 0)
     rows.push({
       data: ['TOTAL', '', '', '', '',
-        grupo.reduce((s, d) => s + d.dias_uteis, 0),
-        grupo.reduce((s, d) => s + d.dias_trabalhados, 0),
-        '', totalSalarioProp, '', totalCustoProp],
+        isAfastados ? '—' : grupo.reduce((s, d) => s + d.dias_uteis, 0),
+        isAfastados ? '—' : grupo.reduce((s, d) => s + d.dias_trabalhados, 0),
+        '', isAfastados ? '—' : totalSalarioProp, '', isAfastados ? '—' : totalCustoProp],
       style: 'totals',
     })
     rows.push({ data: [] })
@@ -77,12 +79,16 @@ function exportExcel(dados: FechamentoFinanceiro[], mes: number, ano: number, ME
       if (!ws[addr]) ws[addr] = { v: '', t: 's' }
       if (row.style === 'groupHeader') {
         ws[addr].s = { fill: { patternType: 'solid', fgColor: { rgb: '1e293b' } }, font: { color: { rgb: 'FFFFFF' }, bold: true, sz: 10 } }
+      } else if (row.style === 'groupHeaderGray') {
+        ws[addr].s = { fill: { patternType: 'solid', fgColor: { rgb: '6b7280' } }, font: { color: { rgb: 'FFFFFF' }, bold: true, sz: 10 } }
       } else if (row.style === 'colHeader') {
         ws[addr].s = { font: { bold: true, color: { rgb: '475569' } }, fill: { patternType: 'solid', fgColor: { rgb: 'e2e8f0' } } }
       } else if (row.style === 'totals') {
         ws[addr].s = { font: { bold: true }, fill: { patternType: 'solid', fgColor: { rgb: 'dde1e7' } } }
       } else if (row.style === 'semCusto') {
         ws[addr].s = { fill: { patternType: 'solid', fgColor: { rgb: 'fffbeb' } }, font: { color: { rgb: '92400e' } } }
+      } else if (row.style === 'afastado') {
+        ws[addr].s = { fill: { patternType: 'solid', fgColor: { rgb: 'f3f4f6' } }, font: { color: { rgb: '9ca3af' } } }
       }
     }
   })
@@ -188,16 +194,30 @@ export function FechamentoFinClient({ dados, mes, ano, secretarias, MESES, anos 
       ) : (
         <div className="space-y-6">
           {secretariasOrdenadas.map(sec => {
-            const grupo = dados.filter(d => (d.secretaria ?? 'Sem Secretaria') === sec)
+            const grupo       = dados.filter(d => (d.secretaria ?? 'Sem Secretaria') === sec)
+            const isAfastados = sec.toUpperCase() === 'AFASTADOS'
             const totalSalario = grupo.reduce((s, d) => s + d.salario_prop, 0)
-            const totalCusto   = grupo.reduce((s, d) => s + (d.custo_prop ?? 0), 0)
+            const totalCusto   = isAfastados ? 0 : grupo.reduce((s, d) => s + (d.custo_prop ?? 0), 0)
 
             return (
-              <div key={sec} className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
+              <div key={sec} className={cn(
+                'overflow-hidden rounded-xl border bg-white shadow-sm',
+                isAfastados ? 'border-gray-200 opacity-75' : 'border-gray-100',
+              )}>
                 {/* cabeçalho da secretaria */}
-                <div className="flex items-center justify-between bg-slate-800 px-4 py-2">
+                <div className={cn(
+                  'flex items-center justify-between px-4 py-2',
+                  isAfastados ? 'bg-gray-500' : 'bg-slate-800',
+                )}>
                   <span className="text-xs font-bold uppercase tracking-widest text-white">{sec}</span>
-                  <span className="text-xs text-slate-400">{grupo.length} funcionário{grupo.length !== 1 ? 's' : ''}</span>
+                  <div className="flex items-center gap-3">
+                    {isAfastados && (
+                      <span className="rounded bg-gray-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-200">
+                        Custo não computado
+                      </span>
+                    )}
+                    <span className="text-xs text-slate-400">{grupo.length} funcionário{grupo.length !== 1 ? 's' : ''}</span>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -208,7 +228,7 @@ export function FechamentoFinClient({ dados, mes, ano, secretarias, MESES, anos 
                         <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-widest text-slate-500">Função</th>
                         <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-widest text-slate-500">Posto</th>
                         <th className="px-3 py-2 text-center text-xs font-semibold uppercase tracking-widest text-slate-500">Dias Trab./Úteis</th>
-                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-widest text-slate-500">Sal. Bruto Prop.</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-widest text-slate-500">Sal. Bruto (ref.)</th>
                         <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-widest text-slate-500">Custo Total Prop.</th>
                       </tr>
                     </thead>
@@ -230,16 +250,16 @@ export function FechamentoFinClient({ dados, mes, ano, secretarias, MESES, anos 
                           <td className="px-3 py-2 text-gray-600">{d.funcao ?? '—'}</td>
                           <td className="px-3 py-2 text-gray-600">{d.posto_nome ?? '—'}</td>
                           <td className="px-3 py-2 text-center tabular-nums text-gray-700">
-                            {d.dias_trabalhados}/{d.dias_uteis}
+                            {isAfastados ? '—' : `${d.dias_trabalhados}/${d.dias_uteis}`}
                           </td>
-                          <td className="px-3 py-2 text-right tabular-nums text-gray-700">
-                            {fmtBRL(d.salario_prop)}
+                          <td className="px-3 py-2 text-right tabular-nums text-gray-400">
+                            {d.salario_bruto > 0 ? fmtBRL(d.salario_bruto) : '—'}
                           </td>
                           <td className={cn(
                             'px-3 py-2 text-right tabular-nums font-medium',
-                            d.sem_custo ? 'text-amber-700' : 'text-indigo-700',
+                            isAfastados ? 'text-gray-400' : d.sem_custo ? 'text-amber-700' : 'text-indigo-700',
                           )}>
-                            {d.custo_prop != null ? fmtBRL(d.custo_prop) : '—'}
+                            {isAfastados ? '—' : d.custo_prop != null ? fmtBRL(d.custo_prop) : '—'}
                           </td>
                         </tr>
                       ))}
@@ -247,8 +267,12 @@ export function FechamentoFinClient({ dados, mes, ano, secretarias, MESES, anos 
                     <tfoot>
                       <tr className="border-t-2 border-gray-200 bg-slate-50 font-semibold">
                         <td className="px-4 py-2 text-gray-700" colSpan={4}>Total — {sec}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-gray-800">{fmtBRL(totalSalario)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-indigo-700">{fmtBRL(totalCusto)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-gray-500">
+                          {isAfastados ? '—' : fmtBRL(totalSalario)}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-indigo-700">
+                          {isAfastados ? '—' : fmtBRL(totalCusto)}
+                        </td>
                       </tr>
                     </tfoot>
                   </table>
