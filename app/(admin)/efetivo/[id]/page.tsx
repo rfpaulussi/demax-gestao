@@ -173,10 +173,37 @@ export default async function PerfilFuncionarioPage({
     (supervisorResult.data as unknown as { perfis?: { nome: string | null } } | null)
       ?.perfis?.nome ?? null
 
-  const horarioVigente   = horarioVigenteRaw as unknown as HorarioVigenteShape
-  const historicoHorario = (historicoRaw ?? []) as unknown as HistoricoHorarioShape
-  const regimePosto      = (escalaRaw as unknown as { regime?: string } | null)?.regime ?? null
-  const role             = auth?.perfil.role ?? null
+  // Supabase retorna o join com a chave do nome da tabela (turnos_postos), não do alias.
+  // Remapear para o shape esperado pelo TabHorario ({ turno: ... })
+  type RawTurno = {
+    id: string; posto_id: string; nome: string; ativo: boolean
+    hora_entrada: string; hora_saida_seg_qui: string; hora_saida_sex: string
+    hora_inicio_almoco: string; hora_fim_almoco: string
+  }
+  type RawHorario = { id: string; data_inicio: string; data_fim: string | null; turnos_postos: RawTurno | null }
+
+  const horarioVigente: HorarioVigenteShape = (() => {
+    if (!horarioVigenteRaw) return null
+    const raw = horarioVigenteRaw as unknown as RawHorario
+    if (!raw.turnos_postos) return null
+    return { id: raw.id, data_inicio: raw.data_inicio, data_fim: raw.data_fim, turno: raw.turnos_postos }
+  })()
+
+  const historicoHorario: HistoricoHorarioShape = (historicoRaw ?? []).map((h) => {
+    const raw = h as unknown as RawHorario
+    return {
+      id: raw.id,
+      data_inicio: raw.data_inicio,
+      data_fim: raw.data_fim,
+      turno: raw.turnos_postos ?? {
+        nome: '—', hora_entrada: '00:00:00', hora_saida_seg_qui: '00:00:00',
+        hora_saida_sex: '00:00:00', hora_inicio_almoco: '00:00:00', hora_fim_almoco: '00:00:00',
+      },
+    }
+  })
+
+  const regimePosto = (escalaRaw as unknown as { regime?: string } | null)?.regime ?? null
+  const role        = auth?.perfil.role ?? null
 
   const f = func as unknown as {
     nome: string
