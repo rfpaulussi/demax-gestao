@@ -47,6 +47,14 @@ export interface MovColaboradorData {
   escala: string | null
   insalubridade_anterior_perc: number | null
   insalubridade_nova_perc: number | null
+  vt_anterior: number | null
+  vt_nova: number | null
+  vr_anterior: number | null
+  vr_nova: number | null
+  va_anterior: number | null
+  va_nova: number | null
+  premio_anterior: number | null
+  premio_nova: number | null
 }
 
 const c = {
@@ -140,6 +148,10 @@ export function MovimentacaoColaboradorDoc({
   posto, vigencia, tipo_solicitacao, motivo,
   salario_anterior, salario_nova, escala,
   insalubridade_anterior_perc, insalubridade_nova_perc,
+  vt_anterior, vt_nova,
+  vr_anterior, vr_nova,
+  va_anterior, va_nova,
+  premio_anterior, premio_nova,
 }: MovColaboradorData) {
   const isTrans     = tipo_solicitacao === 'transferencia'
   const isProm      = tipo_solicitacao === 'promocao'
@@ -211,10 +223,10 @@ export function MovimentacaoColaboradorDoc({
         <Row label="HORÁRIO"            antes="* Ver observação"                     depois="* Ver observação"                 />
         <Row label="LOCAL"              antes={posto}                                depois={posto}                            />
         <Row label="INSALUBRIDADE"      antes={fmtInsalubridade(insalubridade_anterior_perc)} depois={fmtInsalubridade(insalubridade_nova_perc)} />
-        <Row label="VALE TRANSPORTE"    antes={PADRAO}                               depois={PADRAO}                           />
-        <Row label="VALE REFEIÇÃO"      antes={PADRAO}                               depois={PADRAO}                           />
-        <Row label="VALE ALIMENTAÇÃO"   antes={PADRAO}                               depois={PADRAO}                           />
-        <Row label="PRÊMIO"             antes={PADRAO}                               depois={PADRAO}                           />
+        <Row label="VALE TRANSPORTE"    antes={fmtSalario(vt_anterior)}              depois={fmtSalario(vt_nova)}              />
+        <Row label="VALE REFEIÇÃO"      antes={fmtSalario(vr_anterior)}              depois={fmtSalario(vr_nova)}              />
+        <Row label="VALE ALIMENTAÇÃO"   antes={fmtSalario(va_anterior)}              depois={fmtSalario(va_nova)}              />
+        <Row label="PRÊMIO"             antes={fmtSalario(premio_anterior)}          depois={fmtSalario(premio_nova)}          />
         <Row label="SINDICATO"          antes={PADRAO}                               depois={PADRAO}                           />
 
         {/* Observações */}

@@ -43,7 +43,7 @@ export default async function MudancasFuncaoAdminPage({
       .order('created_at', { ascending: false }),
     supabase
       .from('funcoes')
-      .select('id, nome, insalubridade_perc, salario_base')
+      .select('id, nome, insalubridade_perc, salario_base, custos_funcoes(va, vr, vt, assid_asseio)')
       .order('nome'),
     supabase
       .from('config_escalas_postos')
@@ -93,8 +93,18 @@ export default async function MudancasFuncaoAdminPage({
     solicitacoes: SolJoin
   }
 
-  type FuncaoItem = { id: string; nome: string; insalubridade_perc: number | null; salario_base: number | null }
+  type CustosFuncaoJoin = { va: number | null; vr: number | null; vt: number | null; assid_asseio: number | null }
+  type FuncaoItem = {
+    id: string; nome: string; insalubridade_perc: number | null; salario_base: number | null
+    custos_funcoes: CustosFuncaoJoin | CustosFuncaoJoin[] | null
+  }
   const fList = (funcoesList ?? []) as FuncaoItem[]
+
+  function custosDe(funcaoId: string | null): CustosFuncaoJoin | null {
+    const f = fList.find(f => f.id === funcaoId)
+    if (!f?.custos_funcoes) return null
+    return Array.isArray(f.custos_funcoes) ? (f.custos_funcoes[0] ?? null) : f.custos_funcoes
+  }
 
   const dados: MudancaFuncaoAdminRow[] = ((raw ?? []) as RawRow[]).map(r => {
     const func = r.funcionarios
@@ -103,6 +113,9 @@ export default async function MudancasFuncaoAdminPage({
 
     const insAnteriorPerc = fList.find(f => f.id === r.valor_antes)?.insalubridade_perc ?? null
     const insNovaPerc     = fList.find(f => f.id === r.valor_depois)?.insalubridade_perc ?? null
+
+    const custosAnt = custosDe(r.valor_antes  ?? null)
+    const custosNov = custosDe(r.valor_depois ?? null)
 
     // Compara pelo ID: se a solicitação era 'transferencia' mas posto_destino = posto_origem,
     // é uma mudança interna (só função mudou) — trata como 'mudanca_funcao' no PDF.
@@ -140,6 +153,14 @@ export default async function MudancasFuncaoAdminPage({
       escala:           postoId ? (escalasMap[postoId] ?? null) : null,
       insalubridade_anterior_perc: insAnteriorPerc,
       insalubridade_nova_perc:     insNovaPerc,
+      vt_anterior:      custosAnt?.vt  ?? null,
+      vt_nova:          custosNov?.vt  ?? null,
+      vr_anterior:      custosAnt?.vr  ?? null,
+      vr_nova:          custosNov?.vr  ?? null,
+      va_anterior:      custosAnt?.va  ?? null,
+      va_nova:          custosNov?.va  ?? null,
+      premio_anterior:  custosAnt?.assid_asseio ?? null,
+      premio_nova:      custosNov?.assid_asseio ?? null,
     }
   })
 
