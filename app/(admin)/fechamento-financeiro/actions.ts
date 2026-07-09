@@ -23,6 +23,8 @@ export interface FechamentoFinanceiro {
   custo_prop: number | null
   sem_custo: boolean
   is_afastado: boolean
+  em_ferias: boolean
+  dias_ferias: number
 }
 
 function clipToMes(date: string | null, fallback: string, mesStart: string, mesEnd: string): string {
@@ -238,6 +240,8 @@ export async function calcularFechamentoFinanceiro(
       custo_prop:       custoProp,
       sem_custo:        !isAfastado && (custoTotal == null || salarioBruto === 0),
       is_afastado:      isAfastado,
+      em_ferias:        feriasDias > 0,
+      dias_ferias:      feriasDias,
     }
   })
 }

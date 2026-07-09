@@ -32,7 +32,7 @@ function exportExcel(dados: FechamentoFinanceiro[], mes: number, ano: number, ME
   const HEADERS = ['Funcionário', 'RE', 'Função', 'Posto', 'Regime', 'D.Úteis', 'D.Trabalhados', 'Sal.Bruto (mês)', 'Sal.Prop.', 'Custo Total (mês)', 'Custo Prop.']
   const NC = HEADERS.length
 
-  type XRow = { data: (string | number)[]; style?: 'groupHeader' | 'groupHeaderGray' | 'colHeader' | 'totals' | 'semCusto' | 'afastado' }
+  type XRow = { data: (string | number)[]; style?: 'groupHeader' | 'groupHeaderGray' | 'colHeader' | 'totals' | 'semCusto' | 'afastado' | 'ferias' }
   const rows: XRow[] = [{ data: [titulo] }, { data: [] }]
 
   for (const sec of secretarias) {
@@ -44,7 +44,7 @@ function exportExcel(dados: FechamentoFinanceiro[], mes: number, ano: number, ME
     for (const d of grupo) {
       rows.push({
         data: [
-          d.funcionario_nome,
+          d.em_ferias ? `${d.funcionario_nome} [Férias ${d.dias_ferias}d]` : d.funcionario_nome,
           d.registro ?? '—',
           d.funcao ?? '—',
           d.posto_nome ?? '—',
@@ -56,7 +56,7 @@ function exportExcel(dados: FechamentoFinanceiro[], mes: number, ano: number, ME
           isAfastados ? '—' : (d.custo_total ?? '—'),
           isAfastados ? '—' : (d.custo_prop ?? '—'),
         ],
-        style: isAfastados ? 'afastado' : d.sem_custo ? 'semCusto' : undefined,
+        style: isAfastados ? 'afastado' : d.sem_custo ? 'semCusto' : d.em_ferias ? 'ferias' : undefined,
       })
     }
     const totalSalarioProp = isAfastados ? 0 : grupo.reduce((s, d) => s + d.salario_prop, 0)
@@ -89,6 +89,8 @@ function exportExcel(dados: FechamentoFinanceiro[], mes: number, ano: number, ME
         ws[addr].s = { fill: { patternType: 'solid', fgColor: { rgb: 'fffbeb' } }, font: { color: { rgb: '92400e' } } }
       } else if (row.style === 'afastado') {
         ws[addr].s = { fill: { patternType: 'solid', fgColor: { rgb: 'f3f4f6' } }, font: { color: { rgb: '9ca3af' } } }
+      } else if (row.style === 'ferias') {
+        ws[addr].s = { fill: { patternType: 'solid', fgColor: { rgb: 'fff7ed' } }, font: { color: { rgb: 'c2410c' } } }
       }
     }
   })
@@ -250,14 +252,22 @@ export function FechamentoFinClient({ dados, mes, ano, secretarias, MESES, anos,
                           key={d.funcionario_id}
                           className={cn(
                             'hover:bg-slate-50',
+                            d.em_ferias && !d.sem_custo && 'bg-orange-50 hover:bg-orange-100',
                             d.sem_custo && 'bg-amber-50 hover:bg-amber-100',
                           )}
                         >
                           <td className="px-4 py-2 font-medium text-gray-900">
-                            <Link href={`/efetivo/${d.funcionario_id}`} className="hover:text-indigo-600 hover:underline">
-                              {d.funcionario_nome}
-                            </Link>
-                            {d.registro && <span className="ml-1.5 text-xs text-gray-400">{d.registro}</span>}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Link href={`/efetivo/${d.funcionario_id}`} className="hover:text-indigo-600 hover:underline">
+                                {d.funcionario_nome}
+                              </Link>
+                              {d.registro && <span className="text-xs text-gray-400">{d.registro}</span>}
+                              {d.em_ferias && (
+                                <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-orange-700">
+                                  Férias · {d.dias_ferias}d
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-3 py-2 text-gray-600">{d.funcao ?? '—'}</td>
                           <td className="px-3 py-2 text-gray-600">{d.posto_nome ?? '—'}</td>

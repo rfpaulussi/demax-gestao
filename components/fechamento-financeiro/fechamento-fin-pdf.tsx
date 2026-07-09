@@ -22,6 +22,10 @@ const s = StyleSheet.create({
                  backgroundColor: '#fafafa' },
   rowAmber:    { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#fef3c7',
                  backgroundColor: '#fffbeb' },
+  rowOrange:   { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#fed7aa',
+                 backgroundColor: '#fff7ed' },
+  badgeOrange: { fontSize: 6, color: '#c2410c', backgroundColor: '#ffedd5',
+                 paddingHorizontal: 3, paddingVertical: 1, marginLeft: 3 },
   td:          { fontSize: 7.5, color: '#374151', paddingVertical: 3, paddingHorizontal: 3 },
   tdNum:       { fontSize: 7.5, color: '#374151', paddingVertical: 3, paddingHorizontal: 3, textAlign: 'right' },
   tdBold:      { fontSize: 7.5, fontWeight: 'bold', color: '#374151', paddingVertical: 3, paddingHorizontal: 3 },
@@ -100,10 +104,19 @@ export function FechamentoFinPdfDoc({ dados, mes, ano, MESES }: Props) {
               </View>
 
               {grupo.map((d, idx) => {
-                const rowStyle = d.sem_custo ? s.rowAmber : idx % 2 === 0 ? s.row : s.rowAlt
+                const rowStyle = d.sem_custo
+                  ? s.rowAmber
+                  : d.em_ferias
+                    ? s.rowOrange
+                    : idx % 2 === 0 ? s.row : s.rowAlt
                 return (
                   <View key={d.funcionario_id} style={rowStyle}>
-                    <View style={s.cNome}><Text style={s.td}>{d.funcionario_nome}</Text></View>
+                    <View style={[s.cNome, { flexDirection: 'row', alignItems: 'center' }]}>
+                      <Text style={s.td}>{d.funcionario_nome}</Text>
+                      {d.em_ferias && (
+                        <Text style={s.badgeOrange}>Férias {d.dias_ferias}d</Text>
+                      )}
+                    </View>
                     <View style={s.cFuncao}><Text style={s.td}>{d.funcao ?? '—'}</Text></View>
                     <View style={s.cPosto}><Text style={s.td}>{d.posto_nome ?? '—'}</Text></View>
                     <View style={s.cDias}>
