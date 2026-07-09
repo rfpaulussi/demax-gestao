@@ -37,29 +37,44 @@ const CAMPO_LABELS: Record<string, string> = {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
+const BRAND = '#1e293b'
+const ACCENT = '#0f172a'
+
 const s = StyleSheet.create({
-  page:         { fontFamily: 'Helvetica', fontSize: 10, padding: 42, color: '#111827' },
-  headerRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14, paddingBottom: 12, borderBottomWidth: 2, borderBottomColor: '#111827' },
-  companyName:  { fontSize: 20, fontFamily: 'Helvetica-Bold', letterSpacing: 3 },
-  companySub:   { fontSize: 8, color: '#6b7280', marginTop: 2 },
+  page:         { fontFamily: 'Helvetica', fontSize: 10, padding: 48, color: '#111827', backgroundColor: '#ffffff' },
+  headerRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 20, paddingBottom: 14, borderBottomWidth: 2, borderBottomColor: BRAND },
+  companyName:  { fontSize: 22, fontFamily: 'Helvetica-Bold', letterSpacing: 4, color: BRAND },
+  companySub:   { fontSize: 8, color: '#94a3b8', marginTop: 3, letterSpacing: 0.5 },
   regBlock:     { alignItems: 'flex-end' },
-  regLabel:     { fontSize: 7, color: '#9ca3af', letterSpacing: 1 },
-  regValue:     { fontSize: 11, fontFamily: 'Helvetica-Bold' },
-  docTitle:     { textAlign: 'center', fontSize: 12, fontFamily: 'Helvetica-Bold', letterSpacing: 1, marginVertical: 14, borderWidth: 1, borderColor: '#111827', paddingVertical: 7, paddingHorizontal: 10 },
-  section:      { marginBottom: 14 },
-  sectionTitle: { fontSize: 8, fontFamily: 'Helvetica-Bold', letterSpacing: 1, color: '#6b7280', marginBottom: 6, paddingBottom: 3, borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
-  row:          { flexDirection: 'row', marginBottom: 3 },
-  label:        { width: 140, fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#374151' },
-  value:        { flex: 1, fontSize: 9 },
-  movBox:       { borderWidth: 1, borderColor: '#d1d5db', padding: 10, backgroundColor: '#f9fafb', marginBottom: 6 },
-  arrow:        { fontSize: 9, color: '#9ca3af', marginHorizontal: 4 },
-  sigGrid:      { flexDirection: 'row', marginTop: 24 },
-  sigBox:       { flex: 1, borderTopWidth: 1, borderTopColor: '#9ca3af', paddingTop: 6, marginRight: 16 },
-  sigBoxLast:   { flex: 1, borderTopWidth: 1, borderTopColor: '#9ca3af', paddingTop: 6 },
-  sigName:      { fontSize: 8, fontFamily: 'Helvetica-Bold', marginTop: 18 },
-  sigRole:      { fontSize: 7, color: '#6b7280' },
-  footer:       { position: 'absolute', bottom: 20, left: 42, right: 42, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 6 },
-  footerText:   { fontSize: 7, color: '#9ca3af' },
+  regLabel:     { fontSize: 7, color: '#94a3b8', letterSpacing: 1.5, textTransform: 'uppercase' },
+  regValue:     { fontSize: 12, fontFamily: 'Helvetica-Bold', color: ACCENT },
+  docTitle:     { textAlign: 'center', fontSize: 11, fontFamily: 'Helvetica-Bold', letterSpacing: 2, marginVertical: 18, borderWidth: 1.5, borderColor: BRAND, paddingVertical: 9, paddingHorizontal: 12, color: BRAND },
+  section:      { marginBottom: 18 },
+  sectionTitle: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', letterSpacing: 1.5, color: '#475569', marginBottom: 8, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: '#e2e8f0', textTransform: 'uppercase' },
+  row:          { flexDirection: 'row', marginBottom: 4 },
+  label:        { width: 148, fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#374151' },
+  value:        { flex: 1, fontSize: 9, color: '#1f2937' },
+  movBox:       { borderWidth: 1, borderColor: '#cbd5e1', borderLeftWidth: 3, borderLeftColor: BRAND, padding: 12, backgroundColor: '#f8fafc', marginBottom: 10, borderRadius: 2 },
+  movBoxRow:    { flexDirection: 'row', marginBottom: 4 },
+  movLabel:     { width: 148, fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#475569' },
+  movValue:     { flex: 1, fontSize: 9, color: '#1f2937' },
+  alteracaoBox: { marginTop: 4, padding: 8, backgroundColor: '#f1f5f9', borderRadius: 2 },
+  alteracaoLabel:{ fontSize: 8, color: '#64748b', marginBottom: 3, fontFamily: 'Helvetica-Bold', letterSpacing: 0.5 },
+  alteracaoRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  valorAntes:   { fontSize: 9, color: '#94a3b8', textDecoration: 'line-through' },
+  arrow:        { fontSize: 10, color: '#64748b', marginHorizontal: 6 },
+  valorDepois:  { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#0f172a' },
+  motivoBox:    { marginTop: 6, padding: 8, backgroundColor: '#fffbeb', borderLeftWidth: 2, borderLeftColor: '#f59e0b', borderRadius: 2 },
+  motivoLabel:  { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: '#92400e', letterSpacing: 0.5, marginBottom: 2 },
+  motivoText:   { fontSize: 9, color: '#78350f' },
+  declaracao:   { fontSize: 9, lineHeight: 1.8, color: '#4b5563', textAlign: 'justify' },
+  sigGrid:      { flexDirection: 'row', marginTop: 32 },
+  sigBox:       { flex: 1, borderTopWidth: 1, borderTopColor: '#94a3b8', paddingTop: 8, marginRight: 18 },
+  sigBoxLast:   { flex: 1, borderTopWidth: 1, borderTopColor: '#94a3b8', paddingTop: 8 },
+  sigName:      { fontSize: 8, fontFamily: 'Helvetica-Bold', marginTop: 22, color: '#1f2937' },
+  sigRole:      { fontSize: 7, color: '#94a3b8', marginTop: 2 },
+  footer:       { position: 'absolute', bottom: 22, left: 48, right: 48, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 7 },
+  footerText:   { fontSize: 7, color: '#94a3b8' },
 })
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -109,9 +124,9 @@ function MovimentacaoDocument({
   const valorAntes  = resolveValor(mov.campo_alterado, mov.valor_antes,  postoNomeMap, funcaoNomeMap)
   const valorDepois = resolveValor(mov.campo_alterado, mov.valor_depois, postoNomeMap, funcaoNomeMap)
 
-  // Supervisor: quem solicitou (perfis da solicitação) ou supervisor atual do posto
-  const supervisorNome = (mov.solicitacoes as { perfis?: { nome: string | null } | null } | null)
-    ?.perfis?.nome ?? func.supervisor ?? '—'
+  const solicitacao = mov.solicitacoes as { motivo?: string | null; perfis?: { nome: string | null } | null } | null
+  const motivo         = solicitacao?.motivo ?? null
+  const supervisorNome = solicitacao?.perfis?.nome ?? func.supervisor ?? '—'
 
   return (
     <Document>
@@ -124,7 +139,7 @@ function MovimentacaoDocument({
             <Text style={s.companySub}>Serviços e Comércio LTDA</Text>
           </View>
           <View style={s.regBlock}>
-            <Text style={s.regLabel}>REGISTRO</Text>
+            <Text style={s.regLabel}>Registro</Text>
             <Text style={s.regValue}>MOV-{idShort}</Text>
           </View>
         </View>
@@ -134,7 +149,7 @@ function MovimentacaoDocument({
 
         {/* I. Dados do Colaborador */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>I. DADOS DO COLABORADOR</Text>
+          <Text style={s.sectionTitle}>I. Dados do Colaborador</Text>
           <View style={s.row}>
             <Text style={s.label}>Nome:</Text>
             <Text style={s.value}>{func.nome}</Text>
@@ -163,46 +178,47 @@ function MovimentacaoDocument({
 
         {/* II. Movimentação */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>II. MOVIMENTAÇÃO</Text>
+          <Text style={s.sectionTitle}>II. Movimentação</Text>
           <View style={s.movBox}>
-            <View style={s.row}>
-              <Text style={s.label}>Tipo de Movimentação:</Text>
-              <Text style={[s.value, { fontFamily: 'Helvetica-Bold' }]}>{tipoLabel}</Text>
+            <View style={s.movBoxRow}>
+              <Text style={s.movLabel}>Tipo de Movimentação:</Text>
+              <Text style={[s.movValue, { fontFamily: 'Helvetica-Bold' }]}>{tipoLabel}</Text>
             </View>
-            <View style={s.row}>
-              <Text style={s.label}>Data:</Text>
-              <Text style={s.value}>{fmt(mov.created_at)} às {fmtHora(mov.created_at)}</Text>
+            <View style={s.movBoxRow}>
+              <Text style={s.movLabel}>Data:</Text>
+              <Text style={s.movValue}>{fmt(mov.created_at)} às {fmtHora(mov.created_at)}</Text>
             </View>
             {mov.perfis?.nome && (
-              <View style={s.row}>
-                <Text style={s.label}>Executado por:</Text>
-                <Text style={s.value}>{mov.perfis.nome}</Text>
+              <View style={s.movBoxRow}>
+                <Text style={s.movLabel}>Executado por:</Text>
+                <Text style={s.movValue}>{mov.perfis.nome}</Text>
               </View>
             )}
           </View>
 
           {campoLabel && (
-            <>
-              <View style={s.row}>
-                <Text style={s.label}>Campo Alterado:</Text>
-                <Text style={s.value}>{campoLabel}</Text>
+            <View style={s.alteracaoBox}>
+              <Text style={s.alteracaoLabel}>{campoLabel}</Text>
+              <View style={s.alteracaoRow}>
+                <Text style={s.valorAntes}>{valorAntes}</Text>
+                <Text style={s.arrow}>{'→'}</Text>
+                <Text style={s.valorDepois}>{valorDepois}</Text>
               </View>
-              <View style={[s.row, { alignItems: 'center' }]}>
-                <Text style={s.label}>Alteração:</Text>
-                <Text style={s.value}>
-                  <Text style={{ color: '#9ca3af' }}>{valorAntes}</Text>
-                  <Text style={s.arrow}>{' → '}</Text>
-                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>{valorDepois}</Text>
-                </Text>
-              </View>
-            </>
+            </View>
+          )}
+
+          {motivo && (
+            <View style={s.motivoBox}>
+              <Text style={s.motivoLabel}>Motivo</Text>
+              <Text style={s.motivoText}>{motivo}</Text>
+            </View>
           )}
         </View>
 
         {/* III. Declaração */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>III. DECLARAÇÃO</Text>
-          <Text style={{ fontSize: 9, lineHeight: 1.7, color: '#4b5563', textAlign: 'justify' }}>
+          <Text style={s.sectionTitle}>III. Declaração</Text>
+          <Text style={s.declaracao}>
             A DEMAX SERVIÇOS E COMÉRCIO LTDA declara, para os devidos fins, que a movimentação
             descrita neste termo foi devidamente registrada no sistema de gestão de pessoal na data
             acima indicada, sendo parte integrante do histórico funcional do(a) colaborador(a){' '}
@@ -211,8 +227,8 @@ function MovimentacaoDocument({
         </View>
 
         {/* IV. Ciência */}
-        <View style={[s.section, { marginTop: 10 }]}>
-          <Text style={s.sectionTitle}>IV. CIÊNCIA</Text>
+        <View style={[s.section, { marginTop: 8 }]}>
+          <Text style={s.sectionTitle}>IV. Ciência</Text>
           <View style={s.sigGrid}>
             <View style={s.sigBox}>
               <Text style={s.sigName}>{func.nome}</Text>

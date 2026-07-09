@@ -49,13 +49,16 @@ export default async function AuditoriaPage({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   type AnyQ = { from: (t: string) => any }
 
-  const [{ data: usuariosRaw }, { data: postosRaw }, { data: rows, count }] = await Promise.all([
+  const [{ data: usuariosRaw }, { data: postosRaw }, { data: funcoesRaw }, { data: rows, count }] = await Promise.all([
     (supabase as unknown as AnyQ)
       .from('perfis')
       .select('id, nome, email, role')
       .order('nome'),
     (supabase as unknown as AnyQ)
       .from('postos')
+      .select('id, nome'),
+    (supabase as unknown as AnyQ)
+      .from('funcoes')
       .select('id, nome'),
     (() => {
       let q = (supabase as unknown as AnyQ)
@@ -85,6 +88,11 @@ export default async function AuditoriaPage({
     postosMap.set(p.id, p.nome)
   }
 
+  const funcaoMap = new Map<string, string>()
+  for (const f of (funcoesRaw ?? []) as { id: string; nome: string }[]) {
+    funcaoMap.set(f.id, f.nome)
+  }
+
   const CAMPO_LABEL: Record<string, string> = {
     posto_id: 'Posto',
     status:   'Status',
@@ -96,7 +104,8 @@ export default async function AuditoriaPage({
 
   function resolveValor(campo: string | null, valor: string | null): string {
     if (!valor) return '—'
-    if (campo === 'posto_id') return postosMap.get(valor) ?? valor.slice(0, 8) + '…'
+    if (campo === 'posto_id')  return postosMap.get(valor)  ?? valor.slice(0, 8) + '…'
+    if (campo === 'funcao_id') return funcaoMap.get(valor)  ?? valor.slice(0, 8) + '…'
     return valor
   }
 
