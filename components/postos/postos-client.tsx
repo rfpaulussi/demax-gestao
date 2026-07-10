@@ -204,6 +204,7 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
   const [formInsalubridade, setFormInsalubridade] = useState(0)
   const [gerenciarSortCol, setGerenciarSortCol] = useState<'nome' | 'secretaria' | 'efetivo_previsto' | 'cota_insalubridade'>('secretaria')
   const [gerenciarSortDir, setGerenciarSortDir] = useState<'asc' | 'desc'>('asc')
+  const [buscaGerenciar, setBuscaGerenciar]   = useState('')
 
   async function handleExcel() {
     setLoadingXlsx(true)
@@ -336,7 +337,10 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
 
   const postosGerenciar = useMemo(() => {
     const dir = gerenciarSortDir === 'asc' ? 1 : -1
-    return [...postos].sort((a, b) => {
+    const base = buscaGerenciar
+      ? postos.filter(p => p.nome.toLowerCase().includes(buscaGerenciar.toLowerCase()))
+      : postos
+    return [...base].sort((a, b) => {
       switch (gerenciarSortCol) {
         case 'nome':
           return dir * a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
@@ -350,7 +354,7 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
           return 0
       }
     })
-  }, [postos, gerenciarSortCol, gerenciarSortDir])
+  }, [postos, buscaGerenciar, gerenciarSortCol, gerenciarSortDir])
 
   function handleSort(col: SortCol) {
     if (col === sortCol) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
@@ -626,10 +630,19 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
 
       {aba === 'gerenciar' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-              {postos.length} postos cadastrados
-            </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+                {buscaGerenciar ? `${postosGerenciar.length} de ${postos.length}` : postos.length} postos cadastrados
+              </p>
+              <input
+                type="text"
+                placeholder="Buscar posto…"
+                value={buscaGerenciar}
+                onChange={e => setBuscaGerenciar(e.target.value)}
+                className={`${selectClass} w-full sm:w-56`}
+              />
+            </div>
             <button type="button" onClick={abrirCriar}
               className="flex h-9 items-center gap-1.5 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700">
               + Novo Posto
