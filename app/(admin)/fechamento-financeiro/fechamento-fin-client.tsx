@@ -428,14 +428,23 @@ export function FechamentoFinClient({
                     isAfastados ? 'bg-gray-500' : 'bg-slate-800',
                   )}>
                     <span className="text-xs font-bold uppercase tracking-widest text-white">{label}</span>
-                    <div className="flex items-center gap-3">
-                      {isAfastados && (
+                    <div className="flex items-center gap-4">
+                      {isAfastados ? (
                         <span className="rounded bg-gray-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gray-200">
                           Custo não computado
                         </span>
+                      ) : (
+                        <>
+                          <span className="text-xs text-slate-400">
+                            Custo total: <span className="font-semibold text-slate-200">{fmtBRL(totalCusto)}</span>
+                          </span>
+                          <span className="text-xs text-slate-400">
+                            Média/func.: <span className="font-semibold text-slate-200">{items.length > 0 ? fmtBRL(totalCusto / items.length) : '—'}</span>
+                          </span>
+                        </>
                       )}
-                      <span className="text-xs text-slate-400">
-                        {items.length} funcionário{items.length !== 1 ? 's' : ''}
+                      <span className="text-xs text-slate-500">
+                        {items.length} func.
                       </span>
                     </div>
                   </div>
