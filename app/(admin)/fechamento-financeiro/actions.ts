@@ -90,7 +90,7 @@ export async function calcularFechamentoFinanceiro(
     supabase
       .from('ferias')
       .select('funcionario_id, data_inicio, data_fim')
-      .in('status', ['em_curso', 'concluido', 'aprovado'])
+      .neq('status', 'cancelado')
       .lte('data_inicio', mesEndStr)
       .gte('data_fim', mesStartStr),
 
