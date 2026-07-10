@@ -1970,37 +1970,40 @@ export type Database = {
           ativo: boolean
           created_at: string | null
           hora_entrada: string
-          hora_fim_almoco: string
-          hora_inicio_almoco: string
+          hora_fim_almoco: string | null
+          hora_inicio_almoco: string | null
           hora_saida_seg_qui: string
-          hora_saida_sex: string
+          hora_saida_sex: string | null
           id: string
           nome: string
           posto_id: string
+          tipo_escala: string
         }
         Insert: {
           ativo?: boolean
           created_at?: string | null
           hora_entrada: string
-          hora_fim_almoco: string
-          hora_inicio_almoco: string
+          hora_fim_almoco?: string | null
+          hora_inicio_almoco?: string | null
           hora_saida_seg_qui: string
-          hora_saida_sex: string
+          hora_saida_sex?: string | null
           id?: string
           nome: string
           posto_id: string
+          tipo_escala?: string
         }
         Update: {
           ativo?: boolean
           created_at?: string | null
           hora_entrada?: string
-          hora_fim_almoco?: string
-          hora_inicio_almoco?: string
+          hora_fim_almoco?: string | null
+          hora_inicio_almoco?: string | null
           hora_saida_seg_qui?: string
-          hora_saida_sex?: string
+          hora_saida_sex?: string | null
           id?: string
           nome?: string
           posto_id?: string
+          tipo_escala?: string
         }
         Relationships: [
           {
