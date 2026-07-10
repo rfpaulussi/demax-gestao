@@ -2,11 +2,13 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { getUser } from '@/lib/auth/get-user'
 import { cn } from '@/lib/utils'
 import { calcularStatusExperiencia } from '@/lib/experiencia'
 import { BannerExperiencia } from '@/components/efetivo/banner-experiencia'
 import { PerfilTabs } from '@/components/efetivo/perfil-tabs'
 import type { MovimentacaoItem, AdvertenciaItem, SolicitacaoItem } from '@/components/efetivo/perfil-tabs'
+import type { HorarioVigenteShape, HistoricoHorarioShape } from '@/components/efetivo/tab-horario'
 import type { FuncionarioParaPDF } from '@/components/efetivo/movimentacao-pdf'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -43,7 +45,11 @@ export default async function PerfilFuncionarioPage({
     .select(`
       id, nome, cpf, status, data_admissao, data_desligamento,
       periodo_experiencia, fase_experiencia, data_fim_fase1, data_fim_fase2,
-      funcoes!funcao_id ( nome ),
+      funcoes!funcao_id (
+        nome, salario_base, insalubridade_perc, insalubridade_valor,
+        periculosidade_perc, periculosidade_valor,
+        custos_funcoes ( total_por_func )
+      ),
       postos!posto_id ( id, nome, secretaria )
     `)
     .eq('id', id)
@@ -53,11 +59,16 @@ export default async function PerfilFuncionarioPage({
 
   const postoId = (func as unknown as { postos?: { id: string } }).postos?.id ?? null
 
+  const auth = await getUser()
+
   const [
     { data: movRaw },
     { data: advRaw },
     { data: solRaw },
     supervisorResult,
+    { data: horarioVigenteRaw },
+    { data: historicoRaw },
+    { data: escalaRaw },
   ] = await Promise.all([
     supabase
       .from('movimentacoes')
@@ -86,6 +97,37 @@ export default async function PerfilFuncionarioPage({
           .eq('ativo', true)
           .limit(1)
           .single()
+      : Promise.resolve({ data: null }),
+    // horário vigente
+    supabase
+      .from('horarios_funcionarios')
+      .select(`
+        id, data_inicio, data_fim,
+        turnos_postos!turno_id(
+          id, posto_id, nome,
+          hora_entrada, hora_saida_seg_qui, hora_saida_sex,
+          hora_inicio_almoco, hora_fim_almoco, ativo
+        )
+      `)
+      .eq('funcionario_id', id)
+      .is('data_fim', null)
+      .maybeSingle(),
+    // histórico de horários (excl. vigente)
+    supabase
+      .from('horarios_funcionarios')
+      .select(`
+        id, data_inicio, data_fim,
+        turnos_postos!turno_id(
+          nome, hora_entrada, hora_saida_seg_qui, hora_saida_sex,
+          hora_inicio_almoco, hora_fim_almoco
+        )
+      `)
+      .eq('funcionario_id', id)
+      .not('data_fim', 'is', null)
+      .order('data_inicio', { ascending: false }),
+    // regime do posto
+    postoId
+      ? supabase.from('config_escalas_postos').select('regime').eq('posto_id', postoId).maybeSingle()
       : Promise.resolve({ data: null }),
   ])
 
@@ -135,6 +177,38 @@ export default async function PerfilFuncionarioPage({
     (supervisorResult.data as unknown as { perfis?: { nome: string | null } } | null)
       ?.perfis?.nome ?? null
 
+  // Supabase retorna o join com a chave do nome da tabela (turnos_postos), não do alias.
+  // Remapear para o shape esperado pelo TabHorario ({ turno: ... })
+  type RawTurno = {
+    id: string; posto_id: string; nome: string; ativo: boolean
+    hora_entrada: string; hora_saida_seg_qui: string; hora_saida_sex: string
+    hora_inicio_almoco: string; hora_fim_almoco: string
+  }
+  type RawHorario = { id: string; data_inicio: string; data_fim: string | null; turnos_postos: RawTurno | null }
+
+  const horarioVigente: HorarioVigenteShape = (() => {
+    if (!horarioVigenteRaw) return null
+    const raw = horarioVigenteRaw as unknown as RawHorario
+    if (!raw.turnos_postos) return null
+    return { id: raw.id, data_inicio: raw.data_inicio, data_fim: raw.data_fim, turno: raw.turnos_postos }
+  })()
+
+  const historicoHorario: HistoricoHorarioShape = (historicoRaw ?? []).map((h) => {
+    const raw = h as unknown as RawHorario
+    return {
+      id: raw.id,
+      data_inicio: raw.data_inicio,
+      data_fim: raw.data_fim,
+      turno: raw.turnos_postos ?? {
+        nome: '—', hora_entrada: '00:00:00', hora_saida_seg_qui: '00:00:00',
+        hora_saida_sex: '00:00:00', hora_inicio_almoco: '00:00:00', hora_fim_almoco: '00:00:00',
+      },
+    }
+  })
+
+  const regimePosto = (escalaRaw as unknown as { regime?: string } | null)?.regime ?? null
+  const role        = auth?.perfil.role ?? null
+
   const f = func as unknown as {
     nome: string
     cpf: string | null
@@ -145,7 +219,15 @@ export default async function PerfilFuncionarioPage({
     fase_experiencia: '1' | '2' | 'concluido' | null
     data_fim_fase1: string | null
     data_fim_fase2: string | null
-    funcoes: { nome: string } | null
+    funcoes: {
+      nome: string
+      salario_base: number | null
+      insalubridade_perc: number | null
+      insalubridade_valor: number | null
+      periculosidade_perc: number | null
+      periculosidade_valor: number | null
+      custos_funcoes: { total_por_func: number | null } | { total_por_func: number | null }[] | null
+    } | null
     postos: { nome: string; secretaria: string | null } | null
   }
 
@@ -208,6 +290,56 @@ export default async function PerfilFuncionarioPage({
             </div>
           )}
         </div>
+
+        {/* Bloco de remuneração — visível apenas para admin/coordenador */}
+        {(role === 'admin' || role === 'coordenador') && f.funcoes?.salario_base != null && (() => {
+          const sal   = f.funcoes.salario_base ?? 0
+          const insal = f.funcoes.insalubridade_valor ?? 0
+          const peric = f.funcoes.periculosidade_valor ?? 0
+          const bruto = sal + insal + peric
+          const custos = f.funcoes.custos_funcoes
+          const totalMes = Array.isArray(custos)
+            ? (custos[0]?.total_por_func ?? null)
+            : (custos?.total_por_func ?? null)
+          const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+          return (
+            <div className="mt-4 rounded-lg border border-indigo-100 bg-indigo-50/60 px-4 py-3">
+              <p className="mb-2 text-xs font-bold uppercase tracking-widest text-indigo-400">Remuneração</p>
+              <div className="flex flex-wrap items-end gap-x-8 gap-y-1 text-sm">
+                <div>
+                  <span className="text-xs text-indigo-400">Salário base</span>
+                  <p className="font-semibold text-indigo-900">{brl(sal)}</p>
+                </div>
+                {insal > 0 && (
+                  <div>
+                    <span className="text-xs text-indigo-400">
+                      + Insalubridade {f.funcoes.insalubridade_perc}%
+                    </span>
+                    <p className="font-semibold text-purple-700">{brl(insal)}</p>
+                  </div>
+                )}
+                {peric > 0 && (
+                  <div>
+                    <span className="text-xs text-indigo-400">
+                      + Periculosidade {f.funcoes.periculosidade_perc}%
+                    </span>
+                    <p className="font-semibold text-orange-700">{brl(peric)}</p>
+                  </div>
+                )}
+                <div className="border-l border-indigo-200 pl-6">
+                  <span className="text-xs text-indigo-400">Total bruto</span>
+                  <p className="text-lg font-bold text-indigo-900">{brl(bruto)}</p>
+                </div>
+                {totalMes != null && (
+                  <div>
+                    <span className="text-xs text-indigo-400">Custo total/mês</span>
+                    <p className="text-lg font-bold text-indigo-700">{brl(totalMes)}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })()}
       </div>
 
       {/* Experiência banner */}
@@ -226,6 +358,11 @@ export default async function PerfilFuncionarioPage({
           solicitacoes={solicitacoes}
           postoNomeMap={postoNomeMap}
           funcaoNomeMap={funcaoNomeMap}
+          horarioVigente={horarioVigente}
+          historicoHorario={historicoHorario}
+          regimePosto={regimePosto}
+          postoId={postoId}
+          role={role}
           funcionario={{
             id:            id,
             nome:          f.nome,

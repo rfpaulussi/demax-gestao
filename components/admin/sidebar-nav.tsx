@@ -27,6 +27,9 @@ import {
   FileSignature,
   UserCheck,
   HelpCircle,
+  Scale,
+  BadgeDollarSign,
+  Briefcase,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import { NAV_GROUPS } from './nav-config'
@@ -55,8 +58,11 @@ const ICONS: Record<string, React.ElementType> = {
   '/supervisores':  UserCheck,
   '/usuarios':      UserCog,
   '/auditoria':     ScrollText,
-  '/acordos':       FileSignature,
-  '/ajuda':         HelpCircle,
+  '/acordos':               FileSignature,
+  '/ajuda':                 HelpCircle,
+  '/convencoes':            Scale,
+  '/fechamento-financeiro': BadgeDollarSign,
+  '/funcoes':               Briefcase,
 }
 
 // ─── shared nav content ──────────────────────────────────────────────────────
@@ -64,10 +70,12 @@ const ICONS: Record<string, React.ElementType> = {
 function NavLinks({
   role,
   pendingCount,
+  alertCount,
   onNavigate,
 }: {
   role: Role | null
   pendingCount: number
+  alertCount: number
   onNavigate?: () => void
 }) {
   const pathname = usePathname()
@@ -82,10 +90,11 @@ function NavLinks({
               {group.label}
             </p>
             <div className="flex flex-col gap-0.5">
-              {group.items.map(({ href, label, badge }) => {
+              {group.items.map(({ href, label, badge, alertBadge }) => {
                 const Icon = ICONS[href]
                 const active = pathname === href || pathname.startsWith(href + '/')
-                const showBadge = badge && pendingCount > 0
+                const badgeVal = badge && pendingCount > 0 ? pendingCount : 0
+                const alertVal = alertBadge && alertCount > 0 ? alertCount : 0
                 return (
                   <Link
                     key={href}
@@ -100,9 +109,14 @@ function NavLinks({
                   >
                     {Icon && <Icon className="h-4 w-4 shrink-0" />}
                     <span className="flex-1">{label}</span>
-                    {showBadge && (
+                    {badgeVal > 0 && (
                       <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
-                        {pendingCount > 99 ? '99+' : pendingCount}
+                        {badgeVal > 99 ? '99+' : badgeVal}
+                      </span>
+                    )}
+                    {alertVal > 0 && (
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-white" title={`${alertVal} função(ões) sem encargos`}>
+                        {alertVal > 99 ? '99+' : alertVal}
                       </span>
                     )}
                   </Link>
@@ -132,9 +146,11 @@ function SidebarHeader() {
 export function SidebarNav({
   role,
   pendingCount = 0,
+  alertCount = 0,
 }: {
   role: Role | null
   pendingCount?: number
+  alertCount?: number
 }) {
   const [open, setOpen] = useState(false)
 
@@ -154,14 +170,14 @@ export function SidebarNav({
         <SheetContent side="left" className="pt-0 !bg-[#071510]">
           <SheetClose />
           <SidebarHeader />
-          <NavLinks role={role} pendingCount={pendingCount} onNavigate={() => setOpen(false)} />
+          <NavLinks role={role} pendingCount={pendingCount} alertCount={alertCount} onNavigate={() => setOpen(false)} />
         </SheetContent>
       </Sheet>
 
       {/* Desktop: fixed sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col md:flex" style={{ background: '#071510', borderRight: '1px solid #0d2318' }}>
         <SidebarHeader />
-        <NavLinks role={role} pendingCount={pendingCount} />
+        <NavLinks role={role} pendingCount={pendingCount} alertCount={alertCount} />
       </aside>
     </>
   )

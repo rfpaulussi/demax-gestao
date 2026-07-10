@@ -49,6 +49,7 @@ export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
 
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  const [cienteDisponiveis, setCienteDisponiveis] = useState(false)
 
   useEffect(() => {
     if (busca.length < 2) { setResultados([]); return }
@@ -77,6 +78,7 @@ export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
     setResultados([])
     const periodos = await buscarPeriodosAquisitivos(f.id)
     setPeriodosExistentes(periodos ?? [])
+    setCienteDisponiveis(false)
 
     const maxPeriodo = (periodos ?? []).reduce((max: number, p: any) => Math.max(max, p.numero_periodo ?? 0), 0)
     setNumeroPeriodo(String(maxPeriodo + 1))
@@ -127,6 +129,10 @@ export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
 
   async function handleSubmit() {
     if (!selecionado) { setErro('Selecione um funcionário'); return }
+    if (qtdDisponiveis > 0 && !cienteDisponiveis) {
+      setErro('Marque o checkbox confirmando que está ciente dos períodos disponíveis existentes.')
+      return
+    }
     if (!periodoInicio || !periodoFim) { setErro('Informe o período aquisitivo'); return }
     if (!limiteGozo) { setErro('Informe o limite de gozo'); return }
     setSalvando(true); setErro('')
@@ -155,8 +161,11 @@ export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
     setBusca(''); setResultados([]); setSelecionado(null); setPeriodosExistentes([])
     setNumeroPeriodo(''); setPeriodoInicio(''); setPeriodoFim(''); setLimiteGozo('')
     setDiasDireito('30'); setDataInicio(''); setDataFim(''); setObservacao(''); setErro('')
+    setCienteDisponiveis(false)
     onClose()
   }
+
+  const qtdDisponiveis = periodosExistentes.filter((p: any) => p.status === 'disponivel').length
 
   if (!open) return null
 
@@ -194,6 +203,27 @@ export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
             )}
           </div>
 
+          {/* Aviso: períodos disponíveis existentes */}
+          {selecionado && qtdDisponiveis > 0 && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
+              <p className="text-sm font-semibold text-amber-800">
+                ⚠️ {qtdDisponiveis} período{qtdDisponiveis > 1 ? 's' : ''} com status &quot;Disponível&quot;
+              </p>
+              <p className="text-xs text-amber-700">
+                Este funcionário já tem períodos aguardando agendamento de datas. <strong>Use &quot;Ver / Editar&quot;</strong> nesses períodos em vez de criar um novo — assim você evita duplicatas no histórico.
+              </p>
+              <label className="flex items-center gap-2 text-xs text-amber-800 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={cienteDisponiveis}
+                  onChange={e => setCienteDisponiveis(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-amber-400 accent-amber-600"
+                />
+                Estou ciente e quero criar um novo período mesmo assim
+              </label>
+            </div>
+          )}
+
           {/* Períodos existentes */}
           {selecionado && periodosExistentes.length > 0 && (
             <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-600">
@@ -201,7 +231,9 @@ export function ModalNovaFerias({ open, onClose, onSuccess }: Props) {
               {periodosExistentes.map((p: any) => (
                 <div key={p.id} className="flex justify-between py-0.5">
                   <span>{p.numero_periodo}º período ({formatDateBR(p.periodo_inicio)} – {formatDateBR(p.periodo_fim)})</span>
-                  <span className="font-medium">{p.status}</span>
+                  <span className={`font-medium ${p.status === 'disponivel' ? 'text-amber-600' : 'text-slate-600'}`}>
+                    {p.status === 'disponivel' ? '⚠️ Disponível' : p.status}
+                  </span>
                 </div>
               ))}
             </div>

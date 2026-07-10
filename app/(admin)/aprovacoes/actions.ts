@@ -109,6 +109,7 @@ export async function aprovarSolicitacao(
 
   if (solError || !sol) return { success: false, error: 'Solicitação não encontrada' }
   if (sol.status !== 'pendente') return { success: false, error: 'Solicitação já processada' }
+  if (!sol.funcionario_id) return { success: false, error: 'Funcionário não vinculado à solicitação' }
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -289,7 +290,7 @@ export async function aprovarSolicitacao(
     retorno_afastamento: { campo: 'status',       antes: func?.status ?? null,            depois: 'ativo'      },
     rescisao_indireta:   { campo: 'status',       antes: func?.status ?? null,            depois: 'desligado'  },
   }
-  const mov = campoMap[sol.tipo]
+  const mov = campoMap[sol.tipo as keyof typeof campoMap]
 
   const { error: errMovAprov } = await supabase.from('movimentacoes').insert({
     funcionario_id:  sol.funcionario_id,
@@ -347,7 +348,7 @@ export async function rejeitarSolicitacao(id: string, motivo: string): Promise<A
 
   if (error) return { success: false, error: error.message }
 
-  if (sol) {
+  if (sol?.funcionario_id) {
     await supabase.from('movimentacoes').insert({
       funcionario_id: sol.funcionario_id,
       tipo:           'rejeicao',

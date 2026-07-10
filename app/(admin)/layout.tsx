@@ -10,6 +10,7 @@ import type { LogAcao } from '@/components/admin/notificacoes-bell'
 import { SupervisorBell } from '@/components/admin/supervisor-bell'
 import type { SolicitacaoNotif } from '@/components/admin/supervisor-bell'
 import { ROLE_LABELS } from '@/types'
+import type { Role } from '@/types'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -30,14 +31,28 @@ export default async function AdminLayout({
 
   const { perfil } = auth
   const displayName = perfil.nome ?? perfil.email ?? 'Usuário'
-  const roleLabel = perfil.role ? ROLE_LABELS[perfil.role] : ''
+  const roleLabel = perfil.role ? (ROLE_LABELS[perfil.role as keyof typeof ROLE_LABELS] ?? '') : ''
 
   const isAdminOrCoord = perfil.role === 'admin' || perfil.role === 'coordenador'
 
-  const { count: pendingCount } = await createClient()
+  const supabaseLayout = createClient()
+
+  const { count: pendingCount } = await supabaseLayout
     .from('solicitacoes')
     .select('*', { count: 'exact', head: true })
     .eq('status', 'pendente')
+
+  // Conta funções em uso por funcionários ativos que não têm custos_funcoes
+  let alertCount = 0
+  if (isAdminOrCoord) {
+    const [{ data: comCusto }, { data: funcUsadas }] = await Promise.all([
+      supabaseLayout.from('custos_funcoes').select('funcao_id'),
+      supabaseLayout.from('funcionarios').select('funcao_id').is('data_desligamento', null).not('funcao_id', 'is', null),
+    ])
+    const comCustoSet = new Set((comCusto ?? []).map(r => r.funcao_id as string))
+    const funcUsadasSet = new Set((funcUsadas ?? []).map(r => r.funcao_id as string))
+    alertCount = Array.from(funcUsadasSet).filter(id => !comCustoSet.has(id)).length
+  }
 
   // Notificações de ações de supervisores (só para admin/coordenador)
   let notifUnread = 0
@@ -87,7 +102,7 @@ export default async function AdminLayout({
 
   return (
     <div className={`${inter.className} min-h-screen bg-gray-50`}>
-      <SidebarNav role={perfil.role} pendingCount={pendingCount ?? 0} />
+      <SidebarNav role={perfil.role as Role | null} pendingCount={pendingCount ?? 0} alertCount={alertCount} />
 
       {/* Content area — offset by sidebar width on desktop */}
       <div className="flex min-h-screen flex-col md:pl-64">

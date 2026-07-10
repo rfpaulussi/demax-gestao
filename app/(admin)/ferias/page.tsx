@@ -1,6 +1,8 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useEffect, useState, useMemo, useTransition } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { FileSpreadsheet } from 'lucide-react'
 import { ModalNovaFerias } from '@/components/ferias/modal-nova-ferias'
@@ -13,6 +15,7 @@ import {
   iniciarFerias,
   concluirFerias,
   excluirFerias,
+  aprovarFerias,
   type FeriasListaItem,
   type SupervisorFiltro,
 } from './actions'
@@ -189,16 +192,73 @@ function ConcluirButton({ id, onDone }: { id: string; onDone: () => void }) {
   )
 }
 
+function AprovarButton({ id, onDone }: { id: string; onDone: () => void }) {
+  const [pending, start] = useTransition()
+  return (
+    <button
+      onClick={() => start(async () => { await aprovarFerias(id); onDone() })}
+      disabled={pending}
+      className="text-xs px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-medium"
+    >
+      {pending ? '...' : 'Aprovar'}
+    </button>
+  )
+}
+
+// ─── Guia rápido ─────────────────────────────────────────────────────────────
+
+function GuiaUso() {
+  const [aberto, setAberto] = useState(false)
+  return (
+    <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+      <button
+        type="button"
+        onClick={() => setAberto(p => !p)}
+        className="flex w-full items-center justify-between text-left"
+      >
+        <span className="text-sm font-semibold text-blue-700">
+          💡 Como lançar férias corretamente
+        </span>
+        <span className="text-blue-400 text-xs">{aberto ? 'Ocultar ▲' : 'Ver passo a passo ▼'}</span>
+      </button>
+      {aberto && (
+        <ol className="mt-3 space-y-2 text-xs text-blue-800">
+          <li className="flex gap-2">
+            <span className="font-bold shrink-0">1.</span>
+            <span>
+              <strong>Nova Férias</strong> — use <em>somente</em> para cadastrar um período aquisitivo que ainda não existe no sistema (ex.: funcionário recém-admitido iniciando seu 1º período).
+            </span>
+          </li>
+          <li className="flex gap-2">
+            <span className="font-bold shrink-0">2.</span>
+            <span>
+              <strong>Ver / Editar</strong> — use para definir as <em>datas de gozo</em> em um período já cadastrado, alterar o status ou adicionar observações. <em>Não crie um novo período para isso!</em>
+            </span>
+          </li>
+          <li className="flex gap-2">
+            <span className="font-bold shrink-0">3.</span>
+            <span>
+              <strong>Status:</strong> 📋 Disponível → 📅 Agendado → ✅ Aprovado → 🏖️ Em Curso → ✔️ Concluído.
+              Use o botão <strong>Iniciar</strong> (aparece quando Aprovado) e <strong>Concluir</strong> (aparece quando Em Curso) para avançar automaticamente.
+            </span>
+          </li>
+        </ol>
+      )}
+    </div>
+  )
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export default function FeriasPage() {
+function FeriasPageInner() {
+  const searchParams = useSearchParams()
   const [ferias, setFerias] = useState<FeriasListaItem[]>([])
   const [supervisores, setSupervisores] = useState<SupervisorFiltro[]>([])
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [modalHistoricoAberto, setModalHistoricoAberto] = useState(false)
   const [itemEditando, setItemEditando] = useState<FeriasListaItem | null>(null)
-  const [filtroBusca, setFiltroBusca] = useState('')
+  const [filtroBusca, setFiltroBusca] = useState(searchParams.get('busca') ?? '')
 
   // Filtros
   const [filtroStatus, setFiltroStatus] = useState('todos')
@@ -210,6 +270,9 @@ export default function FeriasPage() {
   // Ordenação
   const [sortKey, setSortKey] = useState<SortKey>('funcionario_nome')
   const [sortAsc, setSortAsc] = useState(true)
+
+  // Paginação
+  const [visibleCount, setVisibleCount] = useState(100)
 
   useEffect(() => {
     Promise.all([buscarFeriasLista(), buscarSupervisoresParaFiltro()]).then(
@@ -278,6 +341,11 @@ export default function FeriasPage() {
     return list
   }, [ferias, filtroBusca, filtroStatus, filtroSecretaria, filtroSupervisor, filtroVencimento, filtroPosto, sortKey, sortAsc])
 
+  // Reinicia paginação ao filtrar ou ordenar
+  useEffect(() => { setVisibleCount(100) }, [filtroBusca, filtroStatus, filtroSecretaria, filtroSupervisor, filtroVencimento, filtroPosto, sortKey, sortAsc])
+
+  const visibleRows = filtered.slice(0, visibleCount)
+
   function handleSort(key: SortKey) {
     if (sortKey === key) setSortAsc(p => !p)
     else { setSortKey(key); setSortAsc(true) }
@@ -293,14 +361,14 @@ export default function FeriasPage() {
         { label: 'Secretaria', value: r => r.secretaria },
         { label: 'Supervisor', value: r => r.supervisor_nome },
         { label: 'Período', value: r => `${r.numero_periodo ?? ''}º` },
-        { label: 'Período Aquisitivo', value: r => r.periodo_inicio && r.periodo_fim ? `${r.periodo_inicio} – ${r.periodo_fim}` : '' },
-        { label: 'Limite Gozo', value: r => r.limite_gozo ?? '' },
-        { label: 'Dias', value: r => String(r.dias_direito ?? '') },
-        { label: 'Início', value: r => r.data_inicio ?? '' },
-        { label: 'Fim', value: r => r.data_fim ?? '' },
+        { label: 'Período Aquisitivo', value: r => r.periodo_inicio && r.periodo_fim ? `${formatDate(r.periodo_inicio)} – ${formatDate(r.periodo_fim)}` : '', asText: true },
+        { label: 'Limite Gozo', value: r => formatDate(r.limite_gozo), asText: true },
+        { label: 'Dias', value: r => r.dias_direito ?? 0 },
+        { label: 'Início', value: r => formatDate(r.data_inicio), asText: true },
+        { label: 'Fim', value: r => formatDate(r.data_fim), asText: true },
         { label: 'Status', value: r => r.status },
       ],
-      `ferias-${new Date().toISOString().split('T')[0]}`
+      `ferias-${new Date().toISOString().split('T')[0]}.xlsx`
     )
   }
 
@@ -336,12 +404,24 @@ export default function FeriasPage() {
           <h1 className="text-2xl font-bold text-slate-900">Férias</h1>
           <p className="text-sm text-slate-500">Gestão de férias do quadro de funcionários</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Link
             href="/ferias/relatorio"
             className="px-4 py-2 text-sm font-medium bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition"
           >
             ✦ Relação por Supervisor
+          </Link>
+          <Link
+            href="/ferias/saldo"
+            className="px-4 py-2 text-sm font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition"
+          >
+            📊 Saldo por Funcionário
+          </Link>
+          <Link
+            href="/ferias/inconsistencias"
+            className="px-4 py-2 text-sm font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 transition"
+          >
+            ⚠️ Inconsistências
           </Link>
           <button
             type="button"
@@ -392,6 +472,9 @@ export default function FeriasPage() {
           )}
         </div>
       )}
+
+      {/* Guia de uso */}
+      <GuiaUso />
 
       {/* Filtros */}
       <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
@@ -501,7 +584,7 @@ export default function FeriasPage() {
                   </td>
                 </tr>
               ) : (
-                filtered.map(item => (
+                visibleRows.map(item => (
                   <tr key={item.id} className={`transition-colors ${rowBg(item)}`}>
                     <td className="px-3 py-3">
                       <div className="font-medium text-slate-800">{item.funcionario_nome}</div>
@@ -532,6 +615,9 @@ export default function FeriasPage() {
                       <StatusBadge status={item.status} />
                     </td>
                     <td className="px-3 py-3 flex items-center gap-2">
+                      {item.status === 'agendado' && (
+                        <AprovarButton id={item.id} onDone={() => buscarFeriasLista().then(setFerias)} />
+                      )}
                       {item.status === 'aprovado' && (
                         <IniciarButton id={item.id} onDone={() => buscarFeriasLista().then(setFerias)} />
                       )}
@@ -562,6 +648,21 @@ export default function FeriasPage() {
           </table>
         </div>
       </div>
+      {/* Carregar mais */}
+      {visibleCount < filtered.length && (
+        <div className="flex flex-col items-center gap-1 py-2">
+          <button
+            onClick={() => setVisibleCount(v => v + 100)}
+            className="px-5 py-2 text-sm font-medium bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition"
+          >
+            Carregar mais {Math.min(100, filtered.length - visibleCount)} registros
+          </button>
+          <span className="text-xs text-slate-400">
+            Exibindo {visibleCount} de {filtered.length} registros
+          </span>
+        </div>
+      )}
+
       <ModalNovaFerias
         open={modalAberto}
         onClose={() => setModalAberto(false)}
@@ -581,6 +682,18 @@ export default function FeriasPage() {
         onSuccess={() => buscarFeriasLista().then(setFerias)}
       />
     </div>
+  )
+}
+
+export default function FeriasPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-64">
+        <div className="text-slate-500">Carregando...</div>
+      </div>
+    }>
+      <FeriasPageInner />
+    </Suspense>
   )
 }
 

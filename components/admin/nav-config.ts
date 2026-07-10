@@ -2,6 +2,7 @@ export type NavItem = {
   href: string
   label: string
   badge?: boolean
+  alertBadge?: boolean
 }
 
 export type NavGroup = {
@@ -36,12 +37,15 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/pendencias',       label: 'Pendências'        },
       { href: '/desligamentos',    label: 'Desligamentos'     },
       { href: '/mudancas-funcao',  label: 'Mudanças de Função' },
-      { href: '/fechamento',       label: 'Fechamento'        },
+      { href: '/fechamento',            label: 'Fechamento'            },
+      { href: '/fechamento-financeiro', label: 'Fechamento Financeiro'  },
       { href: '/relatorios',       label: 'Relatórios'        },
       { href: '/importacao',       label: 'Importação'        },
       { href: '/supervisores',      label: 'Supervisores'      },
       { href: '/usuarios',         label: 'Usuários'          },
       { href: '/auditoria',        label: 'Auditoria'         },
+      { href: '/funcoes',           label: 'Funções e Salários', alertBadge: true },
+      { href: '/convencoes',       label: 'Conv. Coletivas'   },
     ],
   },
 ]

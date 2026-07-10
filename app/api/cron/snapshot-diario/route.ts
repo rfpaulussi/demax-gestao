@@ -34,6 +34,52 @@ async function sincronizarStatusFerias(supabase: ReturnType<typeof createAdminCl
   return { iniciadas: (iniciar ?? []).length, concluidas: (concluir ?? []).length }
 }
 
+async function alertarFeriasVencendo(supabase: ReturnType<typeof createAdminClient>, hoje: string) {
+  const limite30 = new Date(hoje)
+  limite30.setDate(limite30.getDate() + 30)
+  const limite30Str = limite30.toISOString().split('T')[0]
+
+  const { data } = await supabase
+    .from('ferias')
+    .select('limite_gozo, status')
+    .in('status', ['disponivel', 'agendado', 'aprovado'])
+    .not('limite_gozo', 'is', null)
+    .lte('limite_gozo', limite30Str)
+
+  if (!data?.length) return { notificado: false, vencidos: 0, criticos: 0 }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const vencidos = (data as any[]).filter(r => r.limite_gozo < hoje).length
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const criticos = (data as any[]).filter(r => r.limite_gozo >= hoje).length
+
+  // Evita duplicar: atualiza registro do dia se já existir
+  const { data: existing } = await supabase
+    .from('log_supervisor_acoes')
+    .select('id')
+    .eq('tipo', 'alerta_ferias')
+    .gte('created_at', `${hoje}T00:00:00`)
+    .lte('created_at', `${hoje}T23:59:59`)
+    .maybeSingle()
+
+  const payload = {
+    supervisor_nome: 'Sistema',
+    tipo: 'alerta_ferias',
+    acao: 'alerta',
+    funcionario_nome: `${vencidos} vencido(s), ${criticos} crítico(s)`,
+    detalhes: JSON.stringify({ vencidos, criticos, data: hoje }),
+    lido: false,
+  }
+
+  if (existing) {
+    await supabase.from('log_supervisor_acoes').update(payload).eq('id', existing.id)
+  } else {
+    await supabase.from('log_supervisor_acoes').insert(payload)
+  }
+
+  return { notificado: true, vencidos, criticos }
+}
+
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -43,7 +89,8 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminClient()
   const hoje = new Date().toISOString().split('T')[0]
 
-  const ferias = await sincronizarStatusFerias(supabase, hoje)
+  const ferias      = await sincronizarStatusFerias(supabase, hoje)
+  const alertaFerias = await alertarFeriasVencendo(supabase, hoje)
 
   const kpis = await calcularKPIsAtuais(supabase)
 
@@ -64,7 +111,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, data: hoje, ferias, kpis: {
+  return NextResponse.json({ ok: true, data: hoje, ferias, alertaFerias, kpis: {
     ativos: kpis.ativos,
     afastados: kpis.afastados,
     em_ferias: kpis.em_ferias,

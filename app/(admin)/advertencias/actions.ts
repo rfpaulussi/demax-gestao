@@ -335,3 +335,27 @@ export async function excluirAdvertencia(id: string) {
 
   revalidatePath('/advertencias')
 }
+
+export type TurnoVigenteInfo = {
+  turno_nome: string | null
+  hora_entrada: string | null
+  hora_saida_seg_qui: string | null
+} | null
+
+export async function buscarTurnoVigenteFuncionario(funcionarioId: string): Promise<TurnoVigenteInfo> {
+  const supabase = createClient()
+  const { data } = await supabase
+    .from('horarios_funcionarios')
+    .select('turnos_postos!turno_id(nome, hora_entrada, hora_saida_seg_qui)')
+    .eq('funcionario_id', funcionarioId)
+    .is('data_fim', null)
+    .maybeSingle()
+  if (!data) return null
+  const tp = (data as unknown as { turnos_postos: { nome: string; hora_entrada: string; hora_saida_seg_qui: string } | null }).turnos_postos
+  if (!tp) return null
+  return {
+    turno_nome:        tp.nome ?? null,
+    hora_entrada:      tp.hora_entrada ?? null,
+    hora_saida_seg_qui: tp.hora_saida_seg_qui ?? null,
+  }
+}

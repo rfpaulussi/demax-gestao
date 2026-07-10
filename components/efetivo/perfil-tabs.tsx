@@ -8,6 +8,8 @@ import { downloadMovimentacaoPDF } from './movimentacao-pdf'
 import type { FuncionarioParaPDF } from './movimentacao-pdf'
 import { getDadosMovColaborador } from '@/lib/movimentacao-colaborador'
 import { downloadMovColaboradorPDF } from './movimentacao-colaborador-pdf'
+import { TabHorario } from './tab-horario'
+import type { HorarioVigenteShape, HistoricoHorarioShape } from './tab-horario'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -46,7 +48,7 @@ export type SolicitacaoItem = {
   perfis: { nome: string | null } | null
 }
 
-type Tab = 'movimentacoes' | 'afastamentos' | 'advertencias' | 'solicitacoes'
+type Tab = 'movimentacoes' | 'afastamentos' | 'advertencias' | 'solicitacoes' | 'horario'
 
 const TIPO_LABELS: Record<string, string> = {
   desligamento:       'Desligamento',
@@ -329,6 +331,7 @@ function TabSolicitacoes({ items }: { items: SolicitacaoItem[] }) {
 // ─── main component ───────────────────────────────────────────────────────────
 
 const TABS: { key: Tab; label: string }[] = [
+  { key: 'horario',       label: 'Horário'        },
   { key: 'movimentacoes', label: 'Movimentações' },
   { key: 'afastamentos',  label: 'Afastamentos'  },
   { key: 'advertencias',  label: 'Advertências'  },
@@ -342,6 +345,11 @@ export function PerfilTabs({
   funcionario,
   postoNomeMap = {},
   funcaoNomeMap = {},
+  horarioVigente = null,
+  historicoHorario = [],
+  regimePosto = null,
+  postoId = null,
+  role = null,
 }: {
   movimentacoes: MovimentacaoItem[]
   advertencias: AdvertenciaItem[]
@@ -349,8 +357,13 @@ export function PerfilTabs({
   funcionario: FuncionarioParaPDF
   postoNomeMap?: Record<string, string>
   funcaoNomeMap?: Record<string, string>
+  horarioVigente?: HorarioVigenteShape
+  historicoHorario?: HistoricoHorarioShape
+  regimePosto?: string | null
+  postoId?: string | null
+  role?: string | null
 }) {
-  const [tab, setTab] = useState<Tab>('movimentacoes')
+  const [tab, setTab] = useState<Tab>('horario')
 
   return (
     <div>
@@ -372,6 +385,7 @@ export function PerfilTabs({
       </div>
 
       <div className="pt-4">
+        {tab === 'horario'       && <TabHorario horarioVigente={horarioVigente} historicoHorario={historicoHorario} regimePosto={regimePosto} postoId={postoId} funcionarioId={funcionario.id} role={role} />}
         {tab === 'movimentacoes' && <TabMovimentacoes items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} />}
         {tab === 'afastamentos'  && <TabAfastamentos  items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} />}
         {tab === 'advertencias'  && <TabAdvertencias  items={advertencias}  />}

@@ -165,7 +165,7 @@ export function UsuariosTable({
                           {p.ativo ? 'Ativo' : 'Inativo'}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-gray-500">{fmt(p.created_at)}</td>
+                      <td className="px-5 py-3.5 text-gray-500">{p.created_at ? fmt(p.created_at) : '—'}</td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-2">
                           <Button

@@ -35,6 +35,14 @@ export interface MudancaFuncaoAdminRow {
   escala: string | null
   insalubridade_anterior_perc: number | null
   insalubridade_nova_perc: number | null
+  vt_anterior: number | null
+  vt_nova: number | null
+  vr_anterior: number | null
+  vr_nova: number | null
+  va_anterior: number | null
+  va_nova: number | null
+  premio_anterior: number | null
+  premio_nova: number | null
   enviado_rh: boolean
 }
 
@@ -255,6 +263,14 @@ export function MudancasFuncaoAdminClient({ dados, mes, ano, anos, funcoes }: Pr
           escala={r.escala}
           insalubridade_anterior_perc={r.insalubridade_anterior_perc}
           insalubridade_nova_perc={r.insalubridade_nova_perc}
+          vt_anterior={r.vt_anterior}
+          vt_nova={r.vt_nova}
+          vr_anterior={r.vr_anterior}
+          vr_nova={r.vr_nova}
+          va_anterior={r.va_anterior}
+          va_nova={r.va_nova}
+          premio_anterior={r.premio_anterior}
+          premio_nova={r.premio_nova}
         />
       ).toBlob()
       const url = URL.createObjectURL(blob)

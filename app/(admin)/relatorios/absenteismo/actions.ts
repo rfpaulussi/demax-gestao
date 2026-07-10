@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
 
 export interface AusenciaRow {
   id: string
@@ -52,16 +53,6 @@ function clipDias(dataInicio: string, dataFim: string, mesInicio: string, mesFim
   return Math.round((end - start) / 86400000) + 1
 }
 
-function diasUteis(mes: number, ano: number): number {
-  let count = 0
-  const d = new Date(Date.UTC(ano, mes - 1, 1))
-  while (d.getUTCMonth() === mes - 1) {
-    const dow = d.getUTCDay()
-    if (dow !== 0 && dow !== 6) count++
-    d.setUTCDate(d.getUTCDate() + 1)
-  }
-  return count
-}
 
 export async function buscarAbsenteismo(
   mes: number,
@@ -223,7 +214,8 @@ export async function buscarAbsenteismo(
   feriasRows.sort((a, b) => a.funcionario_nome.localeCompare(b.funcionario_nome))
 
   const totalFuncionarios = countAtivos ?? 0
-  const du   = diasUteis(mes, ano)
+  const feriados = feriadosDoAno(ano)
+  const du   = diasUteisNoPeriodo(toDate(inicio), toDate(fim), '5x2', feriados)
   const tDias = absRows.reduce((s, r) => s + r.dias, 0)
   const base  = totalFuncionarios * du
   const pct   = base > 0 ? (tDias / base) * 100 : 0

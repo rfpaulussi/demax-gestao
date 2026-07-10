@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import { logSupervisorAcao } from '@/lib/log-supervisor'
+import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
 
 export type RegisterResult =
   | { success: false; error: string }
@@ -119,8 +120,15 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
   let atestadoMsg: string | undefined
 
   if (ausenteId) {
+    const { data: escalaDestino } = await supabase
+      .from('config_escalas_postos')
+      .select('regime')
+      .eq('posto_id', postoDestinoId)
+      .maybeSingle()
+    const regimeDestino = (escalaDestino as { regime: string } | null)?.regime ?? '5x2'
+    const feriados = feriadosDoAno(new Date(dataInicio).getFullYear())
     const dias = dataPrevRetorno
-      ? Math.round((new Date(dataPrevRetorno + 'T12:00:00').getTime() - new Date(dataInicio + 'T12:00:00').getTime()) / 86400000) + 1
+      ? diasUteisNoPeriodo(toDate(dataInicio), toDate(dataPrevRetorno), regimeDestino, feriados)
       : 1
 
     if (isAtestado && registrarAtestado) {
