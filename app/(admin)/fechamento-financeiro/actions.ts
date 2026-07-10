@@ -21,6 +21,7 @@ export interface FechamentoFinanceiro {
   salario_prop: number
   custo_total: number | null
   custo_prop: number | null
+  custo_ferias_extra: number
   sem_custo: boolean
   is_afastado: boolean
   em_ferias: boolean
@@ -218,11 +219,18 @@ export async function calcularFechamentoFinanceiro(
     // Funcionários no posto AFASTADOS não geram custo contratual
     const isAfastado = (postos?.secretaria ?? '').toUpperCase() === 'AFASTADOS'
 
-    const proporcao   = (!isAfastado && diasUteis > 0) ? diasTrabalhados / diasUteis : 0
-    const salarioProp = Math.round(salarioBruto * proporcao * 100) / 100
-    const custoProp   = (!isAfastado && custoTotal != null)
+    // Dias de férias são remunerados (a empresa paga normalmente) + terço constitucional
+    const diasPagos     = diasTrabalhados + feriasDias
+    const proporcaoPaga = (!isAfastado && diasUteis > 0) ? diasPagos / diasUteis : 0
+    // Bônus do terço: 1/3 sobre a proporção dos dias de férias no mês
+    const bonusTerco    = (!isAfastado && diasUteis > 0) ? (feriasDias / diasUteis) / 3 : 0
+    const proporcao     = proporcaoPaga + bonusTerco
+
+    const salarioProp      = Math.round(salarioBruto * proporcao * 100) / 100
+    const custoProp        = (!isAfastado && custoTotal != null)
       ? Math.round(custoTotal * proporcao * 100) / 100
       : null
+    const custoFeriasExtra = Math.round(salarioBruto * bonusTerco * 100) / 100
 
     return {
       funcionario_id:   func.id,
@@ -236,12 +244,13 @@ export async function calcularFechamentoFinanceiro(
       dias_trabalhados: isAfastado ? 0 : diasTrabalhados,
       salario_bruto:    salarioBruto,
       salario_prop:     salarioProp,
-      custo_total:      isAfastado ? null : custoTotal,
-      custo_prop:       custoProp,
-      sem_custo:        !isAfastado && (custoTotal == null || salarioBruto === 0),
-      is_afastado:      isAfastado,
-      em_ferias:        feriasDias > 0,
-      dias_ferias:      feriasDias,
+      custo_total:       isAfastado ? null : custoTotal,
+      custo_prop:        custoProp,
+      custo_ferias_extra: isAfastado ? 0 : custoFeriasExtra,
+      sem_custo:         !isAfastado && (custoTotal == null || salarioBruto === 0),
+      is_afastado:       isAfastado,
+      em_ferias:         feriasDias > 0,
+      dias_ferias:       feriasDias,
     }
   })
 }

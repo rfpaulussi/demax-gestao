@@ -71,9 +71,12 @@ export default async function FechamentoFinanceiroPage({
 
   const custoTotal   = ativos.reduce((s, d) => s + (d.custo_prop ?? 0), 0)
   const salarioTotal = ativos.reduce((s, d) => s + d.salario_prop, 0)
-  const semCusto     = ativos.filter(d => d.sem_custo).length
-  const comDeducao   = ativos.filter(d => d.dias_trabalhados < d.dias_uteis && d.dias_trabalhados > 0).length
-  const custoMedio   = ativos.length > 0 ? custoTotal / ativos.length : 0
+  const semCusto        = ativos.filter(d => d.sem_custo).length
+  const comDeducao      = ativos.filter(d => d.dias_trabalhados < d.dias_uteis && d.dias_trabalhados > 0).length
+  const custoMedio      = ativos.length > 0 ? custoTotal / ativos.length : 0
+  const emFerias        = ativos.filter(d => d.em_ferias).length
+  const totalDiasFerias = ativos.reduce((s, d) => s + d.dias_ferias, 0)
+  const custoExtraFerias = ativos.reduce((s, d) => s + d.custo_ferias_extra, 0)
 
   // Mês anterior para comparativo
   const ativosPrev     = dadosPrev.filter(d => !d.is_afastado)
@@ -143,6 +146,31 @@ export default async function FechamentoFinanceiroPage({
           borderColor="border-t-red-400"
           sub={semCusto > 0 ? 'preencher em Funções e Salários' : 'todos OK'}
           subColor={semCusto > 0 ? 'text-red-500' : 'text-green-600'}
+        />
+      </div>
+
+      {/* KPIs — linha 3: férias */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <KpiCard
+          label="Em Férias no Período"
+          value={emFerias}
+          borderColor="border-t-orange-400"
+          sub={emFerias > 0 ? 'custo inclui terço constitucional' : 'nenhum em férias'}
+          subColor={emFerias > 0 ? 'text-orange-500' : 'text-gray-400'}
+        />
+        <KpiCard
+          label="Dias Úteis de Férias"
+          value={totalDiasFerias}
+          borderColor="border-t-orange-400"
+          sub="somatório do período"
+          subColor="text-gray-400"
+        />
+        <KpiCard
+          label="Custo Extra (⅓ Férias)"
+          value={fmtBRL(custoExtraFerias)}
+          borderColor="border-t-amber-400"
+          sub="incluído no custo total acima"
+          subColor="text-gray-400"
         />
       </div>
 
