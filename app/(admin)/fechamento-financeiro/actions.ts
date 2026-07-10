@@ -254,3 +254,73 @@ export async function calcularFechamentoFinanceiro(
     }
   })
 }
+
+// ─── Histórico de fechamentos ─────────────────────────────────────────────────
+
+const MESES_NOME = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+
+export interface ResumoFechamento {
+  id: string
+  mes: number
+  ano: number
+  custo_total: number
+  salario_total: number
+  total_ativos: number
+  total_afastados: number
+  total_em_ferias: number
+  total_dias_ferias: number
+  custo_ferias_extra: number
+  excluiu_aprendiz: boolean
+  gerado_em: string
+}
+
+export async function salvarResumoFechamento(
+  mes: number,
+  ano: number,
+  excluiuAprendiz: boolean,
+): Promise<{ ok: boolean; message: string }> {
+  const userCtx = await getUser()
+  if (!userCtx || !['admin', 'coordenador'].includes(userCtx.perfil.role ?? '')) {
+    return { ok: false, message: 'Acesso negado' }
+  }
+
+  const dados = await calcularFechamentoFinanceiro(mes, ano, { excluirAprendiz: excluiuAprendiz })
+  const ativos    = dados.filter(d => !d.is_afastado)
+  const afastados = dados.filter(d => d.is_afastado)
+
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('fechamento_financeiro_resumos')
+    .upsert({
+      mes,
+      ano,
+      custo_total:       Math.round(ativos.reduce((s, d) => s + (d.custo_prop ?? 0), 0) * 100) / 100,
+      salario_total:     Math.round(ativos.reduce((s, d) => s + d.salario_prop, 0) * 100) / 100,
+      total_ativos:      ativos.length,
+      total_afastados:   afastados.length,
+      total_em_ferias:   ativos.filter(d => d.em_ferias).length,
+      total_dias_ferias: ativos.reduce((s, d) => s + d.dias_ferias, 0),
+      custo_ferias_extra: Math.round(ativos.reduce((s, d) => s + d.custo_ferias_extra, 0) * 100) / 100,
+      excluiu_aprendiz:  excluiuAprendiz,
+      gerado_por:        userCtx.user.id,
+      gerado_em:         new Date().toISOString(),
+    }, { onConflict: 'mes,ano' })
+
+  if (error) return { ok: false, message: `Erro: ${error.message}` }
+  return { ok: true, message: `Fechamento de ${MESES_NOME[mes]}/${ano} salvo.` }
+}
+
+export async function listarResumosFechamento(): Promise<ResumoFechamento[]> {
+  const userCtx = await getUser()
+  if (!userCtx || !['admin', 'coordenador'].includes(userCtx.perfil.role ?? '')) return []
+
+  const supabase = createClient()
+  const { data } = await supabase
+    .from('fechamento_financeiro_resumos')
+    .select('*')
+    .order('ano', { ascending: true })
+    .order('mes', { ascending: true })
+    .limit(24)
+
+  return (data ?? []) as ResumoFechamento[]
+}

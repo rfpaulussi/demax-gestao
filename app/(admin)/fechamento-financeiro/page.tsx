@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 import { getUser } from '@/lib/auth/get-user'
 import { redirect } from 'next/navigation'
-import { calcularFechamentoFinanceiro } from './actions'
+import { calcularFechamentoFinanceiro, listarResumosFechamento } from './actions'
 import { FechamentoFinClient } from './fechamento-fin-client'
 
 const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
@@ -52,25 +52,23 @@ export default async function FechamentoFinanceiroPage({
 
   const mesPrev = mes === 1 ? 12 : mes - 1
   const anoPrev = mes === 1 ? ano - 1 : ano
+  const opcoes  = { excluirAprendiz }
 
-  const opcoes = { excluirAprendiz }
-
-  // Busca mês atual e anterior em paralelo
-  const [dados, dadosPrev] = await Promise.all([
+  const [dados, dadosPrev, resumos] = await Promise.all([
     calcularFechamentoFinanceiro(mes, ano, opcoes),
     calcularFechamentoFinanceiro(mesPrev, anoPrev, opcoes),
+    listarResumosFechamento(),
   ])
 
   const secretarias = Array.from(
     new Set(dados.map(d => d.secretaria).filter((s): s is string => Boolean(s))),
   ).sort()
 
-  // Separar ativos de afastados para os KPIs
   const ativos    = dados.filter(d => !d.is_afastado)
   const afastados = dados.filter(d => d.is_afastado)
 
-  const custoTotal   = ativos.reduce((s, d) => s + (d.custo_prop ?? 0), 0)
-  const salarioTotal = ativos.reduce((s, d) => s + d.salario_prop, 0)
+  const custoTotal      = ativos.reduce((s, d) => s + (d.custo_prop ?? 0), 0)
+  const salarioTotal    = ativos.reduce((s, d) => s + d.salario_prop, 0)
   const semCusto        = ativos.filter(d => d.sem_custo).length
   const comDeducao      = ativos.filter(d => d.dias_trabalhados < d.dias_uteis && d.dias_trabalhados > 0).length
   const custoMedio      = ativos.length > 0 ? custoTotal / ativos.length : 0
@@ -78,7 +76,6 @@ export default async function FechamentoFinanceiroPage({
   const totalDiasFerias = ativos.reduce((s, d) => s + d.dias_ferias, 0)
   const custoExtraFerias = ativos.reduce((s, d) => s + d.custo_ferias_extra, 0)
 
-  // Mês anterior para comparativo
   const ativosPrev     = dadosPrev.filter(d => !d.is_afastado)
   const custoTotalPrev = ativosPrev.reduce((s, d) => s + (d.custo_prop ?? 0), 0)
   const deltaPct       = custoTotalPrev > 0 ? ((custoTotal - custoTotalPrev) / custoTotalPrev) * 100 : null
@@ -86,6 +83,12 @@ export default async function FechamentoFinanceiroPage({
   const deltaCor       = deltaPct == null ? 'text-gray-400' : deltaPct > 0 ? 'text-red-500' : 'text-green-600'
 
   const anos = [now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2]
+
+  const kpis = {
+    custoTotal, salarioTotal,
+    ativos: ativos.length, afastados: afastados.length,
+    emFerias, diasFerias: totalDiasFerias, custoFerias: custoExtraFerias,
+  }
 
   return (
     <div className="space-y-6">
@@ -191,6 +194,8 @@ export default async function FechamentoFinanceiroPage({
         MESES={MESES}
         anos={anos}
         excluirAprendiz={excluirAprendiz}
+        resumos={resumos}
+        kpis={kpis}
       />
     </div>
   )

@@ -863,7 +863,7 @@ export type Database = {
           {
             foreignKeyName: "custos_funcoes_funcao_id_fkey"
             columns: ["funcao_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "funcoes"
             referencedColumns: ["id"]
           },
@@ -931,6 +931,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      fechamento_financeiro_resumos: {
+        Row: {
+          ano: number
+          custo_ferias_extra: number
+          custo_total: number
+          excluiu_aprendiz: boolean
+          gerado_em: string
+          gerado_por: string | null
+          id: string
+          mes: number
+          salario_total: number
+          total_afastados: number
+          total_ativos: number
+          total_dias_ferias: number
+          total_em_ferias: number
+        }
+        Insert: {
+          ano: number
+          custo_ferias_extra?: number
+          custo_total?: number
+          excluiu_aprendiz?: boolean
+          gerado_em?: string
+          gerado_por?: string | null
+          id?: string
+          mes: number
+          salario_total?: number
+          total_afastados?: number
+          total_ativos?: number
+          total_dias_ferias?: number
+          total_em_ferias?: number
+        }
+        Update: {
+          ano?: number
+          custo_ferias_extra?: number
+          custo_total?: number
+          excluiu_aprendiz?: boolean
+          gerado_em?: string
+          gerado_por?: string | null
+          id?: string
+          mes?: number
+          salario_total?: number
+          total_afastados?: number
+          total_ativos?: number
+          total_dias_ferias?: number
+          total_em_ferias?: number
+        }
+        Relationships: []
       }
       fechamento_itens: {
         Row: {
