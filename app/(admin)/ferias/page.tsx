@@ -189,6 +189,55 @@ function ConcluirButton({ id, onDone }: { id: string; onDone: () => void }) {
   )
 }
 
+// ─── Guia rápido ─────────────────────────────────────────────────────────────
+
+function GuiaUso() {
+  const [aberto, setAberto] = useState(false)
+  return (
+    <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+      <button
+        type="button"
+        onClick={() => setAberto(p => !p)}
+        className="flex w-full items-center justify-between text-left"
+      >
+        <span className="text-sm font-semibold text-blue-700">
+          💡 Como lançar férias corretamente
+        </span>
+        <span className="text-blue-400 text-xs">{aberto ? 'Ocultar ▲' : 'Ver passo a passo ▼'}</span>
+      </button>
+      {aberto && (
+        <ol className="mt-3 space-y-2 text-xs text-blue-800">
+          <li className="flex gap-2">
+            <span className="font-bold shrink-0">1.</span>
+            <span>
+              <strong>Importar histórico</strong> (botão &quot;↩ Importar Histórico&quot;) — use para cadastrar em massa períodos aquisitivos já existentes via planilha. É a forma correta de registrar períodos anteriores.
+            </span>
+          </li>
+          <li className="flex gap-2">
+            <span className="font-bold shrink-0">2.</span>
+            <span>
+              <strong>Nova Férias</strong> — use <em>somente</em> para cadastrar um período aquisitivo que ainda não existe no sistema (ex.: funcionário recém-admitido iniciando seu 1º período).
+            </span>
+          </li>
+          <li className="flex gap-2">
+            <span className="font-bold shrink-0">3.</span>
+            <span>
+              <strong>Ver / Editar</strong> — use para definir as <em>datas de gozo</em> em um período já cadastrado, alterar o status ou adicionar observações. <em>Não crie um novo período para isso!</em>
+            </span>
+          </li>
+          <li className="flex gap-2">
+            <span className="font-bold shrink-0">4.</span>
+            <span>
+              <strong>Status:</strong> 📋 Disponível → 📅 Agendado → ✅ Aprovado → 🏖️ Em Curso → ✔️ Concluído.
+              Use o botão <strong>Iniciar</strong> (aparece quando Aprovado) e <strong>Concluir</strong> (aparece quando Em Curso) para avançar automaticamente.
+            </span>
+          </li>
+        </ol>
+      )}
+    </div>
+  )
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function FeriasPage() {
@@ -293,14 +342,14 @@ export default function FeriasPage() {
         { label: 'Secretaria', value: r => r.secretaria },
         { label: 'Supervisor', value: r => r.supervisor_nome },
         { label: 'Período', value: r => `${r.numero_periodo ?? ''}º` },
-        { label: 'Período Aquisitivo', value: r => r.periodo_inicio && r.periodo_fim ? `${r.periodo_inicio} – ${r.periodo_fim}` : '' },
-        { label: 'Limite Gozo', value: r => r.limite_gozo ?? '' },
-        { label: 'Dias', value: r => String(r.dias_direito ?? '') },
-        { label: 'Início', value: r => r.data_inicio ?? '' },
-        { label: 'Fim', value: r => r.data_fim ?? '' },
+        { label: 'Período Aquisitivo', value: r => r.periodo_inicio && r.periodo_fim ? `${formatDate(r.periodo_inicio)} – ${formatDate(r.periodo_fim)}` : '', asText: true },
+        { label: 'Limite Gozo', value: r => formatDate(r.limite_gozo), asText: true },
+        { label: 'Dias', value: r => r.dias_direito ?? 0 },
+        { label: 'Início', value: r => formatDate(r.data_inicio), asText: true },
+        { label: 'Fim', value: r => formatDate(r.data_fim), asText: true },
         { label: 'Status', value: r => r.status },
       ],
-      `ferias-${new Date().toISOString().split('T')[0]}`
+      `ferias-${new Date().toISOString().split('T')[0]}.xlsx`
     )
   }
 
@@ -392,6 +441,9 @@ export default function FeriasPage() {
           )}
         </div>
       )}
+
+      {/* Guia de uso */}
+      <GuiaUso />
 
       {/* Filtros */}
       <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">

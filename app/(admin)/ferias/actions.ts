@@ -25,6 +25,7 @@ export type FeriasListaItem = {
   data_fim: string | null
   dias_utilizados: number | null
   status: string
+  observacao: string | null
 }
 
 export type SupervisorFiltro = {
@@ -236,6 +237,7 @@ export async function buscarFeriasLista(): Promise<FeriasListaItem[]> {
       data_fim,
       dias_utilizados,
       status,
+      observacao,
       funcionarios (
         id,
         nome,
@@ -309,6 +311,7 @@ export async function buscarFeriasLista(): Promise<FeriasListaItem[]> {
       data_fim: r.data_fim,
       dias_utilizados: r.dias_utilizados,
       status: r.status,
+      observacao: r.observacao ?? null,
     }
   })
 }
