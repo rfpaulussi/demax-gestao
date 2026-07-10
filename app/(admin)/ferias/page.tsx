@@ -210,23 +210,17 @@ function GuiaUso() {
           <li className="flex gap-2">
             <span className="font-bold shrink-0">1.</span>
             <span>
-              <strong>Importar histórico</strong> (botão &quot;↩ Importar Histórico&quot;) — use para cadastrar em massa períodos aquisitivos já existentes via planilha. É a forma correta de registrar períodos anteriores.
+              <strong>Nova Férias</strong> — use <em>somente</em> para cadastrar um período aquisitivo que ainda não existe no sistema (ex.: funcionário recém-admitido iniciando seu 1º período).
             </span>
           </li>
           <li className="flex gap-2">
             <span className="font-bold shrink-0">2.</span>
             <span>
-              <strong>Nova Férias</strong> — use <em>somente</em> para cadastrar um período aquisitivo que ainda não existe no sistema (ex.: funcionário recém-admitido iniciando seu 1º período).
-            </span>
-          </li>
-          <li className="flex gap-2">
-            <span className="font-bold shrink-0">3.</span>
-            <span>
               <strong>Ver / Editar</strong> — use para definir as <em>datas de gozo</em> em um período já cadastrado, alterar o status ou adicionar observações. <em>Não crie um novo período para isso!</em>
             </span>
           </li>
           <li className="flex gap-2">
-            <span className="font-bold shrink-0">4.</span>
+            <span className="font-bold shrink-0">3.</span>
             <span>
               <strong>Status:</strong> 📋 Disponível → 📅 Agendado → ✅ Aprovado → 🏖️ Em Curso → ✔️ Concluído.
               Use o botão <strong>Iniciar</strong> (aparece quando Aprovado) e <strong>Concluir</strong> (aparece quando Em Curso) para avançar automaticamente.
