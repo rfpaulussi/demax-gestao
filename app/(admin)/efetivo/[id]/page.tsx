@@ -140,6 +140,7 @@ export default async function PerfilFuncionarioPage({
 
   const postoIdSet  = new Set<string>()
   const funcaoIdSet = new Set<string>()
+  const turnoIdSet  = new Set<string>()
   for (const m of movList) {
     if (m.tipo === 'transferencia' && m.campo_alterado === 'posto_id') {
       if (isUUID(m.valor_antes))  postoIdSet.add(m.valor_antes)
@@ -149,10 +150,15 @@ export default async function PerfilFuncionarioPage({
       if (isUUID(m.valor_antes))  funcaoIdSet.add(m.valor_antes)
       if (isUUID(m.valor_depois)) funcaoIdSet.add(m.valor_depois)
     }
+    if (m.tipo === 'mudanca_horario' && m.campo_alterado === 'turno_id') {
+      if (isUUID(m.valor_antes))  turnoIdSet.add(m.valor_antes)
+      if (isUUID(m.valor_depois)) turnoIdSet.add(m.valor_depois)
+    }
   }
 
   const postoNomeMap:  Record<string, string> = {}
   const funcaoNomeMap: Record<string, string> = {}
+  const turnoNomeMap:  Record<string, string> = {}
 
   await Promise.all([
     postoIdSet.size > 0
@@ -165,6 +171,12 @@ export default async function PerfilFuncionarioPage({
       ? supabase.from('funcoes').select('id, nome').in('id', Array.from(funcaoIdSet))
           .then(({ data }) => {
             for (const f of (data ?? []) as { id: string; nome: string }[]) funcaoNomeMap[f.id] = f.nome
+          })
+      : Promise.resolve(),
+    turnoIdSet.size > 0
+      ? supabase.from('turnos_postos').select('id, nome').in('id', Array.from(turnoIdSet))
+          .then(({ data }) => {
+            for (const t of (data ?? []) as { id: string; nome: string }[]) turnoNomeMap[t.id] = t.nome
           })
       : Promise.resolve(),
   ])
@@ -358,6 +370,7 @@ export default async function PerfilFuncionarioPage({
           solicitacoes={solicitacoes}
           postoNomeMap={postoNomeMap}
           funcaoNomeMap={funcaoNomeMap}
+          turnoNomeMap={turnoNomeMap}
           horarioVigente={horarioVigente}
           historicoHorario={historicoHorario}
           regimePosto={regimePosto}
