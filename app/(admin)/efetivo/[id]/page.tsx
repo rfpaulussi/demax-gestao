@@ -181,8 +181,8 @@ export default async function PerfilFuncionarioPage({
   // Remapear para o shape esperado pelo TabHorario ({ turno: ... })
   type RawTurno = {
     id: string; posto_id: string; nome: string; ativo: boolean
-    hora_entrada: string; hora_saida_seg_qui: string; hora_saida_sex: string
-    hora_inicio_almoco: string; hora_fim_almoco: string
+    hora_entrada: string; hora_saida_seg_qui: string; hora_saida_sex: string | null
+    hora_inicio_almoco: string | null; hora_fim_almoco: string | null
   }
   type RawHorario = { id: string; data_inicio: string; data_fim: string | null; turnos_postos: RawTurno | null }
 
