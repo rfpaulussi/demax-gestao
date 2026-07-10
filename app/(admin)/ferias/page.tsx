@@ -1,6 +1,8 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useEffect, useState, useMemo, useTransition } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { FileSpreadsheet } from 'lucide-react'
 import { ModalNovaFerias } from '@/components/ferias/modal-nova-ferias'
@@ -13,6 +15,7 @@ import {
   iniciarFerias,
   concluirFerias,
   excluirFerias,
+  aprovarFerias,
   type FeriasListaItem,
   type SupervisorFiltro,
 } from './actions'
@@ -189,6 +192,19 @@ function ConcluirButton({ id, onDone }: { id: string; onDone: () => void }) {
   )
 }
 
+function AprovarButton({ id, onDone }: { id: string; onDone: () => void }) {
+  const [pending, start] = useTransition()
+  return (
+    <button
+      onClick={() => start(async () => { await aprovarFerias(id); onDone() })}
+      disabled={pending}
+      className="text-xs px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-medium"
+    >
+      {pending ? '...' : 'Aprovar'}
+    </button>
+  )
+}
+
 // ─── Guia rápido ─────────────────────────────────────────────────────────────
 
 function GuiaUso() {
@@ -234,14 +250,15 @@ function GuiaUso() {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export default function FeriasPage() {
+function FeriasPageInner() {
+  const searchParams = useSearchParams()
   const [ferias, setFerias] = useState<FeriasListaItem[]>([])
   const [supervisores, setSupervisores] = useState<SupervisorFiltro[]>([])
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [modalHistoricoAberto, setModalHistoricoAberto] = useState(false)
   const [itemEditando, setItemEditando] = useState<FeriasListaItem | null>(null)
-  const [filtroBusca, setFiltroBusca] = useState('')
+  const [filtroBusca, setFiltroBusca] = useState(searchParams.get('busca') ?? '')
 
   // Filtros
   const [filtroStatus, setFiltroStatus] = useState('todos')
@@ -598,6 +615,9 @@ export default function FeriasPage() {
                       <StatusBadge status={item.status} />
                     </td>
                     <td className="px-3 py-3 flex items-center gap-2">
+                      {item.status === 'agendado' && (
+                        <AprovarButton id={item.id} onDone={() => buscarFeriasLista().then(setFerias)} />
+                      )}
                       {item.status === 'aprovado' && (
                         <IniciarButton id={item.id} onDone={() => buscarFeriasLista().then(setFerias)} />
                       )}
@@ -662,6 +682,18 @@ export default function FeriasPage() {
         onSuccess={() => buscarFeriasLista().then(setFerias)}
       />
     </div>
+  )
+}
+
+export default function FeriasPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-64">
+        <div className="text-slate-500">Carregando...</div>
+      </div>
+    }>
+      <FeriasPageInner />
+    </Suspense>
   )
 }
 

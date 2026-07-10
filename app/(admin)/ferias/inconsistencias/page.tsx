@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { buscarInconsistenciasFerias, type Inconsistencia, type TipoInconsistencia } from '../actions'
+import { InconsistenciasExcelButton } from '@/components/ferias/inconsistencias-excel-button'
 
 const TIPO_CONFIG: Record<TipoInconsistencia, { label: string; emoji: string; cor: string; desc: string }> = {
   MULTIPLOS_EM_CURSO: {
@@ -48,12 +49,15 @@ export default async function InconsistenciasPage() {
             Períodos com dados suspeitos que precisam de revisão
           </p>
         </div>
-        <Link
-          href="/ferias"
-          className="px-4 py-2 text-sm font-medium bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition"
-        >
-          ← Voltar para Férias
-        </Link>
+        <div className="flex gap-2">
+          {inconsistencias.length > 0 && <InconsistenciasExcelButton dados={inconsistencias} />}
+          <Link
+            href="/ferias"
+            className="px-4 py-2 text-sm font-medium bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition"
+          >
+            ← Voltar para Férias
+          </Link>
+        </div>
       </div>
 
       {inconsistencias.length === 0 ? (

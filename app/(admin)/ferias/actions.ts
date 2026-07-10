@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
+import { buscarEmailsAdmins, enviarEmail, templateFeriasAgendada } from '@/lib/email'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -377,6 +378,34 @@ export async function editarFerias(id: string, data: {
     await adminSupabase.from('funcionarios').update({ status: 'ferias' }).eq('id', fer.funcionario_id)
   } else if (['concluido', 'cancelado', 'agendado', 'aprovado'].includes(data.status)) {
     await adminSupabase.from('funcionarios').update({ status: 'ativo' }).eq('id', fer.funcionario_id)
+  }
+
+  // Notifica admins/coordenadores quando supervisor agenda férias
+  if (data.status === 'agendado' && data.data_inicio && data.data_fim) {
+    try {
+      const { data: ferDetalhes } = await adminSupabase
+        .from('ferias')
+        .select(`numero_periodo, dias_direito, funcionarios ( nome, postos ( nome ) )`)
+        .eq('id', id)
+        .single()
+      const emails = await buscarEmailsAdmins()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const funcDetalhes = (ferDetalhes as any)
+      await enviarEmail({
+        to: emails,
+        subject: `📅 Férias agendadas — ${funcDetalhes?.funcionarios?.nome ?? 'Funcionário'} · aguardando aprovação`,
+        html: templateFeriasAgendada({
+          funcionarioNome: funcDetalhes?.funcionarios?.nome ?? '—',
+          postoNome:       funcDetalhes?.funcionarios?.postos?.nome ?? '—',
+          numeroPeriodo:   funcDetalhes?.numero_periodo ?? null,
+          dataInicio:      new Date(data.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR'),
+          dataFim:         new Date(data.data_fim + 'T00:00:00').toLocaleDateString('pt-BR'),
+          diasDireito:     funcDetalhes?.dias_direito ?? null,
+        }),
+      })
+    } catch (e) {
+      console.error('[ferias] Erro ao enviar notificação de agendamento:', e)
+    }
   }
 
   revalidatePath('/ferias')
