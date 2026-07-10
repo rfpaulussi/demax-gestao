@@ -395,6 +395,213 @@ export async function excluirFerias(id: string) {
   return { ok: true }
 }
 
+// ─── Inconsistências de férias ────────────────────────────────────────────────
+
+export type TipoInconsistencia = 'PA_CURTO' | 'PA_DUPLICADO' | 'PA_INVERTIDO' | 'MULTIPLOS_EM_CURSO'
+
+export type Inconsistencia = {
+  tipo: TipoInconsistencia
+  funcionario_id: string
+  funcionario_nome: string
+  funcionario_registro: string
+  posto_nome: string
+  secretaria: string
+  descricao: string
+  ferias_ids: string[]
+  numero_periodos: number[]
+}
+
+export async function buscarInconsistenciasFerias(): Promise<Inconsistencia[]> {
+  const supabase = createClient()
+
+  const { data, error } = await supabase
+    .from('ferias')
+    .select(`
+      id, funcionario_id, numero_periodo, periodo_inicio, periodo_fim,
+      data_inicio, data_fim, status, dias_direito,
+      funcionarios ( nome, registro, postos ( nome, secretaria ) )
+    `)
+    .not('status', 'eq', 'cancelado')
+    .order('funcionario_id')
+    .order('numero_periodo')
+
+  if (error) { console.error(error); return [] }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const byFunc = new Map<string, any[]>()
+  for (const r of (data ?? [])) {
+    if (!byFunc.has(r.funcionario_id)) byFunc.set(r.funcionario_id, [])
+    byFunc.get(r.funcionario_id)!.push(r)
+  }
+
+  const result: Inconsistencia[] = []
+
+  for (const [fid, periodos] of Array.from(byFunc.entries())) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const func  = (periodos[0] as any).funcionarios
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const posto = (func?.postos as any)
+    const base  = {
+      funcionario_id:       fid,
+      funcionario_nome:     func?.nome       ?? '—',
+      funcionario_registro: func?.registro   ?? '—',
+      posto_nome:           posto?.nome      ?? '—',
+      secretaria:           posto?.secretaria ?? '—',
+    }
+
+    // Múltiplos em_curso
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const emCurso = periodos.filter((p: any) => p.status === 'em_curso')
+    if (emCurso.length > 1) {
+      result.push({
+        ...base, tipo: 'MULTIPLOS_EM_CURSO',
+        descricao: `${emCurso.length} períodos com status "Em Curso" ao mesmo tempo`,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ferias_ids: emCurso.map((p: any) => p.id),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        numero_periodos: emCurso.map((p: any) => p.numero_periodo).filter(Boolean),
+      })
+    }
+
+    // PA duplicado (mesmo numero_periodo)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nums = periodos.map((p: any) => p.numero_periodo).filter(Boolean) as number[]
+    const dup  = nums.filter((n, i) => nums.indexOf(n) !== i)
+    for (const n of Array.from(new Set(dup))) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dupsP = periodos.filter((p: any) => p.numero_periodo === n)
+      result.push({
+        ...base, tipo: 'PA_DUPLICADO',
+        descricao: `${n}º período aquisitivo registrado ${dupsP.length}×`,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ferias_ids: dupsP.map((p: any) => p.id),
+        numero_periodos: [n],
+      })
+    }
+
+    // PA curto (< 300 dias) e PA invertido
+    for (const p of periodos) {
+      if (!p.periodo_inicio || !p.periodo_fim) continue
+      const dur = Math.round(
+        (new Date(p.periodo_fim + 'T00:00:00').getTime() - new Date(p.periodo_inicio + 'T00:00:00').getTime())
+        / 86400000
+      )
+      if (p.periodo_inicio > p.periodo_fim) {
+        result.push({
+          ...base, tipo: 'PA_INVERTIDO',
+          descricao: `${p.numero_periodo}º PA: início ${p.periodo_inicio} é posterior ao fim ${p.periodo_fim}`,
+          ferias_ids: [p.id],
+          numero_periodos: [p.numero_periodo].filter(Boolean),
+        })
+      } else if (dur < 300) {
+        result.push({
+          ...base, tipo: 'PA_CURTO',
+          descricao: `${p.numero_periodo}º PA com apenas ${dur} dias (esperado ~365). Possível confusão entre PA e datas de gozo.`,
+          ferias_ids: [p.id],
+          numero_periodos: [p.numero_periodo].filter(Boolean),
+        })
+      }
+    }
+  }
+
+  return result.sort((a, b) => a.funcionario_nome.localeCompare(b.funcionario_nome, 'pt-BR'))
+}
+
+// ─── Saldo de férias por funcionário ─────────────────────────────────────────
+
+export type SaldoFeriasItem = {
+  funcionario_id: string
+  funcionario_nome: string
+  funcionario_registro: string
+  posto_nome: string
+  secretaria: string
+  supervisor_nome: string
+  total_dias: number
+  periodos_pendentes: number
+  limite_mais_proximo: string | null
+  tem_vencido: boolean
+}
+
+export async function buscarSaldoFeriasAgregado(): Promise<SaldoFeriasItem[]> {
+  const supabase = createClient()
+
+  const { data, error } = await supabase
+    .from('ferias')
+    .select(`
+      id, funcionario_id, numero_periodo, dias_direito, limite_gozo, status,
+      funcionarios ( nome, registro, postos ( id, nome, secretaria ) )
+    `)
+    .in('status', ['disponivel', 'agendado', 'aprovado'])
+
+  if (error) { console.error(error); return [] }
+
+  // Coleta posto_ids únicos p/ supervisor
+  const postoIds = Array.from(new Set(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (data ?? []).map((r: any) => r.funcionarios?.postos?.id).filter(Boolean)
+  ))
+  const mapaPostoSup = new Map<string, string>()
+  if (postoIds.length > 0) {
+    const { data: csp } = await supabase
+      .from('config_supervisores_postos')
+      .select(`posto_id, perfis!config_supervisores_postos_supervisor_id_fkey ( nome )`)
+      .in('posto_id', postoIds)
+      .eq('ativo', true)
+    for (const c of csp ?? []) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const p = (c as any).perfis
+      if (p?.nome) mapaPostoSup.set(c.posto_id, p.nome)
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const byFunc = new Map<string, any[]>()
+  for (const r of (data ?? [])) {
+    if (!byFunc.has(r.funcionario_id)) byFunc.set(r.funcionario_id, [])
+    byFunc.get(r.funcionario_id)!.push(r)
+  }
+
+  const result: SaldoFeriasItem[] = []
+
+  for (const [fid, periodos] of Array.from(byFunc.entries())) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const func  = (periodos[0] as any).funcionarios
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const posto = (func?.postos as any)
+    const postoId = posto?.id ?? ''
+
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const limites = periodos.map((p: any) => p.limite_gozo).filter(Boolean) as string[]
+    const limiteMaisProximo = limites.length
+      ? limites.sort()[0]
+      : null
+    const temVencido = limiteMaisProximo
+      ? new Date(limiteMaisProximo + 'T00:00:00') < hoje
+      : false
+
+    result.push({
+      funcionario_id:       fid,
+      funcionario_nome:     func?.nome       ?? '—',
+      funcionario_registro: func?.registro   ?? '—',
+      posto_nome:           posto?.nome      ?? '—',
+      secretaria:           posto?.secretaria ?? '—',
+      supervisor_nome:      mapaPostoSup.get(postoId) ?? '—',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      total_dias:           periodos.reduce((s: number, p: any) => s + (p.dias_direito ?? 30), 0),
+      periodos_pendentes:   periodos.length,
+      limite_mais_proximo:  limiteMaisProximo,
+      tem_vencido:          temVencido,
+    })
+  }
+
+  return result.sort((a, b) => {
+    // Vencidos primeiro, depois por dias desc
+    if (a.tem_vencido !== b.tem_vencido) return a.tem_vencido ? -1 : 1
+    return b.total_dias - a.total_dias
+  })
+}
+
 export async function buscarSupervisoresParaFiltro(): Promise<SupervisorFiltro[]> {
   const supabase = createClient()
 

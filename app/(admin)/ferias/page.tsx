@@ -254,6 +254,9 @@ export default function FeriasPage() {
   const [sortKey, setSortKey] = useState<SortKey>('funcionario_nome')
   const [sortAsc, setSortAsc] = useState(true)
 
+  // Paginação
+  const [visibleCount, setVisibleCount] = useState(100)
+
   useEffect(() => {
     Promise.all([buscarFeriasLista(), buscarSupervisoresParaFiltro()]).then(
       ([f, s]) => {
@@ -321,6 +324,11 @@ export default function FeriasPage() {
     return list
   }, [ferias, filtroBusca, filtroStatus, filtroSecretaria, filtroSupervisor, filtroVencimento, filtroPosto, sortKey, sortAsc])
 
+  // Reinicia paginação ao filtrar ou ordenar
+  useEffect(() => { setVisibleCount(100) }, [filtroBusca, filtroStatus, filtroSecretaria, filtroSupervisor, filtroVencimento, filtroPosto, sortKey, sortAsc])
+
+  const visibleRows = filtered.slice(0, visibleCount)
+
   function handleSort(key: SortKey) {
     if (sortKey === key) setSortAsc(p => !p)
     else { setSortKey(key); setSortAsc(true) }
@@ -379,12 +387,24 @@ export default function FeriasPage() {
           <h1 className="text-2xl font-bold text-slate-900">Férias</h1>
           <p className="text-sm text-slate-500">Gestão de férias do quadro de funcionários</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Link
             href="/ferias/relatorio"
             className="px-4 py-2 text-sm font-medium bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition"
           >
             ✦ Relação por Supervisor
+          </Link>
+          <Link
+            href="/ferias/saldo"
+            className="px-4 py-2 text-sm font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition"
+          >
+            📊 Saldo por Funcionário
+          </Link>
+          <Link
+            href="/ferias/inconsistencias"
+            className="px-4 py-2 text-sm font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 transition"
+          >
+            ⚠️ Inconsistências
           </Link>
           <button
             type="button"
@@ -547,7 +567,7 @@ export default function FeriasPage() {
                   </td>
                 </tr>
               ) : (
-                filtered.map(item => (
+                visibleRows.map(item => (
                   <tr key={item.id} className={`transition-colors ${rowBg(item)}`}>
                     <td className="px-3 py-3">
                       <div className="font-medium text-slate-800">{item.funcionario_nome}</div>
@@ -608,6 +628,21 @@ export default function FeriasPage() {
           </table>
         </div>
       </div>
+      {/* Carregar mais */}
+      {visibleCount < filtered.length && (
+        <div className="flex flex-col items-center gap-1 py-2">
+          <button
+            onClick={() => setVisibleCount(v => v + 100)}
+            className="px-5 py-2 text-sm font-medium bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition"
+          >
+            Carregar mais {Math.min(100, filtered.length - visibleCount)} registros
+          </button>
+          <span className="text-xs text-slate-400">
+            Exibindo {visibleCount} de {filtered.length} registros
+          </span>
+        </div>
+      )}
+
       <ModalNovaFerias
         open={modalAberto}
         onClose={() => setModalAberto(false)}
