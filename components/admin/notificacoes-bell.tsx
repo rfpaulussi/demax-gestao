@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Bell, X, CheckCheck, AlertTriangle, FileText, UserMinus, Shield, Trash2 } from 'lucide-react'
+import { Bell, X, CheckCheck, AlertTriangle, FileText, UserMinus, Shield, Trash2, CalendarDays } from 'lucide-react'
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { marcarTodasLidas, excluirNotificacoesLidas, excluirNotificacaoIndividual } from '@/app/(admin)/notificacoes/actions'
 
@@ -17,23 +18,53 @@ export type LogAcao = {
 }
 
 const TIPO_ICON: Record<string, React.ReactNode> = {
-  atestado:   <FileText size={14} className="text-blue-500" />,
-  falta:      <UserMinus size={14} className="text-amber-500" />,
-  advertencia:<Shield size={14} className="text-red-500" />,
-  cobertura:  <AlertTriangle size={14} className="text-orange-500" />,
+  atestado:       <FileText size={14} className="text-blue-500" />,
+  falta:          <UserMinus size={14} className="text-amber-500" />,
+  advertencia:    <Shield size={14} className="text-red-500" />,
+  cobertura:      <AlertTriangle size={14} className="text-orange-500" />,
+  alerta_ferias:  <CalendarDays size={14} className="text-orange-500" />,
+  ferias_agendada:<CalendarDays size={14} className="text-indigo-500" />,
 }
 
 const TIPO_LABEL: Record<string, string> = {
-  atestado:    'Atestado',
-  falta:       'Falta',
-  advertencia: 'Advertência',
-  cobertura:   'Cobertura',
+  atestado:        'Atestado',
+  falta:           'Falta',
+  advertencia:     'Advertência',
+  cobertura:       'Cobertura',
+  alerta_ferias:   'Alerta de Férias',
+  ferias_agendada: 'Férias',
 }
 
 const ACAO_LABEL: Record<string, string> = {
   criou:   'registrou',
   editou:  'editou',
   excluiu: 'excluiu',
+  agendou: 'agendou',
+  alerta:  'detectou',
+}
+
+function renderConteudo(log: LogAcao): React.ReactNode | null {
+  if (log.tipo === 'alerta_ferias') {
+    let vencidos = 0
+    let criticos = 0
+    try {
+      const d = JSON.parse(log.detalhes ?? '{}')
+      vencidos = d.vencidos ?? 0
+      criticos = d.criticos ?? 0
+    } catch { /* ignore */ }
+    return (
+      <p className="text-xs text-gray-700 leading-snug">
+        <span className="font-semibold text-orange-700">Alerta de Férias</span>
+        {' — '}
+        {vencidos > 0 && <span className="text-red-600 font-medium">{vencidos} vencido{vencidos !== 1 ? 's' : ''}</span>}
+        {vencidos > 0 && criticos > 0 && ', '}
+        {criticos > 0 && <span className="text-orange-500">{criticos} vence{criticos !== 1 ? 'm' : ''} em 30d</span>}
+        {' '}
+        <Link href="/ferias/saldo" className="text-blue-500 underline hover:text-blue-700 text-[10px]">ver saldo</Link>
+      </p>
+    )
+  }
+  return null
 }
 
 function fmtRelativo(iso: string): string {
@@ -111,7 +142,7 @@ export function NotificacoesBell({ unread: initialUnread, logs: initialLogs }: P
             {/* Header */}
             <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
               <div>
-                <p className="text-sm font-semibold text-gray-900">Ações de supervisores</p>
+                <p className="text-sm font-semibold text-gray-900">Notificações</p>
                 {unread > 0 && (
                   <p className="text-xs text-gray-400">{unread} não {unread === 1 ? 'lida' : 'lidas'}</p>
                 )}
@@ -168,17 +199,19 @@ export function NotificacoesBell({ unread: initialUnread, logs: initialLogs }: P
                       {TIPO_ICON[log.tipo] ?? <Bell size={14} className="text-gray-400" />}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs text-gray-700 leading-snug">
-                        <span className="font-semibold text-gray-900">{log.supervisor_nome}</span>
-                        {' '}{ACAO_LABEL[log.acao] ?? log.acao}{' '}
-                        <span className="text-gray-500">{TIPO_LABEL[log.tipo] ?? log.tipo}</span>
-                        {log.funcionario_nome && (
-                          <> de <span className="font-medium">{log.funcionario_nome}</span></>
-                        )}
-                        {log.detalhes && (
-                          <span className="text-gray-400"> ({log.detalhes})</span>
-                        )}
-                      </p>
+                      {renderConteudo(log) ?? (
+                        <p className="text-xs text-gray-700 leading-snug">
+                          <span className="font-semibold text-gray-900">{log.supervisor_nome}</span>
+                          {' '}{ACAO_LABEL[log.acao] ?? log.acao}{' '}
+                          <span className="text-gray-500">{TIPO_LABEL[log.tipo] ?? log.tipo}</span>
+                          {log.funcionario_nome && (
+                            <> de <span className="font-medium">{log.funcionario_nome}</span></>
+                          )}
+                          {log.detalhes && (
+                            <span className="text-gray-400"> ({log.detalhes})</span>
+                          )}
+                        </p>
+                      )}
                       <p className="mt-0.5 text-[10px] text-gray-400">{fmtRelativo(log.created_at)}</p>
                     </div>
                     {!log.lido ? (

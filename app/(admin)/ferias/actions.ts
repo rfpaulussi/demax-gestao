@@ -4,7 +4,6 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
-import { buscarEmailsAdmins, enviarEmail, templateFeriasAgendada } from '@/lib/email'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -380,7 +379,7 @@ export async function editarFerias(id: string, data: {
     await adminSupabase.from('funcionarios').update({ status: 'ativo' }).eq('id', fer.funcionario_id)
   }
 
-  // Notifica admins/coordenadores quando supervisor agenda férias
+  // Notifica admins/coordenadores quando supervisor agenda férias (sino interno)
   if (data.status === 'agendado' && data.data_inicio && data.data_fim) {
     try {
       const { data: ferDetalhes } = await adminSupabase
@@ -388,23 +387,27 @@ export async function editarFerias(id: string, data: {
         .select(`numero_periodo, dias_direito, funcionarios ( nome, postos ( nome ) )`)
         .eq('id', id)
         .single()
-      const emails = await buscarEmailsAdmins()
+      const supabaseUser = createClient()
+      const { data: { user: currentUser } } = await supabaseUser.auth.getUser()
+      const { data: perfil } = await supabaseUser
+        .from('perfis')
+        .select('nome')
+        .eq('id', currentUser?.id ?? '')
+        .maybeSingle()
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const funcDetalhes = (ferDetalhes as any)
-      await enviarEmail({
-        to: emails,
-        subject: `📅 Férias agendadas — ${funcDetalhes?.funcionarios?.nome ?? 'Funcionário'} · aguardando aprovação`,
-        html: templateFeriasAgendada({
-          funcionarioNome: funcDetalhes?.funcionarios?.nome ?? '—',
-          postoNome:       funcDetalhes?.funcionarios?.postos?.nome ?? '—',
-          numeroPeriodo:   funcDetalhes?.numero_periodo ?? null,
-          dataInicio:      new Date(data.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR'),
-          dataFim:         new Date(data.data_fim + 'T00:00:00').toLocaleDateString('pt-BR'),
-          diasDireito:     funcDetalhes?.dias_direito ?? null,
-        }),
+      const fd = (ferDetalhes as any)
+      const ini = new Date(data.data_inicio + 'T00:00:00').toLocaleDateString('pt-BR')
+      const fim = new Date(data.data_fim + 'T00:00:00').toLocaleDateString('pt-BR')
+      await adminSupabase.from('log_supervisor_acoes').insert({
+        supervisor_nome: perfil?.nome ?? 'Supervisor',
+        tipo: 'ferias_agendada',
+        acao: 'agendou',
+        funcionario_nome: fd?.funcionarios?.nome ?? '—',
+        detalhes: `${fd?.numero_periodo ?? '?'}º período · ${ini} a ${fim}`,
+        lido: false,
       })
     } catch (e) {
-      console.error('[ferias] Erro ao enviar notificação de agendamento:', e)
+      console.error('[ferias] Erro ao registrar notificação de agendamento:', e)
     }
   }
 
