@@ -72,7 +72,8 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/dashboard)",
       "Bash(npx supabase *)",
       "PowerShell(git add \"app/\\(admin\\)/insalubridade/actions.ts\" \"components/insalubridade/modal-nova-insalubridade.tsx\")",
-      "PowerShell(git commit -m \"fix\\(insalubridade\\): return error object instead of throw in criarInsalubridade\")"
+      "PowerShell(git commit -m \"fix\\(insalubridade\\): return error object instead of throw in criarInsalubridade\")",
+      "Bash(claude mcp *)"
     ]
   }
 }

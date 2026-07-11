@@ -3,14 +3,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUser } from '@/lib/auth/get-user'
 import { revalidatePath } from 'next/cache'
+import { calcularHorariosDerivados, isTipoEscala, type TipoEscala } from '@/lib/turnos/escala'
 
 export interface TurnoData {
   nome: string
   hora_entrada: string
-  hora_saida_seg_qui: string
-  hora_saida_sex: string
-  hora_inicio_almoco: string
-  hora_fim_almoco: string
 }
 
 export async function listarTurnosPosto(postoId: string) {
@@ -24,28 +21,61 @@ export async function listarTurnosPosto(postoId: string) {
   return data ?? []
 }
 
+/** Regime de trabalho configurado para o posto em Config Escalas, ou null se ainda não configurado / valor inválido. */
+export async function obterRegimePosto(postoId: string): Promise<TipoEscala | null> {
+  const supabase = createClient()
+  const { data } = await supabase
+    .from('config_escalas_postos')
+    .select('regime')
+    .eq('posto_id', postoId)
+    .maybeSingle()
+  const regime = data?.regime
+  return isTipoEscala(regime) ? regime : null
+}
+
 export async function criarTurno(postoId: string, dados: TurnoData) {
   const auth = await getUser()
   if (!auth || !['admin', 'coordenador'].includes(auth.perfil.role ?? '')) {
     return { success: false, error: 'Acesso negado' }
   }
+  const regime = await obterRegimePosto(postoId)
+  if (!regime) {
+    return { success: false, error: 'Configure o regime de trabalho deste posto antes de cadastrar turnos.' }
+  }
+  const derivados = calcularHorariosDerivados(dados.hora_entrada, regime)
   const supabase = createClient()
   const { error } = await supabase.from('turnos_postos').insert({
     posto_id: postoId,
-    ...dados,
+    nome: dados.nome,
+    hora_entrada: dados.hora_entrada,
+    tipo_escala: regime,
+    ...derivados,
   })
   if (error) return { success: false, error: error.message }
   revalidatePath('/postos')
   return { success: true }
 }
 
-export async function editarTurno(id: string, dados: Partial<TurnoData>) {
+export async function editarTurno(id: string, dados: TurnoData) {
   const auth = await getUser()
   if (!auth || !['admin', 'coordenador'].includes(auth.perfil.role ?? '')) {
     return { success: false, error: 'Acesso negado' }
   }
   const supabase = createClient()
-  const { error } = await supabase.from('turnos_postos').update(dados).eq('id', id)
+  const { data: turnoAtual, error: errBusca } = await supabase
+    .from('turnos_postos')
+    .select('tipo_escala')
+    .eq('id', id)
+    .single()
+  if (errBusca || !turnoAtual) return { success: false, error: 'Turno não encontrado' }
+
+  const tipoEscalaAtual = turnoAtual.tipo_escala
+  const regime = isTipoEscala(tipoEscalaAtual) ? tipoEscalaAtual : '5x2'
+  const derivados = calcularHorariosDerivados(dados.hora_entrada, regime)
+  const { error } = await supabase
+    .from('turnos_postos')
+    .update({ nome: dados.nome, hora_entrada: dados.hora_entrada, ...derivados })
+    .eq('id', id)
   if (error) return { success: false, error: error.message }
   revalidatePath('/postos')
   return { success: true }

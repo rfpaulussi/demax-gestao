@@ -7,47 +7,22 @@ import {
   criarTurno,
   editarTurno,
   desativarTurno,
+  obterRegimePosto,
   type TurnoData,
 } from '@/app/(admin)/postos/turnos/actions'
+import { saveEscala } from '@/app/(admin)/fechamento/config-escalas/actions'
+import {
+  TIPOS_ESCALA,
+  type TipoEscala,
+  calcularHorariosDerivados,
+  resolverTipoEscala,
+  ESCALA_LABEL,
+  ESCALA_BADGE_CLASS,
+  ESCALA_BORDER_CLASS,
+  formatarResumoTurno,
+} from '@/lib/turnos/escala'
+import { cn } from '@/lib/utils'
 import type { TurnoPosto } from '@/types'
-
-// ─── helpers ──────────────────────────────────────────────────────────────────
-
-function minutosParaHora(min: number): string {
-  const h = Math.floor(min / 60) % 24
-  const m = min % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-}
-
-function horaParaMinutos(hora: string): number {
-  const [h, m] = hora.split(':').map(Number)
-  return h * 60 + m
-}
-
-// Padrão 5x2 44h: entrada às 07h, almoço 12h-13h12, saída 17h (seg-qui), 16h (sex)
-const BASE_ENTRADA_MIN = 7 * 60        // 07:00
-const BASE_ALMOCO_INICIO_MIN = 12 * 60 // 12:00
-const BASE_ALMOCO_FIM_MIN = 13 * 60 + 12 // 13:12
-const BASE_SAIDA_SEGQUI_MIN = 17 * 60  // 17:00
-const BASE_SAIDA_SEX_MIN = 16 * 60     // 16:00
-
-function calcularHorariosDerivados(horaEntrada: string) {
-  const entradaMin = horaParaMinutos(horaEntrada)
-  const delta = entradaMin - BASE_ENTRADA_MIN
-  return {
-    hora_inicio_almoco:  minutosParaHora(BASE_ALMOCO_INICIO_MIN + delta),
-    hora_fim_almoco:     minutosParaHora(BASE_ALMOCO_FIM_MIN + delta),
-    hora_saida_seg_qui:  minutosParaHora(BASE_SAIDA_SEGQUI_MIN + delta),
-    hora_saida_sex:      minutosParaHora(BASE_SAIDA_SEX_MIN + delta),
-  }
-}
-
-function fmt(h: string) {
-  // recebe "HH:MM:SS" do banco, retorna "HH:MM"
-  return h.slice(0, 5)
-}
-
-// ─── component ────────────────────────────────────────────────────────────────
 
 interface Props {
   postoId: string
@@ -59,10 +34,14 @@ interface Props {
 
 export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Props) {
   const [turnos, setTurnos]         = useState<TurnoPosto[]>([])
+  const [regime, setRegime]         = useState<TipoEscala | null | undefined>(undefined) // undefined = carregando
   const [loading, setLoading]       = useState(false)
   const [form, setForm]             = useState<'novo' | TurnoPosto | null>(null)
   const [saving, setSaving]         = useState(false)
   const [erro, setErro]             = useState<string | null>(null)
+
+  const [salvandoRegime, setSalvandoRegime] = useState(false)
+  const [erroRegime, setErroRegime]         = useState<string | null>(null)
 
   // form fields
   const [nome, setNome]                 = useState('')
@@ -73,7 +52,12 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
   const carregar = useCallback(async () => {
     setLoading(true)
     try {
-      setTurnos(await listarTurnosPosto(postoId))
+      const [turnosData, regimeData] = await Promise.all([
+        listarTurnosPosto(postoId),
+        obterRegimePosto(postoId),
+      ])
+      setTurnos(turnosData)
+      setRegime(regimeData)
     } finally {
       setLoading(false)
     }
@@ -84,6 +68,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
   }, [open, carregar])
 
   function abrirNovo() {
+    if (!regime) return
     setForm('novo')
     setNome('')
     setHoraEntrada('07:00')
@@ -93,7 +78,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
   function abrirEditar(t: TurnoPosto) {
     setForm(t)
     setNome(t.nome)
-    setHoraEntrada(fmt(t.hora_entrada))
+    setHoraEntrada(t.hora_entrada.slice(0, 5))
     setErro(null)
   }
 
@@ -106,12 +91,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     if (!nome.trim()) { setErro('Informe o nome do turno'); return }
     setSaving(true)
     setErro(null)
-    const derivados = calcularHorariosDerivados(horaEntrada)
-    const dados: TurnoData = {
-      nome: nome.trim(),
-      hora_entrada: horaEntrada,
-      ...derivados,
-    }
+    const dados: TurnoData = { nome: nome.trim(), hora_entrada: horaEntrada }
     const res = form === 'novo'
       ? await criarTurno(postoId, dados)
       : await editarTurno((form as TurnoPosto).id, dados)
@@ -129,9 +109,21 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     carregar()
   }
 
+  async function handleDefinirRegime(tipo: TipoEscala) {
+    setSalvandoRegime(true)
+    setErroRegime(null)
+    const res = await saveEscala(postoId, tipo)
+    setSalvandoRegime(false)
+    if (!res.ok) { setErroRegime(res.error ?? 'Erro ao salvar regime'); return }
+    setRegime(tipo)
+  }
+
   if (!open) return null
 
-  const derivados = calcularHorariosDerivados(horaEntrada)
+  const tipoEscalaForm: TipoEscala | null =
+    form === 'novo' ? (regime ?? null) : form ? resolverTipoEscala(form.tipo_escala) : null
+
+  const derivados = tipoEscalaForm ? calcularHorariosDerivados(horaEntrada, tipoEscalaForm) : null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -140,7 +132,17 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <div>
             <h2 className="text-base font-bold text-gray-900">Turnos de trabalho</h2>
-            <p className="text-xs text-gray-400">{postoNome}</p>
+            <div className="mt-0.5 flex items-center gap-2">
+              <p className="text-xs text-gray-400">{postoNome}</p>
+              {regime && (
+                <span className={cn(
+                  'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ring-inset',
+                  ESCALA_BADGE_CLASS[regime],
+                )}>
+                  {ESCALA_LABEL[regime]}
+                </span>
+              )}
+            </div>
           </div>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="h-5 w-5" />
@@ -148,6 +150,41 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
         </div>
 
         <div className="px-6 py-4 space-y-4">
+          {/* aviso: posto sem regime configurado */}
+          {regime === null && (
+            <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+              <p className="text-sm text-amber-800">
+                Este posto ainda não tem um regime de trabalho definido. Selecione um regime para poder cadastrar turnos.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {TIPOS_ESCALA.map(tipo => (
+                  <button
+                    key={tipo}
+                    type="button"
+                    disabled={salvandoRegime}
+                    onClick={() => handleDefinirRegime(tipo)}
+                    className={cn(
+                      'rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 ring-inset transition-opacity hover:opacity-80 disabled:opacity-50',
+                      ESCALA_BADGE_CLASS[tipo],
+                    )}
+                  >
+                    {ESCALA_LABEL[tipo]}
+                  </button>
+                ))}
+              </div>
+              {erroRegime && <p className="text-xs text-red-600">{erroRegime}</p>}
+            </div>
+          )}
+
+          {regime && (
+            <p className="text-xs text-gray-400">
+              Regime definido em{' '}
+              <a href="/fechamento/config-escalas" className="underline hover:text-gray-600">
+                Config Escalas
+              </a>.
+            </p>
+          )}
+
           {/* lista de turnos */}
           {loading ? (
             <p className="text-sm text-gray-400">Carregando...</p>
@@ -155,42 +192,57 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
             <p className="text-sm text-gray-400">Nenhum turno cadastrado para este posto.</p>
           ) : (
             <div className="space-y-2">
-              {turnos.map(t => (
-                <div key={t.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-2.5">
-                  <div className="flex items-center gap-3">
-                    <Clock className="h-4 w-4 text-gray-400" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{t.nome}</p>
-                      <p className="text-xs text-gray-500">
-                        Seg–Qui: {fmt(t.hora_entrada)}–{fmt(t.hora_saida_seg_qui)}{' '}
-                        (almoço {fmt(t.hora_inicio_almoco)}–{fmt(t.hora_fim_almoco)})
-                        {'  '}Sex: até {fmt(t.hora_saida_sex)}
-                      </p>
+              {turnos.map(t => {
+                const tipoTurno = resolverTipoEscala(t.tipo_escala)
+                return (
+                  <div key={t.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-2.5">
+                    <div className="flex items-center gap-3">
+                      <Clock className="h-4 w-4 text-gray-400" />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-gray-900">{t.nome}</p>
+                          <span className={cn(
+                            'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-inset',
+                            ESCALA_BADGE_CLASS[tipoTurno],
+                          )}>
+                            {ESCALA_LABEL[tipoTurno]}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500">{formatarResumoTurno(t)}</p>
+                      </div>
                     </div>
+                    {canWrite && (
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => abrirEditar(t)}
+                          className="text-gray-400 hover:text-gray-700" title="Editar">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button type="button" onClick={() => handleDesativar(t)} disabled={saving}
+                          className="text-gray-400 hover:text-red-600 disabled:opacity-40" title="Desativar">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  {canWrite && (
-                    <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => abrirEditar(t)}
-                        className="text-gray-400 hover:text-gray-700" title="Editar">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button type="button" onClick={() => handleDesativar(t)} disabled={saving}
-                        className="text-gray-400 hover:text-red-600 disabled:opacity-40" title="Desativar">
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
           {/* form de novo/editar turno */}
-          {form !== null && canWrite && (
-            <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
-              <p className="text-sm font-semibold text-gray-700">
-                {form === 'novo' ? 'Novo turno' : 'Editar turno'}
-              </p>
+          {form !== null && canWrite && tipoEscalaForm && derivados && (
+            <div className={cn('space-y-3 rounded-lg border border-l-4 bg-white p-4', ESCALA_BORDER_CLASS[tipoEscalaForm])}>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-700">
+                  {form === 'novo' ? 'Novo turno' : 'Editar turno'}
+                </p>
+                <span className={cn(
+                  'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ring-inset',
+                  ESCALA_BADGE_CLASS[tipoEscalaForm],
+                )}>
+                  {ESCALA_LABEL[tipoEscalaForm]}
+                </span>
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -201,17 +253,30 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Horário de entrada</label>
-                  <input type="time" value={horaEntrada} onChange={e => setHoraEntrada(e.target.value)}
+                  <input
+                    type="time"
+                    value={horaEntrada}
+                    onChange={e => setHoraEntrada(e.target.value)}
+                    min={tipoEscalaForm === '5x1' ? '05:00' : undefined}
+                    max={tipoEscalaForm === '5x1' ? '16:00' : undefined}
                     className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
                 </div>
               </div>
 
               {/* preview calculado */}
-              <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-gray-500 space-y-0.5">
-                <p className="font-medium text-gray-700 mb-1">Horários calculados automaticamente (44h/semana):</p>
-                <p>Almoço: {derivados.hora_inicio_almoco} às {derivados.hora_fim_almoco}</p>
-                <p>Saída Seg–Qui: {derivados.hora_saida_seg_qui}</p>
-                <p>Saída Sex: {derivados.hora_saida_sex}</p>
+              <div className="space-y-0.5 rounded-lg bg-slate-50 px-3 py-2 text-xs text-gray-500">
+                <p className="mb-1 font-medium text-gray-700">Horários calculados automaticamente:</p>
+                {derivados.hora_inicio_almoco && derivados.hora_fim_almoco && (
+                  <p>Almoço: {derivados.hora_inicio_almoco} às {derivados.hora_fim_almoco}</p>
+                )}
+                {derivados.hora_saida_sex !== null ? (
+                  <>
+                    <p>Saída Seg–Qui: {derivados.hora_saida_seg_qui}</p>
+                    <p>Saída Sex: {derivados.hora_saida_sex}</p>
+                  </>
+                ) : (
+                  <p>Saída: {derivados.hora_saida_seg_qui}</p>
+                )}
               </div>
 
               {erro && <p className="text-xs text-red-600">{erro}</p>}
@@ -230,7 +295,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
           )}
 
           {/* botão novo turno */}
-          {canWrite && form === null && (
+          {canWrite && form === null && regime && (
             <button type="button" onClick={abrirNovo}
               className="flex items-center gap-1.5 text-sm font-medium text-slate-700 hover:text-slate-900">
               <Plus className="h-4 w-4" />

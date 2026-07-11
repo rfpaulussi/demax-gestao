@@ -87,10 +87,12 @@ function MovDetail({
   m,
   postoNomeMap,
   funcaoNomeMap = {},
+  turnoNomeMap = {},
 }: {
   m: MovimentacaoItem
   postoNomeMap: Record<string, string>
   funcaoNomeMap?: Record<string, string>
+  turnoNomeMap?: Record<string, string>
 }) {
   if (m.tipo === 'mudanca_funcao') {
     const sol    = m.solicitacoes
@@ -127,6 +129,19 @@ function MovDetail({
     )
   }
 
+  if (m.tipo === 'mudanca_horario' && m.campo_alterado === 'turno_id') {
+    const antes  = (m.valor_antes  && turnoNomeMap[m.valor_antes])  ? turnoNomeMap[m.valor_antes]  : (m.valor_antes  ?? '—')
+    const depois = (m.valor_depois && turnoNomeMap[m.valor_depois]) ? turnoNomeMap[m.valor_depois] : (m.valor_depois ?? '—')
+    return (
+      <p className="mt-0.5 text-xs text-gray-500">
+        turno:{' '}
+        <span className="line-through text-gray-400">{antes}</span>
+        {' → '}
+        <span className="text-gray-700">{depois}</span>
+      </p>
+    )
+  }
+
   if (m.campo_alterado) {
     return (
       <p className="mt-0.5 text-xs text-gray-500">
@@ -146,11 +161,13 @@ function TabMovimentacoes({
   funcionario,
   postoNomeMap,
   funcaoNomeMap = {},
+  turnoNomeMap = {},
 }: {
   items: MovimentacaoItem[]
   funcionario: FuncionarioParaPDF
   postoNomeMap: Record<string, string>
   funcaoNomeMap?: Record<string, string>
+  turnoNomeMap?: Record<string, string>
 }) {
   const [baixando, setBaixando] = useState<string | null>(null)
 
@@ -171,7 +188,7 @@ function TabMovimentacoes({
         )
         if (dados) await downloadMovColaboradorPDF(dados, mov.tipo)
       } else {
-        await downloadMovimentacaoPDF(mov, funcionario, postoNomeMap, funcaoNomeMap)
+        await downloadMovimentacaoPDF(mov, funcionario, postoNomeMap, funcaoNomeMap, turnoNomeMap)
       }
     } finally {
       setBaixando(null)
@@ -214,7 +231,7 @@ function TabMovimentacoes({
               <p className="mt-0.5 text-sm font-semibold capitalize text-gray-900">
                 {m.tipo.replace(/_/g, ' ')}
               </p>
-              <MovDetail m={m} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} />
+              <MovDetail m={m} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />
             </div>
             <button
               onClick={() => handleDownload(m)}
@@ -238,17 +255,19 @@ function TabAfastamentos({
   funcionario,
   postoNomeMap,
   funcaoNomeMap = {},
+  turnoNomeMap = {},
 }: {
   items: MovimentacaoItem[]
   funcionario: FuncionarioParaPDF
   postoNomeMap: Record<string, string>
   funcaoNomeMap?: Record<string, string>
+  turnoNomeMap?: Record<string, string>
 }) {
   const afastamentos = items.filter(m => m.tipo === 'afastamento' || m.tipo === 'atestado')
   if (afastamentos.length === 0) {
     return <p className="py-8 text-center text-sm text-gray-400">Nenhum afastamento registrado.</p>
   }
-  return <TabMovimentacoes items={afastamentos} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} />
+  return <TabMovimentacoes items={afastamentos} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />
 }
 
 function TabAdvertencias({ items }: { items: AdvertenciaItem[] }) {
@@ -345,6 +364,7 @@ export function PerfilTabs({
   funcionario,
   postoNomeMap = {},
   funcaoNomeMap = {},
+  turnoNomeMap = {},
   horarioVigente = null,
   historicoHorario = [],
   regimePosto = null,
@@ -357,6 +377,7 @@ export function PerfilTabs({
   funcionario: FuncionarioParaPDF
   postoNomeMap?: Record<string, string>
   funcaoNomeMap?: Record<string, string>
+  turnoNomeMap?: Record<string, string>
   horarioVigente?: HorarioVigenteShape
   historicoHorario?: HistoricoHorarioShape
   regimePosto?: string | null
@@ -386,8 +407,8 @@ export function PerfilTabs({
 
       <div className="pt-4">
         {tab === 'horario'       && <TabHorario horarioVigente={horarioVigente} historicoHorario={historicoHorario} regimePosto={regimePosto} postoId={postoId} funcionarioId={funcionario.id} role={role} />}
-        {tab === 'movimentacoes' && <TabMovimentacoes items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} />}
-        {tab === 'afastamentos'  && <TabAfastamentos  items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} />}
+        {tab === 'movimentacoes' && <TabMovimentacoes items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />}
+        {tab === 'afastamentos'  && <TabAfastamentos  items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />}
         {tab === 'advertencias'  && <TabAdvertencias  items={advertencias}  />}
         {tab === 'solicitacoes'  && <TabSolicitacoes  items={solicitacoes}  />}
       </div>

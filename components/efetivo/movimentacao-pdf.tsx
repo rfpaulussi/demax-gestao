@@ -33,6 +33,7 @@ const CAMPO_LABELS: Record<string, string> = {
   funcao_id:    'Função',
   salario_base: 'Salário Base',
   supervisor_id:'Supervisor',
+  turno_id:     'Turno de Trabalho',
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -96,10 +97,12 @@ function resolveValor(
   valor: string | null,
   postoNomeMap: Record<string, string>,
   funcaoNomeMap: Record<string, string>,
+  turnoNomeMap: Record<string, string>,
 ): string {
   if (!valor) return '—'
   if (campo === 'posto_id')  return postoNomeMap[valor]  ?? valor
   if (campo === 'funcao_id') return funcaoNomeMap[valor] ?? valor
+  if (campo === 'turno_id')  return turnoNomeMap[valor]  ?? valor
   return valor
 }
 
@@ -110,19 +113,21 @@ function MovimentacaoDocument({
   func,
   postoNomeMap,
   funcaoNomeMap,
+  turnoNomeMap,
 }: {
   mov: MovimentacaoItem
   func: FuncionarioParaPDF
   postoNomeMap: Record<string, string>
   funcaoNomeMap: Record<string, string>
+  turnoNomeMap: Record<string, string>
 }) {
   const idShort    = mov.id.substring(0, 8).toUpperCase()
   const tipoLabel  = TIPO_LABELS[mov.tipo] ?? mov.tipo.replace(/_/g, ' ')
   const campoLabel = mov.campo_alterado ? (CAMPO_LABELS[mov.campo_alterado] ?? mov.campo_alterado) : null
   const emitidoEm  = fmt(new Date().toISOString())
 
-  const valorAntes  = resolveValor(mov.campo_alterado, mov.valor_antes,  postoNomeMap, funcaoNomeMap)
-  const valorDepois = resolveValor(mov.campo_alterado, mov.valor_depois, postoNomeMap, funcaoNomeMap)
+  const valorAntes  = resolveValor(mov.campo_alterado, mov.valor_antes,  postoNomeMap, funcaoNomeMap, turnoNomeMap)
+  const valorDepois = resolveValor(mov.campo_alterado, mov.valor_depois, postoNomeMap, funcaoNomeMap, turnoNomeMap)
 
   const solicitacao = mov.solicitacoes as { motivo?: string | null; perfis?: { nome: string | null } | null } | null
   const motivo         = solicitacao?.motivo ?? null
@@ -263,6 +268,7 @@ export async function downloadMovimentacaoPDF(
   func: FuncionarioParaPDF,
   postoNomeMap: Record<string, string> = {},
   funcaoNomeMap: Record<string, string> = {},
+  turnoNomeMap: Record<string, string> = {},
 ): Promise<void> {
   const nomeSlug = func.nome
     .normalize('NFD')
@@ -279,7 +285,7 @@ export async function downloadMovimentacaoPDF(
 
   const { pdf } = await import('@react-pdf/renderer')
   const blob = await pdf(
-    <MovimentacaoDocument mov={mov} func={func} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} />
+    <MovimentacaoDocument mov={mov} func={func} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />
   ).toBlob()
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement('a')

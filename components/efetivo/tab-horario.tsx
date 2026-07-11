@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import { Clock, CalendarDays, ChevronDown, ChevronUp, X, Plus, AlertCircle, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { listarTurnosDoPosto, alterarTurno, deletarHorarioFuncionario } from '@/app/(admin)/efetivo/horario/actions'
+import { resolverTipoEscala, ESCALA_LABEL, ESCALA_BADGE_CLASS, formatarResumoTurno, duracaoAlmocoMin } from '@/lib/turnos/escala'
 
 // ─── tipos de entrada ─────────────────────────────────────────────────────────
 
@@ -17,9 +18,9 @@ export type HorarioVigenteShape = {
     nome: string
     hora_entrada: string
     hora_saida_seg_qui: string
-    hora_saida_sex: string
-    hora_inicio_almoco: string
-    hora_fim_almoco: string
+    hora_saida_sex: string | null
+    hora_inicio_almoco: string | null
+    hora_fim_almoco: string | null
     ativo: boolean
   }
 } | null
@@ -32,9 +33,9 @@ export type HistoricoHorarioShape = {
     nome: string
     hora_entrada: string
     hora_saida_seg_qui: string
-    hora_saida_sex: string
-    hora_inicio_almoco: string
-    hora_fim_almoco: string
+    hora_saida_sex: string | null
+    hora_inicio_almoco: string | null
+    hora_fim_almoco: string | null
   }
 }[]
 
@@ -43,14 +44,15 @@ type TurnoOpcao = {
   nome: string
   hora_entrada: string
   hora_saida_seg_qui: string
-  hora_saida_sex: string
-  hora_inicio_almoco: string
-  hora_fim_almoco: string
+  hora_saida_sex: string | null
+  hora_inicio_almoco: string | null
+  hora_fim_almoco: string | null
+  tipo_escala: string
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-function fmtH(h: string) { return h.slice(0, 5) }
+function fmtH(h: string | null) { return h ? h.slice(0, 5) : '—' }
 
 function fmtData(iso: string) {
   const [y, m, d] = iso.split('T')[0].split('-')
@@ -197,26 +199,37 @@ function ModalAlterarTurno({
                 Turno
               </label>
               <div className="space-y-2">
-                {turnos.map(t => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setTurnoId(t.id)}
-                    className={cn(
-                      'w-full rounded-lg border px-4 py-3 text-left transition-colors',
-                      turnoId === t.id
-                        ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-400'
-                        : 'border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-white',
-                    )}
-                  >
-                    <p className={cn('text-sm font-semibold', turnoId === t.id ? 'text-blue-800' : 'text-gray-800')}>
-                      {t.nome}
-                    </p>
-                    <p className={cn('text-xs mt-0.5', turnoId === t.id ? 'text-blue-600' : 'text-gray-500')}>
-                      Entrada {fmtH(t.hora_entrada)} · Almoço {fmtH(t.hora_inicio_almoco)}–{fmtH(t.hora_fim_almoco)} · Saída Seg–Qui {fmtH(t.hora_saida_seg_qui)} · Sex {fmtH(t.hora_saida_sex)}
-                    </p>
-                  </button>
-                ))}
+                {turnos.map(t => {
+                  const tipoTurno = resolverTipoEscala(t.tipo_escala)
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setTurnoId(t.id)}
+                      className={cn(
+                        'w-full rounded-lg border px-4 py-3 text-left transition-colors',
+                        turnoId === t.id
+                          ? 'border-blue-400 bg-blue-50 ring-1 ring-blue-400'
+                          : 'border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-white',
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <p className={cn('text-sm font-semibold', turnoId === t.id ? 'text-blue-800' : 'text-gray-800')}>
+                          {t.nome}
+                        </p>
+                        <span className={cn(
+                          'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-inset',
+                          ESCALA_BADGE_CLASS[tipoTurno],
+                        )}>
+                          {ESCALA_LABEL[tipoTurno]}
+                        </span>
+                      </div>
+                      <p className={cn('text-xs mt-0.5', turnoId === t.id ? 'text-blue-600' : 'text-gray-500')}>
+                        {formatarResumoTurno(t)}
+                      </p>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -364,27 +377,42 @@ export function TabHorario({
             </div>
 
             {/* grade de horários */}
-            <div className="grid grid-cols-2 gap-2 px-5 pb-3 sm:grid-cols-4">
-              <div className="rounded-lg bg-green-50 px-3 py-2.5 ring-1 ring-green-200">
-                <p className="text-xs font-semibold uppercase tracking-widest text-green-600">Entrada</p>
-                <p className="mt-0.5 text-xl font-bold text-green-800">{fmtH(horarioVigente.turno.hora_entrada)}</p>
-              </div>
-              <div className="rounded-lg bg-amber-50 px-3 py-2.5 ring-1 ring-amber-200">
-                <p className="text-xs font-semibold uppercase tracking-widest text-amber-600">Almoço</p>
-                <p className="mt-0.5 text-sm font-bold text-amber-800">
-                  {fmtH(horarioVigente.turno.hora_inicio_almoco)} – {fmtH(horarioVigente.turno.hora_fim_almoco)}
-                </p>
-                <p className="text-xs text-amber-500">72 min</p>
-              </div>
-              <div className="rounded-lg bg-blue-50 px-3 py-2.5 ring-1 ring-blue-200">
-                <p className="text-xs font-semibold uppercase tracking-widest text-blue-600">Saída Seg–Qui</p>
-                <p className="mt-0.5 text-xl font-bold text-blue-800">{fmtH(horarioVigente.turno.hora_saida_seg_qui)}</p>
-              </div>
-              <div className="rounded-lg bg-indigo-50 px-3 py-2.5 ring-1 ring-indigo-200">
-                <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600">Saída Sex</p>
-                <p className="mt-0.5 text-xl font-bold text-indigo-800">{fmtH(horarioVigente.turno.hora_saida_sex)}</p>
-              </div>
-            </div>
+            {(() => {
+              const turnoAtual = horarioVigente.turno
+              const temAlmoco = turnoAtual.hora_inicio_almoco !== null && turnoAtual.hora_fim_almoco !== null
+              const temSaidaSex = turnoAtual.hora_saida_sex !== null
+              const almocoMin = duracaoAlmocoMin(turnoAtual.hora_inicio_almoco, turnoAtual.hora_fim_almoco)
+              const cols = temSaidaSex ? 'sm:grid-cols-4' : temAlmoco ? 'sm:grid-cols-3' : 'sm:grid-cols-2'
+              return (
+                <div className={cn('grid grid-cols-2 gap-2 px-5 pb-3', cols)}>
+                  <div className="rounded-lg bg-green-50 px-3 py-2.5 ring-1 ring-green-200">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-green-600">Entrada</p>
+                    <p className="mt-0.5 text-xl font-bold text-green-800">{fmtH(turnoAtual.hora_entrada)}</p>
+                  </div>
+                  {temAlmoco && (
+                    <div className="rounded-lg bg-amber-50 px-3 py-2.5 ring-1 ring-amber-200">
+                      <p className="text-xs font-semibold uppercase tracking-widest text-amber-600">Almoço</p>
+                      <p className="mt-0.5 text-sm font-bold text-amber-800">
+                        {fmtH(turnoAtual.hora_inicio_almoco)} – {fmtH(turnoAtual.hora_fim_almoco)}
+                      </p>
+                      {almocoMin !== null && <p className="text-xs text-amber-500">{almocoMin} min</p>}
+                    </div>
+                  )}
+                  <div className="rounded-lg bg-blue-50 px-3 py-2.5 ring-1 ring-blue-200">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-blue-600">
+                      {temSaidaSex ? 'Saída Seg–Qui' : 'Saída'}
+                    </p>
+                    <p className="mt-0.5 text-xl font-bold text-blue-800">{fmtH(turnoAtual.hora_saida_seg_qui)}</p>
+                  </div>
+                  {temSaidaSex && (
+                    <div className="rounded-lg bg-indigo-50 px-3 py-2.5 ring-1 ring-indigo-200">
+                      <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600">Saída Sex</p>
+                      <p className="mt-0.5 text-xl font-bold text-indigo-800">{fmtH(turnoAtual.hora_saida_sex)}</p>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* dias da semana */}
             <div className="border-t border-blue-100 px-5 py-3">
@@ -505,7 +533,7 @@ export function TabHorario({
                   ) : (
                     <div className="flex items-center gap-4">
                       <p className="text-xs text-gray-400">
-                        Entrada {fmtH(h.turno.hora_entrada)} · Saída Seg–Qui {fmtH(h.turno.hora_saida_seg_qui)} · Sex {fmtH(h.turno.hora_saida_sex)}
+                        {formatarResumoTurno(h.turno)}
                       </p>
                       {canWrite && (
                         <button
