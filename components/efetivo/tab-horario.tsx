@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Clock, CalendarDays, ChevronDown, ChevronUp, X, Plus, AlertCircle, Trash2 } from 'lucide-react'
+import { Clock, CalendarDays, ChevronDown, ChevronUp, X, Plus, AlertCircle, Trash2, GraduationCap } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { listarTurnosDoPosto, alterarTurno, deletarHorarioFuncionario } from '@/app/(admin)/efetivo/horario/actions'
-import { resolverTipoEscala, ESCALA_LABEL, ESCALA_BADGE_CLASS, formatarResumoTurno, duracaoAlmocoMin } from '@/lib/turnos/escala'
+import { listarTurnosDoPosto, listarTurnosJovemAprendiz, alterarTurno, deletarHorarioFuncionario } from '@/app/(admin)/efetivo/horario/actions'
+import { resolverTipoEscala, ESCALA_LABEL, ESCALA_BADGE_CLASS, formatarResumoTurno, duracaoAlmocoMin, FUNCAO_JOVEM_APRENDIZ } from '@/lib/turnos/escala'
 
 // ─── tipos de entrada ─────────────────────────────────────────────────────────
 
@@ -12,10 +12,12 @@ export type HorarioVigenteShape = {
   id: string
   data_inicio: string
   data_fim: string | null
+  dia_curso: number | null
   turno: {
     id: string
-    posto_id: string
+    posto_id: string | null
     nome: string
+    tipo_escala: string
     hora_entrada: string
     hora_saida_seg_qui: string
     hora_saida_sex: string | null
@@ -31,6 +33,7 @@ export type HistoricoHorarioShape = {
   data_fim: string | null
   turno: {
     nome: string
+    tipo_escala: string
     hora_entrada: string
     hora_saida_seg_qui: string
     hora_saida_sex: string | null
@@ -49,6 +52,14 @@ type TurnoOpcao = {
   hora_fim_almoco: string | null
   tipo_escala: string
 }
+
+const DIAS_CURSO_OPCOES = [
+  { valor: 1, label: 'Segunda' },
+  { valor: 2, label: 'Terça' },
+  { valor: 3, label: 'Quarta' },
+  { valor: 4, label: 'Quinta' },
+  { valor: 5, label: 'Sexta' },
+]
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -104,6 +115,13 @@ const REGIME_CONFIG: Record<string, {
     diasAtivos: [true, true, true, true, true, true, true],
     dotClass: 'bg-orange-500',
   },
+  'jovem_aprendiz': {
+    badge: 'Jovem Aprendiz',
+    badgeClass: 'bg-teal-50 text-teal-700 ring-teal-200',
+    diasLabel: 'Segunda a Sexta',
+    diasAtivos: [false, true, true, true, true, true, false],
+    dotClass: 'bg-teal-500',
+  },
 }
 
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
@@ -115,6 +133,7 @@ function ModalAlterarTurno({
   onClose,
   postoId,
   funcionarioId,
+  isJovemAprendiz,
   dataInicioVigente,
   onSucesso,
 }: {
@@ -122,6 +141,7 @@ function ModalAlterarTurno({
   onClose: () => void
   postoId: string
   funcionarioId: string
+  isJovemAprendiz: boolean
   dataInicioVigente?: string
   onSucesso: () => void
 }) {
@@ -129,18 +149,21 @@ function ModalAlterarTurno({
   const [loading, setLoading]       = useState(false)
   const [turnoId, setTurnoId]       = useState('')
   const [dataInicio, setDataInicio] = useState('')
+  const [diaCurso, setDiaCurso]     = useState<number | ''>('')
   const [saving, setSaving]         = useState(false)
   const [erro, setErro]             = useState<string | null>(null)
 
   const carregar = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await listarTurnosDoPosto(postoId)
+      const data = isJovemAprendiz
+        ? await listarTurnosJovemAprendiz()
+        : await listarTurnosDoPosto(postoId)
       setTurnos(data as TurnoOpcao[])
     } finally {
       setLoading(false)
     }
-  }, [postoId])
+  }, [postoId, isJovemAprendiz])
 
   // Carregar ao abrir
   const [carregou, setCarregou] = useState(false)
@@ -154,6 +177,7 @@ function ModalAlterarTurno({
   }
 
   const turnoSelecionado = turnos.find(t => t.id === turnoId)
+  const precisaDiaCurso = turnoSelecionado ? resolverTipoEscala(turnoSelecionado.tipo_escala) === 'jovem_aprendiz' : false
 
   const dataInicioInvalida = !!dataInicio && !!dataInicioVigente && dataInicio <= dataInicioVigente
 
@@ -161,9 +185,10 @@ function ModalAlterarTurno({
     if (!turnoId)          { setErro('Selecione um turno'); return }
     if (!dataInicio)       { setErro('Informe a data de início'); return }
     if (dataInicioInvalida) { setErro('A data de início deve ser posterior à do turno vigente'); return }
+    if (precisaDiaCurso && !diaCurso) { setErro('Selecione o dia de curso'); return }
     setSaving(true)
     setErro(null)
-    const res = await alterarTurno(funcionarioId, turnoId, dataInicio)
+    const res = await alterarTurno(funcionarioId, turnoId, dataInicio, precisaDiaCurso ? Number(diaCurso) : undefined)
     setSaving(false)
     if (!res.success) { setErro(res.error ?? 'Erro ao salvar'); return }
     onSucesso()
@@ -190,7 +215,9 @@ function ModalAlterarTurno({
           ) : turnos.length === 0 ? (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
               <p className="text-sm text-amber-700">
-                Nenhum turno cadastrado para este posto. Acesse <strong>Postos → Turnos</strong> para criar.
+                {isJovemAprendiz
+                  ? 'Nenhum turno de jovem aprendiz cadastrado.'
+                  : <>Nenhum turno cadastrado para este posto. Acesse <strong>Postos → Turnos</strong> para criar.</>}
               </p>
             </div>
           ) : (
@@ -231,6 +258,24 @@ function ModalAlterarTurno({
                   )
                 })}
               </div>
+            </div>
+          )}
+
+          {precisaDiaCurso && (
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-gray-500">
+                Dia de curso
+              </label>
+              <select
+                value={diaCurso}
+                onChange={e => setDiaCurso(e.target.value ? Number(e.target.value) : '')}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+              >
+                <option value="">Selecione…</option>
+                {DIAS_CURSO_OPCOES.map(d => (
+                  <option key={d.valor} value={d.valor}>{d.label}</option>
+                ))}
+              </select>
             </div>
           )}
 
@@ -281,7 +326,7 @@ function ModalAlterarTurno({
             className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
             Cancelar
           </button>
-          <button type="button" onClick={handleSalvar} disabled={saving || turnos.length === 0}
+          <button type="button" onClick={handleSalvar} disabled={saving}
             className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
             {saving ? 'Salvando…' : 'Salvar Alteração'}
           </button>
@@ -300,6 +345,7 @@ export function TabHorario({
   postoId,
   funcionarioId,
   role,
+  funcaoNome = null,
 }: {
   horarioVigente: HorarioVigenteShape
   historicoHorario: HistoricoHorarioShape
@@ -307,6 +353,7 @@ export function TabHorario({
   postoId: string | null
   funcionarioId: string
   role: string | null
+  funcaoNome?: string | null
 }) {
   const [modalAberto, setModalAberto]         = useState(false)
   const [historicoAberto, setHistoricoAberto] = useState(false)
@@ -328,8 +375,10 @@ export function TabHorario({
     }
     setConfirmDelete(null)
   }
-  const regime   = regimePosto ?? '5x2'
+  const isJovemAprendiz = funcaoNome === FUNCAO_JOVEM_APRENDIZ
+  const regime    = isJovemAprendiz ? 'jovem_aprendiz' : (regimePosto ?? '5x2')
   const regimeCfg = REGIME_CONFIG[regime] ?? REGIME_CONFIG['5x2']
+  const diaCursoAtual = horarioVigente?.dia_curso ?? null
 
   return (
     <div className="space-y-5">
@@ -421,18 +470,21 @@ export function TabHorario({
               </p>
               <div className="flex gap-2">
                 {DIAS_SEMANA.map((dia, i) => {
-                  const ativo = regimeCfg.diasAtivos[i]
+                  const ehCurso = isJovemAprendiz && diaCursoAtual === i
+                  const ativo = ehCurso ? false : regimeCfg.diasAtivos[i]
                   return (
                     <div key={dia} className="flex flex-col items-center gap-1">
                       <div className={cn(
                         'h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors',
-                        ativo
-                          ? cn(regimeCfg.dotClass, 'text-white')
-                          : 'bg-gray-100 text-gray-400',
+                        ehCurso
+                          ? 'bg-teal-500 text-white'
+                          : ativo
+                            ? cn(regimeCfg.dotClass, 'text-white')
+                            : 'bg-gray-100 text-gray-400',
                       )}>
-                        {dia.slice(0, 1)}
+                        {ehCurso ? <GraduationCap className="h-3.5 w-3.5" /> : dia.slice(0, 1)}
                       </div>
-                      <span className={cn('text-xs', ativo ? 'text-gray-600 font-medium' : 'text-gray-300')}>
+                      <span className={cn('text-xs', (ativo || ehCurso) ? 'text-gray-600 font-medium' : 'text-gray-300')}>
                         {dia}
                       </span>
                     </div>
@@ -561,6 +613,7 @@ export function TabHorario({
           onClose={() => setModalAberto(false)}
           postoId={postoId}
           funcionarioId={funcionarioId}
+          isJovemAprendiz={isJovemAprendiz}
           dataInicioVigente={horarioVigente?.data_inicio}
           onSucesso={() => {
             // revalidatePath no server action vai atualizar os dados via RSC
