@@ -1352,6 +1352,7 @@ export type Database = {
           criado_por: string | null
           data_fim: string | null
           data_inicio: string
+          dia_curso: number | null
           funcionario_id: string
           id: string
           turno_id: string
@@ -1361,6 +1362,7 @@ export type Database = {
           criado_por?: string | null
           data_fim?: string | null
           data_inicio: string
+          dia_curso?: number | null
           funcionario_id: string
           id?: string
           turno_id: string
@@ -1370,6 +1372,7 @@ export type Database = {
           criado_por?: string | null
           data_fim?: string | null
           data_inicio?: string
+          dia_curso?: number | null
           funcionario_id?: string
           id?: string
           turno_id?: string
@@ -1976,7 +1979,7 @@ export type Database = {
           hora_saida_sex: string | null
           id: string
           nome: string
-          posto_id: string
+          posto_id: string | null
           tipo_escala: string
         }
         Insert: {
@@ -1989,7 +1992,7 @@ export type Database = {
           hora_saida_sex?: string | null
           id?: string
           nome: string
-          posto_id: string
+          posto_id?: string | null
           tipo_escala?: string
         }
         Update: {
@@ -2002,7 +2005,7 @@ export type Database = {
           hora_saida_sex?: string | null
           id?: string
           nome?: string
-          posto_id?: string
+          posto_id?: string | null
           tipo_escala?: string
         }
         Relationships: [
