@@ -12,10 +12,11 @@ import {
 } from '@/app/(admin)/postos/turnos/actions'
 import { saveEscala } from '@/app/(admin)/fechamento/config-escalas/actions'
 import {
-  TIPOS_ESCALA,
-  type TipoEscala,
+  TIPOS_ESCALA_POSTO,
+  type TipoEscalaPosto,
   calcularHorariosDerivados,
   resolverTipoEscala,
+  resolverTipoEscalaPosto,
   ESCALA_LABEL,
   ESCALA_BADGE_CLASS,
   ESCALA_BORDER_CLASS,
@@ -34,7 +35,7 @@ interface Props {
 
 export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Props) {
   const [turnos, setTurnos]         = useState<TurnoPosto[]>([])
-  const [regime, setRegime]         = useState<TipoEscala | null | undefined>(undefined) // undefined = carregando
+  const [regime, setRegime]         = useState<TipoEscalaPosto | null | undefined>(undefined) // undefined = carregando
   const [loading, setLoading]       = useState(false)
   const [form, setForm]             = useState<'novo' | TurnoPosto | null>(null)
   const [saving, setSaving]         = useState(false)
@@ -109,7 +110,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     carregar()
   }
 
-  async function handleDefinirRegime(tipo: TipoEscala) {
+  async function handleDefinirRegime(tipo: TipoEscalaPosto) {
     setSalvandoRegime(true)
     setErroRegime(null)
     const res = await saveEscala(postoId, tipo)
@@ -120,8 +121,8 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
 
   if (!open) return null
 
-  const tipoEscalaForm: TipoEscala | null =
-    form === 'novo' ? (regime ?? null) : form ? resolverTipoEscala(form.tipo_escala) : null
+  const tipoEscalaForm: TipoEscalaPosto | null =
+    form === 'novo' ? (regime ?? null) : form ? resolverTipoEscalaPosto(form.tipo_escala) : null
 
   const derivados = tipoEscalaForm ? calcularHorariosDerivados(horaEntrada, tipoEscalaForm) : null
 
@@ -157,7 +158,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
                 Este posto ainda não tem um regime de trabalho definido. Selecione um regime para poder cadastrar turnos.
               </p>
               <div className="flex flex-wrap gap-2">
-                {TIPOS_ESCALA.map(tipo => (
+                {TIPOS_ESCALA_POSTO.map(tipo => (
                   <button
                     key={tipo}
                     type="button"
