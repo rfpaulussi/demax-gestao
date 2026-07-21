@@ -1,7 +1,19 @@
 // lib/turnos/escala.ts
 
-export const TIPOS_ESCALA = ['5x2', '5x1', '12x36'] as const
+/** Regimes atribuíveis a um posto (config_escalas_postos / seletor de regime do posto). */
+export const TIPOS_ESCALA_POSTO = ['5x2', '5x1', '12x36'] as const
+export type TipoEscalaPosto = (typeof TIPOS_ESCALA_POSTO)[number]
+
+export function isTipoEscalaPosto(value: string | null | undefined): value is TipoEscalaPosto {
+  return !!value && (TIPOS_ESCALA_POSTO as readonly string[]).includes(value)
+}
+
+/** Todos os tipos de escala possíveis para um turno — inclui 'jovem_aprendiz', que nunca é um regime de posto. */
+export const TIPOS_ESCALA = [...TIPOS_ESCALA_POSTO, 'jovem_aprendiz'] as const
 export type TipoEscala = (typeof TIPOS_ESCALA)[number]
+
+/** Função cuja escala de trabalho é sempre a de jovem aprendiz (turnos globais), independente do posto. */
+export const FUNCAO_JOVEM_APRENDIZ = 'JOVEM APRENDIZ'
 
 export function isTipoEscala(value: string | null | undefined): value is TipoEscala {
   return !!value && (TIPOS_ESCALA as readonly string[]).includes(value)
@@ -12,22 +24,30 @@ export function resolverTipoEscala(value: string | null | undefined): TipoEscala
   return isTipoEscala(value) ? value : '5x2'
 }
 
+/** Como resolverTipoEscala, mas restrito aos regimes atribuíveis a um posto — cai em '5x2' também para 'jovem_aprendiz' (nunca um regime de posto válido). Usar sempre que o valor resolvido alimentar calcularHorariosDerivados. */
+export function resolverTipoEscalaPosto(value: string | null | undefined): TipoEscalaPosto {
+  return isTipoEscalaPosto(value) ? value : '5x2'
+}
+
 export const ESCALA_LABEL: Record<TipoEscala, string> = {
   '5x2': '5×2 · 44h/sem',
   '5x1': '5×1 · 44h/sem',
   '12x36': '12×36',
+  'jovem_aprendiz': 'Jovem Aprendiz',
 }
 
 export const ESCALA_BADGE_CLASS: Record<TipoEscala, string> = {
   '5x2': 'bg-blue-50 text-blue-700 ring-blue-200',
   '5x1': 'bg-purple-50 text-purple-700 ring-purple-200',
   '12x36': 'bg-orange-50 text-orange-700 ring-orange-200',
+  'jovem_aprendiz': 'bg-teal-50 text-teal-700 ring-teal-200',
 }
 
 export const ESCALA_BORDER_CLASS: Record<TipoEscala, string> = {
   '5x2': 'border-blue-500',
   '5x1': 'border-purple-500',
   '12x36': 'border-orange-500',
+  'jovem_aprendiz': 'border-teal-500',
 }
 
 export interface HorariosDerivados {
@@ -38,6 +58,7 @@ export interface HorariosDerivados {
 }
 
 export interface TurnoHorarios {
+  tipo_escala: string
   hora_entrada: string
   hora_saida_seg_qui: string
   hora_saida_sex: string | null
@@ -71,8 +92,12 @@ const ALMOCO_OFFSET_5X1_MIN = 4 * 60
 // 12x36 — 12h de trabalho + 1h de intervalo descontado da duração total (sem horário de almoço fixo).
 const DURACAO_12X36_MIN = 13 * 60
 
-/** Calcula almoço/saída a partir da hora de entrada, seguindo a regra do regime informado. */
-export function calcularHorariosDerivados(horaEntrada: string, tipoEscala: TipoEscala): HorariosDerivados {
+/**
+ * Calcula almoço/saída a partir da hora de entrada, seguindo a regra do regime informado.
+ * Nunca é chamado com 'jovem_aprendiz': os dois turnos desse tipo são globais e fixos
+ * (semeados via migração, sem fluxo de criação/edição), não derivados de uma hora de entrada.
+ */
+export function calcularHorariosDerivados(horaEntrada: string, tipoEscala: TipoEscalaPosto): HorariosDerivados {
   const entradaMin = horaParaMinutos(horaEntrada)
 
   if (tipoEscala === '5x1') {
@@ -117,11 +142,14 @@ export function duracaoAlmocoMin(inicio: string | null, fim: string | null): num
   return horaParaMinutos(fim.slice(0, 5)) - horaParaMinutos(inicio.slice(0, 5))
 }
 
-/** Resumo textual de um turno, adaptado ao regime (detectado pela presença dos campos). */
+/** Resumo textual de um turno, adaptado ao regime. */
 export function formatarResumoTurno(t: TurnoHorarios): string {
   const entrada = fmtHora(t.hora_entrada)
   const saida = fmtHora(t.hora_saida_seg_qui)
 
+  if (t.tipo_escala === 'jovem_aprendiz') {
+    return `Seg–Sex ${entrada}–${saida} (4h)`
+  }
   if (t.hora_saida_sex !== null) {
     return `Seg–Qui ${entrada}–${saida} (almoço ${fmtHora(t.hora_inicio_almoco)}–${fmtHora(t.hora_fim_almoco)}) · Sex até ${fmtHora(t.hora_saida_sex)}`
   }
