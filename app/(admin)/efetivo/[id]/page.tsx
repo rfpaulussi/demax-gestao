@@ -102,9 +102,9 @@ export default async function PerfilFuncionarioPage({
     supabase
       .from('horarios_funcionarios')
       .select(`
-        id, data_inicio, data_fim,
+        id, data_inicio, data_fim, dia_curso,
         turnos_postos!turno_id(
-          id, posto_id, nome,
+          id, posto_id, nome, tipo_escala,
           hora_entrada, hora_saida_seg_qui, hora_saida_sex,
           hora_inicio_almoco, hora_fim_almoco, ativo
         )
@@ -116,9 +116,9 @@ export default async function PerfilFuncionarioPage({
     supabase
       .from('horarios_funcionarios')
       .select(`
-        id, data_inicio, data_fim,
+        id, data_inicio, data_fim, dia_curso,
         turnos_postos!turno_id(
-          nome, hora_entrada, hora_saida_seg_qui, hora_saida_sex,
+          nome, tipo_escala, hora_entrada, hora_saida_seg_qui, hora_saida_sex,
           hora_inicio_almoco, hora_fim_almoco
         )
       `)
@@ -192,17 +192,23 @@ export default async function PerfilFuncionarioPage({
   // Supabase retorna o join com a chave do nome da tabela (turnos_postos), não do alias.
   // Remapear para o shape esperado pelo TabHorario ({ turno: ... })
   type RawTurno = {
-    id: string; posto_id: string; nome: string; ativo: boolean
+    id: string; posto_id: string | null; nome: string; ativo: boolean; tipo_escala: string
     hora_entrada: string; hora_saida_seg_qui: string; hora_saida_sex: string | null
     hora_inicio_almoco: string | null; hora_fim_almoco: string | null
   }
-  type RawHorario = { id: string; data_inicio: string; data_fim: string | null; turnos_postos: RawTurno | null }
+  type RawHorario = {
+    id: string; data_inicio: string; data_fim: string | null; dia_curso: number | null
+    turnos_postos: RawTurno | null
+  }
 
   const horarioVigente: HorarioVigenteShape = (() => {
     if (!horarioVigenteRaw) return null
     const raw = horarioVigenteRaw as unknown as RawHorario
     if (!raw.turnos_postos) return null
-    return { id: raw.id, data_inicio: raw.data_inicio, data_fim: raw.data_fim, turno: raw.turnos_postos }
+    return {
+      id: raw.id, data_inicio: raw.data_inicio, data_fim: raw.data_fim,
+      dia_curso: raw.dia_curso, turno: raw.turnos_postos,
+    }
   })()
 
   const historicoHorario: HistoricoHorarioShape = (historicoRaw ?? []).map((h) => {
@@ -212,7 +218,7 @@ export default async function PerfilFuncionarioPage({
       data_inicio: raw.data_inicio,
       data_fim: raw.data_fim,
       turno: raw.turnos_postos ?? {
-        nome: '—', hora_entrada: '00:00:00', hora_saida_seg_qui: '00:00:00',
+        nome: '—', tipo_escala: '5x2', hora_entrada: '00:00:00', hora_saida_seg_qui: '00:00:00',
         hora_saida_sex: '00:00:00', hora_inicio_almoco: '00:00:00', hora_fim_almoco: '00:00:00',
       },
     }
