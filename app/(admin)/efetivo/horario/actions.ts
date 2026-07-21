@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUser } from '@/lib/auth/get-user'
 import { revalidatePath } from 'next/cache'
+import { resolverTipoEscala } from '@/lib/turnos/escala'
 
 export async function listarTurnosDoPosto(postoId: string) {
   const supabase = createClient()
@@ -16,16 +17,43 @@ export async function listarTurnosDoPosto(postoId: string) {
   return data ?? []
 }
 
+/** Os dois turnos globais de jovem aprendiz (Manhã/Tarde) — sem posto_id, fixos, semeados via migração. */
+export async function listarTurnosJovemAprendiz() {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('turnos_postos')
+    .select('id, nome, hora_entrada, hora_saida_seg_qui, hora_saida_sex, hora_inicio_almoco, hora_fim_almoco, tipo_escala')
+    .is('posto_id', null)
+    .eq('tipo_escala', 'jovem_aprendiz')
+    .eq('ativo', true)
+    .order('hora_entrada')
+  if (error) throw new Error(error.message)
+  return data ?? []
+}
+
 export async function alterarTurno(
   funcionarioId: string,
   turnoId: string,
   dataInicio: string,
+  diaCurso?: number,
 ) {
   const auth = await getUser()
   if (!auth || !['admin', 'coordenador'].includes(auth.perfil.role ?? '')) {
     return { success: false, error: 'Acesso negado' }
   }
   const supabase = createClient()
+
+  const { data: turnoNovo, error: errTurnoNovo } = await supabase
+    .from('turnos_postos')
+    .select('tipo_escala')
+    .eq('id', turnoId)
+    .single()
+  if (errTurnoNovo || !turnoNovo) return { success: false, error: 'Turno não encontrado' }
+
+  const ehJovemAprendiz = resolverTipoEscala(turnoNovo.tipo_escala) === 'jovem_aprendiz'
+  if (ehJovemAprendiz && !diaCurso) {
+    return { success: false, error: 'Informe o dia de curso' }
+  }
 
   // Fechar horário vigente, se houver
   const { data: vigente } = await supabase
@@ -59,6 +87,7 @@ export async function alterarTurno(
     funcionario_id: funcionarioId,
     turno_id: turnoId,
     data_inicio: dataInicio,
+    dia_curso: ehJovemAprendiz ? diaCurso : null,
     criado_por: auth.user.id,
   })
   if (error) return { success: false, error: error.message }
