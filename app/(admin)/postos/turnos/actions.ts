@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUser } from '@/lib/auth/get-user'
 import { revalidatePath } from 'next/cache'
-import { calcularHorariosDerivados, isTipoEscala, type TipoEscala } from '@/lib/turnos/escala'
+import { calcularHorariosDerivados, isTipoEscalaPosto, type TipoEscalaPosto } from '@/lib/turnos/escala'
 
 export interface TurnoData {
   nome: string
@@ -22,7 +22,7 @@ export async function listarTurnosPosto(postoId: string) {
 }
 
 /** Regime de trabalho configurado para o posto em Config Escalas, ou null se ainda não configurado / valor inválido. */
-export async function obterRegimePosto(postoId: string): Promise<TipoEscala | null> {
+export async function obterRegimePosto(postoId: string): Promise<TipoEscalaPosto | null> {
   const supabase = createClient()
   const { data } = await supabase
     .from('config_escalas_postos')
@@ -30,7 +30,7 @@ export async function obterRegimePosto(postoId: string): Promise<TipoEscala | nu
     .eq('posto_id', postoId)
     .maybeSingle()
   const regime = data?.regime
-  return isTipoEscala(regime) ? regime : null
+  return isTipoEscalaPosto(regime) ? regime : null
 }
 
 export async function criarTurno(postoId: string, dados: TurnoData) {
@@ -70,7 +70,7 @@ export async function editarTurno(id: string, dados: TurnoData) {
   if (errBusca || !turnoAtual) return { success: false, error: 'Turno não encontrado' }
 
   const tipoEscalaAtual = turnoAtual.tipo_escala
-  const regime = isTipoEscala(tipoEscalaAtual) ? tipoEscalaAtual : '5x2'
+  const regime = isTipoEscalaPosto(tipoEscalaAtual) ? tipoEscalaAtual : '5x2'
   const derivados = calcularHorariosDerivados(dados.hora_entrada, regime)
   const { error } = await supabase
     .from('turnos_postos')
