@@ -4,11 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import * as XLSX from 'xlsx-js-style'
-import { FileSpreadsheet, FileText, Save } from 'lucide-react'
+import { FileSpreadsheet, FileText, Save, Calculator } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { FechamentoFinanceiro, ResumoFechamento } from './actions'
 import { salvarResumoFechamento } from './actions'
 import { EvolucaoChart } from '@/components/fechamento-financeiro/evolucao-chart'
+import { MemoriaCalculoDialog } from '@/components/fechamento-financeiro/memoria-calculo-dialog'
 
 const sel = 'h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
 
@@ -215,6 +216,7 @@ export function FechamentoFinClient({
   const [loadingPdf,  setLoadingPdf]  = useState(false)
   const [salvando,    setSalvando]    = useState(false)
   const [salvoMsg,    setSalvoMsg]    = useState<{ ok: boolean; text: string } | null>(null)
+  const [memoriaAberta, setMemoriaAberta] = useState<FechamentoFinanceiro | null>(null)
 
   // Filtros client-side
   const [filtroSecretaria, setFiltroSecretaria] = useState('')
@@ -273,7 +275,7 @@ export function FechamentoFinClient({
               defaultChecked={excluirAprendiz}
               className="h-4 w-4 rounded border-gray-300 accent-slate-800"
             />
-            Excluir Jovem Aprendiz
+            Excluir Jovem Aprendiz / Limpador de Vidros
           </label>
           <button type="submit" className="h-9 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700">
             Calcular
@@ -489,6 +491,15 @@ export function FechamentoFinClient({
                                     Férias · {d.dias_ferias}d
                                   </span>
                                 )}
+                                <button
+                                  type="button"
+                                  onClick={() => setMemoriaAberta(d)}
+                                  className="inline-flex h-5 w-5 items-center justify-center rounded text-gray-300 transition-colors hover:bg-slate-100 hover:text-indigo-600"
+                                  title="Ver memória de cálculo"
+                                  aria-label={`Ver memória de cálculo de ${d.funcionario_nome}`}
+                                >
+                                  <Calculator className="h-3.5 w-3.5" />
+                                </button>
                               </div>
                             </td>
                             {agrupamento !== 'funcao' && (
@@ -535,6 +546,16 @@ export function FechamentoFinClient({
             })}
           </div>
         </>
+      )}
+
+      {memoriaAberta && (
+        <MemoriaCalculoDialog
+          dados={memoriaAberta}
+          mes={mes}
+          ano={ano}
+          MESES={MESES}
+          onClose={() => setMemoriaAberta(null)}
+        />
       )}
     </>
   )

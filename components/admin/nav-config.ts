@@ -1,8 +1,14 @@
+import { ROLES_GESTAO } from '@/types'
+import type { Role } from '@/types'
+
 export type NavItem = {
   href: string
   label: string
   badge?: boolean
   alertBadge?: boolean
+  // Quando presente, define exatamente quem vê o item, ignorando o adminOnly do grupo.
+  // Ausente = herda o comportamento padrão do grupo (adminOnly).
+  allowedRoles?: readonly Role[]
 }
 
 export type NavGroup = {
@@ -37,15 +43,17 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/pendencias',       label: 'Pendências'        },
       { href: '/desligamentos',    label: 'Desligamentos'     },
       { href: '/mudancas-funcao',  label: 'Mudanças de Função' },
-      { href: '/fechamento',            label: 'Fechamento'            },
-      { href: '/fechamento-financeiro', label: 'Fechamento Financeiro'  },
+      // Fechamento, Fechamento Financeiro, Funções e Salários e Convenções liberam
+      // admin + coordenador nas próprias páginas/actions — o menu precisa refletir isso.
+      { href: '/fechamento',            label: 'Fechamento',            allowedRoles: ROLES_GESTAO },
+      { href: '/fechamento-financeiro', label: 'Fechamento Financeiro', allowedRoles: ROLES_GESTAO },
       { href: '/relatorios',       label: 'Relatórios'        },
       { href: '/importacao',       label: 'Importação'        },
       { href: '/supervisores',      label: 'Supervisores'      },
       { href: '/usuarios',         label: 'Usuários'          },
       { href: '/auditoria',        label: 'Auditoria'         },
-      { href: '/funcoes',           label: 'Funções e Salários', alertBadge: true },
-      { href: '/convencoes',       label: 'Conv. Coletivas'   },
+      { href: '/funcoes',           label: 'Funções e Salários', alertBadge: true, allowedRoles: ROLES_GESTAO },
+      { href: '/convencoes',       label: 'Conv. Coletivas', allowedRoles: ROLES_GESTAO },
     ],
   },
 ]

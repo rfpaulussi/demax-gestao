@@ -4,8 +4,26 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { getUser } from '@/lib/auth/get-user'
 import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
+import { FUNCOES_FORA_DO_EFETIVO } from '@/lib/constants'
 
 const DIAS_COBERTURA_ATESTADO = 15
+
+export interface CustoFuncaoDetalhe {
+  va: number | null
+  vr: number | null
+  vt: number | null
+  enc_inss: number | null
+  fgts: number | null
+  assid_asseio: number | null
+  bss: number | null
+  aux_saude: number | null
+  plr: number | null
+  um_doze_decimo_terceiro: number | null
+  um_terceiro_ferias: number | null
+  enc_provisorio: number | null
+  um_doze_lei_12506: number | null
+  multa_40_pct: number | null
+}
 
 export interface FechamentoFinanceiro {
   funcionario_id: string
@@ -26,6 +44,22 @@ export interface FechamentoFinanceiro {
   is_afastado: boolean
   em_ferias: boolean
   dias_ferias: number
+  // ── Memória de Cálculo — detalhamento adicional ──
+  periodo_inicio: string
+  periodo_fim: string
+  dias_atestado: number
+  dias_falta: number
+  dias_suspensao: number
+  dias_afastamento: number
+  proporcao_paga: number
+  bonus_terco_ferias: number
+  proporcao_final: number
+  salario_base: number
+  insalubridade_valor: number
+  insalubridade_perc: number | null
+  periculosidade_valor: number
+  periculosidade_perc: number | null
+  custo_detalhe: CustoFuncaoDetalhe | null
 }
 
 function clipToMes(date: string | null, fallback: string, mesStart: string, mesEnd: string): string {
@@ -61,8 +95,14 @@ export async function calcularFechamentoFinanceiro(
       .select(`
         id, nome, registro, data_admissao, data_desligamento, posto_id,
         funcoes!funcionarios_funcao_id_fkey (
-          nome, salario_base, insalubridade_valor, periculosidade_valor,
-          custos_funcoes ( total_por_func )
+          nome, salario_base,
+          insalubridade_perc, insalubridade_valor,
+          periculosidade_perc, periculosidade_valor,
+          custos_funcoes (
+            va, vr, vt, enc_inss, fgts, assid_asseio, bss, aux_saude, plr,
+            um_doze_decimo_terceiro, um_terceiro_ferias, enc_provisorio,
+            um_doze_lei_12506, multa_40_pct, total_por_func
+          )
         ),
         postos!posto_id ( nome, secretaria, config_escalas_postos ( regime ) )
       `)
@@ -79,7 +119,7 @@ export async function calcularFechamentoFinanceiro(
   if (opcoes?.excluirAprendiz) {
     funcionarios = funcionarios.filter(f => {
       const funcNome = ((f.funcoes as unknown as { nome?: string } | null)?.nome ?? '').toUpperCase()
-      return !funcNome.includes('JOVEM APRENDIZ') && !funcNome.includes('APRENDIZ')
+      return !(FUNCOES_FORA_DO_EFETIVO as readonly string[]).includes(funcNome)
     })
   }
 
@@ -90,7 +130,7 @@ export async function calcularFechamentoFinanceiro(
     supabase
       .from('ferias')
       .select('funcionario_id, data_inicio, data_fim')
-      .neq('status', 'cancelado')
+      .in('status', ['em_curso', 'concluido', 'aprovado'])
       .lte('data_inicio', mesEndStr)
       .gte('data_fim', mesStartStr),
 
@@ -143,11 +183,14 @@ export async function calcularFechamentoFinanceiro(
   const feriados = feriadosDoAno(ano)
 
   type PostoJoin = { nome: string; secretaria: string | null; config_escalas_postos: { regime: string }[] | null } | null
-  type CustosFuncoesJoin = { total_por_func: number | null } | { total_por_func: number | null }[] | null
+  type CustosFuncoesRow = CustoFuncaoDetalhe & { total_por_func: number | null }
+  type CustosFuncoesJoin = CustosFuncoesRow[] | CustosFuncoesRow | null
   type FuncaoJoin = {
     nome: string
     salario_base: number | null
+    insalubridade_perc: number | null
     insalubridade_valor: number | null
+    periculosidade_perc: number | null
     periculosidade_valor: number | null
     custos_funcoes: CustosFuncoesJoin
   } | null
@@ -158,6 +201,8 @@ export async function calcularFechamentoFinanceiro(
 
     const periodoInicio = new Date(Math.max(admissao.getTime(), mesStart.getTime()))
     const periodoFim    = new Date(Math.min(desligamento.getTime(), mesEnd.getTime()))
+    const periodoInicioStr = periodoInicio.toISOString().split('T')[0]
+    const periodoFimStr    = periodoFim.toISOString().split('T')[0]
 
     const postos  = func.postos  as unknown as PostoJoin
     const funcoes = func.funcoes as unknown as FuncaoJoin
@@ -212,9 +257,26 @@ export async function calcularFechamentoFinanceiro(
 
     // custos_funcoes pode vir como array (PostgREST) — normalizar
     const custosFuncoesRaw = funcoes?.custos_funcoes
-    const custoTotal = Array.isArray(custosFuncoesRaw)
-      ? (custosFuncoesRaw[0]?.total_por_func ?? null)
-      : (custosFuncoesRaw?.total_por_func ?? null)
+    const custosFuncoesObj = Array.isArray(custosFuncoesRaw)
+      ? (custosFuncoesRaw[0] ?? null)
+      : (custosFuncoesRaw ?? null)
+    const custoTotal = custosFuncoesObj?.total_por_func ?? null
+    const custoDetalhe: CustoFuncaoDetalhe | null = custosFuncoesObj ? {
+      va: custosFuncoesObj.va,
+      vr: custosFuncoesObj.vr,
+      vt: custosFuncoesObj.vt,
+      enc_inss: custosFuncoesObj.enc_inss,
+      fgts: custosFuncoesObj.fgts,
+      assid_asseio: custosFuncoesObj.assid_asseio,
+      bss: custosFuncoesObj.bss,
+      aux_saude: custosFuncoesObj.aux_saude,
+      plr: custosFuncoesObj.plr,
+      um_doze_decimo_terceiro: custosFuncoesObj.um_doze_decimo_terceiro,
+      um_terceiro_ferias: custosFuncoesObj.um_terceiro_ferias,
+      enc_provisorio: custosFuncoesObj.enc_provisorio,
+      um_doze_lei_12506: custosFuncoesObj.um_doze_lei_12506,
+      multa_40_pct: custosFuncoesObj.multa_40_pct,
+    } : null
 
     // Funcionários no posto AFASTADOS não geram custo contratual
     const isAfastado = (postos?.secretaria ?? '').toUpperCase() === 'AFASTADOS'
@@ -251,6 +313,21 @@ export async function calcularFechamentoFinanceiro(
       is_afastado:       isAfastado,
       em_ferias:         feriasDias > 0,
       dias_ferias:       feriasDias,
+      periodo_inicio:       periodoInicioStr,
+      periodo_fim:          periodoFimStr,
+      dias_atestado:        atestadosDias,
+      dias_falta:           faltasDias,
+      dias_suspensao:       diasSuspensao,
+      dias_afastamento:     afastamentoDias,
+      proporcao_paga:       proporcaoPaga,
+      bonus_terco_ferias:   bonusTerco,
+      proporcao_final:      proporcao,
+      salario_base:         salarioBase,
+      insalubridade_valor:  insalVal,
+      insalubridade_perc:   funcoes?.insalubridade_perc ?? null,
+      periculosidade_valor: periculVal,
+      periculosidade_perc:  funcoes?.periculosidade_perc ?? null,
+      custo_detalhe:        isAfastado ? null : custoDetalhe,
     }
   })
 }

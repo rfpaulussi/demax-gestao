@@ -83,14 +83,19 @@ function NavLinks({
   return (
     <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-4">
       {NAV_GROUPS.map((group, i) => {
-        if (group.adminOnly && role !== 'admin') return null
+        const visibleItems = group.items.filter(item =>
+          item.allowedRoles
+            ? role != null && item.allowedRoles.includes(role)
+            : !group.adminOnly || role === 'admin',
+        )
+        if (visibleItems.length === 0) return null
         return (
           <div key={group.label} className={i > 0 ? 'mt-6' : undefined}>
             <p className="text-[10px] uppercase tracking-widest px-3 mb-2" style={{ color: '#2d5a3d' }}>
               {group.label}
             </p>
             <div className="flex flex-col gap-0.5">
-              {group.items.map(({ href, label, badge, alertBadge }) => {
+              {visibleItems.map(({ href, label, badge, alertBadge }) => {
                 const Icon = ICONS[href]
                 const active = pathname === href || pathname.startsWith(href + '/')
                 const badgeVal = badge && pendingCount > 0 ? pendingCount : 0

@@ -3,6 +3,7 @@ import { getUser } from '@/lib/auth/get-user'
 import { redirect } from 'next/navigation'
 import { calcularFechamentoFinanceiro, listarResumosFechamento } from './actions'
 import { FechamentoFinClient } from './fechamento-fin-client'
+import { MetodologiaFechamentoDialog } from '@/components/fechamento-financeiro/metodologia-dialog'
 
 const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
@@ -93,7 +94,10 @@ export default async function FechamentoFinanceiroPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-lg font-bold text-gray-900">Fechamento Financeiro</h1>
+        <div className="flex items-center gap-1.5">
+          <h1 className="text-lg font-bold text-gray-900">Fechamento Financeiro</h1>
+          <MetodologiaFechamentoDialog />
+        </div>
         <p className="text-sm text-gray-400">Custo proporcional por funcionário — {MESES[mes]} {ano}</p>
       </div>
 
