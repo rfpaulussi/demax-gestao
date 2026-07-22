@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { downloadAdvertenciaPDF } from './advertencia-pdf'
 import { marcarEntregue, marcarGerada, excluirAdvertencia } from '@/app/(admin)/advertencias/actions'
 import { ModalEditarAdvertencia } from './modal-editar-advertencia'
+import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dialog'
 import type { AdvertenciaCompleta, SupervisorOpt } from '@/app/(admin)/advertencias/actions'
 
 const GRAU_BADGE: Record<string, { label: string; cls: string }> = {
@@ -60,7 +61,6 @@ export function AdvertenciasTable({ advertencias, reincPorId, supervisores }: Pr
   const [loadingPdf,          setLoadingPdf]          = useState<string | null>(null)
   const [editando,            setEditando]            = useState<AdvertenciaCompleta | null>(null)
   const [confirmandoExclusao, setConfirmandoExclusao] = useState<string | null>(null)
-  const [excluindo,           setExcluindo]           = useState(false)
   const [lista,               setLista]               = useState(advertencias)
   const [sortCol,             setSortCol]             = useState<SortCol>('ocorrencia')
 
@@ -104,19 +104,6 @@ export function AdvertenciasTable({ advertencias, reincPorId, supervisores }: Pr
       alert('Erro ao gerar PDF. Tente novamente.')
     } finally {
       setLoadingPdf(null)
-    }
-  }
-
-  async function handleExcluir(id: string) {
-    setExcluindo(true)
-    try {
-      await excluirAdvertencia(id)
-      setLista(prev => prev.filter(a => a.id !== id))
-      setConfirmandoExclusao(null)
-    } catch (err: unknown) {
-      alert('Erro ao excluir: ' + (err instanceof Error ? err.message : 'Erro desconhecido'))
-    } finally {
-      setExcluindo(false)
     }
   }
 
@@ -242,33 +229,21 @@ export function AdvertenciasTable({ advertencias, reincPorId, supervisores }: Pr
         onSuccess={handleSucesso}
       />
 
-      {/* Confirmação de exclusão */}
       {confirmandoExclusao && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
-            <h3 className="text-base font-semibold text-gray-900 mb-2">Excluir Advertência</h3>
-            <p className="text-sm text-gray-500 mb-6">
-              Tem certeza que deseja excluir esta advertência? Esta ação não pode ser desfeita.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setConfirmandoExclusao(null)}
-                className="flex h-9 items-center rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-500 hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => handleExcluir(confirmandoExclusao)}
-                disabled={excluindo}
-                className="flex h-9 items-center rounded-lg bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-              >
-                {excluindo ? 'Excluindo...' : 'Confirmar Exclusão'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmarExclusaoDialog
+          open
+          onOpenChange={(open) => { if (!open) setConfirmandoExclusao(null) }}
+          titulo="Excluir advertência?"
+          onConfirmar={async () => {
+            try {
+              await excluirAdvertencia(confirmandoExclusao)
+              setLista(prev => prev.filter(a => a.id !== confirmandoExclusao))
+              return { success: true }
+            } catch (err) {
+              return { success: false, error: err instanceof Error ? err.message : 'Erro ao excluir' }
+            }
+          }}
+        />
       )}
     </>
   )
