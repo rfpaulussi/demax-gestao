@@ -8,6 +8,7 @@ import { FileSpreadsheet } from 'lucide-react'
 import { ModalNovaFerias } from '@/components/ferias/modal-nova-ferias'
 import { ModalImportarHistoricoFerias } from '@/components/ferias/modal-importar-historico-ferias'
 import { ModalEditarFerias } from '@/components/ferias/modal-editar-ferias'
+import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dialog'
 import { exportToExcel } from '@/lib/export-excel'
 import {
   buscarFeriasLista,
@@ -258,6 +259,7 @@ function FeriasPageInner() {
   const [modalAberto, setModalAberto] = useState(false)
   const [modalHistoricoAberto, setModalHistoricoAberto] = useState(false)
   const [itemEditando, setItemEditando] = useState<FeriasListaItem | null>(null)
+  const [itemExcluindo, setItemExcluindo] = useState<FeriasListaItem | null>(null)
   const [filtroBusca, setFiltroBusca] = useState(searchParams.get('busca') ?? '')
 
   // Filtros
@@ -631,11 +633,7 @@ function FeriasPageInner() {
                         Ver / Editar
                       </button>
                       <button
-                        onClick={async () => {
-                          if (!confirm(`Excluir registro de férias de ${item.funcionario_nome}? Esta ação não pode ser desfeita.`)) return
-                          await excluirFerias(item.id)
-                          buscarFeriasLista().then(setFerias)
-                        }}
+                        onClick={() => setItemExcluindo(item)}
                         className="text-xs text-red-400 hover:text-red-600 underline"
                       >
                         Excluir
@@ -681,6 +679,22 @@ function FeriasPageInner() {
         onClose={() => setItemEditando(null)}
         onSuccess={() => buscarFeriasLista().then(setFerias)}
       />
+      {itemExcluindo && (
+        <ConfirmarExclusaoDialog
+          open
+          onOpenChange={(open) => { if (!open) setItemExcluindo(null) }}
+          titulo={`Excluir férias de ${itemExcluindo.funcionario_nome}?`}
+          onConfirmar={async () => {
+            try {
+              await excluirFerias(itemExcluindo.id)
+              buscarFeriasLista().then(setFerias)
+              return { success: true }
+            } catch (err) {
+              return { success: false, error: err instanceof Error ? err.message : 'Erro ao excluir' }
+            }
+          }}
+        />
+      )}
     </div>
   )
 }
