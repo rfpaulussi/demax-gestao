@@ -8,6 +8,7 @@ import type { AcordoCompensacao, AcordoPostoItem } from '@/app/(admin)/acordos/a
 import { excluirAcordo, marcarEntregueRH, editarAcordo } from '@/app/(admin)/acordos/actions'
 import { AcordoPdfDoc } from './acordo-pdf'
 import { ModalNovoAcordo } from './modal-novo-acordo'
+import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dialog'
 
 const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho',
   'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
@@ -138,7 +139,7 @@ export function AcordosClient({ acordos, postos, mes, ano, anos }: Props) {
   const [showModal, setShowModal]   = useState(false)
   const [editando, setEditando]     = useState<AcordoCompensacao | null>(null)
   const [loadingPdf, setLoadingPdf] = useState<string | null>(null)
-  const [deletando, setDeletando]   = useState<string | null>(null)
+  const [excluindo, setExcluindo]   = useState<AcordoCompensacao | null>(null)
   const [entregando, setEntregando] = useState<string | null>(null)
 
   // Filtros client-side
@@ -180,14 +181,6 @@ export function AcordosClient({ acordos, postos, mes, ano, anos }: Props) {
     } finally {
       setLoadingPdf(null)
     }
-  }
-
-  async function handleDelete(id: string) {
-    if (!confirm('Excluir este acordo? Esta ação não pode ser desfeita.')) return
-    setDeletando(id)
-    await excluirAcordo(id)
-    setDeletando(null)
-    router.refresh()
   }
 
   async function handleEntregueRH(id: string) {
@@ -378,9 +371,8 @@ export function AcordosClient({ acordos, postos, mes, ano, anos }: Props) {
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                   <button
-                    onClick={() => handleDelete(a.id)}
-                    disabled={deletando === a.id}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
+                    onClick={() => setExcluindo(a)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -403,6 +395,19 @@ export function AcordosClient({ acordos, postos, mes, ano, anos }: Props) {
         <ModalEditarAcordo
           acordo={editando}
           onClose={() => setEditando(null)}
+        />
+      )}
+
+      {excluindo && (
+        <ConfirmarExclusaoDialog
+          open
+          onOpenChange={(open) => { if (!open) setExcluindo(null) }}
+          titulo={`Excluir acordo "${excluindo.titulo}"?`}
+          onConfirmar={async () => {
+            const res = await excluirAcordo(excluindo.id)
+            if (!res.error) router.refresh()
+            return { success: !res.error, error: res.error }
+          }}
         />
       )}
     </>
