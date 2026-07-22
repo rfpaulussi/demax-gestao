@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { getUser } from '@/lib/auth/get-user'
 import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
+import type { Json } from '@/types/database'
 
 const DIAS_COBERTURA_ATESTADO = 15
 
@@ -365,6 +366,59 @@ export async function salvarResumoFechamento(
   const afastados = dados.filter(d => d.is_afastado)
 
   const supabase = createClient()
+
+  // Congela o detalhe por funcionário — substitui qualquer snapshot anterior deste mês/ano.
+  const { error: errDelete } = await supabase
+    .from('fechamento_financeiro_itens')
+    .delete()
+    .eq('mes', mes)
+    .eq('ano', ano)
+
+  if (errDelete) return { ok: false, message: `Erro ao limpar snapshot anterior: ${errDelete.message}` }
+
+  if (dados.length > 0) {
+    const itens = dados.map(d => ({
+      mes,
+      ano,
+      funcionario_id:       d.funcionario_id,
+      funcionario_nome:     d.funcionario_nome,
+      registro:             d.registro,
+      funcao:               d.funcao,
+      posto_nome:           d.posto_nome,
+      secretaria:           d.secretaria,
+      regime:               d.regime,
+      periodo_inicio:       d.periodo_inicio,
+      periodo_fim:          d.periodo_fim,
+      dias_uteis:           d.dias_uteis,
+      dias_trabalhados:     d.dias_trabalhados,
+      dias_ferias:          d.dias_ferias,
+      dias_atestado:        d.dias_atestado,
+      dias_falta:           d.dias_falta,
+      dias_suspensao:       d.dias_suspensao,
+      dias_afastamento:     d.dias_afastamento,
+      proporcao_paga:       d.proporcao_paga,
+      bonus_terco_ferias:   d.bonus_terco_ferias,
+      proporcao_final:      d.proporcao_final,
+      salario_base:         d.salario_base,
+      insalubridade_valor:  d.insalubridade_valor,
+      insalubridade_perc:   d.insalubridade_perc,
+      periculosidade_valor: d.periculosidade_valor,
+      periculosidade_perc:  d.periculosidade_perc,
+      salario_bruto:        d.salario_bruto,
+      salario_prop:         d.salario_prop,
+      custo_total:          d.custo_total,
+      custo_prop:           d.custo_prop,
+      custo_detalhe:        d.custo_detalhe as unknown as Json,
+      custo_ferias_extra:   d.custo_ferias_extra,
+      sem_custo:            d.sem_custo,
+      is_afastado:          d.is_afastado,
+      em_ferias:            d.em_ferias,
+    }))
+
+    const { error: errItens } = await supabase.from('fechamento_financeiro_itens').insert(itens)
+    if (errItens) return { ok: false, message: `Erro ao salvar detalhe: ${errItens.message}` }
+  }
+
   const { error } = await supabase
     .from('fechamento_financeiro_resumos')
     .upsert({
@@ -383,7 +437,10 @@ export async function salvarResumoFechamento(
     }, { onConflict: 'mes,ano' })
 
   if (error) return { ok: false, message: `Erro: ${error.message}` }
-  return { ok: true, message: `Fechamento de ${MESES_NOME[mes]}/${ano} salvo.` }
+  return {
+    ok: true,
+    message: `Fechamento de ${MESES_NOME[mes]}/${ano} salvo — ${dados.length} funcionário(s) congelado(s).`,
+  }
 }
 
 export async function listarResumosFechamento(): Promise<ResumoFechamento[]> {
@@ -396,7 +453,71 @@ export async function listarResumosFechamento(): Promise<ResumoFechamento[]> {
     .select('*')
     .order('ano', { ascending: true })
     .order('mes', { ascending: true })
-    .limit(24)
+    .limit(36)
 
   return (data ?? []) as ResumoFechamento[]
+}
+
+export interface FechamentoResultado {
+  dados: FechamentoFinanceiro[]
+  congelado: boolean
+  salvoEm: string | null
+}
+
+const ITEM_COLUNAS = `
+  funcionario_id, funcionario_nome, registro, funcao, posto_nome, secretaria, regime,
+  periodo_inicio, periodo_fim, dias_uteis, dias_trabalhados, dias_ferias, dias_atestado,
+  dias_falta, dias_suspensao, dias_afastamento, proporcao_paga, bonus_terco_ferias,
+  proporcao_final, salario_base, insalubridade_valor, insalubridade_perc,
+  periculosidade_valor, periculosidade_perc, salario_bruto, salario_prop, custo_total,
+  custo_prop, custo_detalhe, custo_ferias_extra, sem_custo, is_afastado, em_ferias
+`
+
+/**
+ * Retorna o fechamento de um mês: se já foi salvo com as mesmas opções, devolve
+ * o snapshot congelado em fechamento_financeiro_itens (não recalcula com taxas
+ * atuais de Funções e Salários); senão calcula ao vivo como antes.
+ */
+export async function obterFechamentoFinanceiro(
+  mes: number,
+  ano: number,
+  opcoes?: { excluirAprendiz?: boolean },
+): Promise<FechamentoResultado> {
+  const userCtx = await getUser()
+  if (!userCtx || !['admin', 'coordenador'].includes(userCtx.perfil.role ?? '')) {
+    throw new Error('Acesso negado')
+  }
+
+  const excluirAprendiz = opcoes?.excluirAprendiz ?? false
+  const supabase = createClient()
+
+  const { data: resumo } = await supabase
+    .from('fechamento_financeiro_resumos')
+    .select('gerado_em, excluiu_aprendiz')
+    .eq('mes', mes)
+    .eq('ano', ano)
+    .maybeSingle()
+
+  if (resumo && resumo.excluiu_aprendiz === excluirAprendiz) {
+    const itens = await fetchAllRows((from, to) =>
+      supabase
+        .from('fechamento_financeiro_itens')
+        .select(ITEM_COLUNAS)
+        .eq('mes', mes)
+        .eq('ano', ano)
+        .order('funcionario_nome', { ascending: true })
+        .range(from, to),
+    )
+
+    if (itens.length > 0) {
+      return {
+        dados: itens as unknown as FechamentoFinanceiro[],
+        congelado: true,
+        salvoEm: resumo.gerado_em,
+      }
+    }
+  }
+
+  const dados = await calcularFechamentoFinanceiro(mes, ano, { excluirAprendiz })
+  return { dados, congelado: false, salvoEm: null }
 }

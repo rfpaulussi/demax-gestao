@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils'
 import { getUser } from '@/lib/auth/get-user'
 import { redirect } from 'next/navigation'
-import { calcularFechamentoFinanceiro, listarResumosFechamento } from './actions'
+import { obterFechamentoFinanceiro, listarResumosFechamento } from './actions'
 import { FechamentoFinClient } from './fechamento-fin-client'
 import { MetodologiaFechamentoDialog } from '@/components/fechamento-financeiro/metodologia-dialog'
 
@@ -14,6 +14,10 @@ function fmtBRL(v: number) {
 function fmtPct(v: number) {
   const sign = v > 0 ? '+' : ''
   return `${sign}${v.toFixed(1)}%`
+}
+
+function fmtDataHora(iso: string) {
+  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 interface KpiProps {
@@ -55,11 +59,13 @@ export default async function FechamentoFinanceiroPage({
   const anoPrev = mes === 1 ? ano - 1 : ano
   const opcoes  = { excluirAprendiz }
 
-  const [dados, dadosPrev, resumos] = await Promise.all([
-    calcularFechamentoFinanceiro(mes, ano, opcoes),
-    calcularFechamentoFinanceiro(mesPrev, anoPrev, opcoes),
+  const [resultado, resultadoPrev, resumos] = await Promise.all([
+    obterFechamentoFinanceiro(mes, ano, opcoes),
+    obterFechamentoFinanceiro(mesPrev, anoPrev, opcoes),
     listarResumosFechamento(),
   ])
+  const { dados, congelado, salvoEm } = resultado
+  const dadosPrev = resultadoPrev.dados
 
   const secretarias = Array.from(
     new Set(dados.map(d => d.secretaria).filter((s): s is string => Boolean(s))),
@@ -100,6 +106,14 @@ export default async function FechamentoFinanceiroPage({
         </div>
         <p className="text-sm text-gray-400">Custo proporcional por funcionário — {MESES[mes]} {ano}</p>
       </div>
+
+      {congelado && salvoEm && (
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+          <strong>Fechamento salvo</strong> em {fmtDataHora(salvoEm)} — estes valores estão congelados e não
+          recalculam mesmo que salários em Funções e Salários mudem depois. Para atualizar, recalcule e
+          salve este mês novamente.
+        </div>
+      )}
 
       {/* KPIs — linha 1: financeiros */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -200,6 +214,7 @@ export default async function FechamentoFinanceiroPage({
         excluirAprendiz={excluirAprendiz}
         resumos={resumos}
         kpis={kpis}
+        congelado={congelado}
       />
     </div>
   )

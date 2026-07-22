@@ -206,10 +206,11 @@ interface Props {
     custoTotal: number; salarioTotal: number; ativos: number; afastados: number
     emFerias: number; diasFerias: number; custoFerias: number
   }
+  congelado: boolean
 }
 
 export function FechamentoFinClient({
-  dados, mes, ano, secretarias, MESES, anos, excluirAprendiz, resumos, kpis,
+  dados, mes, ano, secretarias, MESES, anos, excluirAprendiz, resumos, kpis, congelado,
 }: Props) {
   const router = useRouter()
 
@@ -292,7 +293,7 @@ export function FechamentoFinClient({
               className="flex h-9 items-center gap-2 rounded-lg bg-indigo-600 px-3 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
             >
               <Save className="h-4 w-4" />
-              {salvando ? 'Salvando…' : 'Salvar Fechamento'}
+              {salvando ? 'Salvando…' : congelado ? 'Recalcular e Sobrescrever' : 'Salvar Fechamento'}
             </button>
           )}
           <MemoriaCalculoGeralDialog dados={dados} mes={mes} ano={ano} MESES={MESES} />

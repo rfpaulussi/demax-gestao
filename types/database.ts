@@ -932,6 +932,126 @@ export type Database = {
           },
         ]
       }
+      fechamento_financeiro_itens: {
+        Row: {
+          ano: number
+          bonus_terco_ferias: number
+          criado_em: string
+          custo_detalhe: Json | null
+          custo_ferias_extra: number
+          custo_prop: number | null
+          custo_total: number | null
+          dias_afastamento: number
+          dias_atestado: number
+          dias_falta: number
+          dias_ferias: number
+          dias_suspensao: number
+          dias_trabalhados: number
+          dias_uteis: number
+          em_ferias: boolean
+          funcao: string | null
+          funcionario_id: string
+          funcionario_nome: string
+          id: string
+          insalubridade_perc: number | null
+          insalubridade_valor: number
+          is_afastado: boolean
+          mes: number
+          periculosidade_perc: number | null
+          periculosidade_valor: number
+          periodo_fim: string
+          periodo_inicio: string
+          posto_nome: string | null
+          proporcao_final: number
+          proporcao_paga: number
+          regime: string
+          registro: string | null
+          salario_base: number
+          salario_bruto: number
+          salario_prop: number
+          secretaria: string | null
+          sem_custo: boolean
+        }
+        Insert: {
+          ano: number
+          bonus_terco_ferias: number
+          criado_em?: string
+          custo_detalhe?: Json | null
+          custo_ferias_extra: number
+          custo_prop?: number | null
+          custo_total?: number | null
+          dias_afastamento: number
+          dias_atestado: number
+          dias_falta: number
+          dias_ferias: number
+          dias_suspensao: number
+          dias_trabalhados: number
+          dias_uteis: number
+          em_ferias: boolean
+          funcao?: string | null
+          funcionario_id: string
+          funcionario_nome: string
+          id?: string
+          insalubridade_perc?: number | null
+          insalubridade_valor: number
+          is_afastado: boolean
+          mes: number
+          periculosidade_perc?: number | null
+          periculosidade_valor: number
+          periodo_fim: string
+          periodo_inicio: string
+          posto_nome?: string | null
+          proporcao_final: number
+          proporcao_paga: number
+          regime: string
+          registro?: string | null
+          salario_base: number
+          salario_bruto: number
+          salario_prop: number
+          secretaria?: string | null
+          sem_custo: boolean
+        }
+        Update: {
+          ano?: number
+          bonus_terco_ferias?: number
+          criado_em?: string
+          custo_detalhe?: Json | null
+          custo_ferias_extra?: number
+          custo_prop?: number | null
+          custo_total?: number | null
+          dias_afastamento?: number
+          dias_atestado?: number
+          dias_falta?: number
+          dias_ferias?: number
+          dias_suspensao?: number
+          dias_trabalhados?: number
+          dias_uteis?: number
+          em_ferias?: boolean
+          funcao?: string | null
+          funcionario_id?: string
+          funcionario_nome?: string
+          id?: string
+          insalubridade_perc?: number | null
+          insalubridade_valor?: number
+          is_afastado?: boolean
+          mes?: number
+          periculosidade_perc?: number | null
+          periculosidade_valor?: number
+          periodo_fim?: string
+          periodo_inicio?: string
+          posto_nome?: string | null
+          proporcao_final?: number
+          proporcao_paga?: number
+          regime?: string
+          registro?: string | null
+          salario_base?: number
+          salario_bruto?: number
+          salario_prop?: number
+          secretaria?: string | null
+          sem_custo?: boolean
+        }
+        Relationships: []
+      }
       fechamento_financeiro_resumos: {
         Row: {
           ano: number
