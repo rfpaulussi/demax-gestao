@@ -11,6 +11,7 @@ import { ModalAtestado } from './modal-atestado'
 import { ModalAfastar } from './modal-afastar'
 import { ModalNovaSolicitacao } from './modal-nova-solicitacao'
 import { ModalEditarFuncionario } from './modal-editar-funcionario'
+import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dialog'
 
 export type FuncionarioRow = {
   id: string
@@ -111,6 +112,7 @@ export function FuncionariosTable({
   const [afastarFuncionario, setAfastarFuncionario]       = useState<FuncionarioRow | null>(null)
   const [solicitarFuncionario, setSolicitarFuncionario]   = useState<FuncionarioRow | null>(null)
   const [editarFuncionario,    setEditarFuncionario]      = useState<FuncionarioRow | null>(null)
+  const [excluindoFuncionario, setExcluindoFuncionario]   = useState<FuncionarioRow | null>(null)
 
   return (
     <>
@@ -317,11 +319,7 @@ export function FuncionariosTable({
                               variant="outline"
                               className="border-red-300 text-red-600 hover:bg-red-50"
                               title="Excluir cadastro permanentemente"
-                              onClick={async () => {
-                                if (!confirm(`Excluir PERMANENTEMENTE ${f.nome}?\n\nTodos os registros (férias, faltas, afastamentos, atestados) serão deletados. Esta ação é IRREVERSÍVEL.`)) return
-                                const res = await excluirFuncionarioCompleto(f.id)
-                                if (!res.success) alert('Erro: ' + res.error)
-                              }}
+                              onClick={() => setExcluindoFuncionario(f)}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -372,6 +370,16 @@ export function FuncionariosTable({
           funcionario={editarFuncionario}
           postos={postos}
           funcoes={funcoes}
+        />
+      )}
+
+      {excluindoFuncionario && (
+        <ConfirmarExclusaoDialog
+          open
+          onOpenChange={(open) => { if (!open) setExcluindoFuncionario(null) }}
+          titulo={`Excluir cadastro de ${excluindoFuncionario.nome}?`}
+          descricao="Todos os registros (férias, faltas, afastamentos, atestados) serão apagados junto. Esta ação é irreversível."
+          onConfirmar={() => excluirFuncionarioCompleto(excluindoFuncionario.id)}
         />
       )}
     </>
