@@ -4,7 +4,6 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { getUser } from '@/lib/auth/get-user'
 import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
-import { FUNCOES_FORA_DO_EFETIVO } from '@/lib/constants'
 
 const DIAS_COBERTURA_ATESTADO = 15
 
@@ -119,7 +118,7 @@ export async function calcularFechamentoFinanceiro(
   if (opcoes?.excluirAprendiz) {
     funcionarios = funcionarios.filter(f => {
       const funcNome = ((f.funcoes as unknown as { nome?: string } | null)?.nome ?? '').toUpperCase()
-      return !(FUNCOES_FORA_DO_EFETIVO as readonly string[]).includes(funcNome)
+      return funcNome !== 'JOVEM APRENDIZ'
     })
   }
 

@@ -10,6 +10,7 @@ import type { FechamentoFinanceiro, ResumoFechamento } from './actions'
 import { salvarResumoFechamento } from './actions'
 import { EvolucaoChart } from '@/components/fechamento-financeiro/evolucao-chart'
 import { MemoriaCalculoDialog } from '@/components/fechamento-financeiro/memoria-calculo-dialog'
+import { MemoriaCalculoGeralDialog } from '@/components/fechamento-financeiro/memoria-calculo-geral-dialog'
 
 const sel = 'h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
 
@@ -275,7 +276,7 @@ export function FechamentoFinClient({
               defaultChecked={excluirAprendiz}
               className="h-4 w-4 rounded border-gray-300 accent-slate-800"
             />
-            Excluir Jovem Aprendiz / Limpador de Vidros
+            Excluir Jovem Aprendiz
           </label>
           <button type="submit" className="h-9 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700">
             Calcular
@@ -294,6 +295,7 @@ export function FechamentoFinClient({
               {salvando ? 'Salvando…' : 'Salvar Fechamento'}
             </button>
           )}
+          <MemoriaCalculoGeralDialog dados={dados} mes={mes} ano={ano} MESES={MESES} />
           <button
             onClick={async () => {
               setLoadingXlsx(true)
