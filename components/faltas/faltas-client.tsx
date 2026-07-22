@@ -16,6 +16,7 @@ import { FALTA_TIPO_LABELS, FALTA_TIPO_COLORS } from './faltas-config'
 import type { FaltaTipo } from './faltas-config'
 import { ModalRegistrarFalta } from './modal-registrar-falta'
 import { ModalEditarFalta } from './modal-editar-falta'
+import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dialog'
 
 const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 const sel   = 'h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
@@ -50,27 +51,25 @@ function KpiCard({
   )
 }
 
-function RemoverBtn({ id }: { id: string }) {
-  const [pending, start] = useTransition()
-  const [erro, setErro] = useState<string | null>(null)
+function RemoverBtn({ id, nome }: { id: string; nome?: string | null }) {
+  const [confirmando, setConfirmando] = useState(false)
   return (
     <>
       <button
         type="button"
-        onClick={() => {
-          if (!confirm('Remover esta falta? Esta ação não pode ser desfeita.')) return
-          setErro(null)
-          start(async () => {
-            const res = await removerFalta(id)
-            if (!res.success) setErro(res.error ?? 'Erro ao remover')
-          })
-        }}
-        disabled={pending}
-        className="text-xs text-red-500 hover:text-red-700 disabled:opacity-40"
+        onClick={() => setConfirmando(true)}
+        className="text-xs text-red-500 hover:text-red-700"
       >
-        {pending ? '...' : 'Remover'}
+        Remover
       </button>
-      {erro && <span className="text-xs text-red-500">{erro}</span>}
+      {confirmando && (
+        <ConfirmarExclusaoDialog
+          open
+          onOpenChange={setConfirmando}
+          titulo={`Remover falta${nome ? ` de ${nome}` : ''}?`}
+          onConfirmar={() => removerFalta(id)}
+        />
+      )}
     </>
   )
 }
@@ -385,7 +384,7 @@ export function FaltasClient({ dash, faltas, funcionariosOpt, mes, ano, tipoAtiv
                         >
                           Editar
                         </button>
-                        <RemoverBtn id={f.id} />
+                        <RemoverBtn id={f.id} nome={f.funcionarios?.nome} />
                         {f.tipo === 'sem_justificativa' && (
                           <Link
                             href={`/advertencias?funcionario_id=${f.funcionario_id}`}
