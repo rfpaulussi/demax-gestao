@@ -5,6 +5,7 @@ import { Clock, CalendarDays, ChevronDown, ChevronUp, X, Plus, AlertCircle, Tras
 import { cn } from '@/lib/utils'
 import { listarTurnosDoPosto, listarTurnosJovemAprendiz, alterarTurno, deletarHorarioFuncionario } from '@/app/(admin)/efetivo/horario/actions'
 import { resolverTipoEscala, ESCALA_LABEL, ESCALA_BADGE_CLASS, formatarResumoTurno, duracaoAlmocoMin, FUNCAO_JOVEM_APRENDIZ } from '@/lib/turnos/escala'
+import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dialog'
 
 // ─── tipos de entrada ─────────────────────────────────────────────────────────
 
@@ -358,23 +359,8 @@ export function TabHorario({
   const [modalAberto, setModalAberto]         = useState(false)
   const [historicoAberto, setHistoricoAberto] = useState(false)
   const [confirmDelete, setConfirmDelete]     = useState<string | null>(null)
-  const [deleting, setDeleting]               = useState(false)
-  const [deleteErro, setDeleteErro]           = useState<string | null>(null)
 
   const canWrite = role === 'admin' || role === 'coordenador'
-
-  async function handleDeletar(id: string) {
-    setDeleting(true)
-    setDeleteErro(null)
-    const res = await deletarHorarioFuncionario(id)
-    setDeleting(false)
-    if (!res.success) {
-      setDeleteErro(res.error ?? 'Erro ao excluir')
-      setConfirmDelete(null)
-      return
-    }
-    setConfirmDelete(null)
-  }
   const isJovemAprendiz = funcaoNome === FUNCAO_JOVEM_APRENDIZ
   const regime    = isJovemAprendiz ? 'jovem_aprendiz' : (regimePosto ?? '5x2')
   const regimeCfg = REGIME_CONFIG[regime] ?? REGIME_CONFIG['5x2']
@@ -542,12 +528,6 @@ export function TabHorario({
 
           {historicoAberto && (
             <div className="divide-y divide-gray-50 border-t border-gray-100">
-              {deleteErro && (
-                <p className="flex items-center gap-1.5 px-5 py-2 text-xs text-red-600">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                  {deleteErro}
-                </p>
-              )}
               {historicoHorario.map((h) => (
                 <div key={h.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
                   <div>
@@ -562,43 +542,21 @@ export function TabHorario({
                     </p>
                   </div>
 
-                  {confirmDelete === h.id ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-red-600 font-medium">Excluir este registro?</span>
+                  <div className="flex items-center gap-4">
+                    <p className="text-xs text-gray-400">
+                      {formatarResumoTurno(h.turno)}
+                    </p>
+                    {canWrite && (
                       <button
                         type="button"
-                        disabled={deleting}
-                        onClick={() => handleDeletar(h.id)}
-                        className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                        onClick={() => setConfirmDelete(h.id)}
+                        title="Excluir registro"
+                        className="rounded-md p-1 text-gray-300 hover:bg-red-50 hover:text-red-500 transition-colors"
                       >
-                        {deleting ? '…' : 'Sim'}
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
-                      <button
-                        type="button"
-                        disabled={deleting}
-                        onClick={() => setConfirmDelete(null)}
-                        className="rounded-md border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        Não
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-4">
-                      <p className="text-xs text-gray-400">
-                        {formatarResumoTurno(h.turno)}
-                      </p>
-                      {canWrite && (
-                        <button
-                          type="button"
-                          onClick={() => { setConfirmDelete(h.id); setDeleteErro(null) }}
-                          title="Excluir registro"
-                          className="rounded-md p-1 text-gray-300 hover:bg-red-50 hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -618,6 +576,15 @@ export function TabHorario({
           onSucesso={() => {
             // revalidatePath no server action vai atualizar os dados via RSC
           }}
+        />
+      )}
+
+      {confirmDelete && (
+        <ConfirmarExclusaoDialog
+          open
+          onOpenChange={(open) => { if (!open) setConfirmDelete(null) }}
+          titulo={`Excluir registro "${historicoHorario.find(h => h.id === confirmDelete)?.turno.nome ?? ''}"?`}
+          onConfirmar={() => deletarHorarioFuncionario(confirmDelete)}
         />
       )}
     </div>
