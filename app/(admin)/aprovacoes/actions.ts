@@ -109,13 +109,17 @@ export async function aprovarSolicitacao(
 
   if (solError || !sol) return { success: false, error: 'Solicitação não encontrada' }
   if (sol.status !== 'pendente') return { success: false, error: 'Solicitação já processada' }
-  if (!sol.funcionario_id) return { success: false, error: 'Funcionário não vinculado à solicitação' }
+  if (!sol.funcionario_id && sol.tipo !== 'admissao') return { success: false, error: 'Funcionário não vinculado à solicitação' }
 
-  const { data: func } = await supabase
-    .from('funcionarios')
-    .select('status, posto_id, funcao_id, salario')
-    .eq('id', sol.funcionario_id)
-    .single()
+  const funcionarioId = sol.funcionario_id as string
+
+  const { data: func } = sol.funcionario_id
+    ? await supabase
+        .from('funcionarios')
+        .select('status, posto_id, funcao_id, salario')
+        .eq('id', sol.funcionario_id)
+        .single()
+    : { data: null }
 
   const dadosDepois = (sol.dados_depois ?? {}) as Record<string, unknown>
   const dadosAntes  = (sol.dados_antes  ?? {}) as Record<string, unknown>
@@ -130,7 +134,7 @@ export async function aprovarSolicitacao(
           data_desligamento:   dataDesligamento ?? null,
           motivo_desligamento: (dadosDepois.motivo as string) ?? null,
         })
-        .eq('id', sol.funcionario_id)
+        .eq('id', funcionarioId)
       break
     }
 
@@ -140,10 +144,10 @@ export async function aprovarSolicitacao(
       await supabase
         .from('funcionarios')
         .update(updateTransf as { posto_id: string })
-        .eq('id', sol.funcionario_id)
+        .eq('id', funcionarioId)
       if (dadosDepois.nova_funcao_id) {
         await supabase.from('movimentacoes').insert({
-          funcionario_id:  sol.funcionario_id,
+          funcionario_id:  funcionarioId,
           tipo:            'mudanca_funcao',
           campo_alterado:  'funcao_id',
           valor_antes:     func?.funcao_id ?? null,
@@ -160,7 +164,7 @@ export async function aprovarSolicitacao(
       await supabase
         .from('funcionarios')
         .update({ funcao_id: dadosDepois.funcao_destino_id as string })
-        .eq('id', sol.funcionario_id)
+        .eq('id', funcionarioId)
       break
     }
 
@@ -168,7 +172,7 @@ export async function aprovarSolicitacao(
       await supabase
         .from('funcionarios')
         .update({ salario: dadosDepois.novo_salario as number })
-        .eq('id', sol.funcionario_id)
+        .eq('id', funcionarioId)
       break
     }
 
@@ -179,9 +183,9 @@ export async function aprovarSolicitacao(
       await supabase
         .from('funcionarios')
         .update({ status: 'afastado', motivo_afastamento: motivoAfastamento })
-        .eq('id', sol.funcionario_id)
+        .eq('id', funcionarioId)
       await supabase.from('afastamentos').insert({
-        funcionario_id:    sol.funcionario_id,
+        funcionario_id:    funcionarioId,
         motivo:            (dadosDepois.motivo as string | null) ?? null,
         data_inicio:       dadosDepois.data_inicio as string,
         data_fim_prevista: (dadosDepois.data_retorno_prevista as string | null) ?? null,
@@ -197,11 +201,11 @@ export async function aprovarSolicitacao(
           status:   'ativo',
           posto_id: (dadosDepois.posto_retorno_id as string | undefined) ?? func?.posto_id ?? null,
         })
-        .eq('id', sol.funcionario_id)
+        .eq('id', funcionarioId)
       await supabase
         .from('afastamentos')
         .update({ data_fim_real: dadosDepois.data_retorno as string })
-        .eq('funcionario_id', sol.funcionario_id)
+        .eq('funcionario_id', funcionarioId)
         .is('data_fim_real', null)
       break
     }
@@ -214,7 +218,7 @@ export async function aprovarSolicitacao(
           data_desligamento:   (dadosDepois.data_rescisao as string) ?? null,
           motivo_desligamento: (dadosDepois.motivo as string) ?? sol.motivo ?? 'Rescisão Indireta',
         })
-        .eq('id', sol.funcionario_id)
+        .eq('id', funcionarioId)
       break
     }
 
@@ -293,7 +297,7 @@ export async function aprovarSolicitacao(
   const mov = campoMap[sol.tipo as keyof typeof campoMap]
 
   const { error: errMovAprov } = await supabase.from('movimentacoes').insert({
-    funcionario_id:  sol.funcionario_id,
+    funcionario_id:  funcionarioId,
     tipo:            sol.tipo,
     campo_alterado:  mov?.campo ?? null,
     valor_antes:     mov?.antes ?? null,
