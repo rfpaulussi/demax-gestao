@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { deleteAtestado } from '@/app/(admin)/atestados/actions'
 import { solicitarAfastamento } from '@/app/(admin)/efetivo/actions'
 import { ModalEditarAtestado } from './modal-editar-atestado'
+import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dialog'
 
 export type AtestadoRow = {
   id: string
@@ -299,8 +300,6 @@ function RankingCard({
 export function AtestadosClient({ atestados, cids }: Props) {
   const [editando, setEditando] = useState<AtestadoRow | null>(null)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
-  const [erroExcluir, setErroExcluir] = useState('')
-  const [pendingDelete, setPendingDelete] = useState(false)
   const [sortCol, setSortCol] = useState<SortCol>('data_inicio')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [aba, setAba] = useState<'lista' | 'ranking'>('lista')
@@ -401,16 +400,6 @@ export function AtestadosClient({ atestados, cids }: Props) {
     }
     return Array.from(map.values()).sort((a, b) => b.ocorrencias - a.ocorrencias).slice(0, 10)
   }, [atestados, janelaRanking])
-
-  async function confirmarExclusao() {
-    if (!excluindoId) return
-    setPendingDelete(true)
-    setErroExcluir('')
-    const res = await deleteAtestado(excluindoId)
-    setPendingDelete(false)
-    if (res.error) { setErroExcluir(res.error); return }
-    setExcluindoId(null)
-  }
 
   return (
     <>
@@ -628,61 +617,37 @@ export function AtestadosClient({ atestados, cids }: Props) {
                       </div>
                     </td>
                     <td className="px-3 py-2">
-                      {excluindoId === a.id ? (
-                        <div className="flex flex-col gap-1">
-                          <p className="text-xs text-gray-600">Tem certeza? Esta ação não pode ser desfeita.</p>
-                          {erroExcluir && <p className="text-xs text-red-600">{erroExcluir}</p>}
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={confirmarExclusao}
-                              disabled={pendingDelete}
-                              className="rounded bg-red-600 px-2 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                            >
-                              {pendingDelete ? '...' : 'Confirmar'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => { setExcluindoId(null); setErroExcluir('') }}
-                              className="rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-wrap gap-1.5">
-                          {ultimoAlertaIds.has(a.id) && (
-                            <button
-                              type="button"
-                              onClick={() => setInssModal({
-                                funcionario_id: a.funcionario_id,
-                                funcionario_nome: a.funcionario_nome,
-                                data_inicio: primeiroAtestadoMap.get(a.funcionario_id) ?? a.data_inicio,
-                                dias: a.acumulado,
-                                motivo: 'INSS - Doença',
-                              })}
-                              className="rounded border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
-                            >
-                              Solicitar INSS
-                            </button>
-                          )}
+                      <div className="flex flex-wrap gap-1.5">
+                        {ultimoAlertaIds.has(a.id) && (
                           <button
                             type="button"
-                            onClick={() => setEditando(a)}
-                            className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                            onClick={() => setInssModal({
+                              funcionario_id: a.funcionario_id,
+                              funcionario_nome: a.funcionario_nome,
+                              data_inicio: primeiroAtestadoMap.get(a.funcionario_id) ?? a.data_inicio,
+                              dias: a.acumulado,
+                              motivo: 'INSS - Doença',
+                            })}
+                            className="rounded border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
                           >
-                            Editar
+                            Solicitar INSS
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => setExcluindoId(a.id)}
-                            className="rounded border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-                          >
-                            Excluir
-                          </button>
-                        </div>
-                      )}
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setEditando(a)}
+                          className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExcluindoId(a.id)}
+                          className="rounded border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                        >
+                          Excluir
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -697,6 +662,18 @@ export function AtestadosClient({ atestados, cids }: Props) {
         onClose={() => setEditando(null)}
         cids={cids}
       />
+
+      {excluindoId && (
+        <ConfirmarExclusaoDialog
+          open
+          onOpenChange={(open) => { if (!open) setExcluindoId(null) }}
+          titulo={`Excluir atestado de ${atestados.find(x => x.id === excluindoId)?.funcionario_nome ?? ''}?`}
+          onConfirmar={async () => {
+            const res = await deleteAtestado(excluindoId)
+            return { success: !res.error, error: res.error }
+          }}
+        />
+      )}
 
       {inssModal && (
         <ModalSolicitarInss
