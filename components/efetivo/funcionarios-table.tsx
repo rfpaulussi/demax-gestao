@@ -92,6 +92,7 @@ export function FuncionariosTable({
   sortDir,
   onSort,
   isAdmin,
+  podeIgnorarAfastado,
   faltasAtivas,
   coberturaSubstitutos,
   coberturaAusentes,
@@ -104,6 +105,7 @@ export function FuncionariosTable({
   sortDir?: 'asc' | 'desc'
   onSort?: (col: string) => void
   isAdmin?: boolean
+  podeIgnorarAfastado?: boolean
   faltasAtivas?: Record<string, boolean>
   coberturaSubstitutos?: Record<string, boolean>
   coberturaAusentes?: Record<string, boolean>
@@ -253,8 +255,12 @@ export function FuncionariosTable({
                               variant="outline"
                               className="border-indigo-300 text-indigo-700 hover:bg-indigo-50"
                               onClick={() => setAtestadoFuncionario(f)}
-                              disabled={!f.posto_id}
-                              title={!f.posto_id ? 'Sem posto vinculado' : undefined}
+                              disabled={!f.posto_id || (f.status === 'afastado' && !podeIgnorarAfastado)}
+                              title={
+                                !f.posto_id ? 'Sem posto vinculado'
+                                : (f.status === 'afastado' && !podeIgnorarAfastado) ? 'Funcionário afastado — apenas admin/coordenador podem lançar atestado aqui. Solicite o retorno de afastamento.'
+                                : undefined
+                              }
                             >
                               <FileMinus className="h-3.5 w-3.5" />
                               Atestado

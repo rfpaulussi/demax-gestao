@@ -27,6 +27,13 @@ export async function registrarAtestado(formData: FormData) {
     .eq('id', funcionarioId)
     .single()
 
+  if (func?.status === 'afastado') {
+    const podeIgnorar = auth.perfil.role === 'admin' || auth.perfil.role === 'coordenador'
+    if (!podeIgnorar) {
+      throw new Error('Funcionário está afastado. Apenas admin/coordenador podem lançar atestado nesta situação — solicite o retorno de afastamento antes.')
+    }
+  }
+
   const { error: errAtestado } = await supabase.from('atestados').insert({
     funcionario_id: funcionarioId,
     posto_id: postoId,

@@ -54,6 +54,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/auditoria',        label: 'Auditoria'         },
       { href: '/funcoes',           label: 'Funções e Salários', alertBadge: true, allowedRoles: ROLES_GESTAO },
       { href: '/convencoes',       label: 'Conv. Coletivas', allowedRoles: ROLES_GESTAO },
+      { href: '/revisor-operacional', label: 'Revisor Operacional', allowedRoles: ROLES_GESTAO },
     ],
   },
 ]

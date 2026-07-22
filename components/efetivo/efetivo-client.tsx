@@ -38,12 +38,13 @@ interface Props {
   funcoes: { id: string; nome: string }[]
   cids: { codigo: string; descricao: string }[]
   isAdmin?: boolean
+  podeIgnorarAfastado?: boolean
   faltasAtivas?: Record<string, boolean>
   coberturaSubstitutos?: Record<string, boolean>
   coberturaAusentes?: Record<string, boolean>
 }
 
-export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cids, isAdmin, faltasAtivas, coberturaSubstitutos, coberturaAusentes }: Props) {
+export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cids, isAdmin, podeIgnorarAfastado, faltasAtivas, coberturaSubstitutos, coberturaAusentes }: Props) {
   const [values, setValues] = useState<FiltrosValues>({
     busca: '', status: '', secretaria: '', supervisor: '', posto: '',
   })
@@ -186,6 +187,7 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
         sortDir={sortDir}
         onSort={toggleSort}
         isAdmin={isAdmin}
+        podeIgnorarAfastado={podeIgnorarAfastado}
         faltasAtivas={faltasAtivas}
         coberturaSubstitutos={coberturaSubstitutos}
         coberturaAusentes={coberturaAusentes}

@@ -1752,7 +1752,10 @@ export type Database = {
       }
       ocorrencias: {
         Row: {
+          atualizado_em: string | null
+          atualizado_por: string | null
           created_at: string | null
+          criado_por: string | null
           data_lembrete: string | null
           data_ocorrencia: string | null
           descricao: string | null
@@ -1765,7 +1768,10 @@ export type Database = {
           titulo: string | null
         }
         Insert: {
+          atualizado_em?: string | null
+          atualizado_por?: string | null
           created_at?: string | null
+          criado_por?: string | null
           data_lembrete?: string | null
           data_ocorrencia?: string | null
           descricao?: string | null
@@ -1778,7 +1784,10 @@ export type Database = {
           titulo?: string | null
         }
         Update: {
+          atualizado_em?: string | null
+          atualizado_por?: string | null
           created_at?: string | null
+          criado_por?: string | null
           data_lembrete?: string | null
           data_ocorrencia?: string | null
           descricao?: string | null
@@ -1791,6 +1800,20 @@ export type Database = {
           titulo?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "ocorrencias_atualizado_por_fkey"
+            columns: ["atualizado_por"]
+            isOneToOne: false
+            referencedRelation: "perfis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ocorrencias_criado_por_fkey"
+            columns: ["criado_por"]
+            isOneToOne: false
+            referencedRelation: "perfis"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "ocorrencias_posto_id_fkey"
             columns: ["posto_id"]

@@ -19,6 +19,9 @@ export type OcorrenciaRow = {
   gravidade: 'baixa' | 'media' | 'alta' | 'critica'
   status: 'aberta' | 'em_analise' | 'encerrada' | 'resolvido'
   created_at: string
+  criado_por_nome: string | null
+  atualizado_por_nome: string | null
+  atualizado_em: string | null
 }
 
 export type PostoSimples = { id: string; nome: string; secretaria: string }
@@ -41,6 +44,9 @@ type RawOcorrencia = {
   tipo: string | null
   data_lembrete: string | null
   created_at: string | null
+  criado_por: string | null
+  atualizado_por: string | null
+  atualizado_em: string | null
 }
 
 export async function getOcorrenciasData(): Promise<OcorrenciaRow[]> {
@@ -51,7 +57,7 @@ export async function getOcorrenciasData(): Promise<OcorrenciaRow[]> {
   // Alertas têm posto_id=null, então o RLS por posto os excluiria sem esse tratamento
   let ocorrenciasQuery = (supabase as unknown as AnyClient)
     .from('ocorrencias')
-    .select('id, posto_id, supervisor_id, titulo, descricao, data_ocorrencia, gravidade, status, tipo, data_lembrete, created_at')
+    .select('id, posto_id, supervisor_id, titulo, descricao, data_ocorrencia, gravidade, status, tipo, data_lembrete, created_at, criado_por, atualizado_por, atualizado_em')
     .order('data_ocorrencia', { ascending: false })
 
   if (auth?.perfil.role === 'supervisor') {
@@ -99,6 +105,9 @@ export async function getOcorrenciasData(): Promise<OcorrenciaRow[]> {
     gravidade: (o.gravidade ?? 'baixa') as OcorrenciaRow['gravidade'],
     status: (o.status ?? 'aberta') as OcorrenciaRow['status'],
     created_at: o.created_at ?? '',
+    criado_por_nome: o.criado_por ? (perfisMap.get(o.criado_por) ?? null) : null,
+    atualizado_por_nome: o.atualizado_por ? (perfisMap.get(o.atualizado_por) ?? null) : null,
+    atualizado_em: o.atualizado_em ?? null,
   }))
 }
 
@@ -139,6 +148,10 @@ export async function getSupervisoresSimples(): Promise<SupervisorSimples[]> {
 }
 
 export async function createOcorrencia(formData: FormData): Promise<ActionResult> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role === 'viewer') return { success: false, error: 'Sem permissão' }
+
+  const supabase = createClient()
   const adminSupabase = createAdminClient()
 
   const posto_id        = formData.get('posto_id') as string
@@ -146,6 +159,16 @@ export async function createOcorrencia(formData: FormData): Promise<ActionResult
   const descricao       = formData.get('descricao') as string
   const data_ocorrencia = formData.get('data_ocorrencia') as string
   const gravidade       = formData.get('gravidade') as string
+
+  if (auth.perfil.role === 'supervisor') {
+    const { data: cfg } = await supabase
+      .from('config_supervisores_postos')
+      .select('posto_id')
+      .eq('supervisor_id', auth.user.id)
+      .eq('ativo', true)
+    const ids = (cfg ?? []).map((r: { posto_id: string }) => r.posto_id)
+    if (!ids.includes(posto_id)) return { success: false, error: 'Posto fora da sua área' }
+  }
 
   const { error } = await (adminSupabase as unknown as AnyClient).from('ocorrencias').insert({
     posto_id,
@@ -155,6 +178,7 @@ export async function createOcorrencia(formData: FormData): Promise<ActionResult
     gravidade,
     status: 'aberta',
     tipo: 'ocorrencia',
+    criado_por: auth.user.id,
   })
 
   if (error) return { success: false, error: error.message }
@@ -170,6 +194,7 @@ export async function criarAlerta(
 ): Promise<ActionResult> {
   const auth = await getUser()
   if (!auth) return { success: false, error: 'Não autenticado' }
+  if (auth.perfil.role === 'viewer') return { success: false, error: 'Sem permissão' }
 
   const adminSupabase = createAdminClient()
 
@@ -182,6 +207,7 @@ export async function criarAlerta(
     gravidade:       'baixa',
     status:          'aberta',
     tipo:            'alerta',
+    criado_por:      auth.user.id,
   })
 
   if (error) return { success: false, error: error.message }
@@ -191,11 +217,23 @@ export async function criarAlerta(
 }
 
 export async function resolverAlerta(id: string): Promise<ActionResult> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role === 'viewer') return { success: false, error: 'Sem permissão' }
+
   const adminSupabase = createAdminClient()
+
+  if (auth.perfil.role === 'supervisor') {
+    const { data: alerta } = await (adminSupabase as unknown as AnyClient)
+      .from('ocorrencias')
+      .select('supervisor_id')
+      .eq('id', id)
+      .single()
+    if (alerta?.supervisor_id !== auth.user.id) return { success: false, error: 'Sem permissão' }
+  }
 
   const { error } = await (adminSupabase as unknown as AnyClient)
     .from('ocorrencias')
-    .update({ status: 'resolvido' })
+    .update({ status: 'resolvido', atualizado_por: auth.user.id, atualizado_em: new Date().toISOString() })
     .eq('id', id)
 
   if (error) return { success: false, error: error.message }
@@ -205,14 +243,35 @@ export async function resolverAlerta(id: string): Promise<ActionResult> {
 }
 
 export async function updateStatusOcorrencia(formData: FormData): Promise<ActionResult> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role === 'viewer') return { success: false, error: 'Sem permissão' }
+
   const adminSupabase = createAdminClient()
 
   const id     = formData.get('id') as string
   const status = formData.get('status') as string
 
+  if (auth.perfil.role === 'supervisor') {
+    const supabase = createClient()
+    const { data: ocorrencia } = await (adminSupabase as unknown as AnyClient)
+      .from('ocorrencias')
+      .select('posto_id')
+      .eq('id', id)
+      .single()
+    const { data: cfg } = await supabase
+      .from('config_supervisores_postos')
+      .select('posto_id')
+      .eq('supervisor_id', auth.user.id)
+      .eq('ativo', true)
+    const ids = (cfg ?? []).map((r: { posto_id: string }) => r.posto_id)
+    if (!ocorrencia?.posto_id || !ids.includes(ocorrencia.posto_id)) {
+      return { success: false, error: 'Sem permissão' }
+    }
+  }
+
   const { error } = await (adminSupabase as unknown as AnyClient)
     .from('ocorrencias')
-    .update({ status })
+    .update({ status, atualizado_por: auth.user.id, atualizado_em: new Date().toISOString() })
     .eq('id', id)
 
   if (error) return { success: false, error: error.message }

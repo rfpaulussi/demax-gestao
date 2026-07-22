@@ -63,6 +63,7 @@ const COLS: ColDef[] = [
   { label: 'Supervisor', sortKey: 'supervisor_nome' },
   { label: 'Gravidade',  sortKey: 'gravidade'       },
   { label: 'Status',     sortKey: 'status'          },
+  { label: 'Registro',   sortKey: null              },
   { label: 'Ações',      sortKey: null              },
 ]
 
@@ -78,13 +79,13 @@ export function OcorrenciasClient({
   postos,
   supervisores,
   currentUserId,
-  isAdmin,
+  isAdminOrCoord,
 }: {
   ocorrencias: OcorrenciaRow[]
   postos: PostoSimples[]
   supervisores: SupervisorSimples[]
   currentUserId: string | null
-  isAdmin: boolean
+  isAdminOrCoord: boolean
 }) {
   const [filtSecretaria, setFiltSecretaria] = useState('')
   const [filtSupervisor, setFiltSupervisor] = useState('')
@@ -106,12 +107,12 @@ export function OcorrenciasClient({
   // ── Visibilidade: supervisores veem apenas seus próprios alertas ────────────
 
   const visiveis = useMemo(() => {
-    if (isAdmin) return ocorrencias
+    if (isAdminOrCoord) return ocorrencias
     return ocorrencias.filter(o => {
       if (o.tipo === 'alerta') return o.supervisor_id === currentUserId
       return true
     })
-  }, [ocorrencias, isAdmin, currentUserId])
+  }, [ocorrencias, isAdminOrCoord, currentUserId])
 
   // ── filter options ─────────────────────────────────────────────────────────
 
@@ -186,11 +187,17 @@ export function OcorrenciasClient({
     const fd = new FormData()
     fd.set('id', id)
     fd.set('status', newStatus)
-    startTransition(async () => { await updateStatusOcorrencia(fd) })
+    startTransition(async () => {
+      const result = await updateStatusOcorrencia(fd)
+      if (!result.success) alert(result.error)
+    })
   }
 
   function handleResolverAlerta(id: string) {
-    startTransition(async () => { await resolverAlerta(id) })
+    startTransition(async () => {
+      const result = await resolverAlerta(id)
+      if (!result.success) alert(result.error)
+    })
   }
 
   function handleCreate(e: React.FormEvent<HTMLFormElement>) {
@@ -320,7 +327,7 @@ export function OcorrenciasClient({
             <tbody className="divide-y divide-gray-50">
               {sorted.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">
+                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">
                     Nenhuma ocorrência encontrada
                   </td>
                 </tr>
@@ -368,6 +375,15 @@ export function OcorrenciasClient({
                         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CHIP[o.status] ?? ''}`}>
                           {STATUS_LABEL[o.status] ?? o.status}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-500">
+                        <div>Criado: {o.criado_por_nome ?? '—'}</div>
+                        {o.atualizado_por_nome && (
+                          <div>
+                            Alt.: {o.atualizado_por_nome}
+                            {o.atualizado_em && ` · ${new Date(o.atualizado_em).toLocaleDateString('pt-BR')}`}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {isAlerta && o.status === 'aberta' && (

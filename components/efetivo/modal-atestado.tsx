@@ -26,6 +26,7 @@ function addDays(dateStr: string, days: number): string {
 
 export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
   const [pending, setPending]     = useState(false)
+  const [erro, setErro]           = useState<string | null>(null)
   const [cidBusca, setCidBusca]   = useState('')
   const [cidCodigo, setCidCodigo] = useState('')
   const [cidAberto, setCidAberto] = useState(false)
@@ -78,6 +79,7 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
     setDataInicio('')
     setDias('')
     setDataFim('')
+    setErro(null)
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -90,11 +92,14 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
     data.set('data_fim', dataFim || (form.querySelector<HTMLInputElement>('[name=data_fim_manual]')?.value ?? ''))
     data.set('sem_cid', semCid ? 'true' : 'false')
     setPending(true)
+    setErro(null)
     try {
       await registrarAtestado(data)
       form.reset()
       resetState()
       onClose()
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Erro ao registrar atestado')
     } finally {
       setPending(false)
     }
@@ -107,6 +112,13 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
         <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-xl">
           <Dialog.Title className="mb-1 text-lg font-semibold">Registrar Atestado</Dialog.Title>
           <p className="mb-4 text-sm text-gray-500">{funcionario.nome}</p>
+
+          {funcionario.status === 'afastado' && (
+            <div className="mb-4 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              ⚠ Este funcionário está atualmente afastado. Lançar atestado aqui não substitui a
+              aprovação de retorno de afastamento.
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Data início + Dias → Data fim automática */}
@@ -240,6 +252,12 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
                 <option value="doenca_ocupacional">Doença Ocupacional</option>
               </select>
             </div>
+
+            {erro && (
+              <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {erro}
+              </p>
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
               <button

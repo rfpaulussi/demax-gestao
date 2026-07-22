@@ -30,6 +30,7 @@ import {
   Scale,
   BadgeDollarSign,
   Briefcase,
+  SearchCheck,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import { NAV_GROUPS } from './nav-config'
@@ -63,6 +64,7 @@ const ICONS: Record<string, React.ElementType> = {
   '/convencoes':            Scale,
   '/fechamento-financeiro': BadgeDollarSign,
   '/funcoes':               Briefcase,
+  '/revisor-operacional':   SearchCheck,
 }
 
 // ─── shared nav content ──────────────────────────────────────────────────────

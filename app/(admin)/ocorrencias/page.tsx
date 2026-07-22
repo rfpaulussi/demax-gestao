@@ -22,7 +22,7 @@ export default async function OcorrenciasPage() {
         postos={postos}
         supervisores={supervisores}
         currentUserId={auth?.user.id ?? null}
-        isAdmin={auth?.perfil.role === 'admin'}
+        isAdminOrCoord={auth?.perfil.role === 'admin' || auth?.perfil.role === 'coordenador'}
       />
     </div>
   )

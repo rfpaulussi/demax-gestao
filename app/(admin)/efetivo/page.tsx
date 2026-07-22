@@ -43,6 +43,7 @@ export default async function EfetivoPage() {
   const supabaseAdmin = createAdminClient()
   const auth = await getUser()
   const isAdmin = auth?.perfil.role === 'admin'
+  const podeIgnorarAfastado = auth?.perfil.role === 'admin' || auth?.perfil.role === 'coordenador'
 
   const [
     { data: raw },
@@ -189,6 +190,7 @@ export default async function EfetivoPage() {
         funcoes={funcoes}
         cids={cids}
         isAdmin={isAdmin}
+        podeIgnorarAfastado={podeIgnorarAfastado}
         faltasAtivas={faltasAtivas}
         coberturaSubstitutos={coberturaSubstitutos}
         coberturaAusentes={coberturaAusentes}
