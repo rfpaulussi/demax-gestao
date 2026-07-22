@@ -8,11 +8,7 @@ import { editarMudancaFuncao, excluirMudancaFuncao, toggleEnviadoRH } from '@/ap
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dialog'
 
 export interface MudancaFuncaoAdminRow {
   id: string
@@ -167,45 +163,28 @@ interface DialogExcluirProps {
 }
 
 function DialogExcluir({ row, onClose }: DialogExcluirProps) {
-  const [erro,    setErro]    = useState('')
-  const [pending, startTransition] = useTransition()
-
-  function handleConfirmar() {
-    const fd = new FormData()
-    fd.set('movimentacao_id', row.id)
-    if (row.solicitacao_id)   fd.set('solicitacao_id', row.solicitacao_id)
-    fd.set('funcionario_id',  row.funcionario_id)
-    if (row.funcao_anterior_id) fd.set('funcao_anterior_id', row.funcao_anterior_id)
-    startTransition(async () => {
-      const res = await excluirMudancaFuncao(fd)
-      if (!res.success) { setErro(res.error); return }
-      onClose()
-    })
-  }
-
   return (
-    <AlertDialog open onOpenChange={open => { if (!open) onClose() }}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Confirmar exclusão?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Esta ação irá reverter a função de <strong>{row.nome}</strong> para{' '}
-            <strong>{row.funcao_anterior}</strong>. O registro de mudança será removido permanentemente.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        {erro && <p className="text-sm text-red-600 px-1">{erro}</p>}
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={onClose}>Cancelar</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={handleConfirmar}
-            disabled={pending}
-            className="bg-red-600 text-white hover:bg-red-700 focus:ring-red-600 disabled:opacity-40"
-          >
-            {pending ? 'Excluindo…' : 'Confirmar Exclusão'}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmarExclusaoDialog
+      open
+      onOpenChange={(open) => { if (!open) onClose() }}
+      titulo="Confirmar exclusão?"
+      descricao={
+        <>
+          Esta ação irá reverter a função de <strong>{row.nome}</strong> para{' '}
+          <strong>{row.funcao_anterior}</strong>. O registro de mudança será removido permanentemente.
+        </>
+      }
+      onConfirmar={async () => {
+        const fd = new FormData()
+        fd.set('movimentacao_id', row.id)
+        if (row.solicitacao_id)   fd.set('solicitacao_id', row.solicitacao_id)
+        fd.set('funcionario_id',  row.funcionario_id)
+        if (row.funcao_anterior_id) fd.set('funcao_anterior_id', row.funcao_anterior_id)
+        const res = await excluirMudancaFuncao(fd)
+        if (res.success) onClose()
+        return res
+      }}
+    />
   )
 }
 
