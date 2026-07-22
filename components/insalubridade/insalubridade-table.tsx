@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { ChevronDown, ChevronRight, FileSpreadsheet, FileText } from 'lucide-react'
 import * as XLSX from 'xlsx-js-style'
 import { marcarEnviado, removerDia, editarCobertura, excluirCobertura } from '@/app/(admin)/insalubridade/actions'
+import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dialog'
 import { ModalNovaInsalubridade } from './modal-nova-insalubridade'
 import { downloadDeclaracaoPDF, downloadDeclaracaoPDFLote } from './declaracao-insalubridade-pdf'
 import type { InsalubridadeGrupo, InsalubridadeCobertura, FuncOpt } from '@/app/(admin)/insalubridade/actions'
@@ -37,16 +38,28 @@ function Badge({ status }: { status: string }) {
   )
 }
 
-function RemoverBtn({ id }: { id: string }) {
-  const [pending, start] = useTransition()
+function RemoverBtn({ id, agenteAusente, data }: { id: string; agenteAusente: string | null; data: string }) {
+  const [confirmando, setConfirmando] = useState(false)
   return (
-    <button
-      onClick={() => start(() => removerDia(id))}
-      disabled={pending}
-      className="text-xs text-red-500 hover:text-red-700 disabled:opacity-40"
-    >
-      {pending ? '...' : 'Remover'}
-    </button>
+    <>
+      <button
+        onClick={() => setConfirmando(true)}
+        className="text-xs text-red-500 hover:text-red-700"
+      >
+        Remover
+      </button>
+      {confirmando && (
+        <ConfirmarExclusaoDialog
+          open
+          onOpenChange={setConfirmando}
+          titulo={`Remover cobertura de ${agenteAusente ?? 'agente ausente'} em ${data}?`}
+          onConfirmar={async () => {
+            await removerDia(id)
+            return { success: true }
+          }}
+        />
+      )}
+    </>
   )
 }
 
@@ -204,6 +217,7 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
   const [loadingXlsx, setLoadingXlsx]   = useState(false)
   const [loadingLote, setLoadingLote]   = useState(false)
   const [editandoId, setEditandoId]     = useState<string | null>(null)
+  const [excluindoCobertura, setExcluindoCobertura] = useState<InsalubridadeCobertura | null>(null)
   const [editForm, setEditForm]         = useState<EditForm | null>(null)
   const [salvando, setSalvando]         = useState(false)
   const [busca, setBusca]               = useState('')
@@ -284,13 +298,6 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
     setSalvando(false)
     if (result.error) alert(result.error)
     else { setEditandoId(null); setEditForm(null); router.refresh() }
-  }
-
-  async function handleExcluir(id: string) {
-    if (!window.confirm('Excluir esta cobertura? Esta ação não pode ser desfeita.')) return
-    const result = await excluirCobertura(id)
-    if (result.error) alert(result.error)
-    else router.refresh()
   }
 
   async function handleExcel() {
@@ -516,7 +523,9 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
                                   <td className="py-1.5 pr-4">{r.observacao ?? '—'}</td>
                                   <td className="py-1.5">
                                     <div className="flex items-center gap-2">
-                                      {r.origem === 'manual' && !isAdmin && <RemoverBtn id={r.id} />}
+                                      {r.origem === 'manual' && !isAdmin && (
+                                        <RemoverBtn id={r.id} agenteAusente={r.agente_ausente_nome} data={fmt(r.data_cobertura)} />
+                                      )}
                                       {isAdmin && (
                                         <>
                                           <button
@@ -526,7 +535,7 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
                                             {isEditing ? 'Cancelar' : 'Editar'}
                                           </button>
                                           <button
-                                            onClick={() => handleExcluir(r.id)}
+                                            onClick={() => setExcluindoCobertura(r)}
                                             className="text-xs text-red-500 hover:text-red-700"
                                           >
                                             Excluir
@@ -620,6 +629,19 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
         mesAtual={mes}
         anoAtual={ano}
       />
+
+      {excluindoCobertura && (
+        <ConfirmarExclusaoDialog
+          open
+          onOpenChange={(open) => { if (!open) setExcluindoCobertura(null) }}
+          titulo={`Excluir cobertura de ${excluindoCobertura.agente_ausente_nome ?? 'agente ausente'} em ${fmt(excluindoCobertura.data_cobertura)}?`}
+          onConfirmar={async () => {
+            const res = await excluirCobertura(excluindoCobertura.id)
+            if (!res.error) router.refresh()
+            return { success: !res.error, error: res.error }
+          }}
+        />
+      )}
     </>
   )
 }
