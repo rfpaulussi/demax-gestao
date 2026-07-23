@@ -294,7 +294,7 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
 }
 
 export async function encerrarCoberturasVencidas(): Promise<{ encerradas: number }> {
-  const supabase = createClient()
+  const supabase = createAdminClient()
   const hoje = new Date().toISOString().split('T')[0]
 
   const { data: vencidas } = await (supabase as unknown as AnyClient)

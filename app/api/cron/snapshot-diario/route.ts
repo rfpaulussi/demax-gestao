@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { calcularKPIsAtuais } from '@/lib/dashboard-kpis'
+import { processarRetornosAtestado } from '@/lib/processar-retornos'
+import { encerrarCoberturasVencidas } from '@/app/(admin)/coberturas/actions'
 
 export const runtime = 'nodejs'
 
@@ -91,6 +93,8 @@ export async function GET(req: NextRequest) {
 
   const ferias      = await sincronizarStatusFerias(supabase, hoje)
   const alertaFerias = await alertarFeriasVencendo(supabase, hoje)
+  const retornosAtestado = await processarRetornosAtestado()
+  const coberturasEncerradas = await encerrarCoberturasVencidas()
 
   const kpis = await calcularKPIsAtuais(supabase)
 
@@ -111,7 +115,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, data: hoje, ferias, alertaFerias, kpis: {
+  return NextResponse.json({ ok: true, data: hoje, ferias, alertaFerias, retornosAtestado, coberturasEncerradas, kpis: {
     ativos: kpis.ativos,
     afastados: kpis.afastados,
     em_ferias: kpis.em_ferias,

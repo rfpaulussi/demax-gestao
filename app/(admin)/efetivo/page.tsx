@@ -3,6 +3,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import { EfetivoClient } from '@/components/efetivo/efetivo-client'
 import type { FuncionarioRow } from '@/components/efetivo/funcionarios-table'
+import { processarRetornosAtestado } from '@/lib/processar-retornos'
+import { encerrarCoberturasVencidas } from '@/app/(admin)/coberturas/actions'
 
 // ─── counter card ─────────────────────────────────────────────────────────────
 
@@ -44,6 +46,10 @@ export default async function EfetivoPage() {
   const auth = await getUser()
   const isAdmin = auth?.perfil.role === 'admin'
   const podeIgnorarAfastado = auth?.perfil.role === 'admin' || auth?.perfil.role === 'coordenador'
+
+  // Processa retornos silenciosamente a cada carregamento do Efetivo
+  await processarRetornosAtestado()
+  await encerrarCoberturasVencidas()
 
   const [
     { data: raw },
