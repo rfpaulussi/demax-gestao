@@ -51,8 +51,10 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
   const [horaFimAlmoco, setHoraFimAlmoco]       = useState('')
   const [horaSaidaSegQui, setHoraSaidaSegQui]   = useState('')
   const [horaSaidaSex, setHoraSaidaSex]         = useState('')
-  // horários customizados manualmente não são sobrescritos quando a hora de entrada muda
-  const [horariosTocados, setHorariosTocados]   = useState(false)
+  // cada grupo customizado manualmente para de ser sobrescrito quando a hora de entrada muda
+  const [almocoTocado, setAlmocoTocado]         = useState(false)
+  const [saidaTocado, setSaidaTocado]           = useState(false)
+  const [personalizando, setPersonalizando]     = useState(false)
 
   const canWrite = role === 'admin' || role === 'coordenador'
 
@@ -79,7 +81,9 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     setForm('novo')
     setNome('')
     setHoraEntrada('07:00')
-    setHorariosTocados(false)
+    setAlmocoTocado(false)
+    setSaidaTocado(false)
+    setPersonalizando(false)
     setErro(null)
   }
 
@@ -92,7 +96,9 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     setHoraSaidaSegQui(t.hora_saida_seg_qui.slice(0, 5))
     setHoraSaidaSex(t.hora_saida_sex?.slice(0, 5) ?? '')
     // valores já gravados são tratados como customizados: mudar a entrada não os sobrescreve sozinho
-    setHorariosTocados(true)
+    setAlmocoTocado(true)
+    setSaidaTocado(true)
+    setPersonalizando(false)
     setErro(null)
   }
 
@@ -102,7 +108,8 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
   }
 
   function restaurarHorariosPadrao() {
-    setHorariosTocados(false)
+    setAlmocoTocado(false)
+    setSaidaTocado(false)
   }
 
   async function handleSalvar() {
@@ -150,13 +157,17 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     form === 'novo' ? (regime ?? null) : form ? resolverTipoEscalaPosto(form.tipo_escala) : null
 
   useEffect(() => {
-    if (!tipoEscalaForm || horariosTocados) return
+    if (!tipoEscalaForm) return
     const d = calcularHorariosDerivados(horaEntrada, tipoEscalaForm)
-    setHoraInicioAlmoco(d.hora_inicio_almoco ?? '')
-    setHoraFimAlmoco(d.hora_fim_almoco ?? '')
-    setHoraSaidaSegQui(d.hora_saida_seg_qui)
-    setHoraSaidaSex(d.hora_saida_sex ?? '')
-  }, [horaEntrada, tipoEscalaForm, horariosTocados])
+    if (!almocoTocado) {
+      setHoraInicioAlmoco(d.hora_inicio_almoco ?? '')
+      setHoraFimAlmoco(d.hora_fim_almoco ?? '')
+    }
+    if (!saidaTocado) {
+      setHoraSaidaSegQui(d.hora_saida_seg_qui)
+      setHoraSaidaSex(d.hora_saida_sex ?? '')
+    }
+  }, [horaEntrada, tipoEscalaForm, almocoTocado, saidaTocado])
 
   if (!open) return null
 
@@ -301,52 +312,73 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
                 </div>
               </div>
 
-              {/* almoço/saída: pré-preenchidos com o padrão do regime, editáveis para casos individuais */}
-              <div className="space-y-3 rounded-lg bg-slate-50 px-3 py-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-gray-700">Almoço e saída</p>
-                  <button type="button" onClick={restaurarHorariosPadrao}
-                    className="text-xs font-medium text-gray-500 underline hover:text-gray-700">
-                    Restaurar padrão
-                  </button>
-                </div>
-
-                {temAlmoco && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Início almoço</label>
-                      <input type="time" value={horaInicioAlmoco}
-                        onChange={e => { setHorariosTocados(true); setHoraInicioAlmoco(e.target.value) }}
-                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
-                    </div>
-                    <div>
-                      <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Fim almoço</label>
-                      <input type="time" value={horaFimAlmoco}
-                        onChange={e => { setHorariosTocados(true); setHoraFimAlmoco(e.target.value) }}
-                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
-                    </div>
+              {/* almoço/saída: resumo calculado por padrão; "Personalizar" libera edição livre por campo */}
+              {!personalizando ? (
+                <div className="space-y-0.5 rounded-lg bg-slate-50 px-3 py-2 text-xs text-gray-500">
+                  <div className="mb-1 flex items-center justify-between">
+                    <p className="font-medium text-gray-700">Horários</p>
+                    <button type="button" onClick={() => setPersonalizando(true)}
+                      className="text-xs font-medium text-gray-500 underline hover:text-gray-700">
+                      Personalizar horários
+                    </button>
                   </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">
-                      {temSaidaSex ? 'Saída Seg–Qui' : 'Saída'}
-                    </label>
-                    <input type="time" value={horaSaidaSegQui}
-                      onChange={e => { setHorariosTocados(true); setHoraSaidaSegQui(e.target.value) }}
-                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
-                  </div>
-                  {temSaidaSex && (
-                    <div>
-                      <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Saída Sex</label>
-                      <input type="time" value={horaSaidaSex}
-                        onChange={e => { setHorariosTocados(true); setHoraSaidaSex(e.target.value) }}
-                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
-                    </div>
+                  {temAlmoco && <p>Almoço: {horaInicioAlmoco} às {horaFimAlmoco}</p>}
+                  {temSaidaSex ? (
+                    <>
+                      <p>Saída Seg–Qui: {horaSaidaSegQui}</p>
+                      <p>Saída Sex: {horaSaidaSex}</p>
+                    </>
+                  ) : (
+                    <p>Saída: {horaSaidaSegQui}</p>
                   )}
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-3 rounded-lg bg-slate-50 px-3 py-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-gray-700">Almoço e saída</p>
+                    <button type="button" onClick={restaurarHorariosPadrao}
+                      className="text-xs font-medium text-gray-500 underline hover:text-gray-700">
+                      Restaurar padrão
+                    </button>
+                  </div>
+
+                  {temAlmoco && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Início almoço</label>
+                        <input type="time" value={horaInicioAlmoco}
+                          onChange={e => { setAlmocoTocado(true); setHoraInicioAlmoco(e.target.value) }}
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Fim almoço</label>
+                        <input type="time" value={horaFimAlmoco}
+                          onChange={e => { setAlmocoTocado(true); setHoraFimAlmoco(e.target.value) }}
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">
+                        {temSaidaSex ? 'Saída Seg–Qui' : 'Saída'}
+                      </label>
+                      <input type="time" value={horaSaidaSegQui}
+                        onChange={e => { setSaidaTocado(true); setHoraSaidaSegQui(e.target.value) }}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                    </div>
+                    {temSaidaSex && (
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Saída Sex</label>
+                        <input type="time" value={horaSaidaSex}
+                          onChange={e => { setSaidaTocado(true); setHoraSaidaSex(e.target.value) }}
+                          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {erro && <p className="text-xs text-red-600">{erro}</p>}
 
