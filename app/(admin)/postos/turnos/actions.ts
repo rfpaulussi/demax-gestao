@@ -3,11 +3,15 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUser } from '@/lib/auth/get-user'
 import { revalidatePath } from 'next/cache'
-import { calcularHorariosDerivados, isTipoEscalaPosto, type TipoEscalaPosto } from '@/lib/turnos/escala'
+import { isTipoEscalaPosto, type TipoEscalaPosto } from '@/lib/turnos/escala'
 
 export interface TurnoData {
   nome: string
   hora_entrada: string
+  hora_inicio_almoco: string | null
+  hora_fim_almoco: string | null
+  hora_saida_seg_qui: string
+  hora_saida_sex: string | null
 }
 
 export async function listarTurnosPosto(postoId: string) {
@@ -42,14 +46,16 @@ export async function criarTurno(postoId: string, dados: TurnoData) {
   if (!regime) {
     return { success: false, error: 'Configure o regime de trabalho deste posto antes de cadastrar turnos.' }
   }
-  const derivados = calcularHorariosDerivados(dados.hora_entrada, regime)
   const supabase = createClient()
   const { error } = await supabase.from('turnos_postos').insert({
     posto_id: postoId,
     nome: dados.nome,
     hora_entrada: dados.hora_entrada,
     tipo_escala: regime,
-    ...derivados,
+    hora_inicio_almoco: dados.hora_inicio_almoco,
+    hora_fim_almoco: dados.hora_fim_almoco,
+    hora_saida_seg_qui: dados.hora_saida_seg_qui,
+    hora_saida_sex: dados.hora_saida_sex,
   })
   if (error) return { success: false, error: error.message }
   revalidatePath('/postos')
@@ -62,19 +68,16 @@ export async function editarTurno(id: string, dados: TurnoData) {
     return { success: false, error: 'Acesso negado' }
   }
   const supabase = createClient()
-  const { data: turnoAtual, error: errBusca } = await supabase
-    .from('turnos_postos')
-    .select('tipo_escala')
-    .eq('id', id)
-    .single()
-  if (errBusca || !turnoAtual) return { success: false, error: 'Turno não encontrado' }
-
-  const tipoEscalaAtual = turnoAtual.tipo_escala
-  const regime = isTipoEscalaPosto(tipoEscalaAtual) ? tipoEscalaAtual : '5x2'
-  const derivados = calcularHorariosDerivados(dados.hora_entrada, regime)
   const { error } = await supabase
     .from('turnos_postos')
-    .update({ nome: dados.nome, hora_entrada: dados.hora_entrada, ...derivados })
+    .update({
+      nome: dados.nome,
+      hora_entrada: dados.hora_entrada,
+      hora_inicio_almoco: dados.hora_inicio_almoco,
+      hora_fim_almoco: dados.hora_fim_almoco,
+      hora_saida_seg_qui: dados.hora_saida_seg_qui,
+      hora_saida_sex: dados.hora_saida_sex,
+    })
     .eq('id', id)
   if (error) return { success: false, error: error.message }
   revalidatePath('/postos')

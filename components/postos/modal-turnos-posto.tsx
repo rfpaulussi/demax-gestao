@@ -47,6 +47,12 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
   // form fields
   const [nome, setNome]                 = useState('')
   const [horaEntrada, setHoraEntrada]   = useState('07:00')
+  const [horaInicioAlmoco, setHoraInicioAlmoco] = useState('')
+  const [horaFimAlmoco, setHoraFimAlmoco]       = useState('')
+  const [horaSaidaSegQui, setHoraSaidaSegQui]   = useState('')
+  const [horaSaidaSex, setHoraSaidaSex]         = useState('')
+  // horários customizados manualmente não são sobrescritos quando a hora de entrada muda
+  const [horariosTocados, setHorariosTocados]   = useState(false)
 
   const canWrite = role === 'admin' || role === 'coordenador'
 
@@ -73,6 +79,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     setForm('novo')
     setNome('')
     setHoraEntrada('07:00')
+    setHorariosTocados(false)
     setErro(null)
   }
 
@@ -80,6 +87,12 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     setForm(t)
     setNome(t.nome)
     setHoraEntrada(t.hora_entrada.slice(0, 5))
+    setHoraInicioAlmoco(t.hora_inicio_almoco?.slice(0, 5) ?? '')
+    setHoraFimAlmoco(t.hora_fim_almoco?.slice(0, 5) ?? '')
+    setHoraSaidaSegQui(t.hora_saida_seg_qui.slice(0, 5))
+    setHoraSaidaSex(t.hora_saida_sex?.slice(0, 5) ?? '')
+    // valores já gravados são tratados como customizados: mudar a entrada não os sobrescreve sozinho
+    setHorariosTocados(true)
     setErro(null)
   }
 
@@ -88,11 +101,25 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     setErro(null)
   }
 
+  function restaurarHorariosPadrao() {
+    setHorariosTocados(false)
+  }
+
   async function handleSalvar() {
     if (!nome.trim()) { setErro('Informe o nome do turno'); return }
+    if (!tipoEscalaForm) return
     setSaving(true)
     setErro(null)
-    const dados: TurnoData = { nome: nome.trim(), hora_entrada: horaEntrada }
+    const temAlmoco = tipoEscalaForm !== '12x36'
+    const temSaidaSex = tipoEscalaForm === '5x2'
+    const dados: TurnoData = {
+      nome: nome.trim(),
+      hora_entrada: horaEntrada,
+      hora_inicio_almoco: temAlmoco ? horaInicioAlmoco : null,
+      hora_fim_almoco: temAlmoco ? horaFimAlmoco : null,
+      hora_saida_seg_qui: horaSaidaSegQui,
+      hora_saida_sex: temSaidaSex ? horaSaidaSex : null,
+    }
     const res = form === 'novo'
       ? await criarTurno(postoId, dados)
       : await editarTurno((form as TurnoPosto).id, dados)
@@ -119,12 +146,22 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     setRegime(tipo)
   }
 
-  if (!open) return null
-
   const tipoEscalaForm: TipoEscalaPosto | null =
     form === 'novo' ? (regime ?? null) : form ? resolverTipoEscalaPosto(form.tipo_escala) : null
 
-  const derivados = tipoEscalaForm ? calcularHorariosDerivados(horaEntrada, tipoEscalaForm) : null
+  useEffect(() => {
+    if (!tipoEscalaForm || horariosTocados) return
+    const d = calcularHorariosDerivados(horaEntrada, tipoEscalaForm)
+    setHoraInicioAlmoco(d.hora_inicio_almoco ?? '')
+    setHoraFimAlmoco(d.hora_fim_almoco ?? '')
+    setHoraSaidaSegQui(d.hora_saida_seg_qui)
+    setHoraSaidaSex(d.hora_saida_sex ?? '')
+  }, [horaEntrada, tipoEscalaForm, horariosTocados])
+
+  if (!open) return null
+
+  const temAlmoco = tipoEscalaForm !== null && tipoEscalaForm !== '12x36'
+  const temSaidaSex = tipoEscalaForm === '5x2'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -231,7 +268,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
           )}
 
           {/* form de novo/editar turno */}
-          {form !== null && canWrite && tipoEscalaForm && derivados && (
+          {form !== null && canWrite && tipoEscalaForm && (
             <div className={cn('space-y-3 rounded-lg border border-l-4 bg-white p-4', ESCALA_BORDER_CLASS[tipoEscalaForm])}>
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-gray-700">
@@ -264,20 +301,51 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
                 </div>
               </div>
 
-              {/* preview calculado */}
-              <div className="space-y-0.5 rounded-lg bg-slate-50 px-3 py-2 text-xs text-gray-500">
-                <p className="mb-1 font-medium text-gray-700">Horários calculados automaticamente:</p>
-                {derivados.hora_inicio_almoco && derivados.hora_fim_almoco && (
-                  <p>Almoço: {derivados.hora_inicio_almoco} às {derivados.hora_fim_almoco}</p>
+              {/* almoço/saída: pré-preenchidos com o padrão do regime, editáveis para casos individuais */}
+              <div className="space-y-3 rounded-lg bg-slate-50 px-3 py-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-gray-700">Almoço e saída</p>
+                  <button type="button" onClick={restaurarHorariosPadrao}
+                    className="text-xs font-medium text-gray-500 underline hover:text-gray-700">
+                    Restaurar padrão
+                  </button>
+                </div>
+
+                {temAlmoco && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Início almoço</label>
+                      <input type="time" value={horaInicioAlmoco}
+                        onChange={e => { setHorariosTocados(true); setHoraInicioAlmoco(e.target.value) }}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Fim almoço</label>
+                      <input type="time" value={horaFimAlmoco}
+                        onChange={e => { setHorariosTocados(true); setHoraFimAlmoco(e.target.value) }}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                    </div>
+                  </div>
                 )}
-                {derivados.hora_saida_sex !== null ? (
-                  <>
-                    <p>Saída Seg–Qui: {derivados.hora_saida_seg_qui}</p>
-                    <p>Saída Sex: {derivados.hora_saida_sex}</p>
-                  </>
-                ) : (
-                  <p>Saída: {derivados.hora_saida_seg_qui}</p>
-                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">
+                      {temSaidaSex ? 'Saída Seg–Qui' : 'Saída'}
+                    </label>
+                    <input type="time" value={horaSaidaSegQui}
+                      onChange={e => { setHorariosTocados(true); setHoraSaidaSegQui(e.target.value) }}
+                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                  </div>
+                  {temSaidaSex && (
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Saída Sex</label>
+                      <input type="time" value={horaSaidaSex}
+                        onChange={e => { setHorariosTocados(true); setHoraSaidaSex(e.target.value) }}
+                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                    </div>
+                  )}
+                </div>
               </div>
 
               {erro && <p className="text-xs text-red-600">{erro}</p>}
