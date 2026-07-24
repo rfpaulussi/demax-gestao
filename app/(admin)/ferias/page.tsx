@@ -180,11 +180,44 @@ function IniciarButton({ id, onDone }: { id: string; onDone: () => void }) {
   )
 }
 
-function ConcluirButton({ id, onDone }: { id: string; onDone: () => void }) {
+function ConcluirButton({ id, dataFim, onDone }: { id: string; dataFim: string | null; onDone: () => void }) {
   const [pending, start] = useTransition()
+  const [confirmando, setConfirmando] = useState(false)
+
+  function executar(forcarAntecipado?: boolean) {
+    start(async () => {
+      const res = await concluirFerias(id, forcarAntecipado ? { forcarAntecipado: true } : undefined)
+      if (!res.ok) { setConfirmando(true); return }
+      setConfirmando(false)
+      onDone()
+    })
+  }
+
+  if (confirmando) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs">
+        <span className="text-amber-700 font-medium">Fim ainda é {formatDate(dataFim)} — encerrar mesmo assim?</span>
+        <button
+          onClick={() => executar(true)}
+          disabled={pending}
+          className="px-2 py-0.5 rounded bg-amber-500 text-white hover:bg-amber-600 font-semibold disabled:opacity-50"
+        >
+          {pending ? '...' : 'Sim'}
+        </button>
+        <button
+          onClick={() => setConfirmando(false)}
+          disabled={pending}
+          className="px-2 py-0.5 rounded text-slate-500 hover:text-slate-800 font-medium"
+        >
+          Não
+        </button>
+      </span>
+    )
+  }
+
   return (
     <button
-      onClick={() => start(async () => { await concluirFerias(id); onDone() })}
+      onClick={() => executar()}
       disabled={pending}
       className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium"
     >
@@ -624,7 +657,7 @@ function FeriasPageInner() {
                         <IniciarButton id={item.id} onDone={() => buscarFeriasLista().then(setFerias)} />
                       )}
                       {item.status === 'em_curso' && (
-                        <ConcluirButton id={item.id} onDone={() => buscarFeriasLista().then(setFerias)} />
+                        <ConcluirButton id={item.id} dataFim={item.data_fim} onDone={() => buscarFeriasLista().then(setFerias)} />
                       )}
                       <button
                         onClick={() => setItemEditando(item)}

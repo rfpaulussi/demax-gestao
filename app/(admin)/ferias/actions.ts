@@ -154,12 +154,23 @@ export async function iniciarFerias(id: string) {
   return { ok: true }
 }
 
-export async function concluirFerias(id: string) {
+export async function concluirFerias(
+  id: string,
+  opts?: { forcarAntecipado?: boolean }
+): Promise<{ ok: true } | { ok: false; precisaConfirmar: true; dataFim: string }> {
   const adminSupabase = createAdminClient()
 
   const { data: fer, error: fetchErr } = await adminSupabase
-    .from('ferias').select('funcionario_id').eq('id', id).single()
+    .from('ferias').select('funcionario_id, data_fim').eq('id', id).single()
   if (fetchErr) throw new Error(fetchErr.message)
+
+  // Data de fim ainda não chegou — exige confirmação explícita antes de encerrar antecipadamente
+  if (fer.data_fim && !opts?.forcarAntecipado) {
+    const hoje = new Date().toISOString().split('T')[0]
+    if (fer.data_fim > hoje) {
+      return { ok: false, precisaConfirmar: true, dataFim: fer.data_fim }
+    }
+  }
 
   const { error } = await adminSupabase.from('ferias').update({ status: 'concluido' }).eq('id', id)
   if (error) throw new Error(error.message)
