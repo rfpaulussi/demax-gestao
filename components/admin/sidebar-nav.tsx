@@ -106,6 +106,7 @@ function NavLinks({
                   <Link
                     key={href}
                     href={href}
+                    prefetch={false}
                     onClick={onNavigate}
                     className={
                       active

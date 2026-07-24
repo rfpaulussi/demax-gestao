@@ -37,68 +37,78 @@ export default async function AdminLayout({
 
   const supabaseLayout = createClient()
 
-  const { count: pendingCount } = await supabaseLayout
-    .from('solicitacoes')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'pendente')
+  // As 4 buscas abaixo são independentes entre si — rodam em paralelo (1 wave)
+  // em vez de sequenciais, pois cada navegação sob (admin) já paga o custo
+  // desse layout e navegações concorrentes (prefetch de vários links) amplificam
+  // waterfalls seriais em rajadas de queries no Supabase.
+  const [
+    { count: pendingCount },
+    alertCount,
+    { unread: notifUnread, logs: notifLogs },
+    { unread: supNotifUnread, notifs: supNotifs },
+  ] = await Promise.all([
+    supabaseLayout
+      .from('solicitacoes')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pendente'),
 
-  // Conta funções em uso por funcionários ativos que não têm custos_funcoes
-  let alertCount = 0
-  if (isAdminOrCoord) {
-    const [{ data: comCusto }, { data: funcUsadas }] = await Promise.all([
-      supabaseLayout.from('custos_funcoes').select('funcao_id'),
-      supabaseLayout.from('funcionarios').select('funcao_id').is('data_desligamento', null).not('funcao_id', 'is', null),
-    ])
-    const comCustoSet = new Set((comCusto ?? []).map(r => r.funcao_id as string))
-    const funcUsadasSet = new Set((funcUsadas ?? []).map(r => r.funcao_id as string))
-    alertCount = Array.from(funcUsadasSet).filter(id => !comCustoSet.has(id)).length
-  }
+    // Conta funções em uso por funcionários ativos que não têm custos_funcoes
+    (async () => {
+      if (!isAdminOrCoord) return 0
+      const [{ data: comCusto }, { data: funcUsadas }] = await Promise.all([
+        supabaseLayout.from('custos_funcoes').select('funcao_id'),
+        supabaseLayout.from('funcionarios').select('funcao_id').is('data_desligamento', null).not('funcao_id', 'is', null),
+      ])
+      const comCustoSet = new Set((comCusto ?? []).map(r => r.funcao_id as string))
+      const funcUsadasSet = new Set((funcUsadas ?? []).map(r => r.funcao_id as string))
+      return Array.from(funcUsadasSet).filter(id => !comCustoSet.has(id)).length
+    })(),
 
-  // Notificações de ações de supervisores (só para admin/coordenador)
-  let notifUnread = 0
-  let notifLogs: LogAcao[] = []
-  if (isAdminOrCoord) {
-    const admin = createAdminClient()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const adminAny = admin as any
-    const [{ count }, { data: logsData }] = await Promise.all([
-      adminAny.from('log_supervisor_acoes').select('*', { count: 'exact', head: true }).eq('lido', false),
-      adminAny.from('log_supervisor_acoes').select('id, created_at, supervisor_nome, tipo, acao, funcionario_nome, detalhes, lido').order('created_at', { ascending: false }).limit(30),
-    ])
-    notifUnread = count ?? 0
-    notifLogs   = (logsData ?? []) as LogAcao[]
-  }
+    // Notificações de ações de supervisores (só para admin/coordenador)
+    (async () => {
+      if (!isAdminOrCoord) return { unread: 0, logs: [] as LogAcao[] }
+      const admin = createAdminClient()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const adminAny = admin as any
+      const [{ count }, { data: logsData }] = await Promise.all([
+        adminAny.from('log_supervisor_acoes').select('*', { count: 'exact', head: true }).eq('lido', false),
+        adminAny.from('log_supervisor_acoes').select('id, created_at, supervisor_nome, tipo, acao, funcionario_nome, detalhes, lido').order('created_at', { ascending: false }).limit(30),
+      ])
+      return { unread: count ?? 0, logs: (logsData ?? []) as LogAcao[] }
+    })(),
 
-  // Notificações de solicitações processadas (só para supervisor)
-  let supNotifUnread = 0
-  let supNotifs: SolicitacaoNotif[] = []
-  if (perfil.role === 'supervisor') {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sb = createClient() as any
-    const [{ count: cnt }, { data: solsData }] = await Promise.all([
-      sb.from('solicitacoes')
-        .select('*', { count: 'exact', head: true })
-        .eq('supervisor_id', perfil.id)
-        .neq('status', 'pendente')
-        .eq('lida_supervisor', false),
-      sb.from('solicitacoes')
-        .select('id, tipo, status, created_at, observacao_admin, lida_supervisor, funcionarios!funcionario_id(nome)')
-        .eq('supervisor_id', perfil.id)
-        .neq('status', 'pendente')
-        .order('created_at', { ascending: false })
-        .limit(30),
-    ])
-    supNotifUnread = cnt ?? 0
-    supNotifs = ((solsData ?? []) as {
-      id: string; tipo: string; status: string; created_at: string | null
-      observacao_admin: string | null; lida_supervisor: boolean
-      funcionarios: { nome: string | null } | null
-    }[]).map(s => ({
-      id: s.id, tipo: s.tipo, status: s.status, created_at: s.created_at,
-      observacao_admin: s.observacao_admin, lida_supervisor: s.lida_supervisor,
-      funcionario_nome: s.funcionarios?.nome ?? null,
-    }))
-  }
+    // Notificações de solicitações processadas (só para supervisor)
+    (async () => {
+      if (perfil.role !== 'supervisor') return { unread: 0, notifs: [] as SolicitacaoNotif[] }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = createClient() as any
+      const [{ count: cnt }, { data: solsData }] = await Promise.all([
+        sb.from('solicitacoes')
+          .select('*', { count: 'exact', head: true })
+          .eq('supervisor_id', perfil.id)
+          .neq('status', 'pendente')
+          .eq('lida_supervisor', false),
+        sb.from('solicitacoes')
+          .select('id, tipo, status, created_at, observacao_admin, lida_supervisor, funcionarios!funcionario_id(nome)')
+          .eq('supervisor_id', perfil.id)
+          .neq('status', 'pendente')
+          .order('created_at', { ascending: false })
+          .limit(30),
+      ])
+      return {
+        unread: cnt ?? 0,
+        notifs: ((solsData ?? []) as {
+          id: string; tipo: string; status: string; created_at: string | null
+          observacao_admin: string | null; lida_supervisor: boolean
+          funcionarios: { nome: string | null } | null
+        }[]).map(s => ({
+          id: s.id, tipo: s.tipo, status: s.status, created_at: s.created_at,
+          observacao_admin: s.observacao_admin, lida_supervisor: s.lida_supervisor,
+          funcionario_nome: s.funcionarios?.nome ?? null,
+        })),
+      }
+    })(),
+  ])
 
   return (
     <div className={`${inter.className} min-h-screen bg-gray-50`}>

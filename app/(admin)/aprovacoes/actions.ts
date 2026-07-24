@@ -37,7 +37,10 @@ type AdminGuard =
 
 async function assertAdmin(): Promise<AdminGuard> {
   const auth = await getUser()
-  if (!auth || auth.perfil.role !== 'admin') {
+  if (!auth) {
+    return { success: false, error: 'Sessão instável ou expirada — recarregue a página e tente novamente' }
+  }
+  if (auth.perfil.role !== 'admin') {
     return { success: false, error: 'Acesso negado' }
   }
   return { success: true, userId: auth.user.id }
