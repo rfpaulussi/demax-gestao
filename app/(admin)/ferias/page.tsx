@@ -167,11 +167,44 @@ type SortKey =
   | 'dias_direito'
   | 'status'
 
-function IniciarButton({ id, onDone }: { id: string; onDone: () => void }) {
+function IniciarButton({ id, dataInicio, onDone }: { id: string; dataInicio: string | null; onDone: () => void }) {
   const [pending, start] = useTransition()
+  const [confirmando, setConfirmando] = useState(false)
+
+  function executar(forcarAntecipado?: boolean) {
+    start(async () => {
+      const res = await iniciarFerias(id, forcarAntecipado ? { forcarAntecipado: true } : undefined)
+      if (!res.ok) { setConfirmando(true); return }
+      setConfirmando(false)
+      onDone()
+    })
+  }
+
+  if (confirmando) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs">
+        <span className="text-amber-700 font-medium">Início ainda é {formatDate(dataInicio)} — iniciar mesmo assim?</span>
+        <button
+          onClick={() => executar(true)}
+          disabled={pending}
+          className="px-2 py-0.5 rounded bg-amber-500 text-white hover:bg-amber-600 font-semibold disabled:opacity-50"
+        >
+          {pending ? '...' : 'Sim'}
+        </button>
+        <button
+          onClick={() => setConfirmando(false)}
+          disabled={pending}
+          className="px-2 py-0.5 rounded text-slate-500 hover:text-slate-800 font-medium"
+        >
+          Não
+        </button>
+      </span>
+    )
+  }
+
   return (
     <button
-      onClick={() => start(async () => { await iniciarFerias(id); onDone() })}
+      onClick={() => executar()}
       disabled={pending}
       className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700 hover:bg-green-200 font-medium"
     >
@@ -654,7 +687,7 @@ function FeriasPageInner() {
                         <AprovarButton id={item.id} onDone={() => buscarFeriasLista().then(setFerias)} />
                       )}
                       {item.status === 'aprovado' && (
-                        <IniciarButton id={item.id} onDone={() => buscarFeriasLista().then(setFerias)} />
+                        <IniciarButton id={item.id} dataInicio={item.data_inicio} onDone={() => buscarFeriasLista().then(setFerias)} />
                       )}
                       {item.status === 'em_curso' && (
                         <ConcluirButton id={item.id} dataFim={item.data_fim} onDone={() => buscarFeriasLista().then(setFerias)} />
