@@ -24,37 +24,41 @@ interface Periodo {
   agente: string
 }
 
+function somarDias(iso: string, n: number): string {
+  const d = new Date(iso + 'T12:00:00')
+  d.setDate(d.getDate() + n)
+  return d.toISOString().split('T')[0]
+}
+
+/**
+ * Monta os períodos exibidos na declaração.
+ *
+ * Cada registro cobre `periodo_dias` dias a partir de `data_cobertura` — não um
+ * dia só. Registros encostados (o seguinte começa no dia seguinte ao fim do
+ * anterior) e com o mesmo agente ausente viram uma linha única.
+ */
 function agruparPeriodos(registros: InsalubridadeCobertura[]): Periodo[] {
-  const sorted = [...registros].sort((a,b) =>
-    (a.data_cobertura ?? '').localeCompare(b.data_cobertura ?? '')
-  )
+  const sorted = [...registros]
+    .filter(r => Boolean(r.data_cobertura))
+    .sort((a, b) => a.data_cobertura.localeCompare(b.data_cobertura))
 
   const groups: Periodo[] = []
-  if (sorted.length === 0) return groups
 
-  let startDate = sorted[0].data_cobertura
-  let endDate   = sorted[0].data_cobertura
-  let agente    = sorted[0].agente_ausente_nome ?? '—'
-  let count     = 1
+  for (const r of sorted) {
+    const dias   = Math.max(1, r.periodo_dias ?? 1)
+    const inicio = r.data_cobertura.split('T')[0]
+    const fim    = somarDias(inicio, dias - 1)
+    const agente = r.agente_ausente_nome ?? '—'
 
-  for (let i = 1; i < sorted.length; i++) {
-    const prev = new Date((endDate ?? '') + 'T12:00:00')
-    const curr = new Date((sorted[i].data_cobertura ?? '') + 'T12:00:00')
-    const diffDays = Math.round((curr.getTime() - prev.getTime()) / 86400000)
-    const sameAgent = (sorted[i].agente_ausente_nome ?? '—') === agente
-
-    if (diffDays === 1 && sameAgent) {
-      endDate = sorted[i].data_cobertura
-      count++
+    const anterior = groups[groups.length - 1]
+    if (anterior && anterior.agente === agente && somarDias(anterior.fim, 1) === inicio) {
+      anterior.fim    = fim
+      anterior.count += dias
     } else {
-      groups.push({ inicio: startDate ?? '', fim: endDate ?? '', count, agente })
-      startDate = sorted[i].data_cobertura
-      endDate   = sorted[i].data_cobertura
-      agente    = sorted[i].agente_ausente_nome ?? '—'
-      count     = 1
+      groups.push({ inicio, fim, count: dias, agente })
     }
   }
-  groups.push({ inicio: startDate ?? '', fim: endDate ?? '', count, agente })
+
   return groups
 }
 
