@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { avaliarPeriodo, mensagemUltrapassaMes } from '@/lib/insalubridade-periodo'
 
 export type InsalubridadeStatus = 'pendente' | 'enviado' | 'pago'
 export type InsalubridadeOrigem = 'manual' | 'cobertura'
@@ -153,6 +154,13 @@ export async function criarInsalubridade(formData: FormData): Promise<{ error?: 
   const [ano, mes] = dataCobertura.split('-').map(Number)
   const periodoDias = parseInt(formData.get('periodo_dias') as string) || 1
 
+  // O mês do registro define em qual fechamento os dias entram, então um
+  // lançamento não pode transbordar para o mês seguinte.
+  const periodo = avaliarPeriodo(dataCobertura, periodoDias)
+  if (periodo?.ultrapassa) {
+    return { error: mensagemUltrapassaMes(periodo, dataCobertura) }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (adminSupabase as any).from('insalubridade_coberturas').insert({
     funcionario_id: funcionarioId,
@@ -214,6 +222,12 @@ export async function editarCobertura(
 ): Promise<{ error?: string }> {
   const adminSupabase = createAdminClient()
   const [ano, mes] = dados.data_cobertura.split('-').map(Number)
+
+  const periodo = avaliarPeriodo(dados.data_cobertura, dados.periodo_dias)
+  if (periodo?.ultrapassa) {
+    return { error: mensagemUltrapassaMes(periodo, dados.data_cobertura) }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (adminSupabase as any)
     .from('insalubridade_coberturas')

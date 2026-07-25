@@ -2,10 +2,11 @@
 
 import { useState, useTransition, useEffect, useMemo } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
-import { Search, MapPin, UserCheck, UserX, CalendarDays, X } from 'lucide-react'
+import { Search, MapPin, UserCheck, UserX, CalendarDays, X, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { criarInsalubridade, buscarAgentesPorPosto } from '@/app/(admin)/insalubridade/actions'
 import type { FuncOpt } from '@/app/(admin)/insalubridade/actions'
+import { avaliarPeriodo, mensagemUltrapassaMes, fmtBr, nomeDoMes } from '@/lib/insalubridade-periodo'
 
 interface Posto { id: string; nome: string; secretaria: string | null }
 
@@ -25,20 +26,6 @@ const DIACRITICOS = new RegExp('[\\u0300-\\u036f]', 'g')
 
 function norm(s: string): string {
   return s.normalize('NFD').replace(DIACRITICOS, '').toLowerCase()
-}
-
-function fmt(iso: string): string {
-  if (!iso) return '—'
-  const [y, m, d] = iso.split('-')
-  return `${d}/${m}/${y}`
-}
-
-/** Data final = início + (dias - 1). */
-function dataFim(inicio: string, dias: number): string {
-  if (!inicio || dias < 1) return ''
-  const d = new Date(inicio + 'T12:00:00')
-  d.setDate(d.getDate() + dias - 1)
-  return d.toISOString().split('T')[0]
 }
 
 const STATUS_FUNC: Record<string, { label: string; cls: string }> = {
@@ -355,12 +342,16 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos,
   }
 
   const mesmaPessoa = Boolean(substituto && ausente && substituto.id === ausente.id)
-  const fim         = dataFim(dataInicio, dias)
+  const periodo     = avaliarPeriodo(dataInicio, dias)
+  const fim         = periodo?.fimCalculado ?? ''
+  const ultrapassa  = Boolean(periodo?.ultrapassa)
   const mesDaData   = dataInicio ? Number(dataInicio.split('-')[1]) : null
   const anoDaData   = dataInicio ? Number(dataInicio.split('-')[0]) : null
   const foraDoMes   = Boolean(dataInicio && (mesDaData !== mesAtual || anoDaData !== anoAtual))
 
-  const podeSalvar = Boolean(posto && substituto && dataInicio && dias >= 1 && !mesmaPessoa && !isPending)
+  const podeSalvar = Boolean(
+    posto && substituto && dataInicio && dias >= 1 && !mesmaPessoa && !ultrapassa && !isPending,
+  )
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -568,9 +559,39 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos,
                 </div>
 
                 {dataInicio && (
-                  <span className="mt-2 inline-flex rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
-                    {fmt(dataInicio)} a {fmt(fim)} · {dias} dia{dias !== 1 ? 's' : ''}
+                  <span className={cn(
+                    'mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold',
+                    ultrapassa ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700',
+                  )}>
+                    {fmtBr(dataInicio)} a {fmtBr(fim)} · {dias} dia{dias !== 1 ? 's' : ''}
                   </span>
+                )}
+
+                {periodo && ultrapassa && (
+                  <div className="mt-2 rounded-lg border border-red-200 bg-red-50 p-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold uppercase tracking-widest text-red-700">
+                          Ultrapassa o fim de {nomeDoMes(dataInicio)}
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-red-800">
+                          {mensagemUltrapassaMes(periodo, dataInicio)}
+                        </p>
+                        <p className="mt-1.5 text-xs leading-relaxed text-red-700">
+                          Cada lançamento precisa terminar dentro do próprio mês — é o mês do
+                          registro que define em qual fechamento os dias entram.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setDiasRaw(String(periodo.diasNoMes))}
+                          className="mt-2 flex h-8 items-center rounded-lg bg-red-600 px-3 text-xs font-semibold text-white hover:bg-red-700"
+                        >
+                          Ajustar para {periodo.diasNoMes} dia{periodo.diasNoMes !== 1 ? 's' : ''}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 )}
 
                 {foraDoMes && (
@@ -609,7 +630,7 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos,
                     {' no '}
                     <span className="font-bold text-blue-300">{posto.nome}</span>
                     {' — '}
-                    {fmt(dataInicio)} a {fmt(fim)} ({dias} dia{dias !== 1 ? 's' : ''}).
+                    {fmtBr(dataInicio)} a {fmtBr(fim)} ({dias} dia{dias !== 1 ? 's' : ''}).
                   </p>
                 </div>
               )}

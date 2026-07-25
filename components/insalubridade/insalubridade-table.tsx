@@ -10,6 +10,7 @@ import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dial
 import { ModalNovaInsalubridade } from './modal-nova-insalubridade'
 import { downloadDeclaracaoPDF, downloadDeclaracaoPDFLote } from './declaracao-insalubridade-pdf'
 import type { InsalubridadeGrupo, InsalubridadeCobertura, FuncOpt } from '@/app/(admin)/insalubridade/actions'
+import { avaliarPeriodo, mensagemUltrapassaMes, somarDias } from '@/lib/insalubridade-periodo'
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   pendente: { label: 'Pendente', cls: 'bg-amber-50 text-amber-700 ring-amber-200'  },
@@ -291,8 +292,14 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
     })
   }
 
+  // Mesma regra do modal: a edição também não pode empurrar dias para o mês seguinte.
+  const edicaoPeriodo = editForm
+    ? avaliarPeriodo(editForm.data_cobertura, editForm.periodo_dias)
+    : null
+  const edicaoUltrapassa = Boolean(edicaoPeriodo?.ultrapassa)
+
   async function handleSalvar() {
-    if (!editandoId || !editForm) return
+    if (!editandoId || !editForm || edicaoUltrapassa) return
     setSalvando(true)
     const result = await editarCobertura(editandoId, editForm)
     setSalvando(false)
@@ -468,10 +475,19 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
                       <p className="text-sm text-gray-600 truncate">{grupo.supervisor_nome ?? '—'}</p>
                       <p className="text-xs text-gray-500 tabular-nums">
                         {(() => {
-                          const datas = grupo.registros.map(r => r.data_cobertura).filter(Boolean).sort()
-                          if (!datas.length) return '—'
+                          // O fim precisa considerar periodo_dias: um registro de 23/07 com
+                          // 10 dias termina em 01/08, não em 23/07.
+                          const inicios = grupo.registros
+                            .map(r => r.data_cobertura?.split('T')[0])
+                            .filter(Boolean) as string[]
+                          if (!inicios.length) return '—'
+                          const fins = grupo.registros
+                            .filter(r => r.data_cobertura)
+                            .map(r => somarDias(r.data_cobertura.split('T')[0], (r.periodo_dias ?? 1) - 1))
+                          const inicio = inicios.slice().sort()[0]
+                          const fim    = fins.slice().sort()[fins.length - 1]
                           const fmt = (s: string) => { const [,m,d] = s.split('-'); return `${d}/${m}` }
-                          return datas.length === 1 ? fmt(datas[0]) : `${fmt(datas[0])} – ${fmt(datas[datas.length - 1])}`
+                          return inicio === fim ? fmt(inicio) : `${fmt(inicio)} – ${fmt(fim)}`
                         })()}
                       </p>
                       <p className="text-sm font-bold text-gray-900">{grupo.total_dias} dia{grupo.total_dias !== 1 ? 's' : ''}</p>
@@ -588,10 +604,16 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
                                             />
                                           </div>
                                         </div>
+                                        {edicaoPeriodo && edicaoUltrapassa && (
+                                          <p className="rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-xs leading-relaxed text-red-800">
+                                            <span className="font-semibold">Ultrapassa o fim do mês. </span>
+                                            {mensagemUltrapassaMes(edicaoPeriodo, editForm.data_cobertura)}
+                                          </p>
+                                        )}
                                         <div className="flex gap-2 pt-1">
                                           <button
                                             onClick={handleSalvar}
-                                            disabled={salvando}
+                                            disabled={salvando || edicaoUltrapassa}
                                             className="flex h-7 items-center rounded-md bg-slate-900 px-3 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-50"
                                           >
                                             {salvando ? 'Salvando…' : 'Salvar'}
