@@ -40,6 +40,7 @@ export default async function InsalubridadePage({
       .from('postos')
       .select('id, nome, secretaria')
       .eq('ativo', true)
+      .neq('secretaria', 'AFASTADOS')
       .order('nome')
     postos = (data ?? []) as { id: string; nome: string; secretaria: string | null }[]
   } else if (auth) {
@@ -54,6 +55,7 @@ export default async function InsalubridadePage({
         .from('postos')
         .select('id, nome, secretaria')
         .in('id', postoIds)
+        .neq('secretaria', 'AFASTADOS')
         .order('nome')
       postos = (data ?? []) as { id: string; nome: string; secretaria: string | null }[]
     }

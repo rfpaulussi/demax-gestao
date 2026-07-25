@@ -49,6 +49,7 @@ export interface InsalubridadeGrupo {
 export interface FuncOpt {
   id: string
   nome: string
+  status?: string | null
   postos: { id: string; nome: string; secretaria: string | null } | null
   funcoes: { nome: string } | null
 }
@@ -242,19 +243,24 @@ export async function buscarFuncionariosParaDeclaracao(): Promise<FuncOpt[]> {
   const supabase = createClient()
   const { data } = await supabase
     .from('funcionarios')
-    .select('id, nome, postos!posto_id(id, nome, secretaria), funcoes!funcionarios_funcao_id_fkey(nome)')
+    .select('id, nome, status, postos!posto_id(id, nome, secretaria), funcoes!funcionarios_funcao_id_fkey(nome)')
     .in('status', ['ativo', 'ferias', 'atestado', 'afastado'])
     .order('nome')
   return (data ?? []) as unknown as FuncOpt[]
 }
 
+/**
+ * Agentes vinculados ao posto que podem figurar como "quem faltou".
+ * Inclui férias/atestado/afastado — cobrir alguém de férias é o caso mais comum,
+ * e filtrar por `ativo` escondia justamente essas pessoas.
+ */
 export async function buscarAgentesPorPosto(postoId: string): Promise<FuncOpt[]> {
   const supabase = createClient()
   const { data } = await supabase
     .from('funcionarios')
-    .select('id, nome, postos!posto_id(id, nome, secretaria)')
+    .select('id, nome, status, postos!posto_id(id, nome, secretaria), funcoes!funcionarios_funcao_id_fkey(nome)')
     .eq('posto_id', postoId)
-    .eq('status', 'ativo')
+    .in('status', ['ativo', 'ferias', 'atestado', 'afastado'])
     .order('nome')
   return (data ?? []) as unknown as FuncOpt[]
 }
