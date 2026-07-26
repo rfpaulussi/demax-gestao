@@ -53,7 +53,7 @@ export async function registrarAtestado(formData: FormData) {
     .single()
   if (!func) throw new Error('Funcionário não encontrado')
 
-  if (auth.perfil.role === 'supervisor') {
+  if (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador') {
     const temAcesso = await supervisorTemAcessoAoFuncionario(supabase, auth.user.id, func.posto_id)
     if (!temAcesso) throw new Error('Acesso negado — funcionário fora do seu posto')
   }
@@ -125,35 +125,38 @@ export async function registrarFerias(formData: FormData) {
     .single()
   if (!func) throw new Error('Funcionário não encontrado')
 
-  if (auth.perfil.role === 'supervisor') {
+  if (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador') {
     const temAcesso = await supervisorTemAcessoAoFuncionario(supabase, auth.user.id, func.posto_id)
     if (!temAcesso) throw new Error('Acesso negado — funcionário fora do seu posto')
   }
 
-  // Precisa do client admin: RLS de funcionarios não permite update de supervisor (ver nota acima).
-  const adminSupabase = createAdminClient()
+  const { error: errFerias } = await supabase.from('ferias').insert({
+    funcionario_id: funcionarioId,
+    data_inicio: dataInicio,
+    data_fim: dataFim,
+    observacao,
+    status: 'agendado',
+  })
+  if (errFerias) throw new Error(errFerias.message)
 
-  const [, , { error: errMovFerias }] = await Promise.all([
-    supabase.from('ferias').insert({
-      funcionario_id: funcionarioId,
-      data_inicio: dataInicio,
-      data_fim: dataFim,
-      observacao,
-      status: 'agendado',
-    }),
-    adminSupabase
-      .from('funcionarios')
-      .update({ status: 'ferias' })
-      .eq('id', funcionarioId),
-    supabase.from('movimentacoes').insert({
-      funcionario_id: funcionarioId,
-      tipo: 'ferias',
-      campo_alterado: 'status',
-      valor_antes: func.status ?? null,
-      valor_depois: 'ferias',
-      executado_por: auth.user.id,
-    }),
-  ])
+  // Precisa do client admin: RLS de funcionarios não permite update de supervisor (ver nota acima).
+  // Só roda depois do insert em ferias ter sucesso, pra nunca marcar o funcionário
+  // como 'ferias' sem o registro correspondente na tabela ferias.
+  const adminSupabase = createAdminClient()
+  const { error: errStatus } = await adminSupabase
+    .from('funcionarios')
+    .update({ status: 'ferias' })
+    .eq('id', funcionarioId)
+  if (errStatus) throw new Error(errStatus.message)
+
+  const { error: errMovFerias } = await supabase.from('movimentacoes').insert({
+    funcionario_id: funcionarioId,
+    tipo: 'ferias',
+    campo_alterado: 'status',
+    valor_antes: func.status ?? null,
+    valor_depois: 'ferias',
+    executado_por: auth.user.id,
+  })
   if (errMovFerias) console.error('[movimentacoes] registrarFerias:', errMovFerias.message)
 
   revalidatePath('/efetivo')
