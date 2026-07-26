@@ -7,10 +7,35 @@ import { getUser } from '@/lib/auth/get-user'
 
 // ─── execução direta ──────────────────────────────────────────────────────────
 
+/**
+ * A tabela `funcionarios` só tem policy de RLS de escrita para admin/coordenador
+ * (`funcionarios_admin_all`) — supervisor não tem nenhuma policy de UPDATE. Um
+ * update feito com o client normal (RLS) não dá erro nesse caso, só afeta 0
+ * linhas silenciosamente. Por isso as funções abaixo usam o client admin para
+ * essa escrita específica, com essa checagem de escopo por posto substituindo
+ * a proteção que o RLS daria.
+ */
+async function supervisorTemAcessoAoFuncionario(
+  supabase: ReturnType<typeof createClient>,
+  supervisorId: string,
+  postoId: string | null,
+): Promise<boolean> {
+  if (!postoId) return false
+  const { data: cfg } = await supabase
+    .from('config_supervisores_postos')
+    .select('posto_id')
+    .eq('supervisor_id', supervisorId)
+    .eq('posto_id', postoId)
+    .eq('ativo', true)
+    .maybeSingle()
+  return !!cfg
+}
+
 export async function registrarAtestado(formData: FormData) {
   const supabase = createClient()
   const auth = await getUser()
   if (!auth) throw new Error('Não autenticado')
+  if (auth.perfil.role === 'viewer') throw new Error('Acesso negado')
 
   const funcionarioId     = formData.get('funcionario_id') as string
   const postoId           = formData.get('posto_id') as string
@@ -23,11 +48,17 @@ export async function registrarAtestado(formData: FormData) {
 
   const { data: func } = await supabase
     .from('funcionarios')
-    .select('status')
+    .select('status, posto_id')
     .eq('id', funcionarioId)
     .single()
+  if (!func) throw new Error('Funcionário não encontrado')
 
-  if (func?.status === 'afastado') {
+  if (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador') {
+    const temAcesso = await supervisorTemAcessoAoFuncionario(supabase, auth.user.id, func.posto_id)
+    if (!temAcesso) throw new Error('Acesso negado — funcionário fora do seu posto')
+  }
+
+  if (func.status === 'afastado') {
     const podeIgnorar = auth.perfil.role === 'admin' || auth.perfil.role === 'coordenador'
     if (!podeIgnorar) {
       throw new Error('Funcionário está afastado. Apenas admin/coordenador podem lançar atestado nesta situação — solicite o retorno de afastamento antes.')
@@ -52,7 +83,9 @@ export async function registrarAtestado(formData: FormData) {
   const atestadoVigente = !dataFim || dataFim >= hoje
 
   if (atestadoVigente) {
-    const { error: errStatus } = await supabase
+    // Precisa do client admin: RLS de funcionarios não permite update de supervisor (ver nota acima).
+    const adminSupabase = createAdminClient()
+    const { error: errStatus } = await adminSupabase
       .from('funcionarios')
       .update({ status: 'atestado', motivo_afastamento: 'ausencia_temporaria' })
       .eq('id', funcionarioId)
@@ -62,7 +95,7 @@ export async function registrarAtestado(formData: FormData) {
       funcionario_id: funcionarioId,
       tipo: 'atestado',
       campo_alterado: 'status',
-      valor_antes: func?.status ?? null,
+      valor_antes: func.status ?? null,
       valor_depois: 'atestado',
       executado_por: auth.user.id,
     })
@@ -78,6 +111,7 @@ export async function registrarFerias(formData: FormData) {
   const supabase = createClient()
   const auth = await getUser()
   if (!auth) throw new Error('Não autenticado')
+  if (auth.perfil.role === 'viewer') throw new Error('Acesso negado')
 
   const funcionarioId = formData.get('funcionario_id') as string
   const dataInicio    = formData.get('data_inicio') as string
@@ -86,31 +120,43 @@ export async function registrarFerias(formData: FormData) {
 
   const { data: func } = await supabase
     .from('funcionarios')
-    .select('status')
+    .select('status, posto_id')
     .eq('id', funcionarioId)
     .single()
+  if (!func) throw new Error('Funcionário não encontrado')
 
-  const [, , { error: errMovFerias }] = await Promise.all([
-    supabase.from('ferias').insert({
-      funcionario_id: funcionarioId,
-      data_inicio: dataInicio,
-      data_fim: dataFim,
-      observacao,
-      status: 'agendado',
-    }),
-    supabase
-      .from('funcionarios')
-      .update({ status: 'ferias' })
-      .eq('id', funcionarioId),
-    supabase.from('movimentacoes').insert({
-      funcionario_id: funcionarioId,
-      tipo: 'ferias',
-      campo_alterado: 'status',
-      valor_antes: func?.status ?? null,
-      valor_depois: 'ferias',
-      executado_por: auth.user.id,
-    }),
-  ])
+  if (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador') {
+    const temAcesso = await supervisorTemAcessoAoFuncionario(supabase, auth.user.id, func.posto_id)
+    if (!temAcesso) throw new Error('Acesso negado — funcionário fora do seu posto')
+  }
+
+  const { error: errFerias } = await supabase.from('ferias').insert({
+    funcionario_id: funcionarioId,
+    data_inicio: dataInicio,
+    data_fim: dataFim,
+    observacao,
+    status: 'agendado',
+  })
+  if (errFerias) throw new Error(errFerias.message)
+
+  // Precisa do client admin: RLS de funcionarios não permite update de supervisor (ver nota acima).
+  // Só roda depois do insert em ferias ter sucesso, pra nunca marcar o funcionário
+  // como 'ferias' sem o registro correspondente na tabela ferias.
+  const adminSupabase = createAdminClient()
+  const { error: errStatus } = await adminSupabase
+    .from('funcionarios')
+    .update({ status: 'ferias' })
+    .eq('id', funcionarioId)
+  if (errStatus) throw new Error(errStatus.message)
+
+  const { error: errMovFerias } = await supabase.from('movimentacoes').insert({
+    funcionario_id: funcionarioId,
+    tipo: 'ferias',
+    campo_alterado: 'status',
+    valor_antes: func.status ?? null,
+    valor_depois: 'ferias',
+    executado_por: auth.user.id,
+  })
   if (errMovFerias) console.error('[movimentacoes] registrarFerias:', errMovFerias.message)
 
   revalidatePath('/efetivo')
