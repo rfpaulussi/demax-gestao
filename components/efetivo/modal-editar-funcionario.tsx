@@ -31,8 +31,8 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
   const [funcaoId,           setFuncaoId]           = useState(funcionario.funcoes?.id ?? '')
   const [postoId,            setPostoId]            = useState(funcionario.posto_id ?? '')
   const [dataAdmissao,       setDataAdmissao]       = useState(funcionario.data_admissao ?? '')
-  const [status,             setStatus]             = useState<'ativo' | 'desligado'>(
-    funcionario.status === 'desligado' ? 'desligado' : 'ativo',
+  const [status,             setStatus]             = useState<'ativo' | 'desligado' | 'rescisao_indireta'>(
+    funcionario.status === 'desligado' || funcionario.status === 'rescisao_indireta' ? funcionario.status : 'ativo',
   )
   const [dataDesligamento,   setDataDesligamento]   = useState(funcionario.data_desligamento ?? '')
   const [motivoDesligamento, setMotivoDesligamento] = useState(funcionario.motivo_desligamento ?? '')
@@ -71,7 +71,7 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
     onClose()
   }
 
-  function handleStatusChange(v: 'ativo' | 'desligado') {
+  function handleStatusChange(v: 'ativo' | 'desligado' | 'rescisao_indireta') {
     setStatus(v)
     if (v === 'ativo') {
       setDataDesligamento('')
@@ -86,7 +86,7 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
 
     // Quando status está bloqueado (afastado/ferias), preserva o status original
     const statusEnviado = isStatusLocked
-      ? (funcionario.status as 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado')
+      ? (funcionario.status as 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado' | 'rescisao_indireta')
       : status
 
     start(async () => {
@@ -185,11 +185,12 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
               ) : (
                 <select
                   value={status}
-                  onChange={e => handleStatusChange(e.target.value as 'ativo' | 'desligado')}
+                  onChange={e => handleStatusChange(e.target.value as 'ativo' | 'desligado' | 'rescisao_indireta')}
                   className={inputClass}
                 >
                   <option value="ativo">Ativo</option>
                   <option value="desligado">Desligado</option>
+                  <option value="rescisao_indireta">Rescisão Indireta</option>
                 </select>
               )}
             </div>
