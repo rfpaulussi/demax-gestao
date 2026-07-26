@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
+import { assertRole } from '@/lib/auth/assert-role'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -45,24 +46,6 @@ function addMonths(dateStr: string, months: number): string {
 
 // ─── Mutações ─────────────────────────────────────────────────────────────────
 
-export async function registrarFerias(formData: FormData) {
-  const adminSupabase = createAdminClient()
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const insert: any = {
-    funcionario_id: formData.get('funcionario_id') as string,
-    data_inicio: formData.get('data_inicio') as string,
-    data_fim: formData.get('data_fim') as string,
-    observacao: formData.get('observacao') as string || null,
-    status: 'agendado',
-  }
-  const { error } = await adminSupabase.from('ferias').insert(insert)
-
-  if (error) throw new Error(error.message)
-  revalidatePath('/ferias')
-  return { ok: true }
-}
-
 export async function agendarFerias(data: {
   funcionario_id: string
   numero_periodo: number
@@ -74,10 +57,8 @@ export async function agendarFerias(data: {
   data_fim: string | null
   observacao?: string
 }) {
+  const auth = await assertRole(['admin', 'coordenador', 'supervisor'])
   const supabase = createClient()
-  const adminSupabase = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Não autenticado')
 
   let dias_utilizados: number | null = null
   if (data.data_inicio && data.data_fim) {
@@ -112,9 +93,11 @@ export async function agendarFerias(data: {
     dias_utilizados,
     observacao: data.observacao,
     status: 'agendado',
-    criado_por: user.id,
+    criado_por: auth.user.id,
   }
-  const { error } = await adminSupabase.from('ferias').insert(payload)
+  // Client RLS-scoped (não admin): a policy ferias_supervisor_insert garante
+  // que supervisor só consegue inserir férias de funcionário do próprio posto.
+  const { error } = await supabase.from('ferias').insert(payload)
 
   if (error) throw new Error(error.message)
   revalidatePath('/ferias')
@@ -122,13 +105,11 @@ export async function agendarFerias(data: {
 }
 
 export async function aprovarFerias(id: string) {
-  const supabase = createClient()
+  const auth = await assertRole(['admin', 'coordenador'])
   const adminSupabase = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Não autenticado')
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const update: any = { status: 'aprovado', aprovado_por: user.id, aprovado_em: new Date().toISOString() }
+  const update: any = { status: 'aprovado', aprovado_por: auth.user.id, aprovado_em: new Date().toISOString() }
   const { error } = await adminSupabase.from('ferias').update(update).eq('id', id)
 
   if (error) throw new Error(error.message)
@@ -141,6 +122,7 @@ export async function iniciarFerias(
   id: string,
   opts?: { forcarAntecipado?: boolean }
 ): Promise<{ ok: true } | { ok: false; precisaConfirmar: true; dataInicio: string }> {
+  await assertRole(['admin', 'coordenador'])
   const adminSupabase = createAdminClient()
 
   const { data: fer, error: fetchErr } = await adminSupabase
@@ -169,6 +151,7 @@ export async function concluirFerias(
   id: string,
   opts?: { forcarAntecipado?: boolean }
 ): Promise<{ ok: true } | { ok: false; precisaConfirmar: true; dataFim: string }> {
+  await assertRole(['admin', 'coordenador'])
   const adminSupabase = createAdminClient()
 
   const { data: fer, error: fetchErr } = await adminSupabase
@@ -194,6 +177,7 @@ export async function concluirFerias(
 }
 
 export async function cancelarFerias(id: string, motivo?: string) {
+  await assertRole(['admin', 'coordenador'])
   const adminSupabase = createAdminClient()
 
   const { data: fer, error: fetchErr } = await adminSupabase
@@ -352,6 +336,7 @@ export async function importarFeriasHistoricas(data: {
   dias_utilizados?: number
   observacao?: string
 }) {
+  await assertRole(['admin', 'coordenador'])
   const adminSupabase = createAdminClient()
   const { error } = await adminSupabase.from('ferias').insert({
     funcionario_id: data.funcionario_id,
@@ -377,6 +362,8 @@ export async function editarFerias(id: string, data: {
   status: string
   observacao?: string | null
 }) {
+  // Edição de férias já registradas é restrita a admin (não coordenador/supervisor).
+  await assertRole(['admin'])
   const adminSupabase = createAdminClient()
 
   const { data: fer, error: fetchErr } = await adminSupabase
@@ -439,6 +426,7 @@ export async function editarFerias(id: string, data: {
 }
 
 export async function excluirFerias(id: string) {
+  await assertRole(['admin', 'coordenador'])
   const supabase = createClient()
   const { error } = await supabase
     .from('ferias')

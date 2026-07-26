@@ -170,14 +170,24 @@ type SortKey =
 function IniciarButton({ id, dataInicio, onDone }: { id: string; dataInicio: string | null; onDone: () => void }) {
   const [pending, start] = useTransition()
   const [confirmando, setConfirmando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
 
   function executar(forcarAntecipado?: boolean) {
+    setErro(null)
     start(async () => {
-      const res = await iniciarFerias(id, forcarAntecipado ? { forcarAntecipado: true } : undefined)
-      if (!res.ok) { setConfirmando(true); return }
-      setConfirmando(false)
-      onDone()
+      try {
+        const res = await iniciarFerias(id, forcarAntecipado ? { forcarAntecipado: true } : undefined)
+        if (!res.ok) { setConfirmando(true); return }
+        setConfirmando(false)
+        onDone()
+      } catch (e) {
+        setErro(e instanceof Error ? e.message : 'Erro ao iniciar férias')
+      }
     })
+  }
+
+  if (erro) {
+    return <span className="text-xs text-red-600 font-medium">{erro}</span>
   }
 
   if (confirmando) {
@@ -216,14 +226,24 @@ function IniciarButton({ id, dataInicio, onDone }: { id: string; dataInicio: str
 function ConcluirButton({ id, dataFim, onDone }: { id: string; dataFim: string | null; onDone: () => void }) {
   const [pending, start] = useTransition()
   const [confirmando, setConfirmando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
 
   function executar(forcarAntecipado?: boolean) {
+    setErro(null)
     start(async () => {
-      const res = await concluirFerias(id, forcarAntecipado ? { forcarAntecipado: true } : undefined)
-      if (!res.ok) { setConfirmando(true); return }
-      setConfirmando(false)
-      onDone()
+      try {
+        const res = await concluirFerias(id, forcarAntecipado ? { forcarAntecipado: true } : undefined)
+        if (!res.ok) { setConfirmando(true); return }
+        setConfirmando(false)
+        onDone()
+      } catch (e) {
+        setErro(e instanceof Error ? e.message : 'Erro ao concluir férias')
+      }
     })
+  }
+
+  if (erro) {
+    return <span className="text-xs text-red-600 font-medium">{erro}</span>
   }
 
   if (confirmando) {
@@ -261,9 +281,22 @@ function ConcluirButton({ id, dataFim, onDone }: { id: string; dataFim: string |
 
 function AprovarButton({ id, onDone }: { id: string; onDone: () => void }) {
   const [pending, start] = useTransition()
+  const [erro, setErro] = useState<string | null>(null)
+
+  if (erro) {
+    return <span className="text-xs text-red-600 font-medium">{erro}</span>
+  }
+
   return (
     <button
-      onClick={() => start(async () => { await aprovarFerias(id); onDone() })}
+      onClick={() => start(async () => {
+        try {
+          await aprovarFerias(id)
+          onDone()
+        } catch (e) {
+          setErro(e instanceof Error ? e.message : 'Erro ao aprovar férias')
+        }
+      })}
       disabled={pending}
       className="text-xs px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-medium"
     >

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { avaliarPeriodo, mensagemUltrapassaMes } from '@/lib/insalubridade-periodo'
+import { requireRole } from '@/lib/auth/assert-role'
 
 export type InsalubridadeStatus = 'pendente' | 'enviado' | 'pago'
 export type InsalubridadeOrigem = 'manual' | 'cobertura'
@@ -145,6 +146,9 @@ export async function buscarInsalubridades(
 }
 
 export async function criarInsalubridade(formData: FormData): Promise<{ error?: string }> {
+  const guard = await requireRole(['admin', 'coordenador'])
+  if (!guard.success) return { error: guard.error }
+
   const adminSupabase = createAdminClient()
 
   const funcionarioId = formData.get('funcionario_id') as string
@@ -192,6 +196,9 @@ export async function marcarEnviado(
   mes: number,
   ano: number
 ) {
+  const guard = await requireRole(['admin', 'coordenador'])
+  if (!guard.success) { console.error('[insalubridade] marcarEnviado:', guard.error); return }
+
   const supabase = createClient()
   const { error } = await supabase
     .from('insalubridade_coberturas')
@@ -204,11 +211,15 @@ export async function marcarEnviado(
   revalidatePath('/insalubridade')
 }
 
-export async function removerDia(id: string) {
+export async function removerDia(id: string): Promise<{ error?: string }> {
+  const guard = await requireRole(['admin', 'coordenador'])
+  if (!guard.success) return { error: guard.error }
+
   const adminSupabase = createAdminClient()
   const { error } = await adminSupabase.from('insalubridade_coberturas').delete().eq('id', id)
-  if (error) console.error('[insalubridade] removerDia:', error.message)
+  if (error) { console.error('[insalubridade] removerDia:', error.message); return { error: error.message } }
   revalidatePath('/insalubridade')
+  return {}
 }
 
 export async function editarCobertura(
@@ -220,6 +231,9 @@ export async function editarCobertura(
     observacao: string
   }
 ): Promise<{ error?: string }> {
+  const guard = await requireRole(['admin', 'coordenador'])
+  if (!guard.success) return { error: guard.error }
+
   const adminSupabase = createAdminClient()
   const [ano, mes] = dados.data_cobertura.split('-').map(Number)
 
@@ -246,6 +260,9 @@ export async function editarCobertura(
 }
 
 export async function excluirCobertura(id: string): Promise<{ error?: string }> {
+  const guard = await requireRole(['admin', 'coordenador'])
+  if (!guard.success) return { error: guard.error }
+
   const adminSupabase = createAdminClient()
   const { error } = await adminSupabase.from('insalubridade_coberturas').delete().eq('id', id)
   if (error) return { error: error.message }

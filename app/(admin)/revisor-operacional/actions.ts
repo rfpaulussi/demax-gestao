@@ -2,6 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buscarInconsistenciasFerias, type TipoInconsistencia } from '@/app/(admin)/ferias/actions'
+import { assertRole } from '@/lib/auth/assert-role'
 
 export type Severidade = 'alta' | 'media' | 'baixa'
 
@@ -40,9 +41,11 @@ function fmtData(iso: string | null): string {
 }
 
 export async function buscarAchados(): Promise<Achado[]> {
-  // Client de service-role: a página só é acessível a admin/coordenador (gate no page.tsx),
-  // e RLS de `solicitacoes` hoje só libera SELECT amplo pra 'admin' (não coordenador) —
-  // usar o client comum aqui faria coordenador ver dados incompletos.
+  await assertRole(['admin', 'coordenador'])
+
+  // Client de service-role: RLS de `solicitacoes` hoje só libera SELECT amplo pra
+  // 'admin' (não coordenador) — usar o client comum aqui faria coordenador ver
+  // dados incompletos. O guard de role acima é quem garante o controle de acesso.
   const supabase = createAdminClient()
   const hoje = new Date().toISOString().slice(0, 10)
 

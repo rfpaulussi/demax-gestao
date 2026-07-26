@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireRole } from '@/lib/auth/assert-role'
 
 export interface AcordoPostoItem {
   id: string
@@ -132,6 +133,9 @@ export async function criarAcordo(dados: {
   descricao_acordo: string
   data_documento: string
 }): Promise<{ id: string } | { error: string }> {
+  const guard = await requireRole(['admin', 'coordenador'])
+  if (!guard.success) return { error: guard.error }
+
   const { data, error } = await (createAdminClient() as AnyClient)
     .from('acordos_compensacao')
     .insert({
@@ -152,6 +156,9 @@ export async function criarAcordo(dados: {
 }
 
 export async function excluirAcordo(id: string): Promise<{ error?: string }> {
+  const guard = await requireRole(['admin', 'coordenador'])
+  if (!guard.success) return { error: guard.error }
+
   const { error } = await (createAdminClient() as AnyClient).from('acordos_compensacao').delete().eq('id', id)
   if (error) return { error: error.message }
   revalidatePath('/acordos')
@@ -211,6 +218,9 @@ export async function buscarFuncionariosPorPostos(
 }
 
 export async function marcarEntregueRH(id: string): Promise<{ error?: string }> {
+  const guard = await requireRole(['admin', 'coordenador'])
+  if (!guard.success) return { error: guard.error }
+
   const { error } = await (createAdminClient() as AnyClient)
     .from('acordos_compensacao')
     .update({ entregue_rh: true, entregue_em: new Date().toISOString() })
@@ -224,6 +234,9 @@ export async function editarAcordo(
   id: string,
   dados: { titulo: string; data_documento: string; descricao_acordo: string; subtipo?: 'evento' | 'antecipado' | null }
 ): Promise<{ error?: string }> {
+  const guard = await requireRole(['admin', 'coordenador'])
+  if (!guard.success) return { error: guard.error }
+
   const { error } = await (createAdminClient() as AnyClient)
     .from('acordos_compensacao')
     .update({
