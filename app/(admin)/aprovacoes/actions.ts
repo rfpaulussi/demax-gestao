@@ -214,17 +214,19 @@ export async function aprovarSolicitacao(
     }
 
     case 'rescisao_indireta': {
-      await supabase
+      const { error: errStatusRescisao } = await supabase
         .from('funcionarios')
         .update({ status: 'rescisao_indireta' })
         .eq('id', funcionarioId)
+      if (errStatusRescisao) return { success: false, error: errStatusRescisao.message }
 
-      await supabase.from('afastamentos').insert({
+      const { error: errAfastamentoRescisao } = await supabase.from('afastamentos').insert({
         funcionario_id: funcionarioId,
         motivo:         (dadosDepois.observacao as string | null) || (dadosDepois.motivo as string) || sol.motivo || 'Rescisão Indireta — aguardando audiência',
         data_inicio:    dadosDepois.data_parou_trabalhar as string,
         solicitacao_id: id,
       })
+      if (errAfastamentoRescisao) return { success: false, error: errAfastamentoRescisao.message }
       break
     }
 

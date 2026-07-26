@@ -372,6 +372,10 @@ export async function solicitarRescisaoIndireta(fd: FormData): Promise<ActionRes
   const data_parou_trabalhar = fd.get('data_parou_trabalhar') as string
   const observacao           = (fd.get('observacao') as string)?.trim() || null
 
+  if (!data_parou_trabalhar) {
+    return { success: false, error: 'Data em que parou de trabalhar é obrigatória' }
+  }
+
   const { data: func } = await supabase
     .from('funcionarios')
     .select('status, posto_id, funcao_id')
