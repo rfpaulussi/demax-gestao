@@ -18,7 +18,7 @@ export type FuncionarioRow = {
   nome: string
   registro: string | null
   cpf: string | null
-  status: 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado' | 'faltante' | null
+  status: 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado' | 'faltante' | 'rescisao_indireta' | null
   motivo_afastamento: 'ausencia_temporaria' | 'inss' | null
   origem_ocupacional_cat: string | null
   data_admissao: string | null

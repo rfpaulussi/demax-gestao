@@ -137,7 +137,7 @@ export type LogAlocacaoComPosto = LogAlocacaoMensal & {
 // ----------------------------------------------------------
 
 /** Status possíveis de um funcionário (espelha CHECK do schema) */
-export type StatusFuncionario = 'ativo' | 'afastado' | 'ferias' | 'desligado'
+export type StatusFuncionario = 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado' | 'faltante' | 'rescisao_indireta'
 
 /** Urgência de cobertura temporária */
 export type UrgenciaCobertura = 'baixa' | 'media' | 'alta'
