@@ -10,17 +10,19 @@ import type { FuncionarioRow } from './funcionarios-table'
 import { exportToExcel } from '@/lib/export-excel'
 
 const STATUS_LABELS: Record<string, string> = {
-  ativo:     'Ativo',
-  afastado:  'Afastado',
-  ferias:    'Férias',
-  desligado: 'Desligado',
+  ativo:             'Ativo',
+  afastado:          'Afastado',
+  ferias:            'Férias',
+  desligado:         'Desligado',
+  rescisao_indireta: 'Rescisão Indireta',
 }
 
 const STATUS_COLORS: Record<string, { fill: string; color: string }> = {
-  ativo:     { fill: 'F0FDF4', color: '15803D' },
-  afastado:  { fill: 'FFF1F2', color: 'B91C1C' },
-  ferias:    { fill: 'FFF7ED', color: 'C2410C' },
-  desligado: { fill: 'F3F4F6', color: '6B7280' },
+  ativo:             { fill: 'F0FDF4', color: '15803D' },
+  afastado:          { fill: 'FFF1F2', color: 'B91C1C' },
+  ferias:            { fill: 'FFF7ED', color: 'C2410C' },
+  desligado:         { fill: 'F3F4F6', color: '6B7280' },
+  rescisao_indireta: { fill: 'FAF5FF', color: '7E22CE' },
 }
 
 function todayFilename() {

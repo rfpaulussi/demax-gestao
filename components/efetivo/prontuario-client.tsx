@@ -53,10 +53,11 @@ const DEFAULT_CONFIG: EventConfig = {
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  ativo:     { label: 'Ativo',     className: 'bg-green-50  text-green-700  ring-green-200'  },
-  afastado:  { label: 'Afastado',  className: 'bg-orange-50 text-orange-700 ring-orange-200' },
-  ferias:    { label: 'Férias',    className: 'bg-amber-50  text-amber-700  ring-amber-200'  },
-  desligado: { label: 'Desligado', className: 'bg-gray-100  text-gray-500   ring-gray-200'   },
+  ativo:             { label: 'Ativo',             className: 'bg-green-50  text-green-700  ring-green-200'  },
+  afastado:          { label: 'Afastado',          className: 'bg-orange-50 text-orange-700 ring-orange-200' },
+  ferias:            { label: 'Férias',            className: 'bg-amber-50  text-amber-700  ring-amber-200'  },
+  desligado:         { label: 'Desligado',         className: 'bg-gray-100  text-gray-500   ring-gray-200'   },
+  rescisao_indireta: { label: 'Rescisão Indireta', className: 'bg-purple-50 text-purple-700  ring-purple-200' },
 }
 
 // ─── Histórico por Mês ────────────────────────────────────────────────────────
