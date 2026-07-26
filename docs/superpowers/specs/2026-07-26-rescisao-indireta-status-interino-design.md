@@ -121,6 +121,7 @@ Adicionar entrada `rescisao_indireta` (label "Rescisão Indireta", cor roxa — 
 - Qualquer mudança no fluxo de aprovação em si (continua pendente → aprovada/rejeitada, sem novo estado)
 - Novo KPI no dashboard principal
 - Corrigir o gap pré-existente de `prontuario-client.tsx` `STATUS_BADGE` não ter `atestado`/`faltante` (bug antigo, não relacionado a esta feature)
+- **Visibilidade do período interino no Prontuário:** o gatilho de `historico_funcionarios` só emite evento quando o status entra ou sai de `'desligado'` (`supabase/migrations/20260610_historico_funcionarios.sql`), e a timeline do prontuário nunca lê a tabela `afastamentos`. Como a aprovação agora move o funcionário para `rescisao_indireta` em vez de `desligado`, nenhum evento aparece na linha do tempo durante a espera da audiência — só quando o desligamento final (Seção 4) for aprovado. Decisão explícita: aceito como limitação por ora; revisitar se o volume de casos justificar estender o CHECK de `historico_funcionarios.tipo` para cobrir esse período.
 
 ## Arquivos alterados
 

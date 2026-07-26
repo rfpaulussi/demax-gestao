@@ -367,9 +367,14 @@ export async function solicitarRescisaoIndireta(fd: FormData): Promise<ActionRes
   const supabase = createClient()
   const auth = await getUser()
   if (!auth) return { success: false, error: 'Não autenticado' }
-  const funcionario_id = fd.get('funcionario_id') as string
-  const motivo         = fd.get('motivo') as string
-  const data_rescisao  = fd.get('data_rescisao') as string
+  const funcionario_id       = fd.get('funcionario_id') as string
+  const motivo               = fd.get('motivo') as string
+  const data_parou_trabalhar = fd.get('data_parou_trabalhar') as string
+  const observacao           = (fd.get('observacao') as string)?.trim() || null
+
+  if (!data_parou_trabalhar) {
+    return { success: false, error: 'Data em que parou de trabalhar é obrigatória' }
+  }
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -383,7 +388,7 @@ export async function solicitarRescisaoIndireta(fd: FormData): Promise<ActionRes
     status:       'pendente',
     supervisor_id: auth.user.id,
     dados_antes:  { status: func?.status ?? null, posto_id: func?.posto_id ?? null, funcao_id: func?.funcao_id ?? null },
-    dados_depois: { motivo, data_rescisao },
+    dados_depois: { motivo, data_parou_trabalhar, observacao },
     motivo,
   })
   if (error) return { success: false, error: error.message }
@@ -400,7 +405,7 @@ export async function editarFuncionario(
     funcao_id: string
     posto_id: string
     data_admissao: string | null
-    status: 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado'
+    status: 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado' | 'rescisao_indireta'
     data_desligamento: string | null
     motivo_desligamento: string | null
     tipo_desligamento: string | null

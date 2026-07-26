@@ -18,7 +18,7 @@ export type FuncionarioRow = {
   nome: string
   registro: string | null
   cpf: string | null
-  status: 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado' | 'faltante' | null
+  status: 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado' | 'faltante' | 'rescisao_indireta' | null
   motivo_afastamento: 'ausencia_temporaria' | 'inss' | null
   origem_ocupacional_cat: string | null
   data_admissao: string | null
@@ -52,24 +52,26 @@ const STATUS_BADGE: Record<
   NonNullable<FuncionarioRow['status']>,
   { label: string; className: string }
 > = {
-  ativo:     { label: 'Ativo',     className: 'bg-green-50 text-green-700 ring-green-200'      },
-  atestado:  { label: 'Atestado',  className: 'bg-amber-50 text-amber-700 ring-amber-200'      },
-  afastado:  { label: 'Afastado',  className: 'bg-red-50 text-red-700 ring-red-200'            },
-  ferias:    { label: 'Férias',    className: 'bg-orange-50 text-orange-700 ring-orange-200'   },
-  desligado: { label: 'Desligado', className: 'bg-gray-100 text-gray-500 ring-gray-200'        },
-  faltante:  { label: '⚑ FALTANTE', className: 'bg-rose-100 text-rose-800 ring-rose-400 font-bold' },
+  ativo:             { label: 'Ativo',             className: 'bg-green-50 text-green-700 ring-green-200'      },
+  atestado:          { label: 'Atestado',          className: 'bg-amber-50 text-amber-700 ring-amber-200'      },
+  afastado:          { label: 'Afastado',          className: 'bg-red-50 text-red-700 ring-red-200'            },
+  ferias:            { label: 'Férias',            className: 'bg-orange-50 text-orange-700 ring-orange-200'   },
+  desligado:         { label: 'Desligado',         className: 'bg-gray-100 text-gray-500 ring-gray-200'        },
+  faltante:          { label: '⚑ FALTANTE',        className: 'bg-rose-100 text-rose-800 ring-rose-400 font-bold' },
+  rescisao_indireta: { label: 'Rescisão Indireta', className: 'bg-purple-50 text-purple-700 ring-purple-200'   },
 }
 
 const STATUS_ROW: Record<
   NonNullable<FuncionarioRow['status']>,
   { bg: string; hover: string; borderLeft: string; dimmed: boolean }
 > = {
-  ativo:     { bg: 'bg-white',    hover: 'hover:bg-gray-50',    borderLeft: '',                                    dimmed: false },
-  atestado:  { bg: 'bg-amber-50', hover: 'hover:bg-amber-100',  borderLeft: 'border-l-[3px] border-l-amber-400',  dimmed: false },
-  afastado:  { bg: 'bg-red-50',   hover: 'hover:bg-red-100',    borderLeft: 'border-l-[3px] border-l-red-400',    dimmed: false },
-  ferias:    { bg: 'bg-blue-50',  hover: 'hover:bg-blue-100',   borderLeft: 'border-l-[3px] border-l-blue-400',   dimmed: false },
-  desligado: { bg: 'bg-gray-50',  hover: 'hover:bg-gray-100',   borderLeft: '',                                    dimmed: true  },
-  faltante:  { bg: 'bg-rose-50',  hover: 'hover:bg-rose-100',   borderLeft: 'border-l-[3px] border-l-rose-500',   dimmed: false },
+  ativo:             { bg: 'bg-white',      hover: 'hover:bg-gray-50',      borderLeft: '',                                      dimmed: false },
+  atestado:          { bg: 'bg-amber-50',   hover: 'hover:bg-amber-100',    borderLeft: 'border-l-[3px] border-l-amber-400',    dimmed: false },
+  afastado:          { bg: 'bg-red-50',     hover: 'hover:bg-red-100',      borderLeft: 'border-l-[3px] border-l-red-400',      dimmed: false },
+  ferias:            { bg: 'bg-blue-50',    hover: 'hover:bg-blue-100',     borderLeft: 'border-l-[3px] border-l-blue-400',     dimmed: false },
+  desligado:         { bg: 'bg-gray-50',    hover: 'hover:bg-gray-100',     borderLeft: '',                                      dimmed: true  },
+  faltante:          { bg: 'bg-rose-50',    hover: 'hover:bg-rose-100',     borderLeft: 'border-l-[3px] border-l-rose-500',     dimmed: false },
+  rescisao_indireta: { bg: 'bg-purple-50',  hover: 'hover:bg-purple-100',   borderLeft: 'border-l-[3px] border-l-purple-400',   dimmed: false },
 }
 
 const COLS: { label: string; sortKey?: string }[] = [

@@ -418,9 +418,12 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
             {/* rescisao_indireta */}
             {tipo === 'rescisao_indireta' && (
               <>
+                <div className="rounded border border-purple-200 bg-purple-50 px-3 py-2 text-sm text-purple-700">
+                  Isso registra o aviso do funcionário. O desligamento efetivo só deve ser lançado depois que a audiência confirmar a rescisão indireta, usando &quot;Solicitar Desligamento&quot; → Judicial → Rescisão Indireta.
+                </div>
                 <div>
-                  <label className={labelClass}>Data da Rescisão</label>
-                  <input type="date" name="data_rescisao" required className={inputClass} />
+                  <label className={labelClass}>Data em que Parou de Trabalhar</label>
+                  <input type="date" name="data_parou_trabalhar" required className={inputClass} />
                 </div>
                 <div>
                   <label className={labelClass}>Motivo</label>
@@ -433,6 +436,10 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
                     <option value="Alteração Contratual Ilícita">Alteração Contratual Ilícita</option>
                     <option value="Outros">Outros</option>
                   </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Observação</label>
+                  <textarea name="observacao" rows={3} className={inputClass} placeholder="Detalhes adicionais (opcional)..." />
                 </div>
               </>
             )}

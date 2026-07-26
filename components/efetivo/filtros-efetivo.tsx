@@ -4,11 +4,12 @@ import { useRef } from 'react'
 import { Search } from 'lucide-react'
 
 const STATUS_LABELS: Record<string, string> = {
-  ativo:     'Ativo',
-  atestado:  'Atestado',
-  afastado:  'Afastado (INSS)',
-  ferias:    'Em Férias',
-  desligado: 'Desligado',
+  ativo:             'Ativo',
+  atestado:          'Atestado',
+  afastado:          'Afastado (INSS)',
+  ferias:            'Em Férias',
+  desligado:         'Desligado',
+  rescisao_indireta: 'Rescisão Indireta',
 }
 
 export type FiltrosValues = {

@@ -214,14 +214,19 @@ export async function aprovarSolicitacao(
     }
 
     case 'rescisao_indireta': {
-      await supabase
+      const { error: errStatusRescisao } = await supabase
         .from('funcionarios')
-        .update({
-          status:              'desligado',
-          data_desligamento:   (dadosDepois.data_rescisao as string) ?? null,
-          motivo_desligamento: (dadosDepois.motivo as string) ?? sol.motivo ?? 'Rescisão Indireta',
-        })
+        .update({ status: 'rescisao_indireta' })
         .eq('id', funcionarioId)
+      if (errStatusRescisao) return { success: false, error: errStatusRescisao.message }
+
+      const { error: errAfastamentoRescisao } = await supabase.from('afastamentos').insert({
+        funcionario_id: funcionarioId,
+        motivo:         (dadosDepois.observacao as string | null) || (dadosDepois.motivo as string) || sol.motivo || 'Rescisão Indireta — aguardando audiência',
+        data_inicio:    dadosDepois.data_parou_trabalhar as string,
+        solicitacao_id: id,
+      })
+      if (errAfastamentoRescisao) return { success: false, error: errAfastamentoRescisao.message }
       break
     }
 
@@ -295,7 +300,7 @@ export async function aprovarSolicitacao(
     alteracao_salario:   { campo: 'salario',      antes: String(func?.salario ?? ''),      depois: String(dadosDepois.novo_salario ?? '') },
     afastamento:         { campo: 'status',       antes: func?.status ?? null,            depois: 'afastado'   },
     retorno_afastamento: { campo: 'status',       antes: func?.status ?? null,            depois: 'ativo'      },
-    rescisao_indireta:   { campo: 'status',       antes: func?.status ?? null,            depois: 'desligado'  },
+    rescisao_indireta:   { campo: 'status',       antes: func?.status ?? null,            depois: 'rescisao_indireta'  },
   }
   const mov = campoMap[sol.tipo as keyof typeof campoMap]
 

@@ -146,7 +146,7 @@ export async function buscarAchados(): Promise<Achado[]> {
   for (const a of afastamentos) {
     if (a.data_fim_real) continue
     const f = funcMap.get(a.funcionario_id)
-    if (f && f.status !== 'afastado') {
+    if (f && f.status !== 'afastado' && f.status !== 'rescisao_indireta') {
       achados.push({
         tipo: 'AFASTAMENTO_ABERTO_SEM_STATUS',
         severidade: 'alta',

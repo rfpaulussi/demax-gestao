@@ -62,6 +62,7 @@ export default async function EfetivoPage() {
     { count: countAtivos },
     { count: countAfastados },
     { count: countFerias },
+    { count: countRescisaoIndireta },
   ] = await Promise.all([
     supabase
       .from('funcionarios')
@@ -92,6 +93,7 @@ export default async function EfetivoPage() {
     supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'ativo'),
     supabase.from('funcionarios').select('*', { count: 'exact', head: true }).in('status', ['afastado', 'atestado']),
     supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'ferias'),
+    supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'rescisao_indireta'),
   ])
 
   // posto_id → { supervisor_id, nomeCompleto }
@@ -163,10 +165,11 @@ export default async function EfetivoPage() {
   })
 
   // KPI counters via COUNT exact — independentes do limite de linhas da query da tabela
-  const total     = countTotal    ?? 0
-  const ativos    = countAtivos   ?? 0
-  const afastados = countAfastados ?? 0
-  const emFerias  = countFerias   ?? 0
+  const total       = countTotal    ?? 0
+  const ativos      = countAtivos   ?? 0
+  const afastados   = countAfastados ?? 0
+  const emFerias    = countFerias   ?? 0
+  const emProcesso  = countRescisaoIndireta ?? 0
 
   const supervisores = (supervisoresRaw ?? []) as { id: string; nome: string | null }[]
   const postos       = (postosRaw ?? []) as { id: string; nome: string; secretaria: string | null }[]
@@ -181,11 +184,12 @@ export default async function EfetivoPage() {
       </div>
 
       {/* Counters */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <CounterCard label="Total"      value={total}     topColor="border-t-gray-400"   />
-        <CounterCard label="Ativos"     value={ativos}    topColor="border-t-green-500"  />
-        <CounterCard label="Afastados"  value={afastados} topColor="border-t-red-500"    />
-        <CounterCard label="Em Férias"  value={emFerias}  topColor="border-t-orange-500" />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <CounterCard label="Total"        value={total}      topColor="border-t-gray-400"   />
+        <CounterCard label="Ativos"       value={ativos}     topColor="border-t-green-500"  />
+        <CounterCard label="Afastados"    value={afastados}  topColor="border-t-red-500"    />
+        <CounterCard label="Em Férias"    value={emFerias}   topColor="border-t-orange-500" />
+        <CounterCard label="Em Processo"  value={emProcesso} topColor="border-t-purple-500" />
       </div>
 
       {/* Filters + Table (client-side) */}
