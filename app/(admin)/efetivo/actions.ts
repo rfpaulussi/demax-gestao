@@ -474,9 +474,9 @@ export async function editarFuncionario(
     posto_id:            campos.posto_id || null,
     data_admissao:       campos.data_admissao || null,
     status:              campos.status,
-    data_desligamento:   campos.status === 'ativo' ? null : campos.data_desligamento || null,
-    motivo_desligamento: campos.status === 'ativo' ? null : campos.motivo_desligamento || null,
-    tipo_desligamento:   campos.status === 'ativo' ? null : campos.tipo_desligamento || null,
+    data_desligamento:   (campos.status === 'ativo' || campos.status === 'rescisao_indireta') ? null : campos.data_desligamento || null,
+    motivo_desligamento: (campos.status === 'ativo' || campos.status === 'rescisao_indireta') ? null : campos.motivo_desligamento || null,
+    tipo_desligamento:   (campos.status === 'ativo' || campos.status === 'rescisao_indireta') ? null : campos.tipo_desligamento || null,
     periodo_experiencia: periodoExperiencia,
   }
 
@@ -608,8 +608,23 @@ export async function marcarRetornoFaltante(funcionarioId: string): Promise<{ su
   const supabase = createClient()
   const auth = await getUser()
   if (!auth) return { success: false, error: 'Não autenticado' }
+  if (auth.perfil.role === 'viewer') return { success: false, error: 'Acesso negado' }
 
-  const { error } = await supabase
+  const { data: func } = await supabase
+    .from('funcionarios')
+    .select('posto_id')
+    .eq('id', funcionarioId)
+    .single()
+  if (!func) return { success: false, error: 'Funcionário não encontrado' }
+
+  if (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador') {
+    const temAcesso = await supervisorTemAcessoAoFuncionario(supabase, auth.user.id, func.posto_id)
+    if (!temAcesso) return { success: false, error: 'Acesso negado — funcionário fora do seu posto' }
+  }
+
+  // Precisa do client admin: RLS de funcionarios não permite update de supervisor (ver nota no topo do arquivo).
+  const adminSupabase = createAdminClient()
+  const { error } = await adminSupabase
     .from('funcionarios')
     .update({ status: 'ativo', motivo_afastamento: null })
     .eq('id', funcionarioId)

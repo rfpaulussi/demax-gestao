@@ -73,7 +73,7 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
 
   function handleStatusChange(v: 'ativo' | 'desligado' | 'rescisao_indireta') {
     setStatus(v)
-    if (v === 'ativo') {
+    if (v === 'ativo' || v === 'rescisao_indireta') {
       setDataDesligamento('')
       setMotivoDesligamento('')
       setTipoDesligamento('')
@@ -97,9 +97,9 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
         posto_id:            postoId,
         data_admissao:       dataAdmissao || null,
         status:              statusEnviado,
-        data_desligamento:   statusEnviado === 'ativo' ? null : dataDesligamento || null,
-        motivo_desligamento: statusEnviado === 'ativo' ? null : motivoDesligamento || null,
-        tipo_desligamento:   statusEnviado === 'ativo' ? null : tipoDesligamento || null,
+        data_desligamento:   (statusEnviado === 'ativo' || statusEnviado === 'rescisao_indireta') ? null : dataDesligamento || null,
+        motivo_desligamento: (statusEnviado === 'ativo' || statusEnviado === 'rescisao_indireta') ? null : motivoDesligamento || null,
+        tipo_desligamento:   (statusEnviado === 'ativo' || statusEnviado === 'rescisao_indireta') ? null : tipoDesligamento || null,
         periodo_experiencia: periodoExp || null,
       })
       if (!result.success) {
