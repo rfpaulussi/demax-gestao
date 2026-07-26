@@ -367,9 +367,10 @@ export async function solicitarRescisaoIndireta(fd: FormData): Promise<ActionRes
   const supabase = createClient()
   const auth = await getUser()
   if (!auth) return { success: false, error: 'Não autenticado' }
-  const funcionario_id = fd.get('funcionario_id') as string
-  const motivo         = fd.get('motivo') as string
-  const data_rescisao  = fd.get('data_rescisao') as string
+  const funcionario_id       = fd.get('funcionario_id') as string
+  const motivo               = fd.get('motivo') as string
+  const data_parou_trabalhar = fd.get('data_parou_trabalhar') as string
+  const observacao           = (fd.get('observacao') as string)?.trim() || null
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -383,7 +384,7 @@ export async function solicitarRescisaoIndireta(fd: FormData): Promise<ActionRes
     status:       'pendente',
     supervisor_id: auth.user.id,
     dados_antes:  { status: func?.status ?? null, posto_id: func?.posto_id ?? null, funcao_id: func?.funcao_id ?? null },
-    dados_depois: { motivo, data_rescisao },
+    dados_depois: { motivo, data_parou_trabalhar, observacao },
     motivo,
   })
   if (error) return { success: false, error: error.message }
