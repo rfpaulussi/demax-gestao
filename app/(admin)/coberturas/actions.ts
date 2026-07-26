@@ -100,7 +100,9 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
   if (error) return { success: false, error: error.message }
   const coberturaId = (cobData as { id: string } | null)?.id ?? null
 
-  const { error: errSubstituto } = await supabase
+  // Client admin: RLS de funcionarios não permite update de supervisor
+  // (só admin/coordenador têm policy de UPDATE — ver nota em efetivo/actions.ts).
+  const { error: errSubstituto } = await adminSupabase
     .from('funcionarios')
     .update({ posto_id: postoDestinoId })
     .eq('id', substitutoId)
@@ -163,7 +165,7 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
             cid_codigo:     atestadoCidCodigo,
             registrado_por: guard.userId,
           } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-          const { error: errAfastar } = await supabase.from('funcionarios').update({ status: 'afastado' }).eq('id', ausenteId)
+          const { error: errAfastar } = await adminSupabase.from('funcionarios').update({ status: 'afastado' }).eq('id', ausenteId)
           if (errAtest) {
             console.error('[coberturas] registrarCobertura: inserir atestado:', errAtest.message)
             atestadoMsg = `⚠ Afastamento de ${ausenteNome} registrado mas atestado não foi salvo — registre manualmente em Atestados.`
@@ -177,7 +179,7 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
       }
     } else if (isFalta) {
       if (dias >= 3) {
-        const { error: errAusente } = await supabase
+        const { error: errAusente } = await adminSupabase
           .from('funcionarios')
           .update({ status: 'faltante', motivo_afastamento: 'ausencia_temporaria' })
           .eq('id', ausenteId)

@@ -303,8 +303,10 @@ export async function registrarFalta(fd: FormData) {
   }
 
   // Falta com 3 ou mais dias → marca funcionário como faltante (sai do efetivo, gera alerta)
+  // Client admin: RLS de funcionarios não permite update de supervisor
+  // (só admin/coordenador têm policy de UPDATE — ver nota em efetivo/actions.ts).
   if (dias >= 3) {
-    await supabase
+    await adminSupabase
       .from('funcionarios')
       .update({ status: 'faltante', motivo_afastamento: 'ausencia_temporaria' })
       .eq('id', funcionario_id)
