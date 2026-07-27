@@ -218,7 +218,7 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
   const [loadingXlsx, setLoadingXlsx]   = useState(false)
   const [loadingLote, setLoadingLote]   = useState(false)
   const [editandoId, setEditandoId]     = useState<string | null>(null)
-  const [excluindoCobertura, setExcluindoCobertura] = useState<InsalubridadeCobertura | null>(null)
+  const [excluindoCobertura, setExcluindoCobertura] = useState<{ cobertura: InsalubridadeCobertura; funcionarioNome: string } | null>(null)
   const [editForm, setEditForm]         = useState<EditForm | null>(null)
   const [salvando, setSalvando]         = useState(false)
   const [busca, setBusca]               = useState('')
@@ -551,7 +551,7 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
                                             {isEditing ? 'Cancelar' : 'Editar'}
                                           </button>
                                           <button
-                                            onClick={() => setExcluindoCobertura(r)}
+                                            onClick={() => setExcluindoCobertura({ cobertura: r, funcionarioNome: grupo.funcionario_nome })}
                                             className="text-xs text-red-500 hover:text-red-700"
                                           >
                                             Excluir
@@ -656,9 +656,9 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
         <ConfirmarExclusaoDialog
           open
           onOpenChange={(open) => { if (!open) setExcluindoCobertura(null) }}
-          titulo={`Excluir cobertura de ${excluindoCobertura.agente_ausente_nome ?? 'agente ausente'} em ${fmt(excluindoCobertura.data_cobertura)}?`}
+          titulo={`Excluir cobertura de ${excluindoCobertura.funcionarioNome} (ausente: ${excluindoCobertura.cobertura.agente_ausente_nome ?? '—'}) em ${fmt(excluindoCobertura.cobertura.data_cobertura)}?`}
           onConfirmar={async () => {
-            const res = await excluirCobertura(excluindoCobertura.id)
+            const res = await excluirCobertura(excluindoCobertura.cobertura.id)
             if (!res.error) router.refresh()
             return { success: !res.error, error: res.error }
           }}

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import type { TipoSolicitacao } from '@/types'
 
@@ -127,10 +128,14 @@ export async function aprovarSolicitacao(
   const dadosDepois = (sol.dados_depois ?? {}) as Record<string, unknown>
   const dadosAntes  = (sol.dados_antes  ?? {}) as Record<string, unknown>
 
+  // Client admin: evita falha silenciosa de RLS no update de funcionarios (ver histórico de fixes
+  // em efetivo/actions.ts — registrarAtestado/registrarFerias/marcarRetornoFaltante).
+  const adminSupabase = createAdminClient()
+
   switch (sol.tipo as TipoSolicitacao) {
     case 'desligamento': {
       const dataDesligamento = dadosDepois.data_desligamento as string | undefined
-      await supabase
+      const { error: errDeslig } = await adminSupabase
         .from('funcionarios')
         .update({
           status:              'desligado',
@@ -138,16 +143,18 @@ export async function aprovarSolicitacao(
           motivo_desligamento: (dadosDepois.motivo as string) ?? null,
         })
         .eq('id', funcionarioId)
+      if (errDeslig) return { success: false, error: errDeslig.message }
       break
     }
 
     case 'transferencia': {
       const updateTransf: Record<string, unknown> = { posto_id: dadosDepois.posto_destino_id as string }
       if (dadosDepois.nova_funcao_id) updateTransf.funcao_id = dadosDepois.nova_funcao_id as string
-      await supabase
+      const { error: errTransf } = await adminSupabase
         .from('funcionarios')
         .update(updateTransf as { posto_id: string })
         .eq('id', funcionarioId)
+      if (errTransf) return { success: false, error: errTransf.message }
       if (dadosDepois.nova_funcao_id) {
         await supabase.from('movimentacoes').insert({
           funcionario_id:  funcionarioId,
@@ -164,18 +171,20 @@ export async function aprovarSolicitacao(
 
     case 'mudanca_funcao':
     case 'promocao': {
-      await supabase
+      const { error: errFuncao } = await adminSupabase
         .from('funcionarios')
         .update({ funcao_id: dadosDepois.funcao_destino_id as string })
         .eq('id', funcionarioId)
+      if (errFuncao) return { success: false, error: errFuncao.message }
       break
     }
 
     case 'alteracao_salario': {
-      await supabase
+      const { error: errSalario } = await adminSupabase
         .from('funcionarios')
         .update({ salario: dadosDepois.novo_salario as number })
         .eq('id', funcionarioId)
+      if (errSalario) return { success: false, error: errSalario.message }
       break
     }
 
@@ -183,10 +192,11 @@ export async function aprovarSolicitacao(
       const motivoAfastamento = String(dadosDepois.motivo ?? '').toUpperCase().startsWith('INSS')
         ? 'inss'
         : 'ausencia_temporaria'
-      await supabase
+      const { error: errAfast } = await adminSupabase
         .from('funcionarios')
         .update({ status: 'afastado', motivo_afastamento: motivoAfastamento })
         .eq('id', funcionarioId)
+      if (errAfast) return { success: false, error: errAfast.message }
       await supabase.from('afastamentos').insert({
         funcionario_id:    funcionarioId,
         motivo:            (dadosDepois.motivo as string | null) ?? null,
@@ -198,13 +208,14 @@ export async function aprovarSolicitacao(
     }
 
     case 'retorno_afastamento': {
-      await supabase
+      const { error: errRetorno } = await adminSupabase
         .from('funcionarios')
         .update({
           status:   'ativo',
           posto_id: (dadosDepois.posto_retorno_id as string | undefined) ?? func?.posto_id ?? null,
         })
         .eq('id', funcionarioId)
+      if (errRetorno) return { success: false, error: errRetorno.message }
       await supabase
         .from('afastamentos')
         .update({ data_fim_real: dadosDepois.data_retorno as string })

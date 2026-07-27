@@ -143,12 +143,20 @@ function MovDetail({
   }
 
   if (m.campo_alterado) {
+    const mapaPorCampo: Record<string, Record<string, string>> = {
+      funcao_id: funcaoNomeMap,
+      posto_id:  postoNomeMap,
+      turno_id:  turnoNomeMap,
+    }
+    const mapa   = mapaPorCampo[m.campo_alterado]
+    const antes  = (m.valor_antes  && mapa?.[m.valor_antes])  ? mapa[m.valor_antes]  : (m.valor_antes  ?? '—')
+    const depois = (m.valor_depois && mapa?.[m.valor_depois]) ? mapa[m.valor_depois] : (m.valor_depois ?? '—')
     return (
       <p className="mt-0.5 text-xs text-gray-500">
         {m.campo_alterado}:{' '}
-        <span className="line-through text-gray-400">{m.valor_antes ?? '—'}</span>
+        <span className="line-through text-gray-400">{antes}</span>
         {' → '}
-        <span className="text-gray-700">{m.valor_depois ?? '—'}</span>
+        <span className="text-gray-700">{depois}</span>
       </p>
     )
   }
