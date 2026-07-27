@@ -146,7 +146,7 @@ export async function buscarInsalubridades(
 }
 
 export async function criarInsalubridade(formData: FormData): Promise<{ error?: string }> {
-  const guard = await requireRole(['admin', 'coordenador'])
+  const guard = await requireRole(['admin', 'coordenador', 'supervisor'])
   if (!guard.success) return { error: guard.error }
 
   const adminSupabase = createAdminClient()
@@ -212,7 +212,7 @@ export async function marcarEnviado(
 }
 
 export async function removerDia(id: string): Promise<{ error?: string }> {
-  const guard = await requireRole(['admin', 'coordenador'])
+  const guard = await requireRole(['admin', 'coordenador', 'supervisor'])
   if (!guard.success) return { error: guard.error }
 
   const adminSupabase = createAdminClient()
@@ -231,7 +231,7 @@ export async function editarCobertura(
     observacao: string
   }
 ): Promise<{ error?: string }> {
-  const guard = await requireRole(['admin', 'coordenador'])
+  const guard = await requireRole(['admin', 'coordenador', 'supervisor'])
   if (!guard.success) return { error: guard.error }
 
   const adminSupabase = createAdminClient()
@@ -260,7 +260,7 @@ export async function editarCobertura(
 }
 
 export async function excluirCobertura(id: string): Promise<{ error?: string }> {
-  const guard = await requireRole(['admin', 'coordenador'])
+  const guard = await requireRole(['admin', 'coordenador', 'supervisor'])
   if (!guard.success) return { error: guard.error }
 
   const adminSupabase = createAdminClient()
