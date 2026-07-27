@@ -10,13 +10,15 @@ const cspDirectives = [
   // Next injeta scripts inline de hydration/RSC payload sem nonce hoje;
   // sem infraestrutura de nonce (via middleware), 'unsafe-inline' é necessário aqui.
   // 'unsafe-eval' só em dev (HMR do webpack usa eval).
-  `script-src 'self' 'unsafe-inline'${isProd ? '' : " 'unsafe-eval'"}`,
+  // 'wasm-unsafe-eval' sempre: @react-pdf/renderer (fontkit) usa wasm p/ decodificar fontes.
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isProd ? '' : " 'unsafe-eval'"}`,
   // Tailwind/shadcn usam atributo style inline em alguns componentes —
   // sem isso, esses estilos inline seriam bloqueados.
   `style-src 'self' 'unsafe-inline'`,
   `img-src 'self' data: blob:`,
   `font-src 'self' data:`,
-  `connect-src 'self' ${SUPABASE_URL}`,
+  // 'data:' necessário: fontkit (usado por @react-pdf/renderer) busca módulo wasm via data: URI.
+  `connect-src 'self' data: ${SUPABASE_URL}`,
   `frame-src 'none'`,
   `frame-ancestors 'none'`,
   `object-src 'none'`,
