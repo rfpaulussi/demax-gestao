@@ -95,6 +95,7 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
 
   // Turno de destino — aparece quando posto ou condição jovem-aprendiz mudam
   const [turnoOpcoes, setTurnoOpcoes]         = useState<TurnoOpcao[]>([])
+  const [turnoTotalBruto, setTurnoTotalBruto] = useState(0)
   const [loadingTurnos, setLoadingTurnos]     = useState(false)
   const [turnoDestinoId, setTurnoDestinoId]   = useState('')
   const [diaCursoDestino, setDiaCursoDestino] = useState<number | ''>('')
@@ -161,17 +162,19 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
   useEffect(() => {
     setTurnoDestinoId('')
     setDiaCursoDestino('')
-    if (!precisaTurno) { setTurnoOpcoes([]); return }
+    if (!precisaTurno) { setTurnoOpcoes([]); setTurnoTotalBruto(0); return }
     setLoadingTurnos(true)
     const destino = postoDestinoIdAtual()
     const promise = jovemNovo
       ? listarTurnosJovemAprendiz()
       : destino ? listarTurnosDoPosto(destino) : Promise.resolve([])
     promise.then(data => {
+      const bruto = data as TurnoOpcao[]
       const opcoes = tipo === 'mudanca_horario' && funcionario.turno_atual_nome
-        ? (data as TurnoOpcao[]).filter(t => t.nome !== funcionario.turno_atual_nome)
-        : (data as TurnoOpcao[])
+        ? bruto.filter(t => t.nome !== funcionario.turno_atual_nome)
+        : bruto
       setTurnoOpcoes(opcoes)
+      setTurnoTotalBruto(bruto.length)
       setLoadingTurnos(false)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -234,7 +237,9 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
     if (!tipo) return
     setErro(null)
     if (tipo === 'mudanca_horario' && !loadingTurnos && turnoOpcoes.length === 0) {
-      setErro('Nenhum turno cadastrado para este destino — cadastre um turno antes de solicitar')
+      setErro(turnoTotalBruto > 0
+        ? 'Este já é o único turno cadastrado para este posto/condição — não há outro turno para o qual mudar'
+        : 'Nenhum turno cadastrado para este destino — cadastre um turno antes de solicitar')
       return
     }
     if (precisaTurno && turnoOpcoes.length > 0 && !turnoDestinoId) {
@@ -667,7 +672,9 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
                   <p className="text-xs text-blue-600">Carregando turnos…</p>
                 ) : turnoOpcoes.length === 0 ? (
                   <p className="text-xs text-red-700">
-                    Nenhum turno cadastrado para {jovemNovo ? 'jovem aprendiz' : 'este posto'}. Cadastre um turno antes de solicitar a mudança.
+                    {turnoTotalBruto > 0
+                      ? `Este já é o único turno cadastrado para ${jovemNovo ? 'jovem aprendiz' : 'este posto'} — não há outro turno para o qual mudar.`
+                      : `Nenhum turno cadastrado para ${jovemNovo ? 'jovem aprendiz' : 'este posto'}. Cadastre um turno antes de solicitar a mudança.`}
                   </p>
                 ) : (
                   <>
