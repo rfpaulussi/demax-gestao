@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useMemo, useEffect, Fragment } from 'react'
-import { UserPlus, FileSpreadsheet, ChevronRight, Clock } from 'lucide-react'
+import { UserPlus, FileSpreadsheet, ChevronRight, Clock, CalendarClock } from 'lucide-react'
 import { ModalTurnosPosto } from './modal-turnos-posto'
+import { ModalAtribuirHorariosLote } from './modal-atribuir-horarios-lote'
 import * as XLSX from 'xlsx-js-style'
 import { cn } from '@/lib/utils'
 import type { PostoRow } from '@/app/(admin)/postos/actions'
@@ -196,6 +197,7 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
   const [modalPosto, setModalPosto]          = useState<'criar' | PostoRow | null>(null)
   const [confirmDesativar, setConfirmDesativar] = useState<PostoRow | null>(null)
   const [modalTurnos, setModalTurnos]          = useState<PostoRow | null>(null)
+  const [modalLote, setModalLote]              = useState<PostoRow | null>(null)
   const [saving, setSaving]                  = useState(false)
   const [erroModal, setErroModal]            = useState('')
   const [formNome, setFormNome]              = useState('')
@@ -689,6 +691,12 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                             <Clock className="h-3 w-3" /> Turnos
                           </button>
                         )}
+                        {p.secretaria !== 'AFASTADOS' && (role === 'admin' || role === 'coordenador') && (
+                          <button type="button" onClick={() => setModalLote(p)}
+                            className="flex items-center gap-1 rounded border border-slate-200 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                            <CalendarClock className="h-3 w-3" /> Horários
+                          </button>
+                        )}
                         <button type="button" onClick={() => abrirEditar(p)}
                           className="rounded border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50">
                           Editar
@@ -792,6 +800,15 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
           open={true}
           onClose={() => setModalTurnos(null)}
           role={role}
+        />
+      )}
+
+      {modalLote && (
+        <ModalAtribuirHorariosLote
+          postoId={modalLote.id}
+          postoNome={modalLote.nome}
+          open={true}
+          onClose={() => setModalLote(null)}
         />
       )}
     </div>
