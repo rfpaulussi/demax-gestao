@@ -167,7 +167,13 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
     const promise = jovemNovo
       ? listarTurnosJovemAprendiz()
       : destino ? listarTurnosDoPosto(destino) : Promise.resolve([])
-    promise.then(data => { setTurnoOpcoes(data as TurnoOpcao[]); setLoadingTurnos(false) })
+    promise.then(data => {
+      const opcoes = tipo === 'mudanca_horario' && funcionario.turno_atual_nome
+        ? (data as TurnoOpcao[]).filter(t => t.nome !== funcionario.turno_atual_nome)
+        : (data as TurnoOpcao[])
+      setTurnoOpcoes(opcoes)
+      setLoadingTurnos(false)
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [precisaTurno, jovemNovo, tipo, postoSelecionado?.id, postoRetornoSelecionado?.id, funcaoSelecionadaId, mudarFuncao])
 
