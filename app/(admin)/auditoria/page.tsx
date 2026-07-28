@@ -21,6 +21,7 @@ const TIPO_LABEL: Record<string, { label: string; cls: string }> = {
   edicao_direta:      { label: 'Edição Direta',       cls: 'bg-slate-100 text-slate-700 ring-slate-200'  },
   rejeicao:           { label: 'Rejeição',            cls: 'bg-red-50 text-red-700 ring-red-200'         },
   mudanca_supervisor: { label: 'Mudança Supervisor',  cls: 'bg-indigo-50 text-indigo-700 ring-indigo-200'},
+  mudanca_horario:    { label: 'Mudança de Horário',  cls: 'bg-cyan-50 text-cyan-700 ring-cyan-200'      },
 }
 
 function fmt(iso: string | null): string {

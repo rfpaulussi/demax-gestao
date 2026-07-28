@@ -177,7 +177,7 @@ function SolicitacaoCard({ sol, canApprove, impacto }: { sol: SolicitacaoPendent
 // ─── lista principal ──────────────────────────────────────────────────────────
 
 const TIPO_ORDEM: TipoSolicitacao[] = [
-  'transferencia', 'mudanca_funcao', 'desligamento', 'rescisao_indireta',
+  'transferencia', 'mudanca_funcao', 'mudanca_horario', 'desligamento', 'rescisao_indireta',
   'promocao', 'mudanca_supervisor', 'alteracao_salario', 'afastamento',
   'retorno_afastamento', 'admissao',
 ]

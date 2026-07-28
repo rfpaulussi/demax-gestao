@@ -4,7 +4,7 @@ import { useState } from 'react'
 import {
   FileText, UserCheck, UserX, UserMinus, MapPin, Briefcase,
   Umbrella, XCircle, AlertTriangle, Ban, Shield, ArrowRightLeft,
-  RotateCcw, Loader2,
+  RotateCcw, Loader2, Clock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ProntuarioFuncionario, ProntuarioEvento } from '@/app/(admin)/efetivo/[id]/historico/page'
@@ -40,6 +40,7 @@ const EVENT_CONFIG: Record<string, EventConfig> = {
   reativacao:            { label: 'Reativação',          icon: RotateCcw,      dot: 'bg-green-400',   text: 'text-green-600',   ring: 'ring-green-100'  },
   afastamento:           { label: 'Afastamento',         icon: UserMinus,      dot: 'bg-amber-500',   text: 'text-amber-700',   ring: 'ring-amber-100'  },
   retorno_afastamento:   { label: 'Retorno Afastamento', icon: UserCheck,      dot: 'bg-green-500',   text: 'text-green-700',   ring: 'ring-green-100'  },
+  mudanca_horario:       { label: 'Mudança de Horário',  icon: Clock,          dot: 'bg-cyan-500',    text: 'text-cyan-700',    ring: 'ring-cyan-100'   },
 }
 
 const DEFAULT_CONFIG: EventConfig = {
