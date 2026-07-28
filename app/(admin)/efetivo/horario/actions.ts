@@ -215,11 +215,18 @@ export async function aplicarMudancaHorario(
   dataEfetivacao: string,
   criadoPor: string,
 ): Promise<void> {
+  // Defesa em profundidade: como o arquivo é 'use server', esta função é uma Server Action
+  // invocável diretamente por um cliente. O único chamador hoje (aprovarSolicitacao) já
+  // garante admin via assertAdmin() antes de chegar aqui, mas o guard também é aplicado
+  // aqui, como nas demais funções deste arquivo.
+  const auth = await getUser()
+  if (!auth || !['admin', 'coordenador'].includes(auth.perfil.role ?? '')) return
+
   const supabase = createClient()
 
   const { data: vigente } = await supabase
     .from('horarios_funcionarios')
-    .select('id, data_inicio')
+    .select('id, turno_id, data_inicio')
     .eq('funcionario_id', funcionarioId)
     .is('data_fim', null)
     .maybeSingle()
@@ -235,12 +242,25 @@ export async function aplicarMudancaHorario(
   }
 
   if (turnoDestinoId) {
-    await supabase.from('horarios_funcionarios').insert({
+    const { error } = await supabase.from('horarios_funcionarios').insert({
       funcionario_id: funcionarioId,
       turno_id: turnoDestinoId,
       data_inicio: dataEfetivacao,
       dia_curso: diaCurso,
       criado_por: criadoPor,
     })
+
+    if (!error) {
+      // Registrar movimentação — mesmo padrão de alterarTurno, para que reatribuições
+      // automáticas apareçam no histórico do funcionário como as manuais.
+      await supabase.from('movimentacoes').insert({
+        funcionario_id: funcionarioId,
+        tipo: 'mudanca_horario',
+        campo_alterado: 'turno_id',
+        valor_antes: vigente?.turno_id ?? null,
+        valor_depois: turnoDestinoId,
+        executado_por: criadoPor,
+      })
+    }
   }
 }
