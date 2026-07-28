@@ -160,11 +160,13 @@ export default async function EfetivoPage() {
       .from('horarios_funcionarios')
       .select('funcionario_id, turnos_postos!turno_id(nome, tipo_escala, hora_entrada, hora_saida_seg_qui, hora_saida_sex, hora_inicio_almoco, hora_fim_almoco)')
       .is('data_fim', null)
+      .order('data_inicio', { ascending: false })
       .range(from, to) as unknown as PromiseLike<{ data: HorarioVigenteRow[] | null; error: { message: string } | null }>,
   )
   const horarioMap = new Map<string, { nome: string; regime: string; resumo: string }>()
   for (const h of horariosVigentes) {
     if (!h.turnos_postos) continue
+    if (horarioMap.has(h.funcionario_id)) continue
     horarioMap.set(h.funcionario_id, {
       nome:   h.turnos_postos.nome,
       regime: resolverTipoEscala(h.turnos_postos.tipo_escala),
