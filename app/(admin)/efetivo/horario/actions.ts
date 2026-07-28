@@ -200,3 +200,62 @@ export async function atribuirTurnoEmLote(
   revalidatePath('/postos')
   return { sucesso, falhas }
 }
+
+/**
+ * Turno vigente deixa de ser válido quando o posto muda (turno é por posto) OU quando a
+ * condição jovem-aprendiz muda (turno de jovem aprendiz é global, não por posto — então
+ * essa transição sempre exige nova escolha, independente do posto).
+ */
+export function precisaNovoTurno(
+  postoAtual: string | null,
+  postoNovo: string | null,
+  jovemAtual: boolean,
+  jovemNovo: boolean,
+): boolean {
+  if (jovemAtual !== jovemNovo) return true
+  if (jovemAtual && jovemNovo) return false
+  return postoAtual !== postoNovo
+}
+
+/**
+ * Fecha o horário vigente do funcionário (se houver) e, quando um novo turno foi informado,
+ * já abre o próximo registro na data de efetivação. Chamado na aprovação de transferência,
+ * mudança de função e retorno de afastamento — os 3 fluxos que alteram posto_id/funcao_id.
+ * Se turnoDestinoId for null (destino ainda sem turno cadastrado no momento do pedido), só
+ * fecha o vigente — o funcionário fica pendente de atribuição manual (tela de lote do posto).
+ */
+export async function aplicarMudancaHorario(
+  funcionarioId: string,
+  turnoDestinoId: string | null,
+  diaCurso: number | null,
+  dataEfetivacao: string,
+  criadoPor: string,
+): Promise<void> {
+  const supabase = createClient()
+
+  const { data: vigente } = await supabase
+    .from('horarios_funcionarios')
+    .select('id, data_inicio')
+    .eq('funcionario_id', funcionarioId)
+    .is('data_fim', null)
+    .maybeSingle()
+
+  if (vigente) {
+    const d = new Date(dataEfetivacao + 'T12:00:00')
+    d.setDate(d.getDate() - 1)
+    const dataFim = d.toISOString().split('T')[0]
+    if (dataFim >= vigente.data_inicio) {
+      await supabase.from('horarios_funcionarios').update({ data_fim: dataFim }).eq('id', vigente.id)
+    }
+  }
+
+  if (turnoDestinoId) {
+    await supabase.from('horarios_funcionarios').insert({
+      funcionario_id: funcionarioId,
+      turno_id: turnoDestinoId,
+      data_inicio: dataEfetivacao,
+      dia_curso: diaCurso,
+      criado_por: criadoPor,
+    })
+  }
+}
