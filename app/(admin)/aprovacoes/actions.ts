@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import type { TipoSolicitacao } from '@/types'
+import { aplicarMudancaHorario } from '@/app/(admin)/efetivo/horario/actions'
+import { FUNCAO_JOVEM_APRENDIZ, precisaNovoTurno } from '@/lib/turnos/escala'
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
@@ -120,10 +122,14 @@ export async function aprovarSolicitacao(
   const { data: func } = sol.funcionario_id
     ? await supabase
         .from('funcionarios')
-        .select('status, posto_id, funcao_id, salario')
+        .select('status, posto_id, funcao_id, salario, funcoes!funcao_id(nome)')
         .eq('id', sol.funcionario_id)
         .single()
     : { data: null }
+
+  const funcaoAtualNome = (func as unknown as { funcoes: { nome: string } | null } | null)?.funcoes?.nome ?? null
+  const jovemAtual = funcaoAtualNome === FUNCAO_JOVEM_APRENDIZ
+  const hojeISO = new Date().toISOString().slice(0, 10)
 
   const dadosDepois = (sol.dados_depois ?? {}) as Record<string, unknown>
   const dadosAntes  = (sol.dados_antes  ?? {}) as Record<string, unknown>
@@ -148,7 +154,8 @@ export async function aprovarSolicitacao(
     }
 
     case 'transferencia': {
-      const updateTransf: Record<string, unknown> = { posto_id: dadosDepois.posto_destino_id as string }
+      const postoDestinoId = dadosDepois.posto_destino_id as string
+      const updateTransf: Record<string, unknown> = { posto_id: postoDestinoId }
       if (dadosDepois.nova_funcao_id) updateTransf.funcao_id = dadosDepois.nova_funcao_id as string
       const { error: errTransf } = await adminSupabase
         .from('funcionarios')
@@ -166,6 +173,18 @@ export async function aprovarSolicitacao(
           solicitacao_id:  id,
         })
       }
+
+      const funcaoNovaNome = (dadosDepois.nova_funcao_nome as string | undefined) ?? funcaoAtualNome
+      const jovemNovo = funcaoNovaNome === FUNCAO_JOVEM_APRENDIZ
+      if (precisaNovoTurno(func?.posto_id ?? null, postoDestinoId, jovemAtual, jovemNovo)) {
+        await aplicarMudancaHorario(
+          funcionarioId,
+          (dadosDepois.turno_destino_id as string | undefined) ?? null,
+          (dadosDepois.dia_curso_destino as number | undefined) ?? null,
+          hojeISO,
+          guard.userId,
+        )
+      }
       break
     }
 
@@ -176,6 +195,18 @@ export async function aprovarSolicitacao(
         .update({ funcao_id: dadosDepois.funcao_destino_id as string })
         .eq('id', funcionarioId)
       if (errFuncao) return { success: false, error: errFuncao.message }
+
+      const funcaoNovaNome = (dadosDepois.funcao_destino_nome as string | undefined) ?? null
+      const jovemNovo = funcaoNovaNome === FUNCAO_JOVEM_APRENDIZ
+      if (precisaNovoTurno(func?.posto_id ?? null, func?.posto_id ?? null, jovemAtual, jovemNovo)) {
+        await aplicarMudancaHorario(
+          funcionarioId,
+          (dadosDepois.turno_destino_id as string | undefined) ?? null,
+          (dadosDepois.dia_curso_destino as number | undefined) ?? null,
+          hojeISO,
+          guard.userId,
+        )
+      }
       break
     }
 
@@ -208,12 +239,10 @@ export async function aprovarSolicitacao(
     }
 
     case 'retorno_afastamento': {
+      const postoRetornoId = (dadosDepois.posto_retorno_id as string | undefined) ?? func?.posto_id ?? null
       const { error: errRetorno } = await adminSupabase
         .from('funcionarios')
-        .update({
-          status:   'ativo',
-          posto_id: (dadosDepois.posto_retorno_id as string | undefined) ?? func?.posto_id ?? null,
-        })
+        .update({ status: 'ativo', posto_id: postoRetornoId })
         .eq('id', funcionarioId)
       if (errRetorno) return { success: false, error: errRetorno.message }
       await supabase
@@ -221,6 +250,16 @@ export async function aprovarSolicitacao(
         .update({ data_fim_real: dadosDepois.data_retorno as string })
         .eq('funcionario_id', funcionarioId)
         .is('data_fim_real', null)
+
+      if (precisaNovoTurno(func?.posto_id ?? null, postoRetornoId, jovemAtual, jovemAtual)) {
+        await aplicarMudancaHorario(
+          funcionarioId,
+          (dadosDepois.turno_destino_id as string | undefined) ?? null,
+          (dadosDepois.dia_curso_destino as number | undefined) ?? null,
+          hojeISO,
+          guard.userId,
+        )
+      }
       break
     }
 
