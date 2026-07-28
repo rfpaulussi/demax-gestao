@@ -267,6 +267,39 @@ export async function aprovarSolicitacao(
       break
     }
 
+    case 'mudanca_horario': {
+      // Esta solicitação só existe para trocar o turno — não passa por precisaNovoTurno
+      // (posto e função não mudam aqui, então essa regra sempre daria "false"). A troca
+      // sempre se aplica. aplicarMudancaHorario já registra a movimentação de turno
+      // sozinha, então este case sai cedo (return) em vez de "break" — pulando o insert
+      // genérico de movimentacoes no final da função, que criaria uma segunda entrada
+      // vazia/duplicada (essa solicitação não tem campo em campoMap, já que não altera
+      // posto_id/funcao_id/status em funcionarios).
+      await aplicarMudancaHorario(
+        funcionarioId,
+        (dadosDepois.turno_destino_id as string | undefined) ?? null,
+        (dadosDepois.dia_curso_destino as number | undefined) ?? null,
+        hojeISO,
+        guard.userId,
+      )
+
+      await supabase
+        .from('solicitacoes')
+        .update({
+          status:           'aprovada',
+          aprovado_por:     guard.userId,
+          aprovado_em:      new Date().toISOString(),
+          observacao_admin: observacao ?? null,
+        })
+        .eq('id', id)
+
+      revalidatePath('/aprovacoes')
+      revalidatePath('/efetivo')
+      revalidatePath('/dashboard')
+
+      return { success: true }
+    }
+
     case 'rescisao_indireta': {
       const { error: errStatusRescisao } = await supabase
         .from('funcionarios')
