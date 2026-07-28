@@ -8,6 +8,7 @@ import {
   solicitarMudancaFuncao,
   solicitarRetornoAfastamento,
   solicitarRescisaoIndireta,
+  solicitarMudancaHorario,
 } from '@/app/(admin)/efetivo/actions'
 import { calcularImpactoPosto } from '@/app/(admin)/efetivo/impacto'
 import { listarTurnosDoPosto, listarTurnosJovemAprendiz } from '@/app/(admin)/efetivo/horario/actions'
@@ -34,6 +35,7 @@ type TipoSolicitacao =
   | 'mudanca_funcao'
   | 'retorno_afastamento'
   | 'rescisao_indireta'
+  | 'mudanca_horario'
 
 interface Props {
   funcionario: FuncionarioRow
@@ -49,10 +51,11 @@ const TIPO_LABELS: Record<TipoSolicitacao, string> = {
   mudanca_funcao:      '🔄 Mudança de Função',
   retorno_afastamento: '🔙 Retorno de Afastamento',
   rescisao_indireta:   '⚠️ Rescisão Indireta',
+  mudanca_horario:     '🕐 Mudança de Horário',
 }
 
 const TIPOS_POR_STATUS: Partial<Record<string, TipoSolicitacao[]>> = {
-  ativo:    ['transferencia', 'mudanca_funcao', 'desligamento', 'rescisao_indireta'],
+  ativo:    ['transferencia', 'mudanca_funcao', 'mudanca_horario', 'desligamento', 'rescisao_indireta'],
   afastado: ['retorno_afastamento', 'desligamento'],
   default:  ['desligamento'],
 }
@@ -146,9 +149,13 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
     (tipo === 'mudanca_funcao' && !!funcaoSelecionadaId) ||
     (tipo === 'retorno_afastamento' && !!postoRetornoSelecionado)
 
-  const precisaTurno = condicaoAtendida
-    ? precisaNovoTurno(funcionario.posto_id, postoDestinoIdAtual(), jovemAtual, jovemNovo)
-    : false
+  // mudanca_horario sempre precisa de turno — é o próprio propósito do pedido,
+  // não uma consequência de posto/função terem mudado (que aqui nunca mudam).
+  const precisaTurno = tipo === 'mudanca_horario'
+    ? true
+    : condicaoAtendida
+      ? precisaNovoTurno(funcionario.posto_id, postoDestinoIdAtual(), jovemAtual, jovemNovo)
+      : false
 
   // Carrega as opções de turno quando a necessidade de troca é detectada
   useEffect(() => {
@@ -220,6 +227,10 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
     e.preventDefault()
     if (!tipo) return
     setErro(null)
+    if (tipo === 'mudanca_horario' && !loadingTurnos && turnoOpcoes.length === 0) {
+      setErro('Nenhum turno cadastrado para este destino — cadastre um turno antes de solicitar')
+      return
+    }
     if (precisaTurno && turnoOpcoes.length > 0 && !turnoDestinoId) {
       setErro('Selecione o turno de destino')
       return
@@ -238,6 +249,7 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
       else if (tipo === 'mudanca_funcao')      result = await solicitarMudancaFuncao(fd)
       else if (tipo === 'retorno_afastamento') result = await solicitarRetornoAfastamento(fd)
       else if (tipo === 'rescisao_indireta')   result = await solicitarRescisaoIndireta(fd)
+      else if (tipo === 'mudanca_horario')     result = await solicitarMudancaHorario(fd)
       else return
 
       if (!result.success) {
@@ -639,6 +651,48 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
                   <textarea name="observacao" rows={3} className={inputClass} placeholder="Detalhes adicionais (opcional)..." />
                 </div>
               </>
+            )}
+
+            {/* mudanca_horario */}
+            {tipo === 'mudanca_horario' && (
+              <div className="space-y-3 rounded border border-blue-200 bg-blue-50 px-4 py-3">
+                <p className="text-sm font-semibold text-blue-800">Novo turno de trabalho</p>
+                {loadingTurnos ? (
+                  <p className="text-xs text-blue-600">Carregando turnos…</p>
+                ) : turnoOpcoes.length === 0 ? (
+                  <p className="text-xs text-red-700">
+                    Nenhum turno cadastrado para {jovemNovo ? 'jovem aprendiz' : 'este posto'}. Cadastre um turno antes de solicitar a mudança.
+                  </p>
+                ) : (
+                  <>
+                    <div>
+                      <label className={labelClass}>Turno</label>
+                      <select name="turno_destino_id" required value={turnoDestinoId}
+                        onChange={e => setTurnoDestinoId(e.target.value)} className={inputClass}>
+                        <option value="">Selecione…</option>
+                        {turnoOpcoes.map(t => (
+                          <option key={t.id} value={t.id}>{t.nome} — {formatarResumoTurno(t)}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {jovemNovo && (
+                      <div>
+                        <label className={labelClass}>Dia de curso</label>
+                        <select name="dia_curso_destino" required value={diaCursoDestino}
+                          onChange={e => setDiaCursoDestino(e.target.value ? Number(e.target.value) : '')}
+                          className={inputClass}>
+                          <option value="">Selecione…</option>
+                          <option value={1}>Segunda</option>
+                          <option value={2}>Terça</option>
+                          <option value={3}>Quarta</option>
+                          <option value={4}>Quinta</option>
+                          <option value={5}>Sexta</option>
+                        </select>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             )}
 
             {erro && (
