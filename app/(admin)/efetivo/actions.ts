@@ -212,6 +212,8 @@ export async function solicitarTransferencia(formData: FormData): Promise<Action
   const postoDestinoId = formData.get('posto_destino_id') as string
   const motivo         = (formData.get('motivo') as string) || null
   const novaFuncaoId   = (formData.get('nova_funcao_id') as string) || null
+  const turnoDestinoId  = (formData.get('turno_destino_id') as string) || null
+  const diaCursoDestino = formData.get('dia_curso_destino') ? Number(formData.get('dia_curso_destino')) : null
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -248,6 +250,8 @@ export async function solicitarTransferencia(formData: FormData): Promise<Action
       posto_destino_nome: postoDestinoNome,
       motivo,
       ...(novaFuncaoId ? { nova_funcao_id: novaFuncaoId, nova_funcao_nome: novaFuncaoNome } : {}),
+      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId } : {}),
+      ...(diaCursoDestino ? { dia_curso_destino: diaCursoDestino } : {}),
     },
     motivo,
   })
@@ -267,6 +271,8 @@ export async function solicitarMudancaFuncao(formData: FormData): Promise<Action
   const funcionarioId   = formData.get('funcionario_id') as string
   const funcaoDestinoId = formData.get('funcao_destino_id') as string
   const motivo          = (formData.get('motivo') as string) || null
+  const turnoDestinoId  = (formData.get('turno_destino_id') as string) || null
+  const diaCursoDestino = formData.get('dia_curso_destino') ? Number(formData.get('dia_curso_destino')) : null
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -304,7 +310,11 @@ export async function solicitarMudancaFuncao(formData: FormData): Promise<Action
     funcionario_id: funcionarioId,
     supervisor_id: auth.user.id,
     dados_antes: { funcao_id: funcaoOrigemId, funcao_nome: funcaoOrigemNome, supervisor_nome: supervisorNome },
-    dados_depois: { funcao_destino_id: funcaoDestinoId, funcao_destino_nome: funcaoDestinoNome, motivo, supervisor_nome: supervisorNome },
+    dados_depois: {
+      funcao_destino_id: funcaoDestinoId, funcao_destino_nome: funcaoDestinoNome, motivo, supervisor_nome: supervisorNome,
+      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId } : {}),
+      ...(diaCursoDestino ? { dia_curso_destino: diaCursoDestino } : {}),
+    },
     motivo,
   })
 
@@ -390,6 +400,8 @@ export async function solicitarRetornoAfastamento(fd: FormData): Promise<ActionR
   const funcionario_id  = fd.get('funcionario_id') as string
   const data_retorno    = fd.get('data_retorno') as string
   const posto_retorno_id = (fd.get('posto_retorno_id') as string) || null
+  const turnoDestinoId    = (fd.get('turno_destino_id') as string) || null
+  const diaCursoDestino   = fd.get('dia_curso_destino') ? Number(fd.get('dia_curso_destino')) : null
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -413,7 +425,11 @@ export async function solicitarRetornoAfastamento(fd: FormData): Promise<ActionR
       posto_id:  funcTyped?.posto_id ?? null,
       posto_nome: funcTyped?.postos?.nome ?? null,
     },
-    dados_depois: { data_retorno, posto_retorno_id },
+    dados_depois: {
+      data_retorno, posto_retorno_id,
+      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId } : {}),
+      ...(diaCursoDestino ? { dia_curso_destino: diaCursoDestino } : {}),
+    },
   })
   if (error) return { success: false, error: error.message }
   revalidatePath('/efetivo')
