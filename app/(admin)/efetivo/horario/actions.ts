@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUser } from '@/lib/auth/get-user'
 import { revalidatePath } from 'next/cache'
-import { resolverTipoEscala } from '@/lib/turnos/escala'
+import { resolverTipoEscala, FUNCAO_JOVEM_APRENDIZ } from '@/lib/turnos/escala'
 
 export async function listarTurnosDoPosto(postoId: string) {
   const supabase = createClient()
@@ -131,4 +131,68 @@ export async function deletarHorarioFuncionario(id: string) {
 
   revalidatePath(`/efetivo/${registro.funcionario_id}`)
   return { success: true }
+}
+
+export interface FuncionarioLoteRow {
+  id: string
+  nome: string
+  turno_atual_nome: string | null
+  turno_atual_desde: string | null
+}
+
+export async function listarFuncionariosParaAtribuicaoLote(postoId: string): Promise<FuncionarioLoteRow[]> {
+  const supabase = createClient()
+
+  const { data: funcionariosRaw, error } = await supabase
+    .from('funcionarios')
+    .select('id, nome, funcoes!funcao_id(nome)')
+    .eq('posto_id', postoId)
+    .eq('status', 'ativo')
+    .order('nome')
+  if (error) throw new Error(error.message)
+
+  const funcionarios = (funcionariosRaw ?? []) as unknown as { id: string; nome: string; funcoes: { nome: string } | null }[]
+  const elegiveis = funcionarios.filter(f => f.funcoes?.nome !== FUNCAO_JOVEM_APRENDIZ)
+  if (elegiveis.length === 0) return []
+
+  const { data: vigentesRaw } = await supabase
+    .from('horarios_funcionarios')
+    .select('funcionario_id, data_inicio, turnos_postos!turno_id(nome)')
+    .in('funcionario_id', elegiveis.map(f => f.id))
+    .is('data_fim', null)
+
+  const vigentes = (vigentesRaw ?? []) as unknown as { funcionario_id: string; data_inicio: string; turnos_postos: { nome: string } | null }[]
+  const vigenteMap = new Map<string, { nome: string; data_inicio: string }>()
+  for (const v of vigentes) {
+    if (v.turnos_postos) vigenteMap.set(v.funcionario_id, { nome: v.turnos_postos.nome, data_inicio: v.data_inicio })
+  }
+
+  return elegiveis.map(f => ({
+    id: f.id,
+    nome: f.nome,
+    turno_atual_nome: vigenteMap.get(f.id)?.nome ?? null,
+    turno_atual_desde: vigenteMap.get(f.id)?.data_inicio ?? null,
+  }))
+}
+
+export async function atribuirTurnoEmLote(
+  funcionarioIds: string[],
+  turnoId: string,
+  dataInicio: string,
+): Promise<{ sucesso: string[]; falhas: { funcionarioId: string; erro: string }[] }> {
+  const auth = await getUser()
+  if (!auth || !['admin', 'coordenador'].includes(auth.perfil.role ?? '')) {
+    return { sucesso: [], falhas: funcionarioIds.map(id => ({ funcionarioId: id, erro: 'Acesso negado' })) }
+  }
+
+  const sucesso: string[] = []
+  const falhas: { funcionarioId: string; erro: string }[] = []
+  for (const funcionarioId of funcionarioIds) {
+    const res = await alterarTurno(funcionarioId, turnoId, dataInicio)
+    if (res.success) sucesso.push(funcionarioId)
+    else falhas.push({ funcionarioId, erro: res.error ?? 'Erro desconhecido' })
+  }
+
+  revalidatePath('/postos')
+  return { sucesso, falhas }
 }
