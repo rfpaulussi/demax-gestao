@@ -76,8 +76,8 @@ export default async function MudancasFuncaoAdminPage({
 
   type SolJoin = {
     tipo:         string | null
-    dados_antes:  Record<string, unknown> | null
-    dados_depois: Record<string, unknown> | null
+    dados_antes:  { supervisor_nome?: string | null; [k: string]: unknown } | null
+    dados_depois: { supervisor_nome?: string | null; [k: string]: unknown } | null
     motivo:       string | null
   } | null
 
@@ -144,7 +144,12 @@ export default async function MudancasFuncaoAdminPage({
         ?? (sol?.dados_depois?.['nova_funcao_nome'] as string | undefined)
         ?? fList.find(f => f.id === r.valor_depois)?.nome
         ?? '—',
-      supervisor:       postoSupervisorMap[func?.postos?.id ?? ''] ?? '—',
+      // Snapshot gravado na solicitação (não muda mesmo se a config de supervisor do posto mudar depois).
+      // Fallback pro lookup atual só pra registros antigos, gravados antes desse snapshot existir.
+      supervisor:       sol?.dados_antes?.supervisor_nome
+        ?? sol?.dados_depois?.supervisor_nome
+        ?? postoSupervisorMap[func?.postos?.id ?? '']
+        ?? '—',
       motivo:           sol?.motivo ?? null,
       enviado_rh:       r.enviado_rh ?? false,
       tipo_solicitacao: tipoEfetivo,

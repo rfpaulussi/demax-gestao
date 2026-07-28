@@ -270,29 +270,41 @@ export async function solicitarMudancaFuncao(formData: FormData): Promise<Action
 
   const { data: func } = await supabase
     .from('funcionarios')
-    .select('funcao_id')
+    .select('funcao_id, posto_id')
     .eq('id', funcionarioId)
     .single()
 
   const funcaoOrigemId = func?.funcao_id ?? null
+  const postoId        = func?.posto_id ?? null
 
-  const [{ data: funcaoDestino }, funcaoOrigemResult] = await Promise.all([
+  const [{ data: funcaoDestino }, funcaoOrigemResult, supervisorResult] = await Promise.all([
     supabase.from('funcoes').select('nome').eq('id', funcaoDestinoId).single(),
     funcaoOrigemId
       ? supabase.from('funcoes').select('nome').eq('id', funcaoOrigemId).single()
+      : Promise.resolve({ data: null }),
+    postoId
+      ? supabase
+          .from('config_supervisores_postos')
+          .select('perfis!supervisor_id(nome)')
+          .eq('posto_id', postoId)
+          .eq('ativo', true)
+          .maybeSingle()
       : Promise.resolve({ data: null }),
   ])
 
   const funcaoOrigemNome  = (funcaoOrigemResult as { data: { nome: string } | null }).data?.nome ?? null
   const funcaoDestinoNome = funcaoDestino?.nome ?? null
+  // Snapshot do supervisor do posto no momento da solicitação — não muda com mudança de função,
+  // mas evita que o PDF puxe o supervisor vigente hoje caso a config seja alterada depois.
+  const supervisorNome = (supervisorResult as unknown as { data: { perfis: { nome: string | null } | null } | null }).data?.perfis?.nome ?? null
 
   const { error } = await supabase.from('solicitacoes').insert({
     tipo: 'mudanca_funcao',
     status: 'pendente',
     funcionario_id: funcionarioId,
     supervisor_id: auth.user.id,
-    dados_antes: { funcao_id: funcaoOrigemId, funcao_nome: funcaoOrigemNome },
-    dados_depois: { funcao_destino_id: funcaoDestinoId, funcao_destino_nome: funcaoDestinoNome, motivo },
+    dados_antes: { funcao_id: funcaoOrigemId, funcao_nome: funcaoOrigemNome, supervisor_nome: supervisorNome },
+    dados_depois: { funcao_destino_id: funcaoDestinoId, funcao_destino_nome: funcaoDestinoNome, motivo, supervisor_nome: supervisorNome },
     motivo,
   })
 
