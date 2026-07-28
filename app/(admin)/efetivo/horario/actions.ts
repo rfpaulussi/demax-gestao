@@ -202,22 +202,6 @@ export async function atribuirTurnoEmLote(
 }
 
 /**
- * Turno vigente deixa de ser válido quando o posto muda (turno é por posto) OU quando a
- * condição jovem-aprendiz muda (turno de jovem aprendiz é global, não por posto — então
- * essa transição sempre exige nova escolha, independente do posto).
- */
-export function precisaNovoTurno(
-  postoAtual: string | null,
-  postoNovo: string | null,
-  jovemAtual: boolean,
-  jovemNovo: boolean,
-): boolean {
-  if (jovemAtual !== jovemNovo) return true
-  if (jovemAtual && jovemNovo) return false
-  return postoAtual !== postoNovo
-}
-
-/**
  * Fecha o horário vigente do funcionário (se houver) e, quando um novo turno foi informado,
  * já abre o próximo registro na data de efetivação. Chamado na aprovação de transferência,
  * mudança de função e retorno de afastamento — os 3 fluxos que alteram posto_id/funcao_id.

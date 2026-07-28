@@ -10,10 +10,23 @@ import {
   solicitarRescisaoIndireta,
 } from '@/app/(admin)/efetivo/actions'
 import { calcularImpactoPosto } from '@/app/(admin)/efetivo/impacto'
+import { listarTurnosDoPosto, listarTurnosJovemAprendiz } from '@/app/(admin)/efetivo/horario/actions'
+import { FUNCAO_JOVEM_APRENDIZ, formatarResumoTurno, precisaNovoTurno } from '@/lib/turnos/escala'
 import type { ImpactoResult } from '@/app/(admin)/efetivo/impacto'
 import { PostoImpactPanel } from '@/components/posto-impact-panel'
 import type { FuncionarioRow } from './funcionarios-table'
 import { TIPOS_DESLIGAMENTO, MOTIVOS_POR_TIPO, type TipoDesligamento } from './modal-desligar'
+
+type TurnoOpcao = {
+  id: string
+  nome: string
+  hora_entrada: string
+  hora_saida_seg_qui: string
+  hora_saida_sex: string | null
+  hora_inicio_almoco: string | null
+  hora_fim_almoco: string | null
+  tipo_escala: string
+}
 
 type TipoSolicitacao =
   | 'desligamento'
@@ -77,6 +90,12 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
   const [postoRetornoOpen, setPostoRetornoOpen]               = useState(false)
   const [postoRetornoSelecionado, setPostoRetornoSelecionado] = useState<{ id: string; nome: string; secretaria: string | null } | null>(null)
 
+  // Turno de destino — aparece quando posto ou condição jovem-aprendiz mudam
+  const [turnoOpcoes, setTurnoOpcoes]         = useState<TurnoOpcao[]>([])
+  const [loadingTurnos, setLoadingTurnos]     = useState(false)
+  const [turnoDestinoId, setTurnoDestinoId]   = useState('')
+  const [diaCursoDestino, setDiaCursoDestino] = useState<number | ''>('')
+
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as HTMLElement
@@ -98,6 +117,52 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
   useEffect(() => {
     if (!mudarFuncao) setFuncaoSelecionadaId('')
   }, [mudarFuncao])
+
+  const funcaoAtualNome = funcionario.funcoes?.nome ?? null
+  const jovemAtual = funcaoAtualNome === FUNCAO_JOVEM_APRENDIZ
+
+  function funcaoDestinoNomeAtual(): string | null {
+    if (tipo === 'transferencia') {
+      return mudarFuncao && funcaoSelecionadaId
+        ? funcoes.find(f => f.id === funcaoSelecionadaId)?.nome ?? null
+        : funcaoAtualNome
+    }
+    if (tipo === 'mudanca_funcao') {
+      return funcoes.find(f => f.id === funcaoSelecionadaId)?.nome ?? null
+    }
+    return funcaoAtualNome
+  }
+
+  function postoDestinoIdAtual(): string | null {
+    if (tipo === 'transferencia')       return postoSelecionado?.id ?? null
+    if (tipo === 'retorno_afastamento') return postoRetornoSelecionado?.id ?? funcionario.posto_id
+    return funcionario.posto_id
+  }
+
+  const jovemNovo = funcaoDestinoNomeAtual() === FUNCAO_JOVEM_APRENDIZ
+
+  const condicaoAtendida =
+    (tipo === 'transferencia' && !!postoSelecionado) ||
+    (tipo === 'mudanca_funcao' && !!funcaoSelecionadaId) ||
+    (tipo === 'retorno_afastamento' && !!postoRetornoSelecionado)
+
+  const precisaTurno = condicaoAtendida
+    ? precisaNovoTurno(funcionario.posto_id, postoDestinoIdAtual(), jovemAtual, jovemNovo)
+    : false
+
+  // Carrega as opções de turno quando a necessidade de troca é detectada
+  useEffect(() => {
+    setTurnoDestinoId('')
+    setDiaCursoDestino('')
+    if (!precisaTurno) { setTurnoOpcoes([]); return }
+    setLoadingTurnos(true)
+    const destino = postoDestinoIdAtual()
+    const promise = jovemNovo
+      ? listarTurnosJovemAprendiz()
+      : destino ? listarTurnosDoPosto(destino) : Promise.resolve([])
+    promise.then(data => { setTurnoOpcoes(data as TurnoOpcao[]); setLoadingTurnos(false) })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [precisaTurno, jovemNovo, tipo, postoSelecionado?.id, postoRetornoSelecionado?.id, funcaoSelecionadaId, mudarFuncao])
 
   // Calcula impacto quando as seleções relevantes mudam
   useEffect(() => {
@@ -147,6 +212,7 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
     setFuncaoSelecionadaId('')
     setImpacto(null)
     setPostoRetornoSearch(''); setPostoRetornoOpen(false); setPostoRetornoSelecionado(null)
+    setTurnoOpcoes([]); setTurnoDestinoId(''); setDiaCursoDestino('')
     onClose()
   }
 
@@ -154,6 +220,14 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
     e.preventDefault()
     if (!tipo) return
     setErro(null)
+    if (precisaTurno && turnoOpcoes.length > 0 && !turnoDestinoId) {
+      setErro('Selecione o turno de destino')
+      return
+    }
+    if (precisaTurno && jovemNovo && turnoDestinoId && !diaCursoDestino) {
+      setErro('Selecione o dia de curso')
+      return
+    }
     const fd = new FormData(e.currentTarget)
     fd.set('funcionario_id', funcionario.id)
 
@@ -326,6 +400,47 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
               {(impacto || loadingImpacto) && (
                 <PostoImpactPanel impacto={impacto} loading={loadingImpacto} />
               )}
+
+              {precisaTurno && (
+                <div className="space-y-3 rounded border border-blue-200 bg-blue-50 px-4 py-3">
+                  <p className="text-sm font-semibold text-blue-800">Novo turno de trabalho</p>
+                  {loadingTurnos ? (
+                    <p className="text-xs text-blue-600">Carregando turnos…</p>
+                  ) : turnoOpcoes.length === 0 ? (
+                    <p className="text-xs text-amber-700">
+                      Sem turno cadastrado para o destino — o horário ficará pendente de atribuição manual após a aprovação.
+                    </p>
+                  ) : (
+                    <>
+                      <div>
+                        <label className={labelClass}>Turno</label>
+                        <select name="turno_destino_id" required value={turnoDestinoId}
+                          onChange={e => setTurnoDestinoId(e.target.value)} className={inputClass}>
+                          <option value="">Selecione…</option>
+                          {turnoOpcoes.map(t => (
+                            <option key={t.id} value={t.id}>{t.nome} — {formatarResumoTurno(t)}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {jovemNovo && (
+                        <div>
+                          <label className={labelClass}>Dia de curso</label>
+                          <select name="dia_curso_destino" required value={diaCursoDestino}
+                            onChange={e => setDiaCursoDestino(e.target.value ? Number(e.target.value) : '')}
+                            className={inputClass}>
+                            <option value="">Selecione…</option>
+                            <option value={1}>Segunda</option>
+                            <option value={2}>Terça</option>
+                            <option value={3}>Quarta</option>
+                            <option value={4}>Quinta</option>
+                            <option value={5}>Sexta</option>
+                          </select>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
               </>
             )}
 
@@ -356,6 +471,47 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
                 {(impacto || loadingImpacto) && (
                   <PostoImpactPanel impacto={impacto} loading={loadingImpacto} />
                 )}
+
+              {precisaTurno && (
+                <div className="space-y-3 rounded border border-blue-200 bg-blue-50 px-4 py-3">
+                  <p className="text-sm font-semibold text-blue-800">Novo turno de trabalho</p>
+                  {loadingTurnos ? (
+                    <p className="text-xs text-blue-600">Carregando turnos…</p>
+                  ) : turnoOpcoes.length === 0 ? (
+                    <p className="text-xs text-amber-700">
+                      Sem turno cadastrado para o destino — o horário ficará pendente de atribuição manual após a aprovação.
+                    </p>
+                  ) : (
+                    <>
+                      <div>
+                        <label className={labelClass}>Turno</label>
+                        <select name="turno_destino_id" required value={turnoDestinoId}
+                          onChange={e => setTurnoDestinoId(e.target.value)} className={inputClass}>
+                          <option value="">Selecione…</option>
+                          {turnoOpcoes.map(t => (
+                            <option key={t.id} value={t.id}>{t.nome} — {formatarResumoTurno(t)}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {jovemNovo && (
+                        <div>
+                          <label className={labelClass}>Dia de curso</label>
+                          <select name="dia_curso_destino" required value={diaCursoDestino}
+                            onChange={e => setDiaCursoDestino(e.target.value ? Number(e.target.value) : '')}
+                            className={inputClass}>
+                            <option value="">Selecione…</option>
+                            <option value={1}>Segunda</option>
+                            <option value={2}>Terça</option>
+                            <option value={3}>Quarta</option>
+                            <option value={4}>Quinta</option>
+                            <option value={5}>Sexta</option>
+                          </select>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
               </>
             )}
 
@@ -412,6 +568,47 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
                     </p>
                   )}
                 </div>
+
+                {precisaTurno && (
+                  <div className="space-y-3 rounded border border-blue-200 bg-blue-50 px-4 py-3">
+                    <p className="text-sm font-semibold text-blue-800">Novo turno de trabalho</p>
+                    {loadingTurnos ? (
+                      <p className="text-xs text-blue-600">Carregando turnos…</p>
+                    ) : turnoOpcoes.length === 0 ? (
+                      <p className="text-xs text-amber-700">
+                        Sem turno cadastrado para o destino — o horário ficará pendente de atribuição manual após a aprovação.
+                      </p>
+                    ) : (
+                      <>
+                        <div>
+                          <label className={labelClass}>Turno</label>
+                          <select name="turno_destino_id" required value={turnoDestinoId}
+                            onChange={e => setTurnoDestinoId(e.target.value)} className={inputClass}>
+                            <option value="">Selecione…</option>
+                            {turnoOpcoes.map(t => (
+                              <option key={t.id} value={t.id}>{t.nome} — {formatarResumoTurno(t)}</option>
+                            ))}
+                          </select>
+                        </div>
+                        {jovemNovo && (
+                          <div>
+                            <label className={labelClass}>Dia de curso</label>
+                            <select name="dia_curso_destino" required value={diaCursoDestino}
+                              onChange={e => setDiaCursoDestino(e.target.value ? Number(e.target.value) : '')}
+                              className={inputClass}>
+                              <option value="">Selecione…</option>
+                              <option value={1}>Segunda</option>
+                              <option value={2}>Terça</option>
+                              <option value={3}>Quarta</option>
+                              <option value={4}>Quinta</option>
+                              <option value={5}>Sexta</option>
+                            </select>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </>
             )}
 
