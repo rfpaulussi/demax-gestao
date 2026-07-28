@@ -48,6 +48,7 @@ async function existeSolicitacaoConcorrentePendente(
     .eq('funcionario_id', funcionarioId)
     .eq('status', 'pendente')
     .in('tipo', TIPOS_QUE_ALTERAM_HORARIO as unknown as string[])
+    .limit(1)
     .maybeSingle()
   return !!data
 }
