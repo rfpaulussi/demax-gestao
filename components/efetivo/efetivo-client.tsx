@@ -25,6 +25,13 @@ const STATUS_COLORS: Record<string, { fill: string; color: string }> = {
   rescisao_indireta: { fill: 'FAF5FF', color: '7E22CE' },
 }
 
+const REGIME_COLORS: Record<string, { fill: string; color: string }> = {
+  '5x2':            { fill: 'EFF6FF', color: '1D4ED8' },
+  '5x1':            { fill: 'FAF5FF', color: '7E22CE' },
+  '12x36':          { fill: 'FFF7ED', color: 'C2410C' },
+  'jovem_aprendiz':  { fill: 'F0FDFA', color: '0F766E' },
+}
+
 function todayFilename() {
   const d = new Date()
   const dd = String(d.getDate()).padStart(2, '0')
@@ -143,6 +150,12 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
           label: 'Status',
           value: r => STATUS_LABELS[r.status ?? ''] ?? '',
           cellStyle: r => STATUS_COLORS[r.status ?? ''],
+        },
+        { label: 'Turno',    value: r => r.turno_atual_nome ?? '' },
+        {
+          label: 'Horário',
+          value: r => r.turno_atual_resumo ?? '',
+          cellStyle: r => r.turno_atual_regime ? REGIME_COLORS[r.turno_atual_regime] : undefined,
         },
       ],
       todayFilename(),
