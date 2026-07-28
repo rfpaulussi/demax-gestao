@@ -24,6 +24,7 @@ import {
 } from '@/lib/turnos/escala'
 import { cn } from '@/lib/utils'
 import type { TurnoPosto } from '@/types'
+import { CATALOGO_POR_REGIME, type TurnoCatalogoItem } from '@/lib/turnos/catalogo-padrao'
 
 interface Props {
   postoId: string
@@ -55,6 +56,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
   const [almocoTocado, setAlmocoTocado]         = useState(false)
   const [saidaTocado, setSaidaTocado]           = useState(false)
   const [personalizando, setPersonalizando]     = useState(false)
+  const [catalogoAberto, setCatalogoAberto]     = useState(true)
 
   const canWrite = role === 'admin' || role === 'coordenador'
 
@@ -84,6 +86,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     setAlmocoTocado(false)
     setSaidaTocado(false)
     setPersonalizando(false)
+    setCatalogoAberto(true)
     setErro(null)
   }
 
@@ -110,6 +113,18 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
   function restaurarHorariosPadrao() {
     setAlmocoTocado(false)
     setSaidaTocado(false)
+  }
+
+  function aplicarItemCatalogo(item: TurnoCatalogoItem) {
+    setNome(item.nome)
+    setHoraEntrada(item.hora_entrada)
+    setHoraInicioAlmoco(item.hora_inicio_almoco ?? '')
+    setHoraFimAlmoco(item.hora_fim_almoco ?? '')
+    setHoraSaidaSegQui(item.hora_saida_seg_qui)
+    setHoraSaidaSex(item.hora_saida_sex ?? '')
+    setAlmocoTocado(true)
+    setSaidaTocado(true)
+    setCatalogoAberto(false)
   }
 
   async function handleSalvar() {
@@ -311,6 +326,34 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
                     className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
                 </div>
               </div>
+
+              {form === 'novo' && tipoEscalaForm && CATALOGO_POR_REGIME[tipoEscalaForm] && (
+                <div className="rounded-lg border border-gray-100 bg-slate-50 p-3">
+                  <button type="button" onClick={() => setCatalogoAberto(p => !p)}
+                    className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-widest text-gray-500">
+                    Usar turno padrão
+                    <span className="text-gray-400">{catalogoAberto ? '▲' : '▼'}</span>
+                  </button>
+                  {catalogoAberto && (
+                    <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+                      {CATALOGO_POR_REGIME[tipoEscalaForm]!.map(item => (
+                        <button key={item.nome} type="button" onClick={() => aplicarItemCatalogo(item)}
+                          className="flex w-full items-center justify-between rounded-md border border-transparent px-2 py-1.5 text-left text-xs hover:border-gray-200 hover:bg-white">
+                          <span className="font-medium text-gray-700">{item.nome}</span>
+                          <span className="text-gray-400">
+                            {item.hora_entrada}
+                            {item.hora_inicio_almoco && item.hora_fim_almoco ? ` · almoço ${item.hora_inicio_almoco}–${item.hora_fim_almoco}` : ''}
+                            {' · saída '}
+                            {item.hora_saida_sex && item.hora_saida_sex !== item.hora_saida_seg_qui
+                              ? `${item.hora_saida_seg_qui} (sex ${item.hora_saida_sex})`
+                              : item.hora_saida_seg_qui}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* almoço/saída: resumo calculado por padrão; "Personalizar" libera edição livre por campo */}
               {!personalizando ? (

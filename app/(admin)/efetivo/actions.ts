@@ -31,6 +31,28 @@ async function supervisorTemAcessoAoFuncionario(
   return !!cfg
 }
 
+const TIPOS_QUE_ALTERAM_HORARIO = ['transferencia', 'mudanca_funcao', 'retorno_afastamento', 'mudanca_horario'] as const
+
+/**
+ * Impede 2 solicitações pendentes simultâneas do mesmo funcionário entre os 4 tipos que
+ * podem mexer em horarios_funcionarios (via aplicarMudancaHorario na aprovação) — evita
+ * que a segunda aprovação feche, com data quebrada, o registro que a primeira acabou de abrir.
+ */
+async function existeSolicitacaoConcorrentePendente(
+  supabase: ReturnType<typeof createClient>,
+  funcionarioId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from('solicitacoes')
+    .select('id')
+    .eq('funcionario_id', funcionarioId)
+    .eq('status', 'pendente')
+    .in('tipo', TIPOS_QUE_ALTERAM_HORARIO as unknown as string[])
+    .limit(1)
+    .maybeSingle()
+  return !!data
+}
+
 export async function registrarAtestado(formData: FormData) {
   const supabase = createClient()
   const auth = await getUser()
@@ -212,6 +234,12 @@ export async function solicitarTransferencia(formData: FormData): Promise<Action
   const postoDestinoId = formData.get('posto_destino_id') as string
   const motivo         = (formData.get('motivo') as string) || null
   const novaFuncaoId   = (formData.get('nova_funcao_id') as string) || null
+  const turnoDestinoId  = (formData.get('turno_destino_id') as string) || null
+  const diaCursoDestino = formData.get('dia_curso_destino') ? Number(formData.get('dia_curso_destino')) : null
+
+  if (await existeSolicitacaoConcorrentePendente(supabase, funcionarioId)) {
+    return { success: false, error: 'Já existe uma solicitação pendente para este funcionário que altera o horário — aguarde a aprovação antes de enviar outra.' }
+  }
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -248,6 +276,8 @@ export async function solicitarTransferencia(formData: FormData): Promise<Action
       posto_destino_nome: postoDestinoNome,
       motivo,
       ...(novaFuncaoId ? { nova_funcao_id: novaFuncaoId, nova_funcao_nome: novaFuncaoNome } : {}),
+      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId } : {}),
+      ...(diaCursoDestino ? { dia_curso_destino: diaCursoDestino } : {}),
     },
     motivo,
   })
@@ -267,6 +297,12 @@ export async function solicitarMudancaFuncao(formData: FormData): Promise<Action
   const funcionarioId   = formData.get('funcionario_id') as string
   const funcaoDestinoId = formData.get('funcao_destino_id') as string
   const motivo          = (formData.get('motivo') as string) || null
+  const turnoDestinoId  = (formData.get('turno_destino_id') as string) || null
+  const diaCursoDestino = formData.get('dia_curso_destino') ? Number(formData.get('dia_curso_destino')) : null
+
+  if (await existeSolicitacaoConcorrentePendente(supabase, funcionarioId)) {
+    return { success: false, error: 'Já existe uma solicitação pendente para este funcionário que altera o horário — aguarde a aprovação antes de enviar outra.' }
+  }
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -304,7 +340,11 @@ export async function solicitarMudancaFuncao(formData: FormData): Promise<Action
     funcionario_id: funcionarioId,
     supervisor_id: auth.user.id,
     dados_antes: { funcao_id: funcaoOrigemId, funcao_nome: funcaoOrigemNome, supervisor_nome: supervisorNome },
-    dados_depois: { funcao_destino_id: funcaoDestinoId, funcao_destino_nome: funcaoDestinoNome, motivo, supervisor_nome: supervisorNome },
+    dados_depois: {
+      funcao_destino_id: funcaoDestinoId, funcao_destino_nome: funcaoDestinoNome, motivo, supervisor_nome: supervisorNome,
+      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId } : {}),
+      ...(diaCursoDestino ? { dia_curso_destino: diaCursoDestino } : {}),
+    },
     motivo,
   })
 
@@ -390,6 +430,12 @@ export async function solicitarRetornoAfastamento(fd: FormData): Promise<ActionR
   const funcionario_id  = fd.get('funcionario_id') as string
   const data_retorno    = fd.get('data_retorno') as string
   const posto_retorno_id = (fd.get('posto_retorno_id') as string) || null
+  const turnoDestinoId    = (fd.get('turno_destino_id') as string) || null
+  const diaCursoDestino   = fd.get('dia_curso_destino') ? Number(fd.get('dia_curso_destino')) : null
+
+  if (await existeSolicitacaoConcorrentePendente(supabase, funcionario_id)) {
+    return { success: false, error: 'Já existe uma solicitação pendente para este funcionário que altera o horário — aguarde a aprovação antes de enviar outra.' }
+  }
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -413,7 +459,11 @@ export async function solicitarRetornoAfastamento(fd: FormData): Promise<ActionR
       posto_id:  funcTyped?.posto_id ?? null,
       posto_nome: funcTyped?.postos?.nome ?? null,
     },
-    dados_depois: { data_retorno, posto_retorno_id },
+    dados_depois: {
+      data_retorno, posto_retorno_id,
+      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId } : {}),
+      ...(diaCursoDestino ? { dia_curso_destino: diaCursoDestino } : {}),
+    },
   })
   if (error) return { success: false, error: error.message }
   revalidatePath('/efetivo')
@@ -673,5 +723,57 @@ export async function excluirFuncionarioCompleto(id: string): Promise<{ success:
 
   revalidatePath('/efetivo')
   revalidatePath('/dashboard')
+  return { success: true }
+}
+
+export async function solicitarMudancaHorario(formData: FormData): Promise<ActionResult> {
+  const supabase = createClient()
+  const auth = await getUser()
+  if (!auth) return { success: false, error: 'Não autenticado' }
+
+  const funcionarioId   = formData.get('funcionario_id') as string
+  const turnoDestinoId  = formData.get('turno_destino_id') as string
+  const diaCursoDestino = formData.get('dia_curso_destino') ? Number(formData.get('dia_curso_destino')) : null
+
+  if (!turnoDestinoId) return { success: false, error: 'Selecione o turno de destino' }
+
+  if (await existeSolicitacaoConcorrentePendente(supabase, funcionarioId)) {
+    return { success: false, error: 'Já existe uma solicitação pendente para este funcionário que altera o horário — aguarde a aprovação antes de enviar outra.' }
+  }
+
+  const { data: vigente } = await supabase
+    .from('horarios_funcionarios')
+    .select('turno_id, turnos_postos!turno_id(nome)')
+    .eq('funcionario_id', funcionarioId)
+    .is('data_fim', null)
+    .maybeSingle()
+
+  const vigenteTyped = vigente as unknown as { turno_id: string; turnos_postos: { nome: string } | null } | null
+
+  const { data: turnoNovo } = await supabase
+    .from('turnos_postos')
+    .select('nome')
+    .eq('id', turnoDestinoId)
+    .single()
+
+  const { error: insertError } = await supabase.from('solicitacoes').insert({
+    tipo:           'mudanca_horario' as unknown as 'desligamento',
+    status:         'pendente',
+    funcionario_id: funcionarioId,
+    supervisor_id:  auth.user.id,
+    dados_antes: {
+      turno_atual_id:   vigenteTyped?.turno_id ?? null,
+      turno_atual_nome: vigenteTyped?.turnos_postos?.nome ?? null,
+    },
+    dados_depois: {
+      turno_destino_id:   turnoDestinoId,
+      turno_destino_nome: turnoNovo?.nome ?? null,
+      ...(diaCursoDestino ? { dia_curso_destino: diaCursoDestino } : {}),
+    },
+  })
+  if (insertError) return { success: false, error: insertError.message }
+
+  revalidatePath('/efetivo')
+  revalidatePath('/aprovacoes')
   return { success: true }
 }

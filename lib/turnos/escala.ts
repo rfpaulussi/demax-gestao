@@ -131,6 +131,22 @@ export function calcularHorariosDerivados(horaEntrada: string, tipoEscala: TipoE
   }
 }
 
+/**
+ * Turno vigente deixa de ser válido quando o posto muda (turno é por posto) OU quando a
+ * condição jovem-aprendiz muda (turno de jovem aprendiz é global, não por posto — então
+ * essa transição sempre exige nova escolha, independente do posto).
+ */
+export function precisaNovoTurno(
+  postoAtual: string | null,
+  postoNovo: string | null,
+  jovemAtual: boolean,
+  jovemNovo: boolean,
+): boolean {
+  if (jovemAtual !== jovemNovo) return true
+  if (jovemAtual && jovemNovo) return false
+  return postoAtual !== postoNovo
+}
+
 /** Formata "HH:MM:SS" (ou já "HH:MM") vindo do banco; retorna "—" para null/undefined. */
 export function fmtHora(h: string | null | undefined): string {
   return h ? h.slice(0, 5) : '—'

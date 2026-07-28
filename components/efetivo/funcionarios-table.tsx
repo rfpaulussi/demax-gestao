@@ -34,6 +34,9 @@ export type FuncionarioRow = {
   postos: { id: string; nome: string; secretaria: string | null } | null
   supervisor_nome?: string | null
   supervisor_id?: string | null
+  turno_atual_nome?:   string | null
+  turno_atual_regime?: string | null
+  turno_atual_resumo?: string | null
 }
 
 const ORIGEM_SUBTEXT: Record<string, string> = {

@@ -172,6 +172,7 @@ export type TipoSolicitacao =
   | 'retorno_afastamento'
   | 'rescisao_indireta'
   | 'admissao'
+  | 'mudanca_horario'
 
 /** Status de solicitação */
 export type StatusSolicitacao = 'pendente' | 'aprovada' | 'rejeitada'
