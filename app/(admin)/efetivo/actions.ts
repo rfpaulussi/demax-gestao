@@ -691,3 +691,51 @@ export async function excluirFuncionarioCompleto(id: string): Promise<{ success:
   revalidatePath('/dashboard')
   return { success: true }
 }
+
+export async function solicitarMudancaHorario(formData: FormData): Promise<ActionResult> {
+  const supabase = createClient()
+  const auth = await getUser()
+  if (!auth) return { success: false, error: 'Não autenticado' }
+
+  const funcionarioId   = formData.get('funcionario_id') as string
+  const turnoDestinoId  = formData.get('turno_destino_id') as string
+  const diaCursoDestino = formData.get('dia_curso_destino') ? Number(formData.get('dia_curso_destino')) : null
+
+  if (!turnoDestinoId) return { success: false, error: 'Selecione o turno de destino' }
+
+  const { data: vigente } = await supabase
+    .from('horarios_funcionarios')
+    .select('turno_id, turnos_postos!turno_id(nome)')
+    .eq('funcionario_id', funcionarioId)
+    .is('data_fim', null)
+    .maybeSingle()
+
+  const vigenteTyped = vigente as unknown as { turno_id: string; turnos_postos: { nome: string } | null } | null
+
+  const { data: turnoNovo } = await supabase
+    .from('turnos_postos')
+    .select('nome')
+    .eq('id', turnoDestinoId)
+    .single()
+
+  const { error: insertError } = await supabase.from('solicitacoes').insert({
+    tipo:           'mudanca_horario' as unknown as 'desligamento',
+    status:         'pendente',
+    funcionario_id: funcionarioId,
+    supervisor_id:  auth.user.id,
+    dados_antes: {
+      turno_atual_id:   vigenteTyped?.turno_id ?? null,
+      turno_atual_nome: vigenteTyped?.turnos_postos?.nome ?? null,
+    },
+    dados_depois: {
+      turno_destino_id:   turnoDestinoId,
+      turno_destino_nome: turnoNovo?.nome ?? null,
+      ...(diaCursoDestino ? { dia_curso_destino: diaCursoDestino } : {}),
+    },
+  })
+  if (insertError) return { success: false, error: insertError.message }
+
+  revalidatePath('/efetivo')
+  revalidatePath('/aprovacoes')
+  return { success: true }
+}
