@@ -5,6 +5,8 @@ import { EfetivoClient } from '@/components/efetivo/efetivo-client'
 import type { FuncionarioRow } from '@/components/efetivo/funcionarios-table'
 import { processarRetornosAtestado } from '@/lib/processar-retornos'
 import { encerrarCoberturasVencidas } from '@/app/(admin)/coberturas/actions'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { resolverTipoEscala, formatarResumoTurno } from '@/lib/turnos/escala'
 
 // ─── counter card ─────────────────────────────────────────────────────────────
 
@@ -138,6 +140,38 @@ export default async function EfetivoPage() {
     faltasAtivas[f.funcionario_id] = true
   }
 
+  // Horário vigente de todos os funcionários (para o Excel) — sem filtro de IDs
+  // para evitar URL enorme com até ~1500 UUIDs; pagina além do limite de 1000
+  // linhas do PostgREST via fetchAllRows.
+  type HorarioVigenteRow = {
+    funcionario_id: string
+    turnos_postos: {
+      nome: string
+      tipo_escala: string
+      hora_entrada: string
+      hora_saida_seg_qui: string
+      hora_saida_sex: string | null
+      hora_inicio_almoco: string | null
+      hora_fim_almoco: string | null
+    } | null
+  }
+  const horariosVigentes = await fetchAllRows<HorarioVigenteRow>((from, to) =>
+    supabase
+      .from('horarios_funcionarios')
+      .select('funcionario_id, turnos_postos!turno_id(nome, tipo_escala, hora_entrada, hora_saida_seg_qui, hora_saida_sex, hora_inicio_almoco, hora_fim_almoco)')
+      .is('data_fim', null)
+      .range(from, to) as unknown as PromiseLike<{ data: HorarioVigenteRow[] | null; error: { message: string } | null }>,
+  )
+  const horarioMap = new Map<string, { nome: string; regime: string; resumo: string }>()
+  for (const h of horariosVigentes) {
+    if (!h.turnos_postos) continue
+    horarioMap.set(h.funcionario_id, {
+      nome:   h.turnos_postos.nome,
+      regime: resolverTipoEscala(h.turnos_postos.tipo_escala),
+      resumo: formatarResumoTurno(h.turnos_postos),
+    })
+  }
+
   // Coberturas ativas hoje (para badges Em Cobertura / Sendo Coberto)
   const { data: coberturasHoje } = await (supabase as unknown as AnyQ)
     .from('coberturas_temporarias')
@@ -153,14 +187,18 @@ export default async function EfetivoPage() {
     if (c.funcionario_ausente_id) coberturaAusentes[c.funcionario_ausente_id] = true
   }
 
-  // Enrich ALL funcionarios with supervisor_nome + supervisor_id + origem_ocupacional_cat
+  // Enrich ALL funcionarios with supervisor_nome + supervisor_id + origem_ocupacional_cat + turno_atual
   const funcionarios = rawFuncs.map(f => {
     const sup = f.posto_id ? postoSupervisorMap.get(f.posto_id) : undefined
+    const horario = horarioMap.get(f.id)
     return {
       ...f,
       supervisor_nome:        sup?.nomeCompleto ?? null,
       supervisor_id:          sup?.id ?? null,
       origem_ocupacional_cat: catOrigemMap.get(f.id) ?? null,
+      turno_atual_nome:       horario?.nome ?? null,
+      turno_atual_regime:     horario?.regime ?? null,
+      turno_atual_resumo:     horario?.resumo ?? null,
     }
   })
 
