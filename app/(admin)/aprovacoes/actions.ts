@@ -198,6 +198,8 @@ export async function aprovarSolicitacao(
 
       const funcaoNovaNome = (dadosDepois.funcao_destino_nome as string | undefined) ?? null
       const jovemNovo = funcaoNovaNome === FUNCAO_JOVEM_APRENDIZ
+      // Posto não muda nesse fluxo — passar func?.posto_id nos dois lados propositalmente;
+      // só a condição jovem-aprendiz varia aqui.
       if (precisaNovoTurno(func?.posto_id ?? null, func?.posto_id ?? null, jovemAtual, jovemNovo)) {
         await aplicarMudancaHorario(
           funcionarioId,
@@ -251,6 +253,8 @@ export async function aprovarSolicitacao(
         .eq('funcionario_id', funcionarioId)
         .is('data_fim_real', null)
 
+      // Função não muda nesse fluxo — passar jovemAtual nos dois lados propositalmente;
+      // só o posto varia aqui.
       if (precisaNovoTurno(func?.posto_id ?? null, postoRetornoId, jovemAtual, jovemAtual)) {
         await aplicarMudancaHorario(
           funcionarioId,

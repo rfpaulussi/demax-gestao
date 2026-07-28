@@ -228,9 +228,10 @@ export async function aplicarMudancaHorario(
     const d = new Date(dataEfetivacao + 'T12:00:00')
     d.setDate(d.getDate() - 1)
     const dataFim = d.toISOString().split('T')[0]
-    if (dataFim >= vigente.data_inicio) {
-      await supabase.from('horarios_funcionarios').update({ data_fim: dataFim }).eq('id', vigente.id)
-    }
+    // Fecha o vigente incondicionalmente: esta função roda automaticamente na aprovação,
+    // sem chance de rejeitar o usuário — deixar aberto (mesmo que dataFim < data_inicio,
+    // caso raro de vigente com início futuro) resultaria em 2 registros com data_fim NULL.
+    await supabase.from('horarios_funcionarios').update({ data_fim: dataFim }).eq('id', vigente.id)
   }
 
   if (turnoDestinoId) {
