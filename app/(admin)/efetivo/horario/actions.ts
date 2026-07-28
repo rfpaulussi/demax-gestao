@@ -141,6 +141,10 @@ export interface FuncionarioLoteRow {
 }
 
 export async function listarFuncionariosParaAtribuicaoLote(postoId: string): Promise<FuncionarioLoteRow[]> {
+  const auth = await getUser()
+  if (!auth || !['admin', 'coordenador'].includes(auth.perfil.role ?? '')) {
+    return []
+  }
   const supabase = createClient()
 
   const { data: funcionariosRaw, error } = await supabase
