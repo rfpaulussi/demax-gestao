@@ -42,16 +42,21 @@ export type ImpactoResult = {
 type AnyQ = { from: (t: string) => any }
 
 /**
- * Calcula o impacto de uma transferência ou mudança de função nos postos afetados.
- * - Se posto_destino_id for fornecido → transferência (origem perde, destino ganha)
- * - Se nova_funcao_nome sem posto_destino_id → mudança de função no mesmo posto
+ * Calcula o impacto de uma transferência, mudança de função, desligamento ou
+ * retorno de afastamento nos postos afetados.
+ * - apenas_entrada=true (retorno de afastamento): funcionário está inativo hoje,
+ *   não conta no efetivo atual — calcula só o ganho de +1 no posto de retorno.
+ * - posto_destino_id sem apenas_entrada → transferência (origem perde, destino ganha)
+ * - nova_funcao_nome sem posto_destino_id → mudança de função no mesmo posto
+ * - nem posto_destino_id nem nova_funcao_nome → desligamento (origem perde 1, sem destino)
  */
 export async function calcularImpactoPosto(params: {
   funcionario_id: string
   posto_destino_id?: string
   nova_funcao_nome?: string
+  apenas_entrada?: boolean
 }): Promise<ImpactoResult | null> {
-  const { funcionario_id, posto_destino_id, nova_funcao_nome } = params
+  const { funcionario_id, posto_destino_id, nova_funcao_nome, apenas_entrada } = params
   const supabase = createClient()
 
   // 1. Estado atual do funcionário
@@ -61,12 +66,73 @@ export async function calcularImpactoPosto(params: {
     .eq('id', funcionario_id)
     .single()
 
-  if (!empData?.posto_id) return null
+  if (!empData) return null
 
-  const postoOrigemId   = empData.posto_id as string
   const funcaoAtualNome = ((empData.funcoes?.nome ?? '') as string).trim().toUpperCase()
-  const ehVolante       = empData.eh_encarregado_volante === true
-  const statusAtual     = empData.status as string
+  const ehVolante        = empData.eh_encarregado_volante === true
+
+  // Retorno de afastamento: funcionário afastado não conta no efetivo atual,
+  // então não há "origem" perdendo ninguém — só o ganho no posto de retorno.
+  if (apenas_entrada) {
+    if (!posto_destino_id) return null
+
+    const [{ data: postoData }, { data: funcsRaw }, { data: empsAtivos }] = await Promise.all([
+      supabase
+        .from('postos')
+        .select('id, nome, secretaria, efetivo_previsto, cota_insalubridade')
+        .eq('id', posto_destino_id)
+        .single(),
+      supabase.from('funcoes').select('id, nome'),
+      (supabase as unknown as AnyQ)
+        .from('funcionarios')
+        .select('id, posto_id, funcao_id, eh_encarregado_volante')
+        .eq('posto_id', posto_destino_id)
+        .eq('status', 'ativo'),
+    ])
+    if (!postoData) return null
+
+    const funcaoNomeMap = new Map(
+      (funcsRaw ?? []).map((f: { id: string; nome: string }) => [f.id, f.nome.trim().toUpperCase()])
+    )
+    const excludedIds = new Set(
+      (funcsRaw ?? [])
+        .filter((f: { nome: string }) => FUNCOES_FORA_DO_EFETIVO.includes(f.nome as never))
+        .map((f: { id: string }) => f.id)
+    )
+    const secretaria = (postoData.secretaria ?? '').toUpperCase()
+
+    let efetivoAtual = 0
+    let insalubAtual = 0
+    for (const e of (empsAtivos ?? []) as { id: string; posto_id: string; funcao_id: string | null; eh_encarregado_volante: boolean | null }[]) {
+      if (e.eh_encarregado_volante === true) continue
+      if (e.funcao_id && excludedIds.has(e.funcao_id)) continue
+      efetivoAtual++
+      const funcNome = e.funcao_id ? (funcaoNomeMap.get(e.funcao_id) ?? '') : ''
+      const expected = INSALUBRIDADE_POR_SECRETARIA[secretaria]
+      if (expected && funcNome === expected) insalubAtual++
+    }
+
+    const funcaoEsperada  = INSALUBRIDADE_POR_SECRETARIA[secretaria]
+    const adicionaInsalub = !!(funcaoEsperada && !ehVolante && funcaoAtualNome === funcaoEsperada)
+
+    const entrada: PostoImpact = {
+      id:                   postoData.id,
+      nome:                 postoData.nome,
+      secretaria:           postoData.secretaria ?? '',
+      efetivo_previsto:     postoData.efetivo_previsto ?? 0,
+      cota_insalubridade:   postoData.cota_insalubridade ?? 0,
+      efetivo_atual:        efetivoAtual,
+      insalubridade_atual:  insalubAtual,
+      efetivo_apos:         efetivoAtual + 1,
+      insalubridade_apos:   insalubAtual + (adicionaInsalub ? 1 : 0),
+    }
+    return { origem: entrada }
+  }
+
+  if (!empData.posto_id) return null
+
+  const postoOrigemId = empData.posto_id as string
+  const statusAtual    = empData.status as string
 
   // Mesma lógica de postos/actions.ts: só 'ativo' conta no efetivo, sem volante, sem exclusões
   const contaNoEfetivo = statusAtual === 'ativo' && !ehVolante &&
@@ -143,7 +209,7 @@ export async function calcularImpactoPosto(params: {
     efAposOrigem = efAtualOrigem
     inAposOrigem = inAtualOrigem - (contaInsalubOrigem ? 1 : 0) + (adicionaInsalub ? 1 : 0)
   } else {
-    // Transferência: origem perde o funcionário
+    // Transferência ou desligamento: origem perde o funcionário
     efAposOrigem = efAtualOrigem - (contaNoEfetivo ? 1 : 0)
     inAposOrigem = inAtualOrigem - (contaInsalubOrigem ? 1 : 0)
   }

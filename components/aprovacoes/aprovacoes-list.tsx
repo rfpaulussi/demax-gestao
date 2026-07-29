@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { aprovarSolicitacao, rejeitarSolicitacao } from '@/app/(admin)/aprovacoes/actions'
 import { PostoImpactPanel } from '@/components/posto-impact-panel'
+import { TIPO_BADGE, badgeDaSolicitacao, fmtData, resumoCurto } from './campos-solicitacao'
+import { ModalDetalheSolicitacao } from './modal-detalhe-solicitacao'
 import type { ImpactoResult } from '@/app/(admin)/efetivo/impacto'
 import type { TipoSolicitacao } from '@/types'
 
@@ -21,35 +23,6 @@ export type SolicitacaoPendente = {
   perfis: { nome: string | null; email: string | null } | null
 }
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
-
-function fmt(iso: string) {
-  const [y, m, d] = iso.split('T')[0].split('-')
-  return `${d}/${m}/${y}`
-}
-
-const TIPO_BADGE: Record<TipoSolicitacao, { label: string; className: string }> = {
-  desligamento:       { label: 'Desligamento',      className: 'bg-red-50 text-red-700 ring-red-200'         },
-  transferencia:      { label: 'Transferência',      className: 'bg-blue-50 text-blue-700 ring-blue-200'       },
-  mudanca_funcao:     { label: 'Mudança de Função',  className: 'bg-indigo-50 text-indigo-700 ring-indigo-200' },
-  promocao:           { label: 'Promoção',           className: 'bg-green-50 text-green-700 ring-green-200'    },
-  mudanca_supervisor:  { label: 'Mudança Supervisor',  className: 'bg-purple-50 text-purple-700 ring-purple-200'   },
-  alteracao_salario:   { label: 'Alteração Salarial',  className: 'bg-amber-50 text-amber-700 ring-amber-200'     },
-  afastamento:         { label: 'Afastamento',         className: 'bg-orange-50 text-orange-700 ring-orange-200'  },
-  retorno_afastamento: { label: 'Retorno Afastamento', className: 'bg-teal-50 text-teal-700 ring-teal-200'        },
-  rescisao_indireta:   { label: 'Rescisão Indireta',   className: 'bg-rose-50 text-rose-700 ring-rose-200'        },
-  admissao:            { label: 'Admissão',            className: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
-  mudanca_horario:     { label: 'Mudança Horário',      className: 'bg-cyan-50 text-cyan-700 ring-cyan-200'          },
-}
-
-function renderInline(dados: Record<string, unknown> | null): string {
-  if (!dados) return '—'
-  return Object.entries(dados)
-    .filter(([k]) => !k.endsWith('_id'))
-    .map(([, v]) => String(v ?? '—'))
-    .join(' / ')
-}
-
 // ─── card ─────────────────────────────────────────────────────────────────────
 
 function SolicitacaoCard({ sol, canApprove, impacto }: { sol: SolicitacaoPendente; canApprove: boolean; impacto?: ImpactoResult }) {
@@ -57,12 +30,10 @@ function SolicitacaoCard({ sol, canApprove, impacto }: { sol: SolicitacaoPendent
   const [rejeitando, setRejeitando] = useState(false)
   const [motivo, setMotivo] = useState('')
   const [erro, setErro] = useState<string | null>(null)
+  const [detalheAberto, setDetalheAberto] = useState(false)
   const router = useRouter()
 
-  const isTransfComFuncao = sol.tipo === 'transferencia' && !!sol.dados_depois?.nova_funcao_id
-  const badge = isTransfComFuncao
-    ? { label: 'Transferência + Função', className: 'bg-amber-50 text-amber-700 ring-amber-200' }
-    : TIPO_BADGE[sol.tipo]
+  const badge = badgeDaSolicitacao(sol.tipo, sol.dados_depois)
 
   function handleAprovar() {
     setErro(null)
@@ -82,6 +53,9 @@ function SolicitacaoCard({ sol, canApprove, impacto }: { sol: SolicitacaoPendent
     })
   }
 
+  function iniciarRejeicao() { setRejeitando(true) }
+  function cancelarRejeicao() { setRejeitando(false); setMotivo('') }
+
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md">
       {/* Header compacto */}
@@ -90,7 +64,7 @@ function SolicitacaoCard({ sol, canApprove, impacto }: { sol: SolicitacaoPendent
           {badge.label}
         </span>
         <span className="shrink-0 text-[10px] text-gray-400">
-          {sol.created_at ? fmt(sol.created_at) : ''}
+          {sol.created_at ? fmtData(sol.created_at) : ''}
         </span>
       </div>
 
@@ -105,23 +79,25 @@ function SolicitacaoCard({ sol, canApprove, impacto }: { sol: SolicitacaoPendent
         {sol.motivo ? ` · ${sol.motivo}` : ''}
       </p>
 
-      {/* Antes → Depois inline */}
-      <div className="mb-2 flex items-center gap-1.5 flex-wrap">
-        <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-600">
-          {renderInline(sol.dados_antes)}
-        </span>
-        <span className="text-xs text-gray-400">→</span>
-        <span className="rounded bg-green-50 px-2 py-1 text-xs font-medium text-green-700">
-          {renderInline(sol.dados_depois)}
-        </span>
-      </div>
+      {/* Resumo */}
+      <p className="mb-2 text-xs text-gray-600">
+        {resumoCurto(sol.tipo, sol.dados_antes, sol.dados_depois)}
+      </p>
 
       {/* Impacto nos postos */}
       {impacto && (
-        <div className="mb-3">
+        <div className="mb-2">
           <PostoImpactPanel impacto={impacto} />
         </div>
       )}
+
+      <button
+        type="button"
+        onClick={() => setDetalheAberto(true)}
+        className="mb-2 text-xs font-medium text-slate-600 underline underline-offset-2 hover:text-slate-900"
+      >
+        Ver detalhes
+      </button>
 
       {erro && (
         <p className="mb-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-600">{erro}</p>
@@ -137,7 +113,7 @@ function SolicitacaoCard({ sol, canApprove, impacto }: { sol: SolicitacaoPendent
             {isPending ? '...' : 'Aprovar'}
           </button>
           <button
-            onClick={() => setRejeitando(true)}
+            onClick={iniciarRejeicao}
             disabled={isPending}
             className="flex-1 rounded-lg border border-red-300 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
           >
@@ -155,7 +131,7 @@ function SolicitacaoCard({ sol, canApprove, impacto }: { sol: SolicitacaoPendent
           />
           <div className="flex gap-2">
             <button
-              onClick={() => { setRejeitando(false); setMotivo('') }}
+              onClick={cancelarRejeicao}
               className="flex-1 rounded-lg border border-gray-200 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
             >
               Cancelar
@@ -170,6 +146,23 @@ function SolicitacaoCard({ sol, canApprove, impacto }: { sol: SolicitacaoPendent
           </div>
         </div>
       ))}
+
+      <ModalDetalheSolicitacao
+        sol={sol}
+        impacto={impacto}
+        canApprove={canApprove}
+        open={detalheAberto}
+        onClose={() => setDetalheAberto(false)}
+        pending={isPending}
+        erro={erro}
+        rejeitando={rejeitando}
+        motivo={motivo}
+        onMotivoChange={setMotivo}
+        onIniciarRejeicao={iniciarRejeicao}
+        onCancelarRejeicao={cancelarRejeicao}
+        onAprovar={handleAprovar}
+        onRejeitar={handleRejeitar}
+      />
     </div>
   )
 }

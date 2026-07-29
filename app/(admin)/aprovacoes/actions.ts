@@ -147,6 +147,7 @@ export async function aprovarSolicitacao(
           status:              'desligado',
           data_desligamento:   dataDesligamento ?? null,
           motivo_desligamento: (dadosDepois.motivo as string) ?? null,
+          tipo_desligamento:   (dadosDepois.tipo_desligamento as string) ?? null,
         })
         .eq('id', funcionarioId)
       if (errDeslig) return { success: false, error: errDeslig.message }

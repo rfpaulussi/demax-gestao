@@ -197,6 +197,7 @@ export async function solicitarDesligamento(formData: FormData): Promise<ActionR
   const funcionarioId    = formData.get('funcionario_id') as string
   const dataDesligamento = formData.get('data_desligamento') as string
   const motivo           = formData.get('motivo') as string
+  const tipoDesligamento = (formData.get('tipo_desligamento') as string) || null
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -214,7 +215,7 @@ export async function solicitarDesligamento(formData: FormData): Promise<ActionR
       posto_id: func?.posto_id ?? null,
       funcao_id: func?.funcao_id ?? null,
     },
-    dados_depois: { data_desligamento: dataDesligamento, motivo },
+    dados_depois: { data_desligamento: dataDesligamento, motivo, tipo_desligamento: tipoDesligamento },
     motivo,
   })
 
@@ -253,7 +254,7 @@ export async function solicitarTransferencia(formData: FormData): Promise<Action
 
   // Usar admin client para buscar nomes de postos (supervisor pode não ter acesso ao posto destino via RLS)
   const adminDb = createAdminClient() as unknown as typeof supabase
-  const [{ data: postoDestino }, postoOrigemResult, novaFuncaoResult] = await Promise.all([
+  const [{ data: postoDestino }, postoOrigemResult, novaFuncaoResult, turnoNovoResult] = await Promise.all([
     adminDb.from('postos').select('nome').eq('id', postoDestinoId).single(),
     postoOrigemId
       ? adminDb.from('postos').select('nome').eq('id', postoOrigemId).single()
@@ -261,11 +262,15 @@ export async function solicitarTransferencia(formData: FormData): Promise<Action
     novaFuncaoId
       ? adminDb.from('funcoes').select('nome').eq('id', novaFuncaoId).single()
       : Promise.resolve({ data: null }),
+    turnoDestinoId
+      ? supabase.from('turnos_postos').select('nome').eq('id', turnoDestinoId).single()
+      : Promise.resolve({ data: null }),
   ])
 
   const postoOrigemNome  = (postoOrigemResult as { data: { nome: string } | null }).data?.nome ?? null
   const postoDestinoNome = (postoDestino as { nome: string } | null)?.nome ?? null
   const novaFuncaoNome   = (novaFuncaoResult as { data: { nome: string } | null }).data?.nome ?? null
+  const turnoDestinoNome = (turnoNovoResult as { data: { nome: string } | null }).data?.nome ?? null
 
   const { error } = await supabase.from('solicitacoes').insert({
     tipo: 'transferencia',
@@ -278,7 +283,7 @@ export async function solicitarTransferencia(formData: FormData): Promise<Action
       posto_destino_nome: postoDestinoNome,
       motivo,
       ...(novaFuncaoId ? { nova_funcao_id: novaFuncaoId, nova_funcao_nome: novaFuncaoNome } : {}),
-      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId } : {}),
+      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId, turno_destino_nome: turnoDestinoNome } : {}),
       ...(diaCursoDestino ? { dia_curso_destino: diaCursoDestino } : {}),
     },
     motivo,
@@ -315,7 +320,7 @@ export async function solicitarMudancaFuncao(formData: FormData): Promise<Action
   const funcaoOrigemId = func?.funcao_id ?? null
   const postoId        = func?.posto_id ?? null
 
-  const [{ data: funcaoDestino }, funcaoOrigemResult, supervisorResult] = await Promise.all([
+  const [{ data: funcaoDestino }, funcaoOrigemResult, supervisorResult, turnoNovoResult] = await Promise.all([
     supabase.from('funcoes').select('nome').eq('id', funcaoDestinoId).single(),
     funcaoOrigemId
       ? supabase.from('funcoes').select('nome').eq('id', funcaoOrigemId).single()
@@ -328,6 +333,9 @@ export async function solicitarMudancaFuncao(formData: FormData): Promise<Action
           .eq('ativo', true)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    turnoDestinoId
+      ? supabase.from('turnos_postos').select('nome').eq('id', turnoDestinoId).single()
+      : Promise.resolve({ data: null }),
   ])
 
   const funcaoOrigemNome  = (funcaoOrigemResult as { data: { nome: string } | null }).data?.nome ?? null
@@ -335,6 +343,7 @@ export async function solicitarMudancaFuncao(formData: FormData): Promise<Action
   // Snapshot do supervisor do posto no momento da solicitação — não muda com mudança de função,
   // mas evita que o PDF puxe o supervisor vigente hoje caso a config seja alterada depois.
   const supervisorNome = (supervisorResult as unknown as { data: { perfis: { nome: string | null } | null } | null }).data?.perfis?.nome ?? null
+  const turnoDestinoNome = (turnoNovoResult as { data: { nome: string } | null }).data?.nome ?? null
 
   const { error } = await supabase.from('solicitacoes').insert({
     tipo: 'mudanca_funcao',
@@ -344,7 +353,7 @@ export async function solicitarMudancaFuncao(formData: FormData): Promise<Action
     dados_antes: { funcao_id: funcaoOrigemId, funcao_nome: funcaoOrigemNome, supervisor_nome: supervisorNome },
     dados_depois: {
       funcao_destino_id: funcaoDestinoId, funcao_destino_nome: funcaoDestinoNome, motivo, supervisor_nome: supervisorNome,
-      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId } : {}),
+      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId, turno_destino_nome: turnoDestinoNome } : {}),
       ...(diaCursoDestino ? { dia_curso_destino: diaCursoDestino } : {}),
     },
     motivo,
@@ -463,6 +472,20 @@ export async function solicitarRetornoAfastamento(fd: FormData): Promise<ActionR
     postos: { nome: string } | null
   } | null
 
+  // Admin client: supervisor pode não ter acesso ao posto de retorno via RLS
+  // (mesmo padrão de solicitarTransferencia)
+  const adminDb = createAdminClient() as unknown as typeof supabase
+  const [postoRetornoResult, turnoNovoResult] = await Promise.all([
+    posto_retorno_id
+      ? adminDb.from('postos').select('nome').eq('id', posto_retorno_id).single()
+      : Promise.resolve({ data: null }),
+    turnoDestinoId
+      ? supabase.from('turnos_postos').select('nome').eq('id', turnoDestinoId).single()
+      : Promise.resolve({ data: null }),
+  ])
+  const postoRetornoNome = (postoRetornoResult as { data: { nome: string } | null }).data?.nome ?? null
+  const turnoDestinoNome = (turnoNovoResult as { data: { nome: string } | null }).data?.nome ?? null
+
   const { error } = await supabase.from('solicitacoes').insert({
     funcionario_id,
     tipo:         'retorno_afastamento' as unknown as 'desligamento',
@@ -474,8 +497,8 @@ export async function solicitarRetornoAfastamento(fd: FormData): Promise<ActionR
       posto_nome: funcTyped?.postos?.nome ?? null,
     },
     dados_depois: {
-      data_retorno, posto_retorno_id,
-      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId } : {}),
+      data_retorno, posto_retorno_id, posto_retorno_nome: postoRetornoNome,
+      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId, turno_destino_nome: turnoDestinoNome } : {}),
       ...(diaCursoDestino ? { dia_curso_destino: diaCursoDestino } : {}),
     },
   })
