@@ -383,6 +383,18 @@ export async function solicitarAfastamento(fd: FormData): Promise<ActionResult> 
     if (n > 0 && data_inicio) data_retorno_prevista = addDaysToDate(data_inicio, n)
   }
 
+  const { data: solicitacaoExistente } = await supabase
+    .from('solicitacoes')
+    .select('id')
+    .eq('funcionario_id', funcionario_id)
+    .eq('tipo', 'afastamento')
+    .eq('status', 'pendente')
+    .limit(1)
+    .maybeSingle()
+  if (solicitacaoExistente) {
+    return { success: false, error: 'Já existe uma solicitação de afastamento pendente para este funcionário — aguarde a aprovação.' }
+  }
+
   const { data: func } = await supabase
     .from('funcionarios')
     .select('status, posto_id')

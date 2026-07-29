@@ -13,7 +13,7 @@ type AtestadoRaw = {
   motivo: string | null
   cid_codigo: string | null
   origem_ocupacional: string | null
-  funcionarios: { id: string; nome: string } | null
+  funcionarios: { id: string; nome: string; status: string | null } | null
   postos: {
     nome: string
     secretaria: string | null
@@ -60,13 +60,13 @@ export default async function AtestadosPage({
     postoIds = (postos ?? []).map(p => p.posto_id)
   }
 
-  const [{ data: rawAtestados }, { data: rawCids }, { data: rawCoberturas }] = await Promise.all([
+  const [{ data: rawAtestados }, { data: rawCids }, { data: rawCoberturas }, { data: rawSolicitacoesPendentes }] = await Promise.all([
     (() => {
       let q = supabase
         .from('atestados')
         .select(`
           id, funcionario_id, posto_id, data_inicio, data_fim, motivo, cid_codigo, origem_ocupacional,
-          funcionarios!funcionario_id ( id, nome ),
+          funcionarios!funcionario_id ( id, nome, status ),
           postos!posto_id (
             nome, secretaria,
             config_supervisores_postos!posto_id (
@@ -86,7 +86,16 @@ export default async function AtestadosPage({
       .select('funcionario_ausente_id, data_inicio, data_retorno_real, data_prev_retorno')
       .not('funcionario_ausente_id', 'is', null)
       .range(0, 1499),
+    supabase
+      .from('solicitacoes')
+      .select('funcionario_id')
+      .eq('tipo', 'afastamento')
+      .eq('status', 'pendente'),
   ])
+
+  const funcionariosComSolicitacaoPendente = new Set(
+    (rawSolicitacoesPendentes ?? []).map(s => s.funcionario_id as string),
+  )
 
   type CidRef = { codigo: string; descricao: string; nexo_ocupacional_limpeza: boolean }
   const cidsRaw = (rawCids ?? []) as unknown as CidRef[]
@@ -158,6 +167,12 @@ export default async function AtestadosPage({
       a.postos?.config_supervisores_postos
         ?.find(c => c.ativo)
         ?.perfis?.nome ?? null
+    // Não reexibir alerta/botão de solicitação se funcionário já está afastado
+    // ou já existe uma solicitação de afastamento aguardando aprovação
+    const statusFuncionario = a.funcionarios?.status ?? null
+    const jaEmAfastamentoOuPendente =
+      statusFuncionario === 'afastado' ||
+      funcionariosComSolicitacaoPendente.has(a.funcionario_id)
     return {
       id: a.id,
       funcionario_id: a.funcionario_id,
@@ -173,14 +188,22 @@ export default async function AtestadosPage({
       supervisor_nome: supervisorNome,
       dias,
       acumulado,
-      alerta: acumulado > 15,
+      alerta: acumulado > 15 && !jaEmAfastamentoOuPendente,
       cid_desc: cidDesc,
       nexo_ocupacional: a.cid_codigo ? (nexoMap.get(a.cid_codigo) ?? false) : false,
       tem_cobertura: temCobertura(a.funcionario_id, a.data_inicio, a.data_fim),
     }
   })
 
-  const totalAlerta = Array.from(acumuladoMap.values()).filter(v => v > 15).length
+  const funcionarioStatusMap = new Map<string, string | null>()
+  for (const a of all) funcionarioStatusMap.set(a.funcionario_id, a.funcionarios?.status ?? null)
+
+  const totalAlerta = Array.from(acumuladoMap.entries()).filter(
+    ([funcionarioId, dias]) =>
+      dias > 15 &&
+      funcionarioStatusMap.get(funcionarioId) !== 'afastado' &&
+      !funcionariosComSolicitacaoPendente.has(funcionarioId),
+  ).length
 
   return (
     <div className="space-y-6">
