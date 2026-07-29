@@ -197,6 +197,7 @@ export async function solicitarDesligamento(formData: FormData): Promise<ActionR
   const funcionarioId    = formData.get('funcionario_id') as string
   const dataDesligamento = formData.get('data_desligamento') as string
   const motivo           = formData.get('motivo') as string
+  const tipoDesligamento = (formData.get('tipo_desligamento') as string) || null
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -214,7 +215,7 @@ export async function solicitarDesligamento(formData: FormData): Promise<ActionR
       posto_id: func?.posto_id ?? null,
       funcao_id: func?.funcao_id ?? null,
     },
-    dados_depois: { data_desligamento: dataDesligamento, motivo },
+    dados_depois: { data_desligamento: dataDesligamento, motivo, tipo_desligamento: tipoDesligamento },
     motivo,
   })
 
