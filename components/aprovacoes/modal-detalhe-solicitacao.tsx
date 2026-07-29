@@ -3,7 +3,7 @@
 import { Dialog } from '@base-ui/react/dialog'
 import { cn } from '@/lib/utils'
 import { PostoImpactPanel } from '@/components/posto-impact-panel'
-import { camposDaSolicitacao, fmtData, TIPO_BADGE } from './campos-solicitacao'
+import { camposDaSolicitacao, fmtData, badgeDaSolicitacao } from './campos-solicitacao'
 import type { SolicitacaoPendente } from './aprovacoes-list'
 import type { ImpactoResult } from '@/app/(admin)/efetivo/impacto'
 
@@ -29,10 +29,7 @@ export function ModalDetalheSolicitacao({
   rejeitando, motivo, onMotivoChange, onIniciarRejeicao, onCancelarRejeicao,
   onAprovar, onRejeitar,
 }: Props) {
-  const isTransfComFuncao = sol.tipo === 'transferencia' && !!sol.dados_depois?.nova_funcao_id
-  const badge = isTransfComFuncao
-    ? { label: 'Transferência + Função', className: 'bg-amber-50 text-amber-700 ring-amber-200' }
-    : TIPO_BADGE[sol.tipo]
+  const badge = badgeDaSolicitacao(sol.tipo, sol.dados_depois)
   const campos = camposDaSolicitacao(sol.tipo, sol.dados_antes, sol.dados_depois)
 
   return (

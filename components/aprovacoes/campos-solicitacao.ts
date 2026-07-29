@@ -19,6 +19,14 @@ export const TIPO_BADGE: Record<TipoSolicitacao, { label: string; className: str
   mudanca_horario:     { label: 'Mudança Horário',      className: 'bg-cyan-50 text-cyan-700 ring-cyan-200'          },
 }
 
+export function badgeDaSolicitacao(tipo: TipoSolicitacao, dadosDepois: Record<string, unknown> | null): { label: string; className: string } {
+  const isTransfComFuncao = tipo === 'transferencia' && !!dadosDepois?.nova_funcao_id
+  if (isTransfComFuncao) {
+    return { label: 'Transferência + Função', className: 'bg-amber-50 text-amber-700 ring-amber-200' }
+  }
+  return TIPO_BADGE[tipo]
+}
+
 const DIA_CURSO_LABEL: Record<number, string> = {
   1: 'Segunda', 2: 'Terça', 3: 'Quarta', 4: 'Quinta', 5: 'Sexta',
 }

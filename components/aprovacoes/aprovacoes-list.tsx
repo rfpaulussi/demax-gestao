@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { aprovarSolicitacao, rejeitarSolicitacao } from '@/app/(admin)/aprovacoes/actions'
 import { PostoImpactPanel } from '@/components/posto-impact-panel'
-import { TIPO_BADGE, fmtData, resumoCurto } from './campos-solicitacao'
+import { TIPO_BADGE, badgeDaSolicitacao, fmtData, resumoCurto } from './campos-solicitacao'
 import { ModalDetalheSolicitacao } from './modal-detalhe-solicitacao'
 import type { ImpactoResult } from '@/app/(admin)/efetivo/impacto'
 import type { TipoSolicitacao } from '@/types'
@@ -33,10 +33,7 @@ function SolicitacaoCard({ sol, canApprove, impacto }: { sol: SolicitacaoPendent
   const [detalheAberto, setDetalheAberto] = useState(false)
   const router = useRouter()
 
-  const isTransfComFuncao = sol.tipo === 'transferencia' && !!sol.dados_depois?.nova_funcao_id
-  const badge = isTransfComFuncao
-    ? { label: 'Transferência + Função', className: 'bg-amber-50 text-amber-700 ring-amber-200' }
-    : TIPO_BADGE[sol.tipo]
+  const badge = badgeDaSolicitacao(sol.tipo, sol.dados_depois)
 
   function handleAprovar() {
     setErro(null)
