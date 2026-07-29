@@ -155,6 +155,7 @@ export async function aprovarSolicitacao(
 
     case 'transferencia': {
       const postoDestinoId = dadosDepois.posto_destino_id as string
+      if (!postoDestinoId) return { success: false, error: 'Solicitação sem posto destino válido — rejeite e peça para refazer' }
       const updateTransf: Record<string, unknown> = { posto_id: postoDestinoId }
       if (dadosDepois.nova_funcao_id) updateTransf.funcao_id = dadosDepois.nova_funcao_id as string
       const { error: errTransf } = await adminSupabase

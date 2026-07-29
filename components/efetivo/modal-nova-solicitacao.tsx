@@ -236,6 +236,10 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
     e.preventDefault()
     if (!tipo) return
     setErro(null)
+    if (tipo === 'transferencia' && !postoSelecionado) {
+      setErro('Selecione o posto destino')
+      return
+    }
     if (tipo === 'mudanca_horario' && !loadingTurnos && turnoOpcoes.length === 0) {
       setErro(turnoTotalBruto > 0
         ? 'Este já é o único turno cadastrado para este posto/condição — não há outro turno para o qual mudar'

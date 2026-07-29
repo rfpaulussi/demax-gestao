@@ -237,6 +237,8 @@ export async function solicitarTransferencia(formData: FormData): Promise<Action
   const turnoDestinoId  = (formData.get('turno_destino_id') as string) || null
   const diaCursoDestino = formData.get('dia_curso_destino') ? Number(formData.get('dia_curso_destino')) : null
 
+  if (!postoDestinoId) return { success: false, error: 'Selecione o posto destino' }
+
   if (await existeSolicitacaoConcorrentePendente(supabase, funcionarioId)) {
     return { success: false, error: 'Já existe uma solicitação pendente para este funcionário que altera o horário — aguarde a aprovação antes de enviar outra.' }
   }
