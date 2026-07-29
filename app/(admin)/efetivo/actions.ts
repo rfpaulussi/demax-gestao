@@ -254,7 +254,7 @@ export async function solicitarTransferencia(formData: FormData): Promise<Action
 
   // Usar admin client para buscar nomes de postos (supervisor pode não ter acesso ao posto destino via RLS)
   const adminDb = createAdminClient() as unknown as typeof supabase
-  const [{ data: postoDestino }, postoOrigemResult, novaFuncaoResult] = await Promise.all([
+  const [{ data: postoDestino }, postoOrigemResult, novaFuncaoResult, turnoNovoResult] = await Promise.all([
     adminDb.from('postos').select('nome').eq('id', postoDestinoId).single(),
     postoOrigemId
       ? adminDb.from('postos').select('nome').eq('id', postoOrigemId).single()
@@ -262,11 +262,15 @@ export async function solicitarTransferencia(formData: FormData): Promise<Action
     novaFuncaoId
       ? adminDb.from('funcoes').select('nome').eq('id', novaFuncaoId).single()
       : Promise.resolve({ data: null }),
+    turnoDestinoId
+      ? supabase.from('turnos_postos').select('nome').eq('id', turnoDestinoId).single()
+      : Promise.resolve({ data: null }),
   ])
 
   const postoOrigemNome  = (postoOrigemResult as { data: { nome: string } | null }).data?.nome ?? null
   const postoDestinoNome = (postoDestino as { nome: string } | null)?.nome ?? null
   const novaFuncaoNome   = (novaFuncaoResult as { data: { nome: string } | null }).data?.nome ?? null
+  const turnoDestinoNome = (turnoNovoResult as { data: { nome: string } | null }).data?.nome ?? null
 
   const { error } = await supabase.from('solicitacoes').insert({
     tipo: 'transferencia',
@@ -279,7 +283,7 @@ export async function solicitarTransferencia(formData: FormData): Promise<Action
       posto_destino_nome: postoDestinoNome,
       motivo,
       ...(novaFuncaoId ? { nova_funcao_id: novaFuncaoId, nova_funcao_nome: novaFuncaoNome } : {}),
-      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId } : {}),
+      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId, turno_destino_nome: turnoDestinoNome } : {}),
       ...(diaCursoDestino ? { dia_curso_destino: diaCursoDestino } : {}),
     },
     motivo,
