@@ -464,6 +464,20 @@ export async function solicitarRetornoAfastamento(fd: FormData): Promise<ActionR
     postos: { nome: string } | null
   } | null
 
+  // Admin client: supervisor pode não ter acesso ao posto de retorno via RLS
+  // (mesmo padrão de solicitarTransferencia)
+  const adminDb = createAdminClient() as unknown as typeof supabase
+  const [postoRetornoResult, turnoNovoResult] = await Promise.all([
+    posto_retorno_id
+      ? adminDb.from('postos').select('nome').eq('id', posto_retorno_id).single()
+      : Promise.resolve({ data: null }),
+    turnoDestinoId
+      ? supabase.from('turnos_postos').select('nome').eq('id', turnoDestinoId).single()
+      : Promise.resolve({ data: null }),
+  ])
+  const postoRetornoNome = (postoRetornoResult as { data: { nome: string } | null }).data?.nome ?? null
+  const turnoDestinoNome = (turnoNovoResult as { data: { nome: string } | null }).data?.nome ?? null
+
   const { error } = await supabase.from('solicitacoes').insert({
     funcionario_id,
     tipo:         'retorno_afastamento' as unknown as 'desligamento',
@@ -475,8 +489,8 @@ export async function solicitarRetornoAfastamento(fd: FormData): Promise<ActionR
       posto_nome: funcTyped?.postos?.nome ?? null,
     },
     dados_depois: {
-      data_retorno, posto_retorno_id,
-      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId } : {}),
+      data_retorno, posto_retorno_id, posto_retorno_nome: postoRetornoNome,
+      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId, turno_destino_nome: turnoDestinoNome } : {}),
       ...(diaCursoDestino ? { dia_curso_destino: diaCursoDestino } : {}),
     },
   })
