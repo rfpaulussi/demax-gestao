@@ -320,7 +320,7 @@ export async function solicitarMudancaFuncao(formData: FormData): Promise<Action
   const funcaoOrigemId = func?.funcao_id ?? null
   const postoId        = func?.posto_id ?? null
 
-  const [{ data: funcaoDestino }, funcaoOrigemResult, supervisorResult] = await Promise.all([
+  const [{ data: funcaoDestino }, funcaoOrigemResult, supervisorResult, turnoNovoResult] = await Promise.all([
     supabase.from('funcoes').select('nome').eq('id', funcaoDestinoId).single(),
     funcaoOrigemId
       ? supabase.from('funcoes').select('nome').eq('id', funcaoOrigemId).single()
@@ -333,6 +333,9 @@ export async function solicitarMudancaFuncao(formData: FormData): Promise<Action
           .eq('ativo', true)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    turnoDestinoId
+      ? supabase.from('turnos_postos').select('nome').eq('id', turnoDestinoId).single()
+      : Promise.resolve({ data: null }),
   ])
 
   const funcaoOrigemNome  = (funcaoOrigemResult as { data: { nome: string } | null }).data?.nome ?? null
@@ -340,6 +343,7 @@ export async function solicitarMudancaFuncao(formData: FormData): Promise<Action
   // Snapshot do supervisor do posto no momento da solicitação — não muda com mudança de função,
   // mas evita que o PDF puxe o supervisor vigente hoje caso a config seja alterada depois.
   const supervisorNome = (supervisorResult as unknown as { data: { perfis: { nome: string | null } | null } | null }).data?.perfis?.nome ?? null
+  const turnoDestinoNome = (turnoNovoResult as { data: { nome: string } | null }).data?.nome ?? null
 
   const { error } = await supabase.from('solicitacoes').insert({
     tipo: 'mudanca_funcao',
@@ -349,7 +353,7 @@ export async function solicitarMudancaFuncao(formData: FormData): Promise<Action
     dados_antes: { funcao_id: funcaoOrigemId, funcao_nome: funcaoOrigemNome, supervisor_nome: supervisorNome },
     dados_depois: {
       funcao_destino_id: funcaoDestinoId, funcao_destino_nome: funcaoDestinoNome, motivo, supervisor_nome: supervisorNome,
-      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId } : {}),
+      ...(turnoDestinoId ? { turno_destino_id: turnoDestinoId, turno_destino_nome: turnoDestinoNome } : {}),
       ...(diaCursoDestino ? { dia_curso_destino: diaCursoDestino } : {}),
     },
     motivo,
