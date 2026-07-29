@@ -7,6 +7,7 @@ import { processarRetornosAtestado } from '@/lib/processar-retornos'
 import { encerrarCoberturasVencidas } from '@/app/(admin)/coberturas/actions'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { resolverTipoEscala, formatarResumoTurno } from '@/lib/turnos/escala'
+import { FUNCOES_FORA_DO_EFETIVO } from '@/lib/constants'
 
 // ─── counter card ─────────────────────────────────────────────────────────────
 
@@ -61,7 +62,6 @@ export default async function EfetivoPage() {
     { data: funcoesRaw },
     { data: cidsRaw },
     { count: countTotal },
-    { count: countAtivos },
     { count: countAfastados },
     { count: countFerias },
     { count: countRescisaoIndireta },
@@ -91,12 +91,30 @@ export default async function EfetivoPage() {
     supabase.from('funcoes').select('id, nome').order('nome'),
     supabase.from('cid_referencia').select('codigo, descricao').order('codigo'),
     // KPIs via COUNT — bypassa o max_rows do PostgREST (head:true não retorna linhas)
-    supabase.from('funcionarios').select('*', { count: 'exact', head: true }),
-    supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'ativo'),
+    // Total = efetivo do contrato (exclui desligados, que ficam só no histórico)
+    supabase.from('funcionarios').select('*', { count: 'exact', head: true }).neq('status', 'desligado'),
     supabase.from('funcionarios').select('*', { count: 'exact', head: true }).in('status', ['afastado', 'atestado']),
     supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'ferias'),
     supabase.from('funcionarios').select('*', { count: 'exact', head: true }).eq('status', 'rescisao_indireta'),
   ])
+
+  // Ativos: mesmo critério usado em Postos e no dashboard do supervisor —
+  // só status='ativo', excluindo volantes e funções fora do efetivo contratual
+  // (edital), senão o card diverge da soma "Atual" dos postos.
+  const excludedFuncaoIds = new Set(
+    (funcoesRaw ?? [])
+      .filter(f => (FUNCOES_FORA_DO_EFETIVO as readonly string[]).includes(f.nome))
+      .map(f => f.id)
+  )
+  let ativosQuery = supabase
+    .from('funcionarios')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'ativo')
+    .not('eh_encarregado_volante', 'is', true)
+  if (excludedFuncaoIds.size > 0) {
+    ativosQuery = ativosQuery.not('funcao_id', 'in', `(${Array.from(excludedFuncaoIds).join(',')})`)
+  }
+  const { count: countAtivos } = await ativosQuery
 
   // posto_id → { supervisor_id, nomeCompleto }
   const postoSupervisorMap = new Map<string, { id: string; nomeCompleto: string }>()
