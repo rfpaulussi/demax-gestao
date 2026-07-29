@@ -59,23 +59,33 @@ export default async function AprovacoesPage() {
   const aprovadas  = todas.filter(s => s.status === 'aprovada')
   const rejeitadas = todas.filter(s => s.status === 'rejeitada')
 
-  // Pré-calcula impacto para transferências e mudanças de função pendentes
+  // Pré-calcula impacto para os tipos que afetam efetivo de posto
+  const TIPOS_COM_IMPACTO: TipoSolicitacao[] = ['transferencia', 'mudanca_funcao', 'desligamento', 'retorno_afastamento']
   const impactos: Record<string, ImpactoResult> = {}
   await Promise.all(
     pendentes
-      .filter(s => (s.tipo === 'transferencia' || s.tipo === 'mudanca_funcao') && s.funcionario_id)
+      .filter(s => TIPOS_COM_IMPACTO.includes(s.tipo) && s.funcionario_id)
       .map(async s => {
         const fid = s.funcionario_id!
-        const params = s.tipo === 'transferencia'
-          ? {
-              funcionario_id:   fid,
-              posto_destino_id: s.dados_depois?.posto_destino_id as string | undefined,
-              nova_funcao_nome: s.dados_depois?.nova_funcao_nome as string | undefined,
-            }
-          : {
-              funcionario_id:  fid,
-              nova_funcao_nome: s.dados_depois?.funcao_destino_nome as string | undefined,
-            }
+        const params =
+          s.tipo === 'transferencia'
+            ? {
+                funcionario_id:   fid,
+                posto_destino_id: s.dados_depois?.posto_destino_id as string | undefined,
+                nova_funcao_nome: s.dados_depois?.nova_funcao_nome as string | undefined,
+              }
+          : s.tipo === 'mudanca_funcao'
+            ? {
+                funcionario_id:  fid,
+                nova_funcao_nome: s.dados_depois?.funcao_destino_nome as string | undefined,
+              }
+          : s.tipo === 'retorno_afastamento'
+            ? {
+                funcionario_id:   fid,
+                posto_destino_id: (s.dados_depois?.posto_retorno_id as string | undefined) ?? (s.dados_antes?.posto_id as string | undefined),
+                apenas_entrada:   true,
+              }
+          : { funcionario_id: fid } // desligamento
         const r = await calcularImpactoPosto(params)
         if (r) impactos[s.id] = r
       })
