@@ -362,13 +362,34 @@ export async function editarFerias(id: string, data: {
   status: string
   observacao?: string | null
 }) {
-  // Edição de férias já registradas é restrita a admin (não coordenador/supervisor).
-  await assertRole(['admin'])
+  // Supervisor pode agendar datas do próprio posto; mudanças de status
+  // administrativas (aprovado/em_curso/concluido/cancelado) ficam com admin/coordenador.
+  const auth = await assertRole(['admin', 'coordenador', 'supervisor'])
   const adminSupabase = createAdminClient()
 
   const { data: fer, error: fetchErr } = await adminSupabase
-    .from('ferias').select('funcionario_id').eq('id', id).single()
+    .from('ferias')
+    .select('funcionario_id, funcionarios ( posto_id )')
+    .eq('id', id).single()
   if (fetchErr) throw new Error(fetchErr.message)
+
+  if (auth.perfil.role === 'supervisor') {
+    if (!['disponivel', 'agendado'].includes(data.status)) {
+      throw new Error('Supervisor só pode agendar ou limpar datas de férias, não alterar para este status.')
+    }
+    const supabase = createClient()
+    const { data: cfg } = await supabase
+      .from('config_supervisores_postos')
+      .select('posto_id')
+      .eq('supervisor_id', auth.user.id)
+      .eq('ativo', true)
+    const postoIds = (cfg ?? []).map((r: { posto_id: string }) => r.posto_id)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const funcPostoId = (fer as any).funcionarios?.posto_id
+    if (!funcPostoId || !postoIds.includes(funcPostoId)) {
+      throw new Error('Acesso negado: funcionário fora do seu posto.')
+    }
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const payload: any = {
