@@ -1,8 +1,8 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
-import { updateAtestado } from '@/app/(admin)/atestados/actions'
+import { updateAtestado, getSobreposicoesAtestado, type SobreposicaoAtestado } from '@/app/(admin)/atestados/actions'
 import type { AtestadoRow } from './atestados-client'
 
 type CidOpt = { codigo: string; descricao: string }
@@ -21,6 +21,9 @@ export function ModalEditarAtestado({ atestado, onClose, cids }: Props) {
   const [cidCodigo, setCidCodigo] = useState('')
   const [cidAberto, setCidAberto] = useState(false)
   const [origemOcupacional, setOrigemOcupacional] = useState('')
+  const [dataInicio, setDataInicio] = useState('')
+  const [dataFim, setDataFim] = useState('')
+  const [sobreposicoes, setSobreposicoes] = useState<SobreposicaoAtestado[]>([])
   const cidRef = useRef<HTMLDivElement>(null)
 
   // Pre-preenche estado do CID e origem quando o modal abre
@@ -35,10 +38,24 @@ export function ModalEditarAtestado({ atestado, onClose, cids }: Props) {
         setCidBusca('')
       }
       setOrigemOcupacional(atestado.origem_ocupacional ?? '')
+      setDataInicio(atestado.data_inicio)
+      setDataFim(atestado.data_fim)
+      setSobreposicoes([])
       setErro('')
     }
     if (!isOpen) onClose()
   }
+
+  useEffect(() => {
+    if (!atestado || !dataInicio || !dataFim) { setSobreposicoes([]); return }
+    let cancelado = false
+    const timer = setTimeout(() => {
+      getSobreposicoesAtestado(atestado.funcionario_id, dataInicio, dataFim, atestado.id).then(res => {
+        if (!cancelado) setSobreposicoes(res)
+      })
+    }, 300)
+    return () => { cancelado = true; clearTimeout(timer) }
+  }, [atestado, dataInicio, dataFim])
 
   const cidsFiltrados = cids.filter(c =>
     !cidBusca ||
@@ -86,7 +103,8 @@ export function ModalEditarAtestado({ atestado, onClose, cids }: Props) {
               <input
                 type="date"
                 name="data_inicio"
-                defaultValue={atestado.data_inicio}
+                value={dataInicio}
+                onChange={e => setDataInicio(e.target.value)}
                 required
                 className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
               />
@@ -99,11 +117,27 @@ export function ModalEditarAtestado({ atestado, onClose, cids }: Props) {
               <input
                 type="date"
                 name="data_fim"
-                defaultValue={atestado.data_fim}
+                value={dataFim}
+                onChange={e => setDataFim(e.target.value)}
                 required
+                min={dataInicio || undefined}
                 className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
               />
             </div>
+
+            {sobreposicoes.length > 0 && (
+              <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <p className="font-semibold">⚠ Período sobrepõe atestado(s) já registrado(s):</p>
+                <ul className="mt-1 space-y-0.5">
+                  {sobreposicoes.map((s, i) => (
+                    <li key={i}>
+                      {s.data_inicio.split('-').reverse().join('/')} – {s.data_fim.split('-').reverse().join('/')}
+                      {s.cid_codigo ? ` (${s.cid_codigo})` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600">

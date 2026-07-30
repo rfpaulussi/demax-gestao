@@ -26,6 +26,37 @@ async function verificarAcessoAtestado(
   return !!cfg
 }
 
+export type SobreposicaoAtestado = {
+  data_inicio: string
+  data_fim: string
+  cid_codigo: string | null
+  motivo: string | null
+}
+
+export async function getSobreposicoesAtestado(
+  funcionarioId: string,
+  dataInicio: string,
+  dataFim: string,
+  excludeId?: string,
+): Promise<SobreposicaoAtestado[]> {
+  if (!funcionarioId || !dataInicio || !dataFim) return []
+  const supabase = createClient()
+  let q = supabase
+    .from('atestados')
+    .select('id, data_inicio, data_fim, cid_codigo, motivo')
+    .eq('funcionario_id', funcionarioId)
+    .lte('data_inicio', dataFim)
+    .gte('data_fim', dataInicio)
+  if (excludeId) q = q.neq('id', excludeId)
+  const { data } = await q
+  return (data ?? []).map(a => ({
+    data_inicio: a.data_inicio,
+    data_fim: a.data_fim,
+    cid_codigo: a.cid_codigo,
+    motivo: a.motivo,
+  }))
+}
+
 export async function updateAtestado(
   id: string,
   formData: FormData,
@@ -36,13 +67,19 @@ export async function updateAtestado(
   const temAcesso = await verificarAcessoAtestado(id, auth.user.id, auth.perfil.role)
   if (!temAcesso) return { error: 'Acesso negado' }
 
+  const dataInicio = formData.get('data_inicio') as string
+  const dataFim    = formData.get('data_fim') as string
+  if (dataFim < dataInicio) {
+    return { error: 'Data fim não pode ser anterior à data início.' }
+  }
+
   const adminSupabase = createAdminClient()
 
   const { error } = await adminSupabase
     .from('atestados')
     .update({
-      data_inicio:        formData.get('data_inicio') as string,
-      data_fim:           formData.get('data_fim') as string,
+      data_inicio:        dataInicio,
+      data_fim:           dataFim,
       motivo:             (formData.get('motivo') as string) || null,
       cid_codigo:         (formData.get('cid_codigo') as string) || null,
       origem_ocupacional: ((formData.get('origem_ocupacional') as string) || null) as 'acidente_trabalho' | 'doenca_ocupacional' | null,

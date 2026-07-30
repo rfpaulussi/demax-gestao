@@ -1,8 +1,9 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { registrarAtestado } from '@/app/(admin)/efetivo/actions'
+import { getSobreposicoesAtestado, type SobreposicaoAtestado } from '@/app/(admin)/atestados/actions'
 import type { FuncionarioRow } from './funcionarios-table'
 
 type CidOpt = { codigo: string; descricao: string }
@@ -34,7 +35,19 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
   const [dataInicio, setDataInicio] = useState('')
   const [dias, setDias]           = useState('')
   const [dataFim, setDataFim]     = useState('')
+  const [sobreposicoes, setSobreposicoes] = useState<SobreposicaoAtestado[]>([])
   const cidRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!dataInicio || !dataFim) { setSobreposicoes([]); return }
+    let cancelado = false
+    const timer = setTimeout(() => {
+      getSobreposicoesAtestado(funcionario.id, dataInicio, dataFim).then(res => {
+        if (!cancelado) setSobreposicoes(res)
+      })
+    }, 300)
+    return () => { cancelado = true; clearTimeout(timer) }
+  }, [funcionario.id, dataInicio, dataFim])
 
   const cidsFiltrados = cids.filter(c =>
     !cidBusca ||
@@ -79,6 +92,7 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
     setDataInicio('')
     setDias('')
     setDataFim('')
+    setSobreposicoes([])
     setErro(null)
   }
 
@@ -154,6 +168,7 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
                 type="date"
                 name="data_fim_manual"
                 required
+                min={dataInicio || undefined}
                 value={dataFim}
                 onChange={e => { setDataFim(e.target.value); setDias('') }}
                 className={inputClass}
@@ -164,6 +179,20 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
                 </p>
               )}
             </div>
+
+            {sobreposicoes.length > 0 && (
+              <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <p className="font-semibold">⚠ Período sobrepõe atestado(s) já registrado(s):</p>
+                <ul className="mt-1 space-y-0.5">
+                  {sobreposicoes.map((s, i) => (
+                    <li key={i}>
+                      {s.data_inicio.split('-').reverse().join('/')} – {s.data_fim.split('-').reverse().join('/')}
+                      {s.cid_codigo ? ` (${s.cid_codigo})` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div>
               <label className={labelClass}>Motivo</label>

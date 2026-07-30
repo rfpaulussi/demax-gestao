@@ -68,6 +68,10 @@ export async function registrarAtestado(formData: FormData) {
   const semCid            = formData.get('sem_cid') === 'true'
   const origemOcupacional = ((formData.get('origem_ocupacional') as string) || null) as 'acidente_trabalho' | 'doenca_ocupacional' | null
 
+  if (dataFim < dataInicio) {
+    throw new Error('Data fim não pode ser anterior à data início.')
+  }
+
   const { data: func } = await supabase
     .from('funcionarios')
     .select('status, posto_id')

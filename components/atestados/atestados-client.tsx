@@ -47,7 +47,7 @@ type SortCol =
   | 'dias'
   | 'acumulado'
 
-const COLS: { label: string; sortKey?: SortCol }[] = [
+const COLS: { label: string; sortKey?: SortCol; title?: string }[] = [
   { label: 'Funcionário', sortKey: 'funcionario_nome' },
   { label: 'Posto',       sortKey: 'posto_nome'       },
   { label: 'Secretaria',  sortKey: 'secretaria'       },
@@ -58,7 +58,11 @@ const COLS: { label: string; sortKey?: SortCol }[] = [
   { label: 'CID'                                       },
   { label: 'Origem'                                    },
   { label: 'Cobertura'                                 },
-  { label: 'Acum. 30d',   sortKey: 'acumulado'        },
+  {
+    label: 'Acum. 30d',
+    sortKey: 'acumulado',
+    title: 'Soma de dias de atestado do funcionário nos últimos 30 dias corridos — não é a duração desta linha',
+  },
   { label: 'Ações'                                     },
 ]
 
@@ -526,6 +530,7 @@ export function AtestadosClient({ atestados, cids }: Props) {
                   {COLS.map(col => (
                     <th
                       key={col.label}
+                      title={col.title}
                       onClick={col.sortKey ? () => handleSort(col.sortKey!) : undefined}
                       className={cn(
                         'px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-widest',
