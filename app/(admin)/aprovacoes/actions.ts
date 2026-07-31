@@ -145,6 +145,7 @@ export async function aprovarSolicitacao(
         .from('funcionarios')
         .update({
           status:              'desligado',
+          posto_id:            null,
           data_desligamento:   dataDesligamento ?? null,
           motivo_desligamento: (dadosDepois.motivo as string) ?? null,
           tipo_desligamento:   (dadosDepois.tipo_desligamento as string) ?? null,

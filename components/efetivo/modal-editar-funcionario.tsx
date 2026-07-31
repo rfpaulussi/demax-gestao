@@ -94,7 +94,7 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
         nome,
         registro:            registro || null,
         funcao_id:           funcaoId,
-        posto_id:            postoId,
+        posto_id:            statusEnviado === 'desligado' ? null : postoId,
         data_admissao:       dataAdmissao || null,
         status:              statusEnviado,
         data_desligamento:   (statusEnviado === 'ativo' || statusEnviado === 'rescisao_indireta') ? null : dataDesligamento || null,

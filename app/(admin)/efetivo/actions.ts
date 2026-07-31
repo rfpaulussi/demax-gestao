@@ -554,7 +554,7 @@ export async function editarFuncionario(
     nome: string
     registro?: string | null
     funcao_id: string
-    posto_id: string
+    posto_id: string | null
     data_admissao: string | null
     status: 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado' | 'rescisao_indireta'
     data_desligamento: string | null

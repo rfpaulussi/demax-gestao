@@ -47,8 +47,15 @@ const NOME_COR_STATUS: Record<string, string> = {
   ativo:     'text-green-700',
   ferias:    'text-orange-600',
   afastado:  'text-red-600',
-  atestado:  'text-red-600',
+  atestado:  'text-amber-600',
   faltante:  'text-amber-600',
+}
+
+const STATUS_LABEL_LISTA: Record<string, string> = {
+  ferias:    'férias',
+  afastado:  'afastado',
+  atestado:  'atestado',
+  faltante:  'faltante',
 }
 
 const STATUS_ORDER_LISTA: Record<string, number> = {
@@ -613,6 +620,11 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                                         {f.nome}
                                       </span>
                                       <span className="text-gray-400">— {f.funcao_nome}</span>
+                                      {STATUS_LABEL_LISTA[f.status] && (
+                                        <span className={cn('font-semibold', NOME_COR_STATUS[f.status])}>
+                                          ({STATUS_LABEL_LISTA[f.status]})
+                                        </span>
+                                      )}
                                     </li>
                                   ))}
                               </ul>
