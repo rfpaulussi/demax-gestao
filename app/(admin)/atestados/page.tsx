@@ -143,6 +143,9 @@ export default async function AtestadosPage({
   const postos = Array.from(
     new Set(all.map(a => a.postos?.nome).filter((s): s is string => Boolean(s))),
   ).sort()
+  const nomesFuncionarios = Array.from(
+    new Set(all.map(a => a.funcionarios?.nome).filter((s): s is string => Boolean(s))),
+  ).sort()
 
   // Aplicar filtros
   const buscaLower = searchParams.busca?.toLowerCase() ?? ''
@@ -245,10 +248,17 @@ export default async function AtestadosPage({
         <input
           type="text"
           name="busca"
+          list="funcionarios-list"
           defaultValue={searchParams.busca}
           placeholder="Buscar funcionário..."
+          autoComplete="off"
           className={cn(inputClass, 'col-span-2 w-full sm:w-52')}
         />
+        <datalist id="funcionarios-list">
+          {nomesFuncionarios.map(n => (
+            <option key={n} value={n} />
+          ))}
+        </datalist>
         <select
           name="secretaria"
           defaultValue={searchParams.secretaria}

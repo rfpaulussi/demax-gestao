@@ -26,23 +26,27 @@ export function ModalEditarAtestado({ atestado, onClose, cids }: Props) {
   const [sobreposicoes, setSobreposicoes] = useState<SobreposicaoAtestado[]>([])
   const cidRef = useRef<HTMLDivElement>(null)
 
-  // Pre-preenche estado do CID e origem quando o modal abre
-  function handleOpenChange(isOpen: boolean) {
-    if (isOpen && atestado) {
-      if (atestado.cid_codigo) {
-        const found = cids.find(c => c.codigo === atestado.cid_codigo)
-        setCidCodigo(atestado.cid_codigo)
-        setCidBusca(found ? `${found.codigo} — ${found.descricao}` : atestado.cid_codigo)
-      } else {
-        setCidCodigo('')
-        setCidBusca('')
-      }
-      setOrigemOcupacional(atestado.origem_ocupacional ?? '')
-      setDataInicio(atestado.data_inicio)
-      setDataFim(atestado.data_fim)
-      setSobreposicoes([])
-      setErro('')
+  // Pre-preenche estado do CID e origem sempre que um novo atestado é aberto para edição.
+  // Não pode depender de onOpenChange: esse callback só dispara em fechamentos originados
+  // de dentro do dialog (Esc, overlay, botão) — não quando o pai abre o modal setando a prop.
+  useEffect(() => {
+    if (!atestado) return
+    if (atestado.cid_codigo) {
+      const found = cids.find(c => c.codigo === atestado.cid_codigo)
+      setCidCodigo(atestado.cid_codigo)
+      setCidBusca(found ? `${found.codigo} — ${found.descricao}` : atestado.cid_codigo)
+    } else {
+      setCidCodigo('')
+      setCidBusca('')
     }
+    setOrigemOcupacional(atestado.origem_ocupacional ?? '')
+    setDataInicio(atestado.data_inicio)
+    setDataFim(atestado.data_fim)
+    setSobreposicoes([])
+    setErro('')
+  }, [atestado, cids])
+
+  function handleOpenChange(isOpen: boolean) {
     if (!isOpen) onClose()
   }
 

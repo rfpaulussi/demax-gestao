@@ -104,11 +104,13 @@ export async function registrarAtestado(formData: FormData) {
   })
   if (errAtestado) throw new Error(errAtestado.message)
 
-  // Só altera status se o atestado ainda está vigente (data_fim >= hoje)
+  // Só altera status se o atestado ainda está vigente (data_fim >= hoje).
+  // Se o funcionário já está 'afastado' (ex.: INSS), não rebaixar para 'atestado' —
+  // o novo atestado só estende/documenta o afastamento já em curso.
   const hoje = new Date().toISOString().slice(0, 10)
   const atestadoVigente = !dataFim || dataFim >= hoje
 
-  if (atestadoVigente) {
+  if (atestadoVigente && func.status !== 'afastado') {
     // Precisa do client admin: RLS de funcionarios não permite update de supervisor (ver nota acima).
     const adminSupabase = createAdminClient()
     const { error: errStatus } = await adminSupabase
