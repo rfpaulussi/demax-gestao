@@ -1,7 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
-import { camposDaSolicitacao } from '@/components/aprovacoes/campos-solicitacao'
-import type { TipoSolicitacao } from '@/types'
 import {
   badgeParaMovimentacao, CAMPO_LABEL, fmtDataHora, resolveValor, escapeIlike,
   type MapasResolucao,
@@ -80,9 +78,6 @@ function mapearLinha(m: RawMov, maps: MapasResolucao): MovimentacaoAuditoria {
   const badge = badgeParaMovimentacao(m.tipo, m.valor_antes)
   const executor = m.perfis?.nome ?? m.perfis?.email ?? m.executado_por ?? '—'
   const solicitante = m.solicitacoes?.perfis?.nome ?? m.solicitacoes?.perfis?.email ?? null
-  const camposDetalhe = m.solicitacoes
-    ? camposDaSolicitacao(m.solicitacoes.tipo as TipoSolicitacao, m.solicitacoes.dados_antes, m.solicitacoes.dados_depois)
-    : []
 
   return {
     id: m.id,
@@ -98,7 +93,12 @@ function mapearLinha(m: RawMov, maps: MapasResolucao): MovimentacaoAuditoria {
     motivoSolicitacao: m.solicitacoes?.motivo ?? null,
     motivoRejeicao: m.solicitacoes?.motivo_rejeicao ?? null,
     observacaoAdmin: m.solicitacoes?.observacao_admin ?? null,
-    camposDetalhe,
+    // Dados brutos p/ o modal calcular camposDaSolicitacao no client — evita importar,
+    // a partir de código de servidor, um módulo que atravessa a fronteira 'use client'
+    // (campos-solicitacao.ts -> modal-desligar.tsx), o que causou exceção de render em produção.
+    solicitacaoTipo: (m.solicitacoes?.tipo as MovimentacaoAuditoria['solicitacaoTipo']) ?? null,
+    dadosAntes: m.solicitacoes?.dados_antes ?? null,
+    dadosDepois: m.solicitacoes?.dados_depois ?? null,
   }
 }
 

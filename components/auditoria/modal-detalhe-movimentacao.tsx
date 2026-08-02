@@ -2,6 +2,7 @@
 
 import { Dialog } from '@base-ui/react/dialog'
 import { cn } from '@/lib/utils'
+import { camposDaSolicitacao } from '@/components/aprovacoes/campos-solicitacao'
 import type { MovimentacaoAuditoria } from './tabela-auditoria'
 
 /** Modal somente leitura — não dispara nenhuma ação, apenas exibe o detalhe
@@ -13,6 +14,10 @@ export function ModalDetalheMovimentacao({
   mov: MovimentacaoAuditoria
   onClose: () => void
 }) {
+  const camposDetalhe = mov.solicitacaoTipo
+    ? camposDaSolicitacao(mov.solicitacaoTipo, mov.dadosAntes, mov.dadosDepois)
+    : []
+
   return (
     <Dialog.Root open onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
       <Dialog.Portal>
@@ -48,7 +53,7 @@ export function ModalDetalheMovimentacao({
                 {mov.antes} → {mov.depois}
               </span>
             </div>
-            {mov.camposDetalhe.map(c => (
+            {camposDetalhe.map(c => (
               <div key={c.label} className="flex justify-between gap-3 text-sm">
                 <span className="text-gray-500">{c.label}</span>
                 <span className="text-right font-medium text-gray-900">{c.valor}</span>

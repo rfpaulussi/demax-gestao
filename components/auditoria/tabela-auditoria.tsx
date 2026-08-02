@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { ModalDetalheMovimentacao } from './modal-detalhe-movimentacao'
+import type { TipoSolicitacao } from '@/types'
 
 export type MovimentacaoAuditoria = {
   id: string
@@ -18,7 +19,9 @@ export type MovimentacaoAuditoria = {
   motivoSolicitacao: string | null
   motivoRejeicao: string | null
   observacaoAdmin: string | null
-  camposDetalhe: { label: string; valor: string }[]
+  solicitacaoTipo: TipoSolicitacao | null
+  dadosAntes: Record<string, unknown> | null
+  dadosDepois: Record<string, unknown> | null
 }
 
 export function TabelaAuditoria({ movs }: { movs: MovimentacaoAuditoria[] }) {
