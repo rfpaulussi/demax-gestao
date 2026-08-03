@@ -92,6 +92,68 @@ function clipToMes(date: string | null, fallback: string, mesStart: string, mesE
   return d
 }
 
+interface TransferenciaPosto {
+  data: Date
+  postoAntes: string | null
+  postoDepois: string | null
+}
+
+interface SegmentoPosto {
+  posto_id: string
+  inicio: Date
+  fim: Date
+}
+
+// Reconstrói em quais postos o funcionário esteve oficialmente lotado durante o
+// período, a partir das transferências (movimentacoes.campo_alterado='posto_id')
+// aprovadas dentro do mês. Sem transferência no mês, é um único segmento no posto atual.
+function buildSegmentosPosto(
+  periodoInicio: Date,
+  periodoFim: Date,
+  postoAtualFinal: string | null,
+  transferencias: TransferenciaPosto[],
+): SegmentoPosto[] {
+  if (transferencias.length === 0) {
+    return postoAtualFinal ? [{ posto_id: postoAtualFinal, inicio: periodoInicio, fim: periodoFim }] : []
+  }
+
+  const segmentos: SegmentoPosto[] = []
+  let cursor      = periodoInicio
+  let postoAtual  = transferencias[0].postoAntes ?? postoAtualFinal
+
+  for (const t of transferencias) {
+    const dataEfetiva = new Date(Math.max(t.data.getTime(), periodoInicio.getTime()))
+    const fimSegmento  = new Date(Math.min(dataEfetiva.getTime() - 86400000, periodoFim.getTime()))
+    if (postoAtual && fimSegmento >= cursor) {
+      segmentos.push({ posto_id: postoAtual, inicio: cursor, fim: fimSegmento })
+    }
+    cursor     = dataEfetiva
+    postoAtual = t.postoDepois ?? postoAtual
+  }
+  if (postoAtual && cursor <= periodoFim) {
+    segmentos.push({ posto_id: postoAtual, inicio: cursor, fim: periodoFim })
+  }
+  return segmentos
+}
+
+function diasUteisPorSegmentos(
+  segmentos: SegmentoPosto[],
+  s: Date,
+  e: Date,
+  postoConfigMap: Map<string, string>,
+  feriados: Set<string>,
+): number {
+  let total = 0
+  for (const seg of segmentos) {
+    const os = new Date(Math.max(seg.inicio.getTime(), s.getTime()))
+    const oe = new Date(Math.min(seg.fim.getTime(), e.getTime()))
+    if (os > oe) continue
+    const regime = postoConfigMap.get(seg.posto_id) ?? '5x2'
+    total += diasUteisNoPeriodo(os, oe, regime, feriados)
+  }
+  return total
+}
+
 // ─── main ────────────────────────────────────────────────────────────────────
 
 export async function calcularFechamento(mes: number, ano: number): Promise<ResultadoFechamento> {
@@ -130,7 +192,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
   if (funcionarios.length === 0) return { porFuncionario: [], porPosto: [] }
 
   // 2. Busca paralela
-  const [ferRes, atRes, falRes, advRes, insRes, afaRes, cobRes, todosPostosRes, postoConfigRes] =
+  const [ferRes, atRes, falRes, advRes, insRes, afaRes, cobRes, todosPostosRes, postoConfigRes, transfRes] =
     await Promise.all([
       supabase
         .from('ferias')
@@ -147,7 +209,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
 
       supabase
         .from('faltas')
-        .select('funcionario_id, dias')
+        .select('funcionario_id, dias, data_falta')
         .gte('data_falta', mesStartStr)
         .lte('data_falta', mesEndStr),
 
@@ -179,6 +241,16 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
       supabase.from('postos').select('id, nome, secretaria').eq('ativo', true),
 
       supabase.from('config_escalas_postos').select('posto_id, regime'),
+
+      // Transferências de posto aprovadas dentro do mês — usadas pra ratear dias
+      // úteis entre os postos por onde o funcionário passou oficialmente.
+      supabase
+        .from('movimentacoes')
+        .select('funcionario_id, valor_antes, valor_depois, created_at')
+        .eq('campo_alterado', 'posto_id')
+        .gte('created_at', mesStartStr)
+        .lte('created_at', mesEndStr + 'T23:59:59')
+        .order('created_at', { ascending: true }),
     ])
 
   if (ferRes.error)       throw ferRes.error
@@ -190,6 +262,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
   if (cobRes.error)       throw cobRes.error
   if (todosPostosRes.error)  throw todosPostosRes.error
   if (postoConfigRes.error)  throw postoConfigRes.error
+  if (transfRes.error)       throw transfRes.error
 
   const ferias         = ferRes.data  ?? []
   const atestados      = atRes.data   ?? []
@@ -198,6 +271,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
   const insalubridades = insRes.data  ?? []
   const afastamentos   = afaRes.data  ?? []
   const coberturas     = cobRes.data  ?? []
+  const transferencias = transfRes.data ?? []
 
   const postosMap = new Map<string, { nome: string; secretaria: string }>()
   for (const p of todosPostosRes.data ?? []) {
@@ -209,7 +283,20 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     postoConfigMap.set(pc.posto_id, pc.regime)
   }
 
+  const transferenciasPorFunc = new Map<string, TransferenciaPosto[]>()
+  for (const m of transferencias) {
+    if (!m.funcionario_id || !m.created_at) continue
+    const dataStr = m.created_at.slice(0, 10)
+    const arr = transferenciasPorFunc.get(m.funcionario_id) ?? []
+    arr.push({ data: toDate(dataStr), postoAntes: m.valor_antes, postoDepois: m.valor_depois })
+    transferenciasPorFunc.set(m.funcionario_id, arr)
+  }
+
   const feriados = feriadosDoAno(ano)
+
+  // Segmentos de posto (por funcionário) e dias líquidos por segmento — usados
+  // na etapa "por posto" pra ratear os dias entre os postos por onde passou no mês.
+  const segmentosNetPorFuncionario = new Map<string, (SegmentoPosto & { dias_liquido: number })[]>()
 
   // 3. Por funcionário
   const porFuncionario: FechamentoFuncionario[] = funcionarios.map(func => {
@@ -225,29 +312,65 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     const funcoes = func.funcoes as unknown as { nome: string } | null
     const regime  = postos?.config_escalas_postos?.[0]?.regime ?? postoConfigMap.get(func.posto_id ?? '') ?? '5x2'
 
-    const diasUteis = diasUteisNoPeriodo(periodoInicio, periodoFim, regime, feriados)
+    const segmentosPosto = buildSegmentosPosto(
+      periodoInicio,
+      periodoFim,
+      func.posto_id ?? null,
+      transferenciasPorFunc.get(func.id) ?? [],
+    )
 
-    const feriasDias = ferias
-      .filter(f => f.funcionario_id === func.id)
-      .reduce((acc, f) => {
-        const s = clipToMes(f.data_inicio!, mesStartStr, mesStartStr, mesEndStr)
-        const e = clipToMes(f.data_fim!, mesEndStr, mesStartStr, mesEndStr)
-        return acc + diasUteisNoPeriodo(toDate(s), toDate(e), regime, feriados)
+    const feriasFunc       = ferias.filter(f => f.funcionario_id === func.id)
+    const atestadosFunc    = atestados.filter(a => a.funcionario_id === func.id)
+    const faltasFunc       = faltas.filter(f => f.funcionario_id === func.id)
+    const afastamentosFunc = afastamentos.filter(a => a.funcionario_id === func.id)
+
+    function feriasNoIntervalo(s: Date, e: Date, regimeSeg: string): number {
+      return feriasFunc.reduce((acc, f) => {
+        const fs = clipToMes(f.data_inicio!, mesStartStr, mesStartStr, mesEndStr)
+        const fe = clipToMes(f.data_fim!, mesEndStr, mesStartStr, mesEndStr)
+        const os = new Date(Math.max(toDate(fs).getTime(), s.getTime()))
+        const oe = new Date(Math.min(toDate(fe).getTime(), e.getTime()))
+        if (os > oe) return acc
+        return acc + diasUteisNoPeriodo(os, oe, regimeSeg, feriados)
       }, 0)
+    }
 
-    const atestadosDias = atestados
-      .filter(a => a.funcionario_id === func.id)
-      .reduce((acc, a) => {
+    function atestadosNoIntervalo(s: Date, e: Date, regimeSeg: string): number {
+      return atestadosFunc.reduce((acc, a) => {
         const fimCoberto = new Date(toDate(a.data_inicio).getTime() + (DIAS_COBERTURA_ATESTADO - 1) * 86400000).toISOString().split('T')[0]
         const fimEfetivo = fimCoberto < a.data_fim ? fimCoberto : a.data_fim
-        const s = clipToMes(a.data_inicio, mesStartStr, mesStartStr, mesEndStr)
-        const e = clipToMes(fimEfetivo, mesEndStr, mesStartStr, mesEndStr)
-        return acc + diasUteisNoPeriodo(toDate(s), toDate(e), regime, feriados)
+        const as_ = clipToMes(a.data_inicio, mesStartStr, mesStartStr, mesEndStr)
+        const ae  = clipToMes(fimEfetivo, mesEndStr, mesStartStr, mesEndStr)
+        const os = new Date(Math.max(toDate(as_).getTime(), s.getTime()))
+        const oe = new Date(Math.min(toDate(ae).getTime(), e.getTime()))
+        if (os > oe) return acc
+        return acc + diasUteisNoPeriodo(os, oe, regimeSeg, feriados)
       }, 0)
+    }
 
-    const faltasDias = faltas
-      .filter(f => f.funcionario_id === func.id)
-      .reduce((acc, f) => acc + (f.dias ?? 1), 0)
+    function afastamentoNoIntervalo(s: Date, e: Date, regimeSeg: string): number {
+      return afastamentosFunc.reduce((acc, a) => {
+        const as_ = clipToMes(a.data_inicio, mesStartStr, mesStartStr, mesEndStr)
+        const ae  = clipToMes(a.data_fim_real ?? mesEndStr, mesEndStr, mesStartStr, mesEndStr)
+        const os = new Date(Math.max(toDate(as_).getTime(), s.getTime()))
+        const oe = new Date(Math.min(toDate(ae).getTime(), e.getTime()))
+        if (os > oe) return acc
+        return acc + diasUteisNoPeriodo(os, oe, regimeSeg, feriados)
+      }, 0)
+    }
+
+    const diasUteis = diasUteisPorSegmentos(segmentosPosto, periodoInicio, periodoFim, postoConfigMap, feriados)
+
+    const feriasDias = segmentosPosto.reduce(
+      (acc, seg) => acc + feriasNoIntervalo(seg.inicio, seg.fim, postoConfigMap.get(seg.posto_id) ?? '5x2'), 0)
+
+    const atestadosDias = segmentosPosto.reduce(
+      (acc, seg) => acc + atestadosNoIntervalo(seg.inicio, seg.fim, postoConfigMap.get(seg.posto_id) ?? '5x2'), 0)
+
+    const afastamentoDias = segmentosPosto.reduce(
+      (acc, seg) => acc + afastamentoNoIntervalo(seg.inicio, seg.fim, postoConfigMap.get(seg.posto_id) ?? '5x2'), 0)
+
+    const faltasDias = faltasFunc.reduce((acc, f) => acc + (f.dias ?? 1), 0)
 
     const advFunc        = advertencias.filter(a => a.funcionario_id === func.id)
     const suspensoes     = advFunc.filter(a => a.grau === 'suspensao')
@@ -256,14 +379,6 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     const insalubridadeDias = (insalubridades as unknown as { funcionario_id: string; periodo_dias: number }[])
       .filter(i => i.funcionario_id === func.id)
       .reduce((s, i) => s + (i.periodo_dias ?? 1), 0)
-
-    const afastamentoDias = afastamentos
-      .filter(a => a.funcionario_id === func.id)
-      .reduce((acc, a) => {
-        const s = clipToMes(a.data_inicio, mesStartStr, mesStartStr, mesEndStr)
-        const e = clipToMes(a.data_fim_real ?? mesEndStr, mesEndStr, mesStartStr, mesEndStr)
-        return acc + diasUteisNoPeriodo(toDate(s), toDate(e), regime, feriados)
-      }, 0)
 
     const diasTrabalhados = Math.max(0, diasUteis - feriasDias - faltasDias - atestadosDias - diasSuspensao - afastamentoDias)
 
@@ -290,7 +405,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     const diasEmCobertura = coberturasPrestadas.reduce((s, c) => s + c.dias_no_posto, 0)
     const diasNoPostoBase = Math.max(0, diasTrabalhados - diasEmCobertura)
 
-    // Posto preponderante = onde ficou mais dias no mês
+    // Posto preponderante = onde ficou mais dias no mês (posto atual x coberturas)
     const isAfastado = postos?.secretaria === 'AFASTADOS'
     let postoPrepId   = func.posto_id ?? null
     let postoPrepNome = postos?.nome ?? null
@@ -307,6 +422,30 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     }
 
     const multiPosto = coberturasPrestadas.length > 0
+
+    // Dias líquidos por segmento de posto (bruto - férias/faltas/atestados/afastamento/cobertura
+    // que caem dentro do segmento) — usados na etapa "por posto" pra ratear entre os postos.
+    const segmentosNet = segmentosPosto.map(seg => {
+      const regimeSeg = postoConfigMap.get(seg.posto_id) ?? '5x2'
+      const bruto = diasUteisNoPeriodo(seg.inicio, seg.fim, regimeSeg, feriados)
+      const fer   = feriasNoIntervalo(seg.inicio, seg.fim, regimeSeg)
+      const ates  = atestadosNoIntervalo(seg.inicio, seg.fim, regimeSeg)
+      const afa   = afastamentoNoIntervalo(seg.inicio, seg.fim, regimeSeg)
+      const falt  = faltasFunc.reduce((acc, f) => {
+        if (!f.data_falta) return acc
+        const d = toDate(f.data_falta)
+        if (d < seg.inicio || d > seg.fim) return acc
+        return acc + (f.dias ?? 1)
+      }, 0)
+      const cob = coberturasPrestadas.reduce((acc, c) => {
+        const os = new Date(Math.max(toDate(c.data_inicio).getTime(), seg.inicio.getTime()))
+        const oe = new Date(Math.min(toDate(c.data_fim).getTime(),    seg.fim.getTime()))
+        if (os > oe) return acc
+        return acc + diasUteisNoPeriodo(os, oe, c.regime, feriados)
+      }, 0)
+      return { posto_id: seg.posto_id, inicio: seg.inicio, fim: seg.fim, dias_liquido: Math.max(0, bruto - fer - ates - afa - falt - cob) }
+    })
+    segmentosNetPorFuncionario.set(func.id, segmentosNet)
 
     return {
       funcionario_id:      func.id,
@@ -358,28 +497,32 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     return porPostoMap.get(postoId)!
   }
 
-  // Titulares
+  // Titulares — um lançamento por segmento de posto (rateia dias entre os postos
+  // por onde o funcionário passou oficialmente no mês, em caso de transferência).
   for (const f of porFuncionario) {
-    if (!f.posto_id) continue
-    const posto = getOrCreatePosto(f.posto_id)
-    const isAfastadoPosto = posto.secretaria === 'AFASTADOS'
-    posto.funcionarios.push({
-      funcionario_id:       f.funcionario_id,
-      funcionario_nome:     f.funcionario_nome,
-      registro:             f.registro,
-      funcao:               f.funcao,
-      tipo:                 'titular',
-      data_inicio_no_posto: f.periodo_inicio,
-      data_fim_no_posto:    f.periodo_fim,
-      // Postos AFASTADOS não contam dias úteis (funcionário não está produzindo)
-      dias_no_posto:          isAfastadoPosto ? 0 : f.dias_no_posto_base,
-      tem_advertencia:        f.tem_advertencia,
-      faltas_dias:            f.faltas_dias,
-      atestados_dias:         f.atestados_dias,
-      insalubridade_dias:     f.insalubridade_dias,
-      is_posto_preponderante: f.posto_preponderante_id === f.posto_id,
-      multi_posto:            f.multi_posto,
-    })
+    const segmentos = segmentosNetPorFuncionario.get(f.funcionario_id) ?? []
+    for (const seg of segmentos) {
+      if (seg.dias_liquido <= 0) continue
+      const posto = getOrCreatePosto(seg.posto_id)
+      const isAfastadoPosto = posto.secretaria === 'AFASTADOS'
+      posto.funcionarios.push({
+        funcionario_id:       f.funcionario_id,
+        funcionario_nome:     f.funcionario_nome,
+        registro:             f.registro,
+        funcao:               f.funcao,
+        tipo:                 'titular',
+        data_inicio_no_posto: seg.inicio.toISOString().split('T')[0],
+        data_fim_no_posto:    seg.fim.toISOString().split('T')[0],
+        // Postos AFASTADOS não contam dias úteis (funcionário não está produzindo)
+        dias_no_posto:          isAfastadoPosto ? 0 : seg.dias_liquido,
+        tem_advertencia:        f.tem_advertencia,
+        faltas_dias:            f.faltas_dias,
+        atestados_dias:         f.atestados_dias,
+        insalubridade_dias:     f.insalubridade_dias,
+        is_posto_preponderante: f.posto_preponderante_id === seg.posto_id,
+        multi_posto:            f.multi_posto,
+      })
+    }
   }
 
   // Coberturas recebidas em cada posto

@@ -57,9 +57,11 @@ const COLS = [
 ]
 
 function cellValue(f: FechamentoFuncionario, idx: number): string {
-  const postoPrinc = f.multi_posto
-    ? (f.posto_preponderante_id !== f.posto_id ? `★ ${f.posto_preponderante_nome ?? '—'}` : f.posto_preponderante_nome ?? '—')
-    : '—'
+  const covsDiferentes = f.coberturas_prestadas.filter(c => c.posto_id !== f.posto_id)
+  const covPrincipal = covsDiferentes.length > 0
+    ? covsDiferentes.reduce((max, c) => (c.dias_no_posto > max.dias_no_posto ? c : max))
+    : null
+  const postoPrinc = covPrincipal ? `★ ${covPrincipal.posto_nome}` : '—'
   const vals = [
     f.funcionario_nome,
     f.registro ?? '—',

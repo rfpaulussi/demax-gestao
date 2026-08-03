@@ -335,8 +335,8 @@ function TabFuncionarios({ dados, mostrarVazias }: { dados: FechamentoFuncionari
                   <div className="flex items-center gap-1.5">
                     {f.funcionario_nome}
                     {f.data_desligamento && <span className="inline-block rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-500">desligado {fmt(f.data_desligamento)}</span>}
-                    {f.multi_posto && (
-                      <span title={`Posto preponderante: ${f.posto_preponderante_nome ?? '—'} (${f.secretaria_preponderante ?? '—'})`}
+                    {f.coberturas_prestadas.some(c => c.posto_id !== f.posto_id) && (
+                      <span title={`Cobriu posto diferente no mês: ${f.posto_preponderante_nome ?? '—'} (${f.secretaria_preponderante ?? '—'})`}
                         className={cn(
                           'inline-block rounded px-1.5 py-0.5 text-[10px] font-bold',
                           f.secretaria_preponderante !== f.secretaria
