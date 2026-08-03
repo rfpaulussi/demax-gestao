@@ -420,26 +420,11 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     const diasEmCobertura = coberturasPrestadas.reduce((s, c) => s + c.dias_no_posto, 0)
     const diasNoPostoBase = Math.max(0, diasTrabalhados - diasEmCobertura)
 
-    // Posto preponderante = onde ficou mais dias no mês (posto atual x coberturas)
-    const isAfastado = postos?.secretaria === 'AFASTADOS'
-    let postoPrepId   = func.posto_id ?? null
-    let postoPrepNome = postos?.nome ?? null
-    let secPrep       = postos?.secretaria ?? null
-    let maxDias       = isAfastado ? 0 : diasNoPostoBase
-
-    for (const c of coberturasPrestadas) {
-      if (c.dias_no_posto > maxDias) {
-        maxDias       = c.dias_no_posto
-        postoPrepId   = c.posto_id
-        postoPrepNome = c.posto_nome
-        secPrep       = c.secretaria
-      }
-    }
-
     const multiPosto = coberturasPrestadas.length > 0
 
     // Dias líquidos por segmento de posto (bruto - férias/faltas/atestados/afastamento/cobertura
-    // que caem dentro do segmento) — usados na etapa "por posto" pra ratear entre os postos.
+    // que caem dentro do segmento) — usados na etapa "por posto" pra ratear entre os postos, e
+    // pra achar o posto preponderante mesmo quando houve transferência no meio do mês.
     const segmentosNet = segmentosPosto.map(seg => {
       const regimeSeg = postoConfigMap.get(seg.posto_id) ?? '5x2'
       const bruto = diasUteisNoPeriodo(seg.inicio, seg.fim, regimeSeg, feriados)
@@ -461,6 +446,37 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
       return { posto_id: seg.posto_id, inicio: seg.inicio, fim: seg.fim, dias_liquido: Math.max(0, bruto - fer - ates - afa - falt - cob) }
     })
     segmentosNetPorFuncionario.set(func.id, segmentosNet)
+
+    // Posto preponderante = onde ficou mais dias no mês, comparando cada posto PRÓPRIO
+    // (por segmento — cobre transferência no meio do mês) contra cada cobertura prestada.
+    let postoPrepId   = func.posto_id ?? null
+    let postoPrepNome = postos?.nome ?? null
+    let secPrep       = postos?.secretaria ?? null
+    let maxDias       = 0
+
+    const netPorPostoProprio = new Map<string, number>()
+    for (const seg of segmentosNet) {
+      const secSeg = postosMap.get(seg.posto_id)?.secretaria ?? ''
+      if (secSeg === 'AFASTADOS') continue // não conta como produtivo
+      netPorPostoProprio.set(seg.posto_id, (netPorPostoProprio.get(seg.posto_id) ?? 0) + seg.dias_liquido)
+    }
+    netPorPostoProprio.forEach((dias, pid) => {
+      if (dias > maxDias) {
+        maxDias       = dias
+        postoPrepId   = pid
+        const info    = postosMap.get(pid)
+        postoPrepNome = info?.nome ?? null
+        secPrep       = info?.secretaria ?? null
+      }
+    })
+    for (const c of coberturasPrestadas) {
+      if (c.dias_no_posto > maxDias) {
+        maxDias       = c.dias_no_posto
+        postoPrepId   = c.posto_id
+        postoPrepNome = c.posto_nome
+        secPrep       = c.secretaria
+      }
+    }
 
     return {
       funcionario_id:      func.id,
