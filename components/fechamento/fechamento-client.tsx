@@ -347,7 +347,7 @@ function TabFuncionarios({ dados, mostrarVazias }: { dados: FechamentoFuncionari
                               ? 'bg-indigo-100 text-indigo-700'
                               : 'bg-sky-100 text-sky-700',
                           )}>
-                          ↔ {covPrincipal.secretaria !== f.secretaria ? covPrincipal.secretaria : covPrincipal.posto_nome}
+                          ↔ {covPrincipal.posto_nome}
                         </span>
                       )
                     })()}
