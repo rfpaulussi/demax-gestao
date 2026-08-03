@@ -20,6 +20,7 @@ export async function listarTurnosPosto(postoId: string) {
     .from('turnos_postos')
     .select('*')
     .eq('posto_id', postoId)
+    .eq('ativo', true)
     .order('hora_entrada')
   if (error) throw new Error(error.message)
   return data ?? []
