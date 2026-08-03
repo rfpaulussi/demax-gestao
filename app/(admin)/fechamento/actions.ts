@@ -17,6 +17,7 @@ export interface FechamentoFuncionario {
   posto_id: string | null
   posto_nome: string | null
   secretaria: string | null
+  status: string | null
   data_admissao: string | null
   data_desligamento: string | null
   periodo_inicio: string
@@ -41,6 +42,7 @@ export interface FechamentoFuncionario {
   posto_preponderante_nome: string | null
   secretaria_preponderante: string | null
   multi_posto: boolean
+  supervisor_nome: string | null
 }
 
 export interface SegmentoCobertura {
@@ -192,7 +194,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
   if (funcionarios.length === 0) return { porFuncionario: [], porPosto: [] }
 
   // 2. Busca paralela
-  const [ferRes, atRes, falRes, advRes, insRes, afaRes, cobRes, todosPostosRes, postoConfigRes, transfRes] =
+  const [ferRes, atRes, falRes, advRes, insRes, afaRes, cobRes, todosPostosRes, postoConfigRes, transfRes, supPostoRes] =
     await Promise.all([
       supabase
         .from('ferias')
@@ -251,6 +253,12 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
         .gte('created_at', mesStartStr)
         .lte('created_at', mesEndStr + 'T23:59:59')
         .order('created_at', { ascending: true }),
+
+      // Supervisor responsável por cada posto (pra aba RH-Postos)
+      supabase
+        .from('config_supervisores_postos')
+        .select('posto_id, perfis!supervisor_id ( nome )')
+        .eq('ativo', true),
     ])
 
   if (ferRes.error)       throw ferRes.error
@@ -263,6 +271,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
   if (todosPostosRes.error)  throw todosPostosRes.error
   if (postoConfigRes.error)  throw postoConfigRes.error
   if (transfRes.error)       throw transfRes.error
+  if (supPostoRes.error)     throw supPostoRes.error
 
   const ferias         = ferRes.data  ?? []
   const atestados      = atRes.data   ?? []
@@ -281,6 +290,12 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
   const postoConfigMap = new Map<string, string>()
   for (const pc of postoConfigRes.data ?? []) {
     postoConfigMap.set(pc.posto_id, pc.regime)
+  }
+
+  const supervisorPorPosto = new Map<string, string>()
+  for (const sp of supPostoRes.data ?? []) {
+    const perfil = sp.perfis as unknown as { nome: string } | null
+    if (perfil?.nome) supervisorPorPosto.set(sp.posto_id, perfil.nome)
   }
 
   const transferenciasPorFunc = new Map<string, TransferenciaPosto[]>()
@@ -455,6 +470,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
       posto_id:            func.posto_id ?? null,
       posto_nome:          postos?.nome ?? null,
       secretaria:          postos?.secretaria ?? null,
+      status:              (func as { status?: string | null }).status ?? null,
       regime,
       data_admissao:       func.data_admissao ?? null,
       data_desligamento:   func.data_desligamento ?? null,
@@ -477,6 +493,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
       posto_preponderante_nome:  postoPrepNome,
       secretaria_preponderante:  secPrep,
       multi_posto:               multiPosto,
+      supervisor_nome:           postoPrepId ? (supervisorPorPosto.get(postoPrepId) ?? null) : null,
     }
   })
 

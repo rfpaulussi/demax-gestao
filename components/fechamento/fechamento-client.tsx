@@ -196,7 +196,26 @@ function exportExcel(
 
   // ── Sheet 4: RH - Postos ──
   {
-    const HEADERS = ['Nome','RE','Função','Posto Principal','Secretaria Principal']
+    const STATUS_LABEL: Record<string, string> = {
+      ativo:             'ATIVO',
+      atestado:          'ATESTADO',
+      afastado:          'AFASTADO',
+      ferias:            'FÉRIAS',
+      desligado:         'DESLIGADO',
+      rescisao_indireta: 'RESCISÃO INDIRETA',
+    }
+    const AGENTE_HIGIENIZACAO = /^AGENTE DE HIGIENIZAÇÃO [ABC]$/i
+
+    const mesRefStr   = `${ano}-${pad2(mes)}`
+    const mesStartStr = `${mesRefStr}-01`
+    const mesEndStr   = `${mesRefStr}-${pad2(new Date(ano, mes, 0).getDate())}`
+    const noMes = (iso: string | null) => !!iso && iso >= mesStartStr && iso <= mesEndStr
+
+    const HEADERS = [
+      'Mês/Ano Referência','Registro Funcionário','Nome Funcionário','Cargo (no mês)','Status','Supervisor',
+      'Posto de Trabalho (no mês)','Secretaria (no mês)','Peso','Está de Férias Hoje?','É Insalubre?',
+      'Data Demissão','Admissão',
+    ]
     const NC = HEADERS.length
     type XRow = { data: (string | number)[]; style?: 'header' }
     const rows: XRow[] = [
@@ -210,8 +229,19 @@ function exportExcel(
     )
     for (const f of ordenado) {
       rows.push({ data: [
-        f.funcionario_nome, f.registro ?? '—', f.funcao ?? '—',
-        f.posto_preponderante_nome ?? '—', f.secretaria_preponderante ?? '—',
+        `${MESES[mes]}/${ano}`,
+        f.registro ?? '—',
+        f.funcionario_nome,
+        f.funcao ?? '—',
+        f.status ? (STATUS_LABEL[f.status] ?? f.status.toUpperCase()) : '—',
+        f.supervisor_nome ?? '—',
+        f.posto_preponderante_nome ?? '—',
+        f.secretaria_preponderante ?? '—',
+        AGENTE_HIGIENIZACAO.test(f.funcao ?? '') ? 1 : 0,
+        f.ferias_dias > 0 ? 'Sim' : 'Não',
+        f.insalubridade_dias > 0 ? 'Sim' : 'Não',
+        noMes(f.data_desligamento) ? fmt(f.data_desligamento) : '',
+        noMes(f.data_admissao) ? fmt(f.data_admissao) : '',
       ]})
     }
 
@@ -224,7 +254,10 @@ function exportExcel(
         ws[addr].s = { font: { bold: true, color: { rgb: '475569' } }, fill: { patternType: 'solid', fgColor: { rgb: 'e2e8f0' } } }
       }
     })
-    ws['!cols'] = [{ wch: 32 }, { wch: 10 }, { wch: 18 }, { wch: 24 }, { wch: 24 }]
+    ws['!cols'] = [
+      { wch: 16 }, { wch: 14 }, { wch: 32 }, { wch: 20 }, { wch: 16 }, { wch: 20 },
+      { wch: 26 }, { wch: 18 }, { wch: 7 }, { wch: 16 }, { wch: 12 }, { wch: 14 }, { wch: 14 },
+    ]
     XLSX.utils.book_append_sheet(wb, ws, 'RH - Postos')
   }
 
