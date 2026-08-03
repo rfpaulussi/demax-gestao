@@ -335,17 +335,22 @@ function TabFuncionarios({ dados, mostrarVazias }: { dados: FechamentoFuncionari
                   <div className="flex items-center gap-1.5">
                     {f.funcionario_nome}
                     {f.data_desligamento && <span className="inline-block rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-500">desligado {fmt(f.data_desligamento)}</span>}
-                    {f.coberturas_prestadas.some(c => c.posto_id !== f.posto_id) && (
-                      <span title={`Cobriu posto diferente no mês: ${f.posto_preponderante_nome ?? '—'} (${f.secretaria_preponderante ?? '—'})`}
-                        className={cn(
-                          'inline-block rounded px-1.5 py-0.5 text-[10px] font-bold',
-                          f.secretaria_preponderante !== f.secretaria
-                            ? 'bg-indigo-100 text-indigo-700'
-                            : 'bg-sky-100 text-sky-700',
-                        )}>
-                        ↔ {f.secretaria_preponderante !== f.secretaria ? f.secretaria_preponderante : f.posto_preponderante_nome}
-                      </span>
-                    )}
+                    {(() => {
+                      const covsDiferentes = f.coberturas_prestadas.filter(c => c.posto_id !== f.posto_id)
+                      if (covsDiferentes.length === 0) return null
+                      const covPrincipal = covsDiferentes.reduce((max, c) => (c.dias_no_posto > max.dias_no_posto ? c : max))
+                      return (
+                        <span title={`Cobriu posto diferente no mês: ${covPrincipal.posto_nome} (${covPrincipal.secretaria})`}
+                          className={cn(
+                            'inline-block rounded px-1.5 py-0.5 text-[10px] font-bold',
+                            covPrincipal.secretaria !== f.secretaria
+                              ? 'bg-indigo-100 text-indigo-700'
+                              : 'bg-sky-100 text-sky-700',
+                          )}>
+                          ↔ {covPrincipal.secretaria !== f.secretaria ? covPrincipal.secretaria : covPrincipal.posto_nome}
+                        </span>
+                      )
+                    })()}
                   </div>
                 </td>
                 <td className="px-3 py-2.5 text-gray-500 font-mono whitespace-nowrap">{f.registro ?? '—'}</td>
