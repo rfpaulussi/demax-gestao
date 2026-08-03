@@ -49,8 +49,8 @@ function exportExcel(
         rows.push({
           data: [
             f.funcionario_nome, f.registro ?? '—', f.funcao ?? '—', f.posto_nome ?? '—',
-            isMulti ? (f.posto_preponderante_nome ?? '—') : '',
-            isMulti ? (f.secretaria_preponderante ?? '—') : '',
+            prepDiferente ? (f.posto_preponderante_nome ?? '—') : '',
+            prepDiferente ? (f.secretaria_preponderante ?? '—') : '',
             f.regime,
             f.dias_uteis, f.ferias_dias || 0, f.faltas_dias || 0, f.atestados_dias || 0,
             f.dias_suspensao || 0, f.afastamento_dias || 0, f.dias_trabalhados,
@@ -189,6 +189,40 @@ function exportExcel(
     })
     ws['!cols'] = [{ wch: 32 }, { wch: 10 }, { wch: 18 }, { wch: 24 }, { wch: 24 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 8 }]
     XLSX.utils.book_append_sheet(wb, ws, 'Coberturas')
+  }
+
+  // ── Sheet 4: RH - Postos ──
+  {
+    const HEADERS = ['Nome','RE','Função','Posto Principal','Secretaria Principal']
+    const NC = HEADERS.length
+    type XRow = { data: (string | number)[]; style?: 'header' }
+    const rows: XRow[] = [
+      { data: [`RH - Postos — ${titulo}`] },
+      { data: [] },
+      { data: HEADERS, style: 'header' },
+    ]
+
+    const ordenado = [...porFuncionario].sort((a, b) =>
+      a.funcionario_nome.localeCompare(b.funcionario_nome, 'pt-BR', { sensitivity: 'base' }),
+    )
+    for (const f of ordenado) {
+      rows.push({ data: [
+        f.funcionario_nome, f.registro ?? '—', f.funcao ?? '—',
+        f.posto_preponderante_nome ?? '—', f.secretaria_preponderante ?? '—',
+      ]})
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(rows.map(r => r.data))
+    rows.forEach((row, ri) => {
+      if (row.style !== 'header') return
+      for (let ci = 0; ci < NC; ci++) {
+        const addr = XLSX.utils.encode_cell({ r: ri, c: ci })
+        if (!ws[addr]) ws[addr] = { v: '', t: 's' }
+        ws[addr].s = { font: { bold: true, color: { rgb: '475569' } }, fill: { patternType: 'solid', fgColor: { rgb: 'e2e8f0' } } }
+      }
+    })
+    ws['!cols'] = [{ wch: 32 }, { wch: 10 }, { wch: 18 }, { wch: 24 }, { wch: 24 }]
+    XLSX.utils.book_append_sheet(wb, ws, 'RH - Postos')
   }
 
   XLSX.writeFile(wb, `fechamento-${pad2(mes)}-${ano}.xlsx`)
