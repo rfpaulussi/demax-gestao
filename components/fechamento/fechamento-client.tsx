@@ -44,20 +44,23 @@ function exportExcel(
       rows.push({ data: [sec.toUpperCase(), ...Array(NC - 1).fill('')], style: 'groupHeader' })
       rows.push({ data: HEADERS, style: 'colHeader' })
       for (const f of grupo) {
-        const isMulti      = f.multi_posto
-        const prepDiferente = isMulti && f.posto_preponderante_id !== f.posto_id
+        // Cobertura em posto diferente do posto de origem (ignora autocobertura no mesmo posto)
+        const covsDiferentes = f.coberturas_prestadas.filter(c => c.posto_id !== f.posto_id)
+        const covPrincipal = covsDiferentes.length > 0
+          ? covsDiferentes.reduce((max, c) => (c.dias_no_posto > max.dias_no_posto ? c : max))
+          : null
         rows.push({
           data: [
             f.funcionario_nome, f.registro ?? '—', f.funcao ?? '—', f.posto_nome ?? '—',
-            prepDiferente ? (f.posto_preponderante_nome ?? '—') : '',
-            prepDiferente ? (f.secretaria_preponderante ?? '—') : '',
+            covPrincipal ? covPrincipal.posto_nome : '',
+            covPrincipal ? covPrincipal.secretaria : '',
             f.regime,
             f.dias_uteis, f.ferias_dias || 0, f.faltas_dias || 0, f.atestados_dias || 0,
             f.dias_suspensao || 0, f.afastamento_dias || 0, f.dias_trabalhados,
             f.insalubridade_dias || 0,
             f.tem_suspensao ? 'Suspensão' : f.tem_advertencia ? 'Sim' : '',
           ],
-          style: prepDiferente ? 'multiPosto' : undefined,
+          style: covPrincipal ? 'multiPosto' : undefined,
         })
       }
       rows.push({ data: [
