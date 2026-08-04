@@ -191,16 +191,16 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-xl bg-white shadow-xl">
         {/* header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <div>
-            <h2 className="text-base font-bold text-gray-900">Turnos de trabalho</h2>
-            <div className="mt-0.5 flex items-center gap-2">
-              <p className="text-xs text-gray-400">{postoNome}</p>
+            <h2 className="text-lg font-bold text-gray-900">Turnos de trabalho</h2>
+            <div className="mt-1 flex items-center gap-2">
+              <p className="text-sm text-gray-500">{postoNome}</p>
               {regime && (
                 <span className={cn(
-                  'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ring-inset',
+                  'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ring-1 ring-inset',
                   ESCALA_BADGE_CLASS[regime],
                 )}>
                   {ESCALA_LABEL[regime]}
@@ -209,11 +209,11 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
             </div>
           </div>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X className="h-5 w-5" />
+            <X className="h-6 w-6" />
           </button>
         </div>
 
-        <div className="px-6 py-4 space-y-4">
+        <div className="space-y-4 overflow-y-auto px-6 py-4">
           {/* aviso: posto sem regime configurado */}
           {regime === null && (
             <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
@@ -255,16 +255,19 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
           ) : turnos.length === 0 ? (
             <p className="text-sm text-gray-400">Nenhum turno cadastrado para este posto.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               {turnos.map(t => {
                 const tipoTurno = resolverTipoEscala(t.tipo_escala)
                 return (
-                  <div key={t.id} className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-2.5">
-                    <div className="flex items-center gap-3">
-                      <Clock className="h-4 w-4 text-gray-400" />
+                  <div key={t.id} className={cn(
+                    'flex items-start justify-between gap-2 rounded-lg border-l-4 bg-gray-50 px-4 py-3',
+                    ESCALA_BORDER_CLASS[tipoTurno],
+                  )}>
+                    <div className="flex items-start gap-2.5">
+                      <Clock className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
                       <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-gray-900">{t.nome}</p>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="text-sm font-extrabold text-gray-900">{t.nome}</p>
                           <span className={cn(
                             'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-inset',
                             ESCALA_BADGE_CLASS[tipoTurno],
@@ -272,18 +275,18 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
                             {ESCALA_LABEL[tipoTurno]}
                           </span>
                         </div>
-                        <p className="text-xs text-gray-500">{formatarResumoTurno(t)}</p>
+                        <p className="mt-0.5 text-sm font-medium text-gray-600">{formatarResumoTurno(t)}</p>
                       </div>
                     </div>
                     {canWrite && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex shrink-0 items-center gap-2">
                         <button type="button" onClick={() => abrirEditar(t)}
                           className="text-gray-400 hover:text-gray-700" title="Editar">
-                          <Pencil className="h-3.5 w-3.5" />
+                          <Pencil className="h-4 w-4" />
                         </button>
                         <button type="button" onClick={() => handleDesativar(t)} disabled={saving}
                           className="text-gray-400 hover:text-red-600 disabled:opacity-40" title="Desativar">
-                          <X className="h-3.5 w-3.5" />
+                          <X className="h-4 w-4" />
                         </button>
                       </div>
                     )}
@@ -295,13 +298,13 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
 
           {/* form de novo/editar turno */}
           {form !== null && canWrite && tipoEscalaForm && (
-            <div className={cn('space-y-3 rounded-lg border border-l-4 bg-white p-4', ESCALA_BORDER_CLASS[tipoEscalaForm])}>
+            <div className={cn('space-y-4 rounded-lg border border-l-4 bg-white p-5 shadow-sm', ESCALA_BORDER_CLASS[tipoEscalaForm])}>
               <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-gray-700">
+                <p className="text-base font-bold text-gray-800">
                   {form === 'novo' ? 'Novo turno' : 'Editar turno'}
                 </p>
                 <span className={cn(
-                  'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ring-1 ring-inset',
+                  'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ring-1 ring-inset',
                   ESCALA_BADGE_CLASS[tipoEscalaForm],
                 )}>
                   {ESCALA_LABEL[tipoEscalaForm]}
@@ -313,7 +316,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
                   <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Nome</label>
                   <input value={nome} onChange={e => setNome(e.target.value)}
                     placeholder="Ex: Turno 7h"
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-gray-400" />
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Horário de entrada</label>
@@ -323,24 +326,24 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
                     onChange={e => setHoraEntrada(e.target.value)}
                     min={tipoEscalaForm === '5x1' ? '05:00' : undefined}
                     max={tipoEscalaForm === '5x1' ? '16:00' : undefined}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-gray-400" />
                 </div>
               </div>
 
               {form === 'novo' && tipoEscalaForm && CATALOGO_POR_REGIME[tipoEscalaForm] && (
-                <div className="rounded-lg border border-gray-100 bg-slate-50 p-3">
+                <div className="rounded-lg border border-gray-200 bg-slate-50 p-3">
                   <button type="button" onClick={() => setCatalogoAberto(p => !p)}
-                    className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-widest text-gray-500">
+                    className="flex w-full items-center justify-between text-xs font-bold uppercase tracking-widest text-gray-600">
                     Usar turno padrão
                     <span className="text-gray-400">{catalogoAberto ? '▲' : '▼'}</span>
                   </button>
                   {catalogoAberto && (
-                    <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+                    <div className="mt-2 grid max-h-56 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
                       {CATALOGO_POR_REGIME[tipoEscalaForm]!.map(item => (
                         <button key={item.nome} type="button" onClick={() => aplicarItemCatalogo(item)}
-                          className="flex w-full items-center justify-between rounded-md border border-transparent px-2 py-1.5 text-left text-xs hover:border-gray-200 hover:bg-white">
-                          <span className="font-medium text-gray-700">{item.nome}</span>
-                          <span className="text-gray-400">
+                          className="flex flex-col items-start rounded-md border border-gray-200 bg-white px-2.5 py-2 text-left hover:border-slate-400 hover:bg-slate-50">
+                          <span className="text-xs font-extrabold text-gray-900">{item.nome}</span>
+                          <span className="text-[11px] font-medium text-gray-500">
                             {item.hora_entrada}
                             {item.hora_inicio_almoco && item.hora_fim_almoco ? ` · almoço ${item.hora_inicio_almoco}–${item.hora_fim_almoco}` : ''}
                             {' · saída '}
@@ -357,22 +360,22 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
 
               {/* almoço/saída: resumo calculado por padrão; "Personalizar" libera edição livre por campo */}
               {!personalizando ? (
-                <div className="space-y-0.5 rounded-lg bg-slate-50 px-3 py-2 text-xs text-gray-500">
-                  <div className="mb-1 flex items-center justify-between">
-                    <p className="font-medium text-gray-700">Horários</p>
+                <div className="space-y-1 rounded-lg bg-slate-50 px-4 py-3 text-sm text-gray-700">
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Horários</p>
                     <button type="button" onClick={() => setPersonalizando(true)}
-                      className="text-xs font-medium text-gray-500 underline hover:text-gray-700">
+                      className="text-xs font-semibold text-slate-700 underline hover:text-slate-900">
                       Personalizar horários
                     </button>
                   </div>
-                  {temAlmoco && <p>Almoço: {horaInicioAlmoco} às {horaFimAlmoco}</p>}
+                  {temAlmoco && <p><span className="font-semibold">Almoço:</span> {horaInicioAlmoco} às {horaFimAlmoco}</p>}
                   {temSaidaSex ? (
                     <>
-                      <p>Saída Seg–Qui: {horaSaidaSegQui}</p>
-                      <p>Saída Sex: {horaSaidaSex}</p>
+                      <p><span className="font-semibold">Saída Seg–Qui:</span> {horaSaidaSegQui}</p>
+                      <p><span className="font-semibold">Saída Sex:</span> {horaSaidaSex}</p>
                     </>
                   ) : (
-                    <p>Saída: {horaSaidaSegQui}</p>
+                    <p><span className="font-semibold">Saída:</span> {horaSaidaSegQui}</p>
                   )}
                 </div>
               ) : (

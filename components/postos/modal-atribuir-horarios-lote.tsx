@@ -1,14 +1,15 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { X } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { ChevronDown, X } from 'lucide-react'
 import {
   listarFuncionariosParaAtribuicaoLote,
   listarTurnosDoPosto,
   atribuirTurnoEmLote,
   type FuncionarioLoteRow,
 } from '@/app/(admin)/efetivo/horario/actions'
-import { formatarResumoTurno } from '@/lib/turnos/escala'
+import { formatarResumoTurno, resolverTipoEscala, ESCALA_LABEL, ESCALA_BADGE_CLASS, ESCALA_BORDER_CLASS } from '@/lib/turnos/escala'
+import { cn } from '@/lib/utils'
 
 type TurnoOpcao = {
   id: string
@@ -46,6 +47,8 @@ export function ModalAtribuirHorariosLote({ postoId, postoNome, open, onClose }:
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
   const [saving, setSaving]             = useState(false)
   const [resultado, setResultado] = useState<{ sucesso: string[]; falhas: { funcionarioId: string; erro: string }[] } | null>(null)
+  const [turnoDropdownAberto, setTurnoDropdownAberto] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -62,8 +65,16 @@ export function ModalAtribuirHorariosLote({ postoId, postoNome, open, onClose }:
   }, [postoId])
 
   useEffect(() => {
-    if (open) { carregar(); setResultado(null); setSelecionados(new Set()) }
+    if (open) { carregar(); setResultado(null); setSelecionados(new Set()); setTurnoId(''); setTurnoDropdownAberto(false) }
   }, [open, carregar])
+
+  useEffect(() => {
+    function onClickFora(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setTurnoDropdownAberto(false)
+    }
+    document.addEventListener('mousedown', onClickFora)
+    return () => document.removeEventListener('mousedown', onClickFora)
+  }, [])
 
   function toggle(id: string) {
     setSelecionados(prev => {
@@ -93,35 +104,78 @@ export function ModalAtribuirHorariosLote({ postoId, postoNome, open, onClose }:
 
   if (!open) return null
 
+  const turnoSelecionado = turnos.find(t => t.id === turnoId)
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl max-h-[90vh] overflow-y-auto">
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-visible rounded-xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <div>
-            <h2 className="text-base font-bold text-gray-900">Atribuir Horários em Lote</h2>
-            <p className="text-xs text-gray-400">{postoNome}</p>
+            <h2 className="text-lg font-bold text-gray-900">Atribuir Horários em Lote</h2>
+            <p className="text-sm text-gray-500">{postoNome}</p>
           </div>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X className="h-5 w-5" />
+            <X className="h-6 w-6" />
           </button>
         </div>
 
-        <div className="space-y-4 px-6 py-4">
+        <div className="space-y-4 overflow-y-auto px-6 py-4">
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div ref={dropdownRef} className="relative">
               <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Turno</label>
-              <select value={turnoId} onChange={e => setTurnoId(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400">
-                <option value="">Selecione…</option>
-                {turnos.map(t => (
-                  <option key={t.id} value={t.id}>{t.nome} — {formatarResumoTurno(t)}</option>
-                ))}
-              </select>
+              <button type="button" onClick={() => setTurnoDropdownAberto(p => !p)}
+                className="flex w-full items-center justify-between rounded-lg border border-gray-200 px-3 py-2.5 text-left text-sm focus:outline-none focus:ring-1 focus:ring-gray-400">
+                {turnoSelecionado ? (
+                  <span className="flex items-center gap-2 truncate">
+                    <span className="font-extrabold text-gray-900">{turnoSelecionado.nome}</span>
+                    <span className={cn(
+                      'shrink-0 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-inset',
+                      ESCALA_BADGE_CLASS[resolverTipoEscala(turnoSelecionado.tipo_escala)],
+                    )}>
+                      {ESCALA_LABEL[resolverTipoEscala(turnoSelecionado.tipo_escala)]}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-gray-400">Selecione…</span>
+                )}
+                <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" />
+              </button>
+
+              {turnoDropdownAberto && (
+                <div className="absolute z-10 mt-1 max-h-72 w-full min-w-[22rem] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1.5 shadow-lg">
+                  {turnos.length === 0 ? (
+                    <p className="px-3 py-2 text-sm text-gray-400">Nenhum turno cadastrado</p>
+                  ) : (
+                    turnos.map(t => {
+                      const tipoTurno = resolverTipoEscala(t.tipo_escala)
+                      return (
+                        <button key={t.id} type="button"
+                          onClick={() => { setTurnoId(t.id); setTurnoDropdownAberto(false) }}
+                          className={cn(
+                            'flex w-full flex-col items-start gap-0.5 rounded-md border-l-4 px-3 py-2 text-left hover:bg-gray-50',
+                            ESCALA_BORDER_CLASS[tipoTurno],
+                          )}>
+                          <span className="flex items-center gap-2">
+                            <span className="text-sm font-extrabold text-gray-900">{t.nome}</span>
+                            <span className={cn(
+                              'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ring-1 ring-inset',
+                              ESCALA_BADGE_CLASS[tipoTurno],
+                            )}>
+                              {ESCALA_LABEL[tipoTurno]}
+                            </span>
+                          </span>
+                          <span className="text-xs font-medium text-gray-500">{formatarResumoTurno(t)}</span>
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Data de Início</label>
               <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-gray-400" />
             </div>
           </div>
 
@@ -152,18 +206,18 @@ export function ModalAtribuirHorariosLote({ postoId, postoNome, open, onClose }:
               <div className="max-h-72 space-y-1 overflow-y-auto rounded-lg border border-gray-100">
                 {funcionarios.map(f => (
                   <label key={f.id}
-                    className="flex cursor-pointer items-center justify-between gap-3 border-b border-gray-50 px-3 py-2 last:border-b-0 hover:bg-gray-50">
-                    <span className="flex items-center gap-2">
+                    className="flex cursor-pointer items-center justify-between gap-3 border-b border-gray-50 px-3 py-2.5 last:border-b-0 hover:bg-gray-50">
+                    <span className="flex items-center gap-2.5">
                       <input type="checkbox" checked={selecionados.has(f.id)} onChange={() => toggle(f.id)}
                         className="h-4 w-4 rounded border-gray-300 accent-slate-900" />
-                      <span className="text-sm text-gray-800">{f.nome}</span>
+                      <span className="text-sm font-semibold text-gray-800">{f.nome}</span>
                     </span>
                     {f.turno_atual_nome ? (
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                      <span className="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600">
                         {f.turno_atual_nome} — desde {fmtData(f.turno_atual_desde!)}
                       </span>
                     ) : (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                      <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700">
                         Sem horário
                       </span>
                     )}
