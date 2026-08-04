@@ -63,7 +63,7 @@ export async function alterarTurno(
     .is('data_fim', null)
     .maybeSingle()
 
-  if (vigente && dataInicio <= vigente.data_inicio) {
+  if (vigente && dataInicio < vigente.data_inicio) {
     const [y, m, d] = vigente.data_inicio.split('-')
     return {
       success: false,
@@ -71,7 +71,18 @@ export async function alterarTurno(
     }
   }
 
-  if (vigente) {
+  // Mesma data do vigente: não é uma nova vigência, é correção do que foi lançado no próprio
+  // dia — apaga o registro antigo (em vez de fechá-lo com data_fim) para não deixar um período
+  // de 1 dia fantasma no histórico.
+  const corrigindoMesmoDia = !!vigente && dataInicio === vigente.data_inicio
+
+  if (vigente && corrigindoMesmoDia) {
+    const { error: errDelete } = await supabase
+      .from('horarios_funcionarios')
+      .delete()
+      .eq('id', vigente.id)
+    if (errDelete) return { success: false, error: errDelete.message }
+  } else if (vigente) {
     const d = new Date(dataInicio + 'T12:00:00')
     d.setDate(d.getDate() - 1)
     const dataFim = d.toISOString().split('T')[0]
