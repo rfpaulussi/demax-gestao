@@ -57,6 +57,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
   const [saidaTocado, setSaidaTocado]           = useState(false)
   const [personalizando, setPersonalizando]     = useState(false)
   const [catalogoAberto, setCatalogoAberto]     = useState(true)
+  const [grupoCatalogo, setGrupoCatalogo]       = useState<string | null>(null) // null = todos os grupos
 
   const canWrite = role === 'admin' || role === 'coordenador'
 
@@ -87,7 +88,13 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     setSaidaTocado(false)
     setPersonalizando(false)
     setCatalogoAberto(true)
+    setGrupoCatalogo(null)
     setErro(null)
+  }
+
+  /** Rótulo do grupo de duração de um item do catálogo — nome sem o sufixo " (letra)". Ex: "Turno 6h 30m (a)" -> "Turno 6h 30m". */
+  function grupoDoItem(nome: string): string {
+    return nome.replace(/\s*\([a-z]\)\s*$/i, '')
   }
 
   function abrirEditar(t: TurnoPosto) {
@@ -337,24 +344,53 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
                     Usar turno padrão
                     <span className="text-gray-400">{catalogoAberto ? '▲' : '▼'}</span>
                   </button>
-                  {catalogoAberto && (
-                    <div className="mt-2 grid max-h-56 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
-                      {CATALOGO_POR_REGIME[tipoEscalaForm]!.map(item => (
-                        <button key={item.nome} type="button" onClick={() => aplicarItemCatalogo(item)}
-                          className="flex flex-col items-start rounded-md border border-gray-200 bg-white px-2.5 py-2 text-left hover:border-slate-400 hover:bg-slate-50">
-                          <span className="text-xs font-extrabold text-gray-900">{item.nome}</span>
-                          <span className="text-[11px] font-medium text-gray-500">
-                            {item.hora_entrada}
-                            {item.hora_inicio_almoco && item.hora_fim_almoco ? ` · almoço ${item.hora_inicio_almoco}–${item.hora_fim_almoco}` : ''}
-                            {' · saída '}
-                            {item.hora_saida_sex && item.hora_saida_sex !== item.hora_saida_seg_qui
-                              ? `${item.hora_saida_seg_qui} (sex ${item.hora_saida_sex})`
-                              : item.hora_saida_seg_qui}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  {catalogoAberto && (() => {
+                    const catalogo = CATALOGO_POR_REGIME[tipoEscalaForm]!
+                    const grupos = Array.from(new Set(catalogo.map(item => grupoDoItem(item.nome))))
+                    const itensFiltrados = grupoCatalogo ? catalogo.filter(item => grupoDoItem(item.nome) === grupoCatalogo) : catalogo
+                    return (
+                      <>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <button type="button" onClick={() => setGrupoCatalogo(null)}
+                            className={cn(
+                              'rounded-full border px-2.5 py-1 text-[11px] font-bold',
+                              grupoCatalogo === null ? 'border-slate-900 bg-slate-900 text-white' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300',
+                            )}>
+                            Todos
+                          </button>
+                          {grupos.map(g => (
+                            <button key={g} type="button" onClick={() => setGrupoCatalogo(g)}
+                              className={cn(
+                                'rounded-full border px-2.5 py-1 text-[11px] font-bold',
+                                grupoCatalogo === g ? 'border-slate-900 bg-slate-900 text-white' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300',
+                              )}>
+                              {g.replace('Turno ', '')}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="mt-2 grid max-h-56 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
+                          {itensFiltrados.map(item => (
+                            <button key={item.nome} type="button" onClick={() => aplicarItemCatalogo(item)}
+                              className="flex flex-col items-start rounded-md border border-gray-200 bg-white px-2.5 py-2 text-left hover:border-slate-400 hover:bg-slate-50">
+                              <span className="text-xs font-extrabold text-gray-900">{item.nome}</span>
+                              <span className="text-[11px] font-medium text-gray-500">
+                                <span className="font-bold text-gray-800">{item.hora_entrada}</span>
+                                {item.hora_inicio_almoco && item.hora_fim_almoco && (
+                                  <span className="text-blue-600"> · almoço {item.hora_inicio_almoco}–{item.hora_fim_almoco}</span>
+                                )}
+                                {' · saída '}
+                                <span className="font-bold text-gray-800">
+                                  {item.hora_saida_sex && item.hora_saida_sex !== item.hora_saida_seg_qui
+                                    ? `${item.hora_saida_seg_qui} (sex ${item.hora_saida_sex})`
+                                    : item.hora_saida_seg_qui}
+                                </span>
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )
+                  })()}
                 </div>
               )}
 
