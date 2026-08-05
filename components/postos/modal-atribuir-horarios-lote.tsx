@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { ChevronDown, X } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { ChevronDown, Search, X } from 'lucide-react'
 import {
   listarFuncionariosParaAtribuicaoLote,
   listarTurnosDoPosto,
@@ -48,6 +48,8 @@ export function ModalAtribuirHorariosLote({ postoId, postoNome, open, onClose }:
   const [saving, setSaving]             = useState(false)
   const [resultado, setResultado] = useState<{ sucesso: string[]; falhas: { funcionarioId: string; erro: string }[] } | null>(null)
   const [turnoDropdownAberto, setTurnoDropdownAberto] = useState(false)
+  const [buscaTurno, setBuscaTurno]           = useState('')
+  const [buscaFuncionario, setBuscaFuncionario] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const carregar = useCallback(async () => {
@@ -65,7 +67,10 @@ export function ModalAtribuirHorariosLote({ postoId, postoNome, open, onClose }:
   }, [postoId])
 
   useEffect(() => {
-    if (open) { carregar(); setResultado(null); setSelecionados(new Set()); setTurnoId(''); setTurnoDropdownAberto(false) }
+    if (open) {
+      carregar(); setResultado(null); setSelecionados(new Set()); setTurnoId('')
+      setTurnoDropdownAberto(false); setBuscaTurno(''); setBuscaFuncionario('')
+    }
   }, [open, carregar])
 
   useEffect(() => {
@@ -103,6 +108,23 @@ export function ModalAtribuirHorariosLote({ postoId, postoNome, open, onClose }:
   function nomeFuncionario(id: string) {
     return funcionarios.find(f => f.id === id)?.nome ?? id
   }
+
+  const turnosFiltrados = useMemo(() => {
+    const termo = buscaTurno.trim().toLowerCase()
+    if (!termo) return turnos
+    return turnos.filter(t => t.nome.toLowerCase().includes(termo))
+  }, [turnos, buscaTurno])
+
+  const funcionariosFiltrados = useMemo(() => {
+    const termo = buscaFuncionario.trim().toLowerCase()
+    const lista = termo ? funcionarios.filter(f => f.nome.toLowerCase().includes(termo)) : funcionarios
+    // sem horário primeiro, pra facilitar selecionar em lote quem ainda precisa de atribuição
+    return [...lista].sort((a, b) => {
+      const semA = a.turno_atual_nome ? 1 : 0
+      const semB = b.turno_atual_nome ? 1 : 0
+      return semA - semB
+    })
+  }, [funcionarios, buscaFuncionario])
 
   if (!open) return null
 
@@ -144,15 +166,26 @@ export function ModalAtribuirHorariosLote({ postoId, postoNome, open, onClose }:
               </button>
 
               {turnoDropdownAberto && (
-                <div className="absolute z-10 mt-1 max-h-72 w-full min-w-[22rem] overflow-y-auto rounded-lg border border-gray-200 bg-white p-1.5 shadow-lg">
+                <div className="absolute z-10 mt-1 w-full min-w-[22rem] rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {turnos.length > 6 && (
+                    <div className="flex items-center gap-2 border-b border-gray-100 px-3 py-2">
+                      <Search className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                      <input autoFocus value={buscaTurno} onChange={e => setBuscaTurno(e.target.value)}
+                        placeholder="Buscar turno…"
+                        className="w-full text-sm focus:outline-none" />
+                    </div>
+                  )}
+                  <div className="max-h-64 overflow-y-auto p-1.5">
                   {turnos.length === 0 ? (
                     <p className="px-3 py-2 text-sm text-gray-400">Nenhum turno cadastrado</p>
+                  ) : turnosFiltrados.length === 0 ? (
+                    <p className="px-3 py-2 text-sm text-gray-400">Nenhum turno encontrado</p>
                   ) : (
-                    turnos.map(t => {
+                    turnosFiltrados.map(t => {
                       const tipoTurno = resolverTipoEscala(t.tipo_escala)
                       return (
                         <button key={t.id} type="button"
-                          onClick={() => { setTurnoId(t.id); setTurnoDropdownAberto(false) }}
+                          onClick={() => { setTurnoId(t.id); setTurnoDropdownAberto(false); setBuscaTurno('') }}
                           className={cn(
                             'flex w-full flex-col items-start gap-0.5 rounded-md border-l-4 px-3 py-2 text-left hover:bg-gray-50',
                             ESCALA_BORDER_CLASS[tipoTurno],
@@ -171,6 +204,7 @@ export function ModalAtribuirHorariosLote({ postoId, postoNome, open, onClose }:
                       )
                     })
                   )}
+                  </div>
                 </div>
               )}
             </div>
@@ -188,15 +222,24 @@ export function ModalAtribuirHorariosLote({ postoId, postoNome, open, onClose }:
           )}
 
           <div>
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="shrink-0 text-xs font-semibold uppercase tracking-widest text-gray-500">
                 Funcionários ({funcionarios.length})
               </p>
               <button type="button" onClick={selecionarSemHorario}
-                className="text-xs font-medium text-slate-700 underline hover:text-slate-900">
+                className="shrink-0 text-xs font-medium text-slate-700 underline hover:text-slate-900">
                 Selecionar todos sem horário
               </button>
             </div>
+
+            {funcionarios.length > 6 && (
+              <div className="mb-2 flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2">
+                <Search className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                <input value={buscaFuncionario} onChange={e => setBuscaFuncionario(e.target.value)}
+                  placeholder="Buscar funcionário…"
+                  className="w-full text-sm focus:outline-none" />
+              </div>
+            )}
 
             {loading ? (
               <p className="text-sm text-gray-400">Carregando…</p>
@@ -204,9 +247,11 @@ export function ModalAtribuirHorariosLote({ postoId, postoNome, open, onClose }:
               <p className="text-sm text-gray-400">
                 Nenhum funcionário elegível neste posto (jovens aprendizes são atribuídos individualmente no perfil).
               </p>
+            ) : funcionariosFiltrados.length === 0 ? (
+              <p className="text-sm text-gray-400">Nenhum funcionário encontrado.</p>
             ) : (
               <div className="max-h-72 space-y-1 overflow-y-auto rounded-lg border border-gray-100">
-                {funcionarios.map(f => (
+                {funcionariosFiltrados.map(f => (
                   <label key={f.id}
                     className="flex cursor-pointer items-center justify-between gap-3 border-b border-gray-50 px-3 py-2.5 last:border-b-0 hover:bg-gray-50">
                     <span className="flex items-center gap-2.5">
