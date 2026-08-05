@@ -95,6 +95,8 @@ export function ModalAtribuirHorariosLote({ postoId, postoNome, open, onClose }:
     const res = await atribuirTurnoEmLote(Array.from(selecionados), turnoId, dataInicio)
     setSaving(false)
     setResultado(res)
+    setSelecionados(new Set())
+    setTurnoId('')
     carregar()
   }
 
