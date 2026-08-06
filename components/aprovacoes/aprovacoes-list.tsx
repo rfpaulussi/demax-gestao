@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import { aprovarSolicitacao, rejeitarSolicitacao } from '@/app/(admin)/aprovacoes/actions'
 import { PostoImpactPanel } from '@/components/posto-impact-panel'
 import { TIPO_BADGE, badgeDaSolicitacao, fmtData, resumoCurto } from './campos-solicitacao'
-import { ModalDetalheSolicitacao } from './modal-detalhe-solicitacao'
+import { ModalDetalheSolicitacao, type FuncaoOpt } from './modal-detalhe-solicitacao'
 import type { ImpactoResult } from '@/app/(admin)/efetivo/impacto'
 import type { TipoSolicitacao } from '@/types'
 
@@ -25,28 +25,33 @@ export type SolicitacaoPendente = {
 
 // ─── card ─────────────────────────────────────────────────────────────────────
 
-function SolicitacaoCard({ sol, canApprove, impacto }: { sol: SolicitacaoPendente; canApprove: boolean; impacto?: ImpactoResult }) {
+function SolicitacaoCard({ sol, canApprove, impacto, funcoes }: { sol: SolicitacaoPendente; canApprove: boolean; impacto?: ImpactoResult; funcoes: FuncaoOpt[] }) {
   const [isPending, startTransition] = useTransition()
   const [rejeitando, setRejeitando] = useState(false)
   const [motivo, setMotivo] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const [detalheAberto, setDetalheAberto] = useState(false)
-  const [dataOverride, setDataOverride] = useState<string | null>(null)
+  const [overrides, setOverrides] = useState<Record<string, string>>({})
   const router = useRouter()
 
   const badge = badgeDaSolicitacao(sol.tipo, sol.dados_depois)
 
-  const CHAVE_OVERRIDE: Partial<Record<TipoSolicitacao, 'data_admissao' | 'data_desligamento'>> = {
-    admissao:    'data_admissao',
-    desligamento: 'data_desligamento',
+  function setOverride(chave: string, valor: string) {
+    setOverrides(prev => ({ ...prev, [chave]: valor }))
   }
 
   function handleAprovar() {
     setErro(null)
-    const chave = CHAVE_OVERRIDE[sol.tipo]
-    const overrides = chave && dataOverride ? { [chave]: dataOverride } : undefined
+    // Só manda pro server o que o admin realmente tocou (string vazia = não editado/limpo).
+    const overridesPreenchidos = Object.fromEntries(
+      Object.entries(overrides).filter(([, v]) => v !== ''),
+    )
     startTransition(async () => {
-      const result = await aprovarSolicitacao(sol.id, undefined, overrides)
+      const result = await aprovarSolicitacao(
+        sol.id,
+        undefined,
+        Object.keys(overridesPreenchidos).length > 0 ? overridesPreenchidos : undefined,
+      )
       if (!result.success) { setErro(result.error); return }
       if (result.redirect_url) router.push(result.redirect_url)
     })
@@ -170,8 +175,9 @@ function SolicitacaoCard({ sol, canApprove, impacto }: { sol: SolicitacaoPendent
         onCancelarRejeicao={cancelarRejeicao}
         onAprovar={handleAprovar}
         onRejeitar={handleRejeitar}
-        dataOverride={dataOverride}
-        onDataOverrideChange={setDataOverride}
+        overrides={overrides}
+        onOverrideChange={setOverride}
+        funcoes={funcoes}
       />
     </div>
   )
@@ -185,7 +191,7 @@ const TIPO_ORDEM: TipoSolicitacao[] = [
   'retorno_afastamento', 'admissao',
 ]
 
-export function AprovacoesList({ solicitacoes, canApprove = true, impactos = {} }: { solicitacoes: SolicitacaoPendente[]; canApprove?: boolean; impactos?: Record<string, ImpactoResult> }) {
+export function AprovacoesList({ solicitacoes, canApprove = true, impactos = {}, funcoes = [] }: { solicitacoes: SolicitacaoPendente[]; canApprove?: boolean; impactos?: Record<string, ImpactoResult>; funcoes?: FuncaoOpt[] }) {
   if (solicitacoes.length === 0) {
     return (
       <div className="rounded-xl border border-gray-100 bg-white px-6 py-12 text-center shadow-sm">
@@ -211,7 +217,7 @@ export function AprovacoesList({ solicitacoes, canApprove = true, impactos = {} 
           </h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {porTipo[tipo].map(sol => (
-              <SolicitacaoCard key={sol.id} sol={sol} canApprove={canApprove} impacto={impactos[sol.id]} />
+              <SolicitacaoCard key={sol.id} sol={sol} canApprove={canApprove} impacto={impactos[sol.id]} funcoes={funcoes} />
             ))}
           </div>
         </div>

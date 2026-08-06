@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getUser } from '@/lib/auth/get-user'
+import { createClient } from '@/lib/supabase/server'
 import { buscarSolicitacoes } from './actions'
 import { calcularImpactoPosto } from '@/app/(admin)/efetivo/impacto'
 import type { ImpactoResult } from '@/app/(admin)/efetivo/impacto'
@@ -54,6 +55,11 @@ export default async function AprovacoesPage() {
   // Admin/coordenador vê todas
   const filtros = isSupervisor ? { supervisor_id: auth.user.id } : {}
   const todas = await buscarSolicitacoes(filtros)
+
+  // Só precisa pro admin corrigir a função de uma admissão pendente antes de aprovar.
+  const funcoes = canApprove
+    ? (await createClient().from('funcoes').select('id, nome').order('nome')).data ?? []
+    : []
 
   const pendentes  = todas.filter(s => s.status === 'pendente')
   const aprovadas  = todas.filter(s => s.status === 'aprovada')
@@ -146,6 +152,7 @@ export default async function AprovacoesPage() {
         solicitacoes={isSupervisor ? todas : pendentes}
         canApprove={canApprove}
         impactos={impactos}
+        funcoes={funcoes}
       />
     </div>
   )

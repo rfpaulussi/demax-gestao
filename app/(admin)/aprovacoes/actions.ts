@@ -102,7 +102,10 @@ export async function buscarSolicitacoes(
 /** Campos que o admin pode corrigir manualmente no modal de aprovação, antes de aprovar,
  *  em vez de precisar rejeitar e pedir pro supervisor lançar de novo. Lista fechada por
  *  segurança — nunca aceitar overrides arbitrários vindos do client. */
-const CAMPOS_OVERRIDE_PERMITIDOS = ['data_admissao', 'data_desligamento'] as const
+const CAMPOS_OVERRIDE_PERMITIDOS = [
+  'data_admissao', 'nome', 'registro', 'funcao_id', 'funcao_nome', 'periodo_experiencia',
+  'data_desligamento', 'tipo_desligamento', 'motivo',
+] as const
 export type OverrideAprovacao = Partial<Record<typeof CAMPOS_OVERRIDE_PERMITIDOS[number], string>>
 
 export async function aprovarSolicitacao(

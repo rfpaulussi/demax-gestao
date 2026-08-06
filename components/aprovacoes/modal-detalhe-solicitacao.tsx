@@ -1,11 +1,15 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { cn } from '@/lib/utils'
 import { PostoImpactPanel } from '@/components/posto-impact-panel'
 import { camposDaSolicitacao, fmtData, badgeDaSolicitacao } from './campos-solicitacao'
+import { TIPOS_DESLIGAMENTO, MOTIVOS_POR_TIPO, type TipoDesligamento } from '@/components/efetivo/modal-desligar'
 import type { SolicitacaoPendente } from './aprovacoes-list'
 import type { ImpactoResult } from '@/app/(admin)/efetivo/impacto'
+
+export type FuncaoOpt = { id: string; nome: string }
 
 interface Props {
   sol: SolicitacaoPendente
@@ -22,27 +26,49 @@ interface Props {
   onCancelarRejeicao: () => void
   onAprovar: () => void
   onRejeitar: () => void
-  /** Data de admissão/desligamento corrigida pelo admin (YYYY-MM-DD), se editada. */
-  dataOverride: string | null
-  onDataOverrideChange: (v: string) => void
+  /** Correções do admin (nome/registro/funcao_id/.../data_desligamento) antes de aprovar. */
+  overrides: Record<string, string>
+  onOverrideChange: (chave: string, valor: string) => void
+  funcoes?: FuncaoOpt[]
 }
 
-/** Campo editável (só admin) pra corrigir data de admissão/desligamento lançada errada,
- *  sem precisar rejeitar e pedir pro supervisor lançar de novo. */
-const CAMPO_DATA_EDITAVEL: Partial<Record<string, { label: string; chave: string }>> = {
-  admissao:    { label: 'Data de Admissão',   chave: 'data_admissao' },
-  desligamento: { label: 'Data de Desligamento', chave: 'data_desligamento' },
+const labelClass = 'text-gray-500'
+const inputClass = 'rounded border border-gray-300 px-2 py-1 text-right text-sm font-medium text-gray-900 focus:outline-none focus:ring-1 focus:ring-slate-600'
+
+/** Campo de texto/data editável (admin) num par label-valor. */
+function CampoEditavel({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <span className={labelClass}>{label}</span>
+      {children}
+    </div>
+  )
 }
 
 export function ModalDetalheSolicitacao({
   sol, impacto, canApprove, open, onClose, pending, erro,
   rejeitando, motivo, onMotivoChange, onIniciarRejeicao, onCancelarRejeicao,
-  onAprovar, onRejeitar, dataOverride, onDataOverrideChange,
+  onAprovar, onRejeitar, overrides, onOverrideChange, funcoes = [],
 }: Props) {
   const badge = badgeDaSolicitacao(sol.tipo, sol.dados_depois)
   const campos = camposDaSolicitacao(sol.tipo, sol.dados_antes, sol.dados_depois)
-  const campoData = CAMPO_DATA_EDITAVEL[sol.tipo]
-  const dataAtual = dataOverride ?? (sol.dados_depois?.[campoData?.chave ?? ''] as string | undefined)?.slice(0, 10) ?? ''
+  const depois = sol.dados_depois ?? {}
+  const editando = canApprove
+
+  function val(chave: string, fallback: unknown = ''): string {
+    return overrides[chave] ?? (depois[chave] != null ? String(depois[chave]) : String(fallback))
+  }
+
+  const isAdmissao    = editando && sol.tipo === 'admissao'
+  const isDesligamento = editando && sol.tipo === 'desligamento'
+
+  const tipoDesligAtual = (val('tipo_desligamento') || undefined) as TipoDesligamento | undefined
+  const motivosDoTipo = tipoDesligAtual ? MOTIVOS_POR_TIPO[tipoDesligAtual] ?? [] : []
+
+  // Labels dos campos que viram input editável — somem da lista somente-leitura abaixo.
+  const LABELS_OCULTOS_ADMISSAO = ['Nome', 'Função', 'Data de Admissão', 'Registro (PIS/NIT)', 'Período de Experiência']
+  const LABELS_OCULTOS_DESLIGAMENTO = ['Data de Desligamento', 'Tipo de Desligamento', 'Motivação']
+  const labelsOcultos = isAdmissao ? LABELS_OCULTOS_ADMISSAO : isDesligamento ? LABELS_OCULTOS_DESLIGAMENTO : []
 
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
@@ -69,23 +95,106 @@ export function ModalDetalheSolicitacao({
           </p>
 
           <div className="mb-4 space-y-2 rounded-lg border border-gray-100 bg-gray-50 p-3">
-            {campos.filter(c => !(campoData && canApprove && c.label === campoData.label)).map(c => (
+            {campos.filter(c => !labelsOcultos.includes(c.label)).map(c => (
               <div key={c.label} className="flex justify-between gap-3 text-sm">
                 <span className="text-gray-500">{c.label}</span>
                 <span className="text-right font-medium text-gray-900">{c.valor}</span>
               </div>
             ))}
-            {campoData && canApprove && (
-              <div className="flex items-center justify-between gap-3 text-sm">
-                <label htmlFor="data-override" className="text-gray-500">{campoData.label}</label>
-                <input
-                  id="data-override"
-                  type="date"
-                  value={dataAtual}
-                  onChange={e => onDataOverrideChange(e.target.value)}
-                  className="rounded border border-gray-300 px-2 py-1 text-right text-sm font-medium text-gray-900 focus:outline-none focus:ring-1 focus:ring-slate-600"
-                />
-              </div>
+
+            {isAdmissao && (
+              <>
+                <CampoEditavel label="Nome">
+                  <input
+                    type="text"
+                    value={val('nome')}
+                    onChange={e => onOverrideChange('nome', e.target.value)}
+                    className={cn(inputClass, 'w-56')}
+                  />
+                </CampoEditavel>
+                <CampoEditavel label="Função">
+                  <select
+                    value={val('funcao_id')}
+                    onChange={e => {
+                      onOverrideChange('funcao_id', e.target.value)
+                      onOverrideChange('funcao_nome', funcoes.find(f => f.id === e.target.value)?.nome ?? '')
+                    }}
+                    className={cn(inputClass, 'w-56')}
+                  >
+                    <option value="">Selecione…</option>
+                    {funcoes.map(f => (
+                      <option key={f.id} value={f.id}>{f.nome}</option>
+                    ))}
+                  </select>
+                </CampoEditavel>
+                <CampoEditavel label="Registro (PIS/NIT)">
+                  <input
+                    type="text"
+                    value={val('registro')}
+                    onChange={e => onOverrideChange('registro', e.target.value)}
+                    className={cn(inputClass, 'w-56')}
+                  />
+                </CampoEditavel>
+                <CampoEditavel label="Período de Experiência">
+                  <select
+                    value={val('periodo_experiencia', 'nenhum')}
+                    onChange={e => onOverrideChange('periodo_experiencia', e.target.value)}
+                    className={cn(inputClass, 'w-56')}
+                  >
+                    <option value="nenhum">Nenhum (Jovem Aprendiz)</option>
+                    <option value="30+30">30 + 30 dias</option>
+                    <option value="45+45">45 + 45 dias</option>
+                  </select>
+                </CampoEditavel>
+                <CampoEditavel label="Data de Admissão">
+                  <input
+                    type="date"
+                    value={val('data_admissao').slice(0, 10)}
+                    onChange={e => onOverrideChange('data_admissao', e.target.value)}
+                    className={inputClass}
+                  />
+                </CampoEditavel>
+              </>
+            )}
+
+            {isDesligamento && (
+              <>
+                <CampoEditavel label="Tipo de Desligamento">
+                  <select
+                    value={val('tipo_desligamento')}
+                    onChange={e => {
+                      onOverrideChange('tipo_desligamento', e.target.value)
+                      onOverrideChange('motivo', '')
+                    }}
+                    className={cn(inputClass, 'w-56')}
+                  >
+                    <option value="">Selecione…</option>
+                    {TIPOS_DESLIGAMENTO.map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </CampoEditavel>
+                <CampoEditavel label="Motivação">
+                  <select
+                    value={val('motivo')}
+                    onChange={e => onOverrideChange('motivo', e.target.value)}
+                    className={cn(inputClass, 'w-56')}
+                  >
+                    <option value="">Selecione…</option>
+                    {motivosDoTipo.map(m => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                </CampoEditavel>
+                <CampoEditavel label="Data de Desligamento">
+                  <input
+                    type="date"
+                    value={val('data_desligamento').slice(0, 10)}
+                    onChange={e => onOverrideChange('data_desligamento', e.target.value)}
+                    className={inputClass}
+                  />
+                </CampoEditavel>
+              </>
             )}
           </div>
 
