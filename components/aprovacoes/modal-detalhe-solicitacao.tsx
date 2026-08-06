@@ -22,15 +22,27 @@ interface Props {
   onCancelarRejeicao: () => void
   onAprovar: () => void
   onRejeitar: () => void
+  /** Data de admissão/desligamento corrigida pelo admin (YYYY-MM-DD), se editada. */
+  dataOverride: string | null
+  onDataOverrideChange: (v: string) => void
+}
+
+/** Campo editável (só admin) pra corrigir data de admissão/desligamento lançada errada,
+ *  sem precisar rejeitar e pedir pro supervisor lançar de novo. */
+const CAMPO_DATA_EDITAVEL: Partial<Record<string, { label: string; chave: string }>> = {
+  admissao:    { label: 'Data de Admissão',   chave: 'data_admissao' },
+  desligamento: { label: 'Data de Desligamento', chave: 'data_desligamento' },
 }
 
 export function ModalDetalheSolicitacao({
   sol, impacto, canApprove, open, onClose, pending, erro,
   rejeitando, motivo, onMotivoChange, onIniciarRejeicao, onCancelarRejeicao,
-  onAprovar, onRejeitar,
+  onAprovar, onRejeitar, dataOverride, onDataOverrideChange,
 }: Props) {
   const badge = badgeDaSolicitacao(sol.tipo, sol.dados_depois)
   const campos = camposDaSolicitacao(sol.tipo, sol.dados_antes, sol.dados_depois)
+  const campoData = CAMPO_DATA_EDITAVEL[sol.tipo]
+  const dataAtual = dataOverride ?? (sol.dados_depois?.[campoData?.chave ?? ''] as string | undefined)?.slice(0, 10) ?? ''
 
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
@@ -57,12 +69,24 @@ export function ModalDetalheSolicitacao({
           </p>
 
           <div className="mb-4 space-y-2 rounded-lg border border-gray-100 bg-gray-50 p-3">
-            {campos.map(c => (
+            {campos.filter(c => !(campoData && canApprove && c.label === campoData.label)).map(c => (
               <div key={c.label} className="flex justify-between gap-3 text-sm">
                 <span className="text-gray-500">{c.label}</span>
                 <span className="text-right font-medium text-gray-900">{c.valor}</span>
               </div>
             ))}
+            {campoData && canApprove && (
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <label htmlFor="data-override" className="text-gray-500">{campoData.label}</label>
+                <input
+                  id="data-override"
+                  type="date"
+                  value={dataAtual}
+                  onChange={e => onDataOverrideChange(e.target.value)}
+                  className="rounded border border-gray-300 px-2 py-1 text-right text-sm font-medium text-gray-900 focus:outline-none focus:ring-1 focus:ring-slate-600"
+                />
+              </div>
+            )}
           </div>
 
           {impacto && (

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import type { TipoSolicitacao } from '@/types'
+import type { Json } from '@/types/database'
 import { aplicarMudancaHorario } from '@/app/(admin)/efetivo/horario/actions'
 import { FUNCAO_JOVEM_APRENDIZ, precisaNovoTurno } from '@/lib/turnos/escala'
 
@@ -98,9 +99,16 @@ export async function buscarSolicitacoes(
 
 // ─── aprovarSolicitacao ────────────────────────────────────────────────────────
 
+/** Campos que o admin pode corrigir manualmente no modal de aprovação, antes de aprovar,
+ *  em vez de precisar rejeitar e pedir pro supervisor lançar de novo. Lista fechada por
+ *  segurança — nunca aceitar overrides arbitrários vindos do client. */
+const CAMPOS_OVERRIDE_PERMITIDOS = ['data_admissao', 'data_desligamento'] as const
+export type OverrideAprovacao = Partial<Record<typeof CAMPOS_OVERRIDE_PERMITIDOS[number], string>>
+
 export async function aprovarSolicitacao(
   id: string,
   observacao?: string,
+  overrides?: OverrideAprovacao,
 ): Promise<ActionResult> {
   const guard = await assertAdmin()
   if (!guard.success) return guard
@@ -131,7 +139,13 @@ export async function aprovarSolicitacao(
   const jovemAtual = funcaoAtualNome === FUNCAO_JOVEM_APRENDIZ
   const hojeISO = new Date().toISOString().slice(0, 10)
 
-  const dadosDepois = (sol.dados_depois ?? {}) as Record<string, unknown>
+  const overridesLimpos: Record<string, string> = {}
+  for (const campo of CAMPOS_OVERRIDE_PERMITIDOS) {
+    const v = overrides?.[campo]
+    if (v) overridesLimpos[campo] = v
+  }
+
+  const dadosDepois = { ...((sol.dados_depois ?? {}) as Record<string, unknown>), ...overridesLimpos } as Record<string, unknown>
   const dadosAntes  = (sol.dados_antes  ?? {}) as Record<string, unknown>
 
   // Client admin: evita falha silenciosa de RLS no update de funcionarios (ver histórico de fixes
@@ -370,6 +384,7 @@ export async function aprovarSolicitacao(
           aprovado_em:      new Date().toISOString(),
           observacao_admin: observacao ?? null,
           funcionario_id:   novoFunc.id,
+          dados_depois:     dadosDepois as unknown as Json,
         })
         .eq('id', id)
 
@@ -412,6 +427,7 @@ export async function aprovarSolicitacao(
       aprovado_por:     guard.userId,
       aprovado_em:      new Date().toISOString(),
       observacao_admin: observacao ?? null,
+      dados_depois:     dadosDepois as unknown as Json,
     })
     .eq('id', id)
 

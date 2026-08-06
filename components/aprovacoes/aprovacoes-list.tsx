@@ -31,14 +31,22 @@ function SolicitacaoCard({ sol, canApprove, impacto }: { sol: SolicitacaoPendent
   const [motivo, setMotivo] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const [detalheAberto, setDetalheAberto] = useState(false)
+  const [dataOverride, setDataOverride] = useState<string | null>(null)
   const router = useRouter()
 
   const badge = badgeDaSolicitacao(sol.tipo, sol.dados_depois)
 
+  const CHAVE_OVERRIDE: Partial<Record<TipoSolicitacao, 'data_admissao' | 'data_desligamento'>> = {
+    admissao:    'data_admissao',
+    desligamento: 'data_desligamento',
+  }
+
   function handleAprovar() {
     setErro(null)
+    const chave = CHAVE_OVERRIDE[sol.tipo]
+    const overrides = chave && dataOverride ? { [chave]: dataOverride } : undefined
     startTransition(async () => {
-      const result = await aprovarSolicitacao(sol.id)
+      const result = await aprovarSolicitacao(sol.id, undefined, overrides)
       if (!result.success) { setErro(result.error); return }
       if (result.redirect_url) router.push(result.redirect_url)
     })
@@ -162,6 +170,8 @@ function SolicitacaoCard({ sol, canApprove, impacto }: { sol: SolicitacaoPendent
         onCancelarRejeicao={cancelarRejeicao}
         onAprovar={handleAprovar}
         onRejeitar={handleRejeitar}
+        dataOverride={dataOverride}
+        onDataOverrideChange={setDataOverride}
       />
     </div>
   )
