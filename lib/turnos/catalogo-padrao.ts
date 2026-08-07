@@ -51,6 +51,8 @@ export const CATALOGO_5X2: TurnoCatalogoItem[] = [
   { nome: 'Turno 7h 30m (e)', hora_entrada: '07:30', hora_inicio_almoco: '12:30', hora_fim_almoco: '13:30', hora_saida_seg_qui: '17:48', hora_saida_sex: '17:48' },
   { nome: 'Turno 7h 30m (f)', hora_entrada: '07:30', hora_inicio_almoco: '12:30', hora_fim_almoco: '13:30', hora_saida_seg_qui: '17:30', hora_saida_sex: '17:30' },
   { nome: 'Turno 7h 30m (g)', hora_entrada: '07:30', hora_inicio_almoco: '12:00', hora_fim_almoco: '13:00', hora_saida_seg_qui: '17:00', hora_saida_sex: '17:00' },
+  { nome: 'Turno 7h 30m (h)', hora_entrada: '07:30', hora_inicio_almoco: '13:00', hora_fim_almoco: '14:12', hora_saida_seg_qui: '17:30', hora_saida_sex: '17:30' },
+  { nome: 'Turno 7h 30m (i)', hora_entrada: '07:30', hora_inicio_almoco: '13:00', hora_fim_almoco: '14:00', hora_saida_seg_qui: '17:18', hora_saida_sex: '17:18' },
   { nome: 'Turno 7h 40m (a)', hora_entrada: '07:40', hora_inicio_almoco: '12:40', hora_fim_almoco: '13:52', hora_saida_seg_qui: '17:40', hora_saida_sex: '17:40' },
   { nome: 'Turno 7h 45m (a)', hora_entrada: '07:45', hora_inicio_almoco: '11:48', hora_fim_almoco: '13:00', hora_saida_seg_qui: '17:45', hora_saida_sex: '17:45' },
   { nome: 'Turno 7h 50m (a)', hora_entrada: '07:50', hora_inicio_almoco: '12:00', hora_fim_almoco: '13:12', hora_saida_seg_qui: '17:50', hora_saida_sex: '17:50' },
