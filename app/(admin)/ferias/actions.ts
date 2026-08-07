@@ -665,6 +665,11 @@ export async function buscarSaldoFeriasAgregado(): Promise<SaldoFeriasItem[]> {
   })
 }
 
+export async function buscarRoleAtual(): Promise<string | null> {
+  const auth = await assertRole(['admin', 'coordenador', 'supervisor', 'viewer'])
+  return auth.perfil.role
+}
+
 export async function buscarSupervisoresParaFiltro(): Promise<SupervisorFiltro[]> {
   const supabase = createClient()
 

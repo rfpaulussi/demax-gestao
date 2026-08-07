@@ -13,6 +13,7 @@ import { exportToExcel } from '@/lib/export-excel'
 import {
   buscarFeriasLista,
   buscarSupervisoresParaFiltro,
+  buscarRoleAtual,
   iniciarFerias,
   concluirFerias,
   excluirFerias,
@@ -357,6 +358,8 @@ function FeriasPageInner() {
   const [loading, setLoading] = useState(true)
   const [modalAberto, setModalAberto] = useState(false)
   const [modalHistoricoAberto, setModalHistoricoAberto] = useState(false)
+  const [avisoSupervisorAberto, setAvisoSupervisorAberto] = useState(false)
+  const [role, setRole] = useState<string | null>(null)
   const [itemEditando, setItemEditando] = useState<FeriasListaItem | null>(null)
   const [itemExcluindo, setItemExcluindo] = useState<FeriasListaItem | null>(null)
   const [filtroBusca, setFiltroBusca] = useState(searchParams.get('busca') ?? '')
@@ -383,6 +386,7 @@ function FeriasPageInner() {
         setLoading(false)
       }
     )
+    buscarRoleAtual().then(setRole)
   }, [])
 
   // Secretarias únicas
@@ -540,7 +544,13 @@ function FeriasPageInner() {
             ↩ Importar Histórico
           </button>
           <button
-            onClick={() => setModalAberto(true)}
+            onClick={() => {
+              if (role === 'supervisor') {
+                setAvisoSupervisorAberto(true)
+              } else {
+                setModalAberto(true)
+              }
+            }}
             className="px-4 py-2 text-sm font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-700 transition"
           >
             + Nova Férias
@@ -757,6 +767,39 @@ function FeriasPageInner() {
           <span className="text-xs text-slate-400">
             Exibindo {visibleCount} de {filtered.length} registros
           </span>
+        </div>
+      )}
+
+      {avisoSupervisorAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full border-t-4 border-red-500">
+            <div className="p-6">
+              <p className="text-red-600 font-bold text-sm uppercase tracking-widest mb-2">⚠ Atenção</p>
+              <p className="text-slate-800 font-medium leading-relaxed">
+                Este cadastro só deve ser feito com o auxílio do Coordenador. Preenchimento incorreto pode gerar
+                inconsistências no controle de férias.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 bg-slate-50 rounded-b-lg">
+              <button
+                type="button"
+                onClick={() => setAvisoSupervisorAberto(false)}
+                className="px-4 py-2 text-sm font-medium bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAvisoSupervisorAberto(false)
+                  setModalAberto(true)
+                }}
+                className="px-4 py-2 text-sm font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-700 transition"
+              >
+                Entendi, continuar
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
