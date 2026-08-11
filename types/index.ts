@@ -24,6 +24,7 @@ export type Contrato                = Tables<'contratos'>
 export type Posto                   = Tables<'postos'>
 export type Perfil                  = Tables<'perfis'>
 export type ConfigSupervisorPosto   = Tables<'config_supervisores_postos'>
+export type ConfigCodigoRH          = Tables<'config_codigos_rh'>
 export type Funcionario             = Tables<'funcionarios'>
 export type CoberturaTemporaria     = Tables<'coberturas_temporarias'>
 export type Ferias                  = Tables<'ferias'>

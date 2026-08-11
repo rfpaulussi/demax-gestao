@@ -544,6 +544,35 @@ export type Database = {
           },
         ]
       }
+      config_codigos_rh: {
+        Row: {
+          codigo: number
+          apelido: string
+          supervisor_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          codigo: number
+          apelido: string
+          supervisor_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          codigo?: number
+          apelido?: string
+          supervisor_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_codigos_rh_supervisor_id_fkey"
+            columns: ["supervisor_id"]
+            isOneToOne: false
+            referencedRelation: "perfis"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       config_escalas_postos: {
         Row: {
           descricao: string | null
