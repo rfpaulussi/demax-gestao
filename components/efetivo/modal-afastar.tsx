@@ -99,6 +99,12 @@ export function ModalAfastar({ funcionario, open, onClose }: Props) {
             Esta solicitação será enviada para aprovação do administrador antes de ser efetivada.
           </div>
 
+          <div className="mb-4 rounded border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            💡 Se o funcionário já tem atestado médico lançado, prefira ir em <strong>Atestados</strong> e usar o
+            botão <strong>Solicitar INSS</strong> — reaproveita os dados e o CID já registrados. Use este
+            formulário quando não houver atestado prévio (licença maternidade, judicial etc).
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className={labelClass}>Motivo do Afastamento</label>

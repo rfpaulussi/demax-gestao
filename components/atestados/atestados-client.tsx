@@ -181,6 +181,10 @@ function ModalSolicitarInss({
         <div className="mb-4 rounded border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
           Dados pré-preenchidos com base nos atestados acumulados. Revise antes de enviar.
         </div>
+        <div className="mb-4 rounded border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          💡 Isso gera um novo atestado “guarda-chuva” pro período do afastamento — sem CID, só pra
+          cobrir o intervalo. Não duplica os atestados já lançados, que continuam valendo no histórico.
+        </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className={labelCls}>Motivo</label>

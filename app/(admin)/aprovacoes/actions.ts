@@ -257,6 +257,24 @@ export async function aprovarSolicitacao(
         data_fim_prevista: (dadosDepois.data_retorno_prevista as string | null) ?? null,
         solicitacao_id:    sol.id,
       })
+
+      // Rede de segurança: se a solicitação prometia atestado ("registrar atestado
+      // junto"), confere se ele realmente existe antes de deixar o funcionário
+      // afastado sem lançamento correspondente passar batido — não bloqueia a
+      // aprovação (já efetivada acima), só deixa o aviso registrado.
+      if (dadosDepois.atestado_registrado) {
+        const { count } = await adminSupabase
+          .from('atestados')
+          .select('id', { count: 'exact', head: true })
+          .eq('funcionario_id', funcionarioId)
+          .eq('data_inicio', dadosDepois.data_inicio as string)
+        if (!count) {
+          await adminSupabase
+            .from('solicitacoes')
+            .update({ observacao_admin: '⚠ Atestado prometido nesta solicitação não foi encontrado — verifique em Atestados.' })
+            .eq('id', sol.id)
+        }
+      }
       break
     }
 

@@ -134,6 +134,11 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
             </div>
           )}
 
+          <div className="mb-4 rounded border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            💡 Se o acumulado passar de 15 dias, o sistema sinaliza o funcionário em Atestados
+            com o botão <strong>Solicitar INSS</strong> — não é preciso abrir “Afastar” separado.
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Data início + Dias → Data fim automática */}
             <div className="grid grid-cols-2 gap-3">

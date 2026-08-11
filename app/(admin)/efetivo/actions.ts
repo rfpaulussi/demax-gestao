@@ -381,6 +381,14 @@ function addDaysToDate(dateStr: string, days: number): string {
   return dt.toISOString().slice(0, 10)
 }
 
+function diffDays(inicio: string, fim: string): number {
+  const [ay, am, ad] = inicio.split('-').map(Number)
+  const [by, bm, bd] = fim.split('-').map(Number)
+  const a = new Date(ay, am - 1, ad)
+  const b = new Date(by, bm - 1, bd)
+  return Math.round((b.getTime() - a.getTime()) / 86_400_000) + 1
+}
+
 export async function solicitarAfastamento(fd: FormData): Promise<ActionResult> {
   const supabase = createClient()
   const auth = await getUser()
@@ -416,35 +424,43 @@ export async function solicitarAfastamento(fd: FormData): Promise<ActionResult> 
     .eq('id', funcionario_id)
     .single()
 
+  // Para motivos INSS com "registrar atestado junto" marcado, grava o atestado
+  // ANTES de criar a solicitação — se falhar, bloqueia aqui (mesma regra de
+  // registrarAtestado) em vez de deixar a solicitação seguir para aprovação e
+  // o funcionário acabar marcado 'afastado' sem nenhum atestado correspondente.
+  const postoId = func?.posto_id ?? null
+  const querAtestado = Boolean(ehMedico && MOTIVOS_MEDICOS_INSS.includes(motivo) && postoId)
+  if (querAtestado && postoId) {
+    const n = diasStr ? parseInt(diasStr) : (data_retorno_prevista ? diffDays(data_inicio, data_retorno_prevista) : 0)
+    if (n > 0) {
+      const data_fim = data_retorno_prevista ?? addDaysToDate(data_inicio, n - 1)
+      const { error: errAtestado } = await supabase.from('atestados').insert({
+        funcionario_id,
+        posto_id:        postoId,
+        data_inicio,
+        data_fim,
+        motivo,
+        cid_codigo:      null,
+        sem_cid:         true,
+        origem_ocupacional: motivo === 'INSS - Acidente de Trabalho' ? 'acidente_trabalho' : null,
+        registrado_por:  auth.user.id,
+      })
+      if (errAtestado) {
+        return { success: false, error: `Não foi possível registrar o atestado (${errAtestado.message}). Solicitação não enviada — desmarque "Registrar atestado junto" ou registre o atestado separadamente antes.` }
+      }
+    }
+  }
+
   const { error } = await supabase.from('solicitacoes').insert({
     funcionario_id,
     tipo:          'afastamento' as unknown as 'desligamento',
     status:        'pendente',
     supervisor_id: auth.user.id,
     dados_antes:   { status: func?.status ?? null, posto_id: func?.posto_id ?? null },
-    dados_depois:  { motivo, data_inicio, data_retorno_prevista, dias: diasStr || null },
+    dados_depois:  { motivo, data_inicio, data_retorno_prevista, dias: diasStr || null, atestado_registrado: querAtestado },
     motivo,
   })
   if (error) return { success: false, error: error.message }
-
-  // Para motivos INSS, registrar atestado imediatamente (sem esperar aprovação)
-  if (ehMedico && MOTIVOS_MEDICOS_INSS.includes(motivo) && diasStr && func?.posto_id) {
-    const n = parseInt(diasStr)
-    if (n > 0) {
-      const data_fim = addDaysToDate(data_inicio, n - 1)
-      await supabase.from('atestados').insert({
-        funcionario_id,
-        posto_id:        func.posto_id,
-        data_inicio,
-        data_fim,
-        motivo,
-        cid_codigo:      null,
-        sem_cid:         false,
-        origem_ocupacional: motivo === 'INSS - Acidente de Trabalho' ? 'acidente_trabalho' : null,
-        registrado_por:  auth.user.id,
-      })
-    }
-  }
 
   revalidatePath('/efetivo')
   revalidatePath('/aprovacoes')
