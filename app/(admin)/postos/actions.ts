@@ -70,6 +70,7 @@ export type PostoFuncionario = {
   nome: string
   funcao_nome: string
   status: string
+  motivo_afastamento: string | null
 }
 
 export type PostoRow = {
@@ -94,22 +95,35 @@ type ConfigRow = {
   perfis: { id: string; nome: string | null } | null
 }
 
-// Função de insalubridade que conta por secretaria
-const INSALUBRIDADE_POR_SECRETARIA: Record<string, string> = {
-  SME:   'AGENTE DE HIGIENIZAÇÃO B',
-  SMS:   'AGENTE DE HIGIENIZAÇÃO A',
-  SMGCP: 'AGENTE DE HIGIENIZAÇÃO B',
-  SMMT:  'AGENTE DE HIGIENIZAÇÃO C',
-  SMEL:  'AGENTE DE HIGIENIZAÇÃO B',
-  SEMAS: 'AGENTE DE HIGIENIZAÇÃO B',
-  SMAPA: 'AGENTE DE HIGIENIZAÇÃO B',
-  SMSEG: 'AGENTE DE HIGIENIZAÇÃO B',
-  SMC:   'AGENTE DE HIGIENIZAÇÃO B',
-  SMDET: 'AGENTE DE HIGIENIZAÇÃO B',
-  SMASA: 'AGENTE DE HIGIENIZAÇÃO B',
-  SMGOV: 'AGENTE DE HIGIENIZAÇÃO B',
-  SMSUZ: 'AGENTE DE HIGIENIZAÇÃO B',
-  SEDE:  'AGENTE DE HIGIENIZAÇÃO B',
+// Funções que contam como insalubre por secretaria (padrão é B, mas A também conta —
+// exceto SMS, que só usa A, e SMMT, que tem regra própria por posto abaixo)
+const INSALUBRIDADE_POR_SECRETARIA: Record<string, string[]> = {
+  SME:   ['AGENTE DE HIGIENIZAÇÃO B', 'AGENTE DE HIGIENIZAÇÃO A'],
+  SMS:   ['AGENTE DE HIGIENIZAÇÃO A'],
+  SMGCP: ['AGENTE DE HIGIENIZAÇÃO B', 'AGENTE DE HIGIENIZAÇÃO A'],
+  SMEL:  ['AGENTE DE HIGIENIZAÇÃO B', 'AGENTE DE HIGIENIZAÇÃO A'],
+  SEMAS: ['AGENTE DE HIGIENIZAÇÃO B', 'AGENTE DE HIGIENIZAÇÃO A'],
+  SMAPA: ['AGENTE DE HIGIENIZAÇÃO B', 'AGENTE DE HIGIENIZAÇÃO A'],
+  SMSEG: ['AGENTE DE HIGIENIZAÇÃO B', 'AGENTE DE HIGIENIZAÇÃO A'],
+  SMC:   ['AGENTE DE HIGIENIZAÇÃO B', 'AGENTE DE HIGIENIZAÇÃO A'],
+  SMDET: ['AGENTE DE HIGIENIZAÇÃO B', 'AGENTE DE HIGIENIZAÇÃO A'],
+  SMASA: ['AGENTE DE HIGIENIZAÇÃO B', 'AGENTE DE HIGIENIZAÇÃO A'],
+  SMGOV: ['AGENTE DE HIGIENIZAÇÃO B', 'AGENTE DE HIGIENIZAÇÃO A'],
+  SMSUZ: ['AGENTE DE HIGIENIZAÇÃO B', 'AGENTE DE HIGIENIZAÇÃO A'],
+  SEDE:  ['AGENTE DE HIGIENIZAÇÃO B', 'AGENTE DE HIGIENIZAÇÃO A'],
+  // SMMT: demais postos (fora dos Terminais) aceitam A, B ou C — padrão é B, mas trocas momentâneas ocorrem
+  SMMT:  ['AGENTE DE HIGIENIZAÇÃO A', 'AGENTE DE HIGIENIZAÇÃO B', 'AGENTE DE HIGIENIZAÇÃO C'],
+}
+
+// Terminais de ônibus da SMMT têm regra própria: só Agente C e Ajudante de Limpeza contam
+const POSTOS_TERMINAL_SMMT = new Set(['TERMINAL CENTRAL', 'TERMINAL ESTUDANTES'])
+const INSALUBRIDADE_TERMINAL_SMMT = ['AGENTE DE HIGIENIZAÇÃO C', 'AJUDANTE DE LIMPEZA']
+
+function funcoesAceitasInsalubridade(secretaria: string, postoNome: string): string[] {
+  if (secretaria === 'SMMT' && POSTOS_TERMINAL_SMMT.has(postoNome)) {
+    return INSALUBRIDADE_TERMINAL_SMMT
+  }
+  return INSALUBRIDADE_POR_SECRETARIA[secretaria] ?? []
 }
 
 // Tipo local até eh_encarregado_volante ser adicionado aos tipos gerados do Supabase
@@ -118,6 +132,7 @@ interface FuncionarioRow {
   nome: string
   posto_id: string | null
   status: string
+  motivo_afastamento: string | null
   funcao_id: string | null
   eh_encarregado_volante: boolean | null
   funcoes: { nome: string } | null
@@ -150,7 +165,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
     fetchAllRows<FuncionarioRow>((from, to) =>
       supabase
         .from('funcionarios')
-        .select('id, nome, posto_id, status, funcao_id, eh_encarregado_volante, funcoes!funcao_id(nome)')
+        .select('id, nome, posto_id, status, motivo_afastamento, funcao_id, eh_encarregado_volante, funcoes!funcao_id(nome)')
         .in('status', ['ativo', 'ferias', 'atestado', 'afastado', 'faltante'])
         .order('id', { ascending: true })
         .range(from, to) as unknown as PromiseLike<{ data: FuncionarioRow[] | null; error: { message: string } | null }>,
@@ -167,10 +182,12 @@ export async function getPostosData(): Promise<PostoRow[]> {
       .or(`data_prev_retorno.is.null,data_prev_retorno.gte.${hoje.toISOString().split('T')[0]}`),
   ])
 
-  // Mapa posto_id → secretaria para diferenciar postos AFASTADOS dos operacionais
+  // Mapa posto_id → secretaria/nome para diferenciar postos AFASTADOS e aplicar regras por posto (ex: Terminais SMMT)
   const postoSecretariaMap = new Map<string, string>()
+  const postoNomeMap = new Map<string, string>()
   for (const p of postos ?? []) {
     postoSecretariaMap.set(p.id, (p.secretaria ?? '').toUpperCase())
+    postoNomeMap.set(p.id, (p.nome ?? '').toUpperCase())
   }
 
   const efetivoMap = new Map<string, number>()
@@ -186,6 +203,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
       nome: f.nome,
       funcao_nome: f.funcoes?.nome ?? '—',
       status: f.status,
+      motivo_afastamento: f.motivo_afastamento,
     })
     funcionariosPorPosto.set(f.posto_id, lista)
 
@@ -208,11 +226,11 @@ export async function getPostosData(): Promise<PostoRow[]> {
     }
     efetivoMap.set(f.posto_id, (efetivoMap.get(f.posto_id) ?? 0) + 1)
 
-    // Conta como insalubre se a função do funcionário bate com a regra da secretaria
-    const funcaoEsperada = INSALUBRIDADE_POR_SECRETARIA[secretaria]
-    if (funcaoEsperada && f.funcao_id) {
+    // Conta como insalubre se a função do funcionário bate com a regra da secretaria/posto
+    const funcoesAceitas = funcoesAceitasInsalubridade(secretaria, postoNomeMap.get(f.posto_id) ?? '')
+    if (funcoesAceitas.length && f.funcao_id) {
       const funcaoNome = funcaoNomeMap.get(f.funcao_id) ?? ''
-      if (funcaoNome === funcaoEsperada) {
+      if (funcoesAceitas.includes(funcaoNome)) {
         insalubMap.set(f.posto_id, (insalubMap.get(f.posto_id) ?? 0) + 1)
       }
     }

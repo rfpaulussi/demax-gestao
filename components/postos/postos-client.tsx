@@ -44,22 +44,30 @@ const STATUS_ORDER: Record<StatusPosto, number> = {
 }
 
 const NOME_COR_STATUS: Record<string, string> = {
-  ativo:     'text-green-700',
-  ferias:    'text-orange-600',
-  afastado:  'text-red-600',
-  atestado:  'text-amber-600',
-  faltante:  'text-amber-600',
+  ativo:        'text-green-700',
+  ferias:       'text-orange-600',
+  afastado:     'text-red-600',
+  afastado_inss: 'text-amber-600',
+  atestado:     'text-amber-600',
+  faltante:     'text-amber-600',
 }
 
 const STATUS_LABEL_LISTA: Record<string, string> = {
-  ferias:    'férias',
-  afastado:  'afastado',
-  atestado:  'atestado',
-  faltante:  'faltante',
+  ferias:        'férias',
+  afastado:      'afastado',
+  afastado_inss: 'atestado INSS',
+  atestado:      'atestado',
+  faltante:      'faltante',
 }
 
 const STATUS_ORDER_LISTA: Record<string, number> = {
-  ativo: 0, ferias: 1, faltante: 2, afastado: 3, atestado: 3,
+  ativo: 0, ferias: 1, faltante: 2, afastado: 3, afastado_inss: 3, atestado: 3,
+}
+
+// Afastamento por INSS (doença/acidente) exibe âmbar igual atestado, não vermelho de afastado comum
+function chaveStatusLista(status: string, motivoAfastamento: string | null): string {
+  if (status === 'afastado' && motivoAfastamento?.toUpperCase().startsWith('INSS')) return 'afastado_inss'
+  return status
 }
 
 // ─── KPI card ─────────────────────────────────────────────────────────────────
@@ -611,22 +619,26 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                               <ul className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-3">
                                 {[...p.funcionarios]
                                   .sort((a, b) =>
-                                    (STATUS_ORDER_LISTA[a.status] ?? 9) - (STATUS_ORDER_LISTA[b.status] ?? 9) ||
+                                    (STATUS_ORDER_LISTA[chaveStatusLista(a.status, a.motivo_afastamento)] ?? 9) -
+                                    (STATUS_ORDER_LISTA[chaveStatusLista(b.status, b.motivo_afastamento)] ?? 9) ||
                                     a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })
                                   )
-                                  .map(f => (
-                                    <li key={f.id} className="flex items-baseline gap-1.5 text-xs">
-                                      <span className={cn('font-medium', NOME_COR_STATUS[f.status] ?? 'text-gray-700')}>
-                                        {f.nome}
-                                      </span>
-                                      <span className="text-gray-400">— {f.funcao_nome}</span>
-                                      {STATUS_LABEL_LISTA[f.status] && (
-                                        <span className={cn('font-semibold', NOME_COR_STATUS[f.status])}>
-                                          ({STATUS_LABEL_LISTA[f.status]})
+                                  .map(f => {
+                                    const chave = chaveStatusLista(f.status, f.motivo_afastamento)
+                                    return (
+                                      <li key={f.id} className="flex items-baseline gap-1.5 text-xs">
+                                        <span className={cn('font-medium', NOME_COR_STATUS[chave] ?? 'text-gray-700')}>
+                                          {f.nome}
                                         </span>
-                                      )}
-                                    </li>
-                                  ))}
+                                        <span className="text-gray-400">— {f.funcao_nome}</span>
+                                        {STATUS_LABEL_LISTA[chave] && (
+                                          <span className={cn('font-semibold', NOME_COR_STATUS[chave])}>
+                                            ({STATUS_LABEL_LISTA[chave]})
+                                          </span>
+                                        )}
+                                      </li>
+                                    )
+                                  })}
                               </ul>
                             )}
                           </td>
