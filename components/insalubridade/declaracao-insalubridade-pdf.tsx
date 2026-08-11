@@ -114,7 +114,8 @@ function DeclaracaoPage({ grupo, mes, ano }: { grupo: InsalubridadeGrupo; mes: n
         A <Text style={s.bold}>DEMAX SERVIÇOS E COMÉRCIO LTDA</Text>, inscrita no CNPJ nº{' '}
         <Text style={s.bold}>48.096.044/0001-93</Text>, por meio desta, declara para os devidos fins
         que o(a) colaborador(a){' '}
-        <Text style={s.bold}>{grupo.funcionario_nome.toUpperCase()}</Text>,
+        <Text style={s.bold}>{grupo.funcionario_nome.toUpperCase()}</Text> (RE{' '}
+        <Text style={s.bold}>{grupo.funcionario_re ?? '—'}</Text>),
         atualmente na função de{' '}
         <Text style={s.bold}>{(grupo.funcao ?? 'Ajudante de Limpeza').toUpperCase()}</Text> e
         alocado(a) no posto{' '}
@@ -174,6 +175,10 @@ function DeclaracaoPage({ grupo, mes, ano }: { grupo: InsalubridadeGrupo; mes: n
         <View style={s.sigRow}>
           <Text style={s.sigLbl}>Nome:</Text>
           <Text style={s.sigVal}>{grupo.funcionario_nome.toUpperCase()}</Text>
+        </View>
+        <View style={s.sigRow}>
+          <Text style={s.sigLbl}>RE:</Text>
+          <Text style={s.sigVal}>{grupo.funcionario_re ?? '—'}</Text>
         </View>
         <View style={[s.sigRow, { marginTop: 12 }]}>
           <Text style={s.sigLbl}>Assinatura:</Text>

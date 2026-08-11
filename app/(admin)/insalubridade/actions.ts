@@ -29,6 +29,7 @@ export interface InsalubridadeCobertura {
   funcionarios: {
     id: string
     nome: string
+    registro: string | null
     funcoes: { nome: string } | null
     postos: { id: string; nome: string; secretaria: string | null } | null
   } | null
@@ -37,6 +38,7 @@ export interface InsalubridadeCobertura {
 export interface InsalubridadeGrupo {
   funcionario_id: string
   funcionario_nome: string
+  funcionario_re: string | null
   funcao: string | null
   posto_id: string | null
   posto_nome: string | null
@@ -51,6 +53,7 @@ export interface InsalubridadeGrupo {
 export interface FuncOpt {
   id: string
   nome: string
+  registro?: string | null
   status?: string | null
   postos: { id: string; nome: string; secretaria: string | null } | null
   funcoes: { nome: string } | null
@@ -61,7 +64,7 @@ const INS_SELECT = `
   agente_ausente_id, agente_ausente_nome, posto_id,
   origem, cobertura_id, percentual, periodo_dias, observacao, status, created_at,
   funcionarios!funcionario_id (
-    id, nome,
+    id, nome, registro,
     funcoes!funcao_id ( nome ),
     postos!posto_id ( id, nome, secretaria )
   )
@@ -116,6 +119,7 @@ export async function buscarInsalubridades(
       grouped.set(fid, {
         funcionario_id: fid,
         funcionario_nome: r.funcionarios?.nome ?? '—',
+        funcionario_re: r.funcionarios?.registro ?? null,
         funcao: (r.funcionarios?.funcoes as unknown as { nome: string } | null)?.nome ?? null,
         posto_id: postoId,
         posto_nome: r.funcionarios?.postos?.nome ?? null,
@@ -274,7 +278,7 @@ export async function buscarFuncionariosParaDeclaracao(): Promise<FuncOpt[]> {
   const supabase = createClient()
   const { data } = await supabase
     .from('funcionarios')
-    .select('id, nome, status, postos!posto_id(id, nome, secretaria), funcoes!funcionarios_funcao_id_fkey(nome)')
+    .select('id, nome, registro, status, postos!posto_id(id, nome, secretaria), funcoes!funcionarios_funcao_id_fkey(nome)')
     .in('status', ['ativo', 'ferias', 'atestado', 'afastado'])
     .order('nome')
   return (data ?? []) as unknown as FuncOpt[]
@@ -289,7 +293,7 @@ export async function buscarAgentesPorPosto(postoId: string): Promise<FuncOpt[]>
   const supabase = createClient()
   const { data } = await supabase
     .from('funcionarios')
-    .select('id, nome, status, postos!posto_id(id, nome, secretaria), funcoes!funcionarios_funcao_id_fkey(nome)')
+    .select('id, nome, registro, status, postos!posto_id(id, nome, secretaria), funcoes!funcionarios_funcao_id_fkey(nome)')
     .eq('posto_id', postoId)
     .in('status', ['ativo', 'ferias', 'atestado', 'afastado'])
     .order('nome')

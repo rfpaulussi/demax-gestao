@@ -282,9 +282,9 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos,
   const opcoesSubstituto: Opcao[] = useMemo(
     () => funcionariosOpt.map(f => ({
       id: f.id,
-      primary: f.nome,
+      primary: f.registro ? `${f.nome} · RE ${f.registro}` : f.nome,
       secondary: f.postos ? `${f.postos.nome}${f.postos.secretaria ? ` · ${f.postos.secretaria}` : ''}` : null,
-      haystack: norm(`${f.nome} ${f.funcoes?.nome ?? ''} ${f.postos?.nome ?? ''}`),
+      haystack: norm(`${f.nome} ${f.registro ?? ''} ${f.funcoes?.nome ?? ''} ${f.postos?.nome ?? ''}`),
       extra: (
         <span className="mt-1 flex flex-wrap items-center gap-1.5">
           {f.funcoes?.nome && (
@@ -302,9 +302,9 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos,
   const opcoesAusente: Opcao[] = useMemo(
     () => ausentes.map(f => ({
       id: f.id,
-      primary: f.nome,
+      primary: f.registro ? `${f.nome} · RE ${f.registro}` : f.nome,
       secondary: f.funcoes?.nome ?? null,
-      haystack: norm(f.nome),
+      haystack: norm(`${f.nome} ${f.registro ?? ''}`),
       extra: <span className="mt-1 inline-flex"><StatusBadge status={f.status} /></span>,
     })),
     [ausentes],
@@ -450,12 +450,19 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos,
                       </span>
                     }
                     linhas={
-                      substituto.postos && (
-                        <p className="mt-1 text-xs text-gray-500">
-                          Posto de origem: <span className="font-medium text-gray-700">{substituto.postos.nome}</span>
-                          {substituto.postos.secretaria ? ` · ${substituto.postos.secretaria}` : ''}
-                        </p>
-                      )
+                      <>
+                        {substituto.registro && (
+                          <p className="mt-1 text-xs text-gray-500">
+                            RE: <span className="font-medium text-gray-700">{substituto.registro}</span>
+                          </p>
+                        )}
+                        {substituto.postos && (
+                          <p className="mt-1 text-xs text-gray-500">
+                            Posto de origem: <span className="font-medium text-gray-700">{substituto.postos.nome}</span>
+                            {substituto.postos.secretaria ? ` · ${substituto.postos.secretaria}` : ''}
+                          </p>
+                        )}
+                      </>
                     }
                   />
                 ) : (
@@ -489,7 +496,12 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos,
                     nome={ausente.nome}
                     onTrocar={() => setAusente(null)}
                     badge={<span className="mt-1 inline-flex"><StatusBadge status={ausente.status} /></span>}
-                    linhas={ausente.funcoes?.nome ? <p className="mt-1 text-xs text-gray-500">{ausente.funcoes.nome}</p> : null}
+                    linhas={
+                      <>
+                        {ausente.registro && <p className="mt-1 text-xs text-gray-500">RE: <span className="font-medium text-gray-700">{ausente.registro}</span></p>}
+                        {ausente.funcoes?.nome && <p className="mt-1 text-xs text-gray-500">{ausente.funcoes.nome}</p>}
+                      </>
+                    }
                   />
                 ) : ausentes.length > 0 ? (
                   <>

@@ -109,7 +109,7 @@ function exportExcelInsalubridade(grupos: InsalubridadeGrupo[], mes: number, ano
   }
 
   // ── Aba Resumo ──────────────────────────────────────────────
-  const HDR_RESUMO = ['Funcionário','Função','Posto','Secretaria','Supervisor','Total Dias','%','Status','Origens']
+  const HDR_RESUMO = ['RE','Funcionário','Função','Posto','Secretaria','Supervisor','Total Dias','%','Status','Origens']
   const NC_R = HDR_RESUMO.length
   const rowsR: { data: (string | number)[]; style?: 'header' | 'totals' }[] = [
     { data: [`Insalubridade — ${pad2(mes)}/${ano}`] },
@@ -118,6 +118,7 @@ function exportExcelInsalubridade(grupos: InsalubridadeGrupo[], mes: number, ano
   ]
   for (const g of grupos) {
     rowsR.push({ data: [
+      g.funcionario_re ?? '—',
       g.funcionario_nome,
       g.funcao ?? '—',
       g.posto_nome ?? '—',
@@ -130,7 +131,7 @@ function exportExcelInsalubridade(grupos: InsalubridadeGrupo[], mes: number, ano
     ]})
   }
   rowsR.push({ data: [
-    'TOTAL', '', '', '', '',
+    '', 'TOTAL', '', '', '', '',
     grupos.reduce((s, g) => s + g.total_dias, 0),
     '', '', '',
   ], style: 'totals' })
@@ -146,11 +147,11 @@ function exportExcelInsalubridade(grupos: InsalubridadeGrupo[], mes: number, ano
         : { font: { bold: true }, fill: { patternType: 'solid', fgColor: { rgb: 'f1f5f9' } } }
     }
   })
-  wsR['!cols'] = [{ wch: 36 }, { wch: 20 }, { wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 6 }, { wch: 12 }, { wch: 18 }]
+  wsR['!cols'] = [{ wch: 10 }, { wch: 36 }, { wch: 20 }, { wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 6 }, { wch: 12 }, { wch: 18 }]
   XLSX.utils.book_append_sheet(wb, wsR, 'Resumo')
 
   // ── Aba Detalhes ─────────────────────────────────────────────
-  const HDR_DET = ['Funcionário','Função','Posto','Secretaria','Supervisor','Data Cobertura','Dias','Agente Ausente','Observação','Origem','Status']
+  const HDR_DET = ['RE','Funcionário','Função','Posto','Secretaria','Supervisor','Data Cobertura','Dias','Agente Ausente','Observação','Origem','Status']
   const NC_D = HDR_DET.length
   const rowsD: { data: (string | number)[]; style?: 'header' }[] = [
     { data: [`Insalubridade — Detalhes — ${pad2(mes)}/${ano}`] },
@@ -160,6 +161,7 @@ function exportExcelInsalubridade(grupos: InsalubridadeGrupo[], mes: number, ano
   for (const g of grupos) {
     for (const r of g.registros) {
       rowsD.push({ data: [
+        g.funcionario_re ?? '—',
         g.funcionario_nome,
         g.funcao ?? '—',
         g.posto_nome ?? '—',
@@ -184,7 +186,7 @@ function exportExcelInsalubridade(grupos: InsalubridadeGrupo[], mes: number, ano
       wsD[addr].s = { font: { bold: true, color: { rgb: '475569' } }, fill: { patternType: 'solid', fgColor: { rgb: 'e2e8f0' } } }
     }
   })
-  wsD['!cols'] = [{ wch: 36 }, { wch: 20 }, { wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 6 }, { wch: 30 }, { wch: 40 }, { wch: 12 }, { wch: 12 }]
+  wsD['!cols'] = [{ wch: 10 }, { wch: 36 }, { wch: 20 }, { wch: 32 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 6 }, { wch: 30 }, { wch: 40 }, { wch: 12 }, { wch: 12 }]
   XLSX.utils.book_append_sheet(wb, wsD, 'Detalhes')
 
   XLSX.writeFile(wb, `insalubridade-${pad2(mes)}-${ano}.xlsx`)
@@ -430,7 +432,8 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
       <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
         {/* Cabeçalho de colunas */}
         <div className="border-b border-gray-100 bg-gray-50 px-4 py-2.5 pl-14">
-          <div className="grid grid-cols-[2fr_1.5fr_1.2fr_0.75fr_0.75fr_1fr_1fr] gap-2 items-center">
+          <div className="grid grid-cols-[0.6fr_2fr_1.5fr_1.2fr_0.75fr_0.75fr_1fr_1fr] gap-2 items-center">
+            <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">RE</span>
             <Th col="nome"       label="Funcionário" />
             <Th col="posto"      label="Posto" />
             <Th col="supervisor" label="Supervisor" />
@@ -463,7 +466,8 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
                       }
                     </button>
 
-                    <div className="min-w-0 flex-1 grid grid-cols-[2fr_1.5fr_1.2fr_0.75fr_0.75fr_1fr_1fr] gap-2 items-center">
+                    <div className="min-w-0 flex-1 grid grid-cols-[0.6fr_2fr_1.5fr_1.2fr_0.75fr_0.75fr_1fr_1fr] gap-2 items-center">
+                      <p className="truncate text-sm text-gray-500 tabular-nums">{grupo.funcionario_re ?? '—'}</p>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-gray-900">{grupo.funcionario_nome}</p>
                         {grupo.funcao && <p className="truncate text-xs text-gray-400">{grupo.funcao}</p>}
