@@ -165,15 +165,20 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
             cid_codigo:     atestadoCidCodigo,
             registrado_por: guard.userId,
           } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-          const { error: errAfastar } = await adminSupabase.from('funcionarios').update({ status: 'afastado' }).eq('id', ausenteId)
           if (errAtest) {
+            // Não marca como afastado se o atestado não foi gravado — evita status
+            // 'afastado' sem lançamento correspondente em atestados (ex.: FK de
+            // cid_codigo rejeitando um CID ainda não cadastrado em cid_referencia).
             console.error('[coberturas] registrarCobertura: inserir atestado:', errAtest.message)
-            atestadoMsg = `⚠ Afastamento de ${ausenteNome} registrado mas atestado não foi salvo — registre manualmente em Atestados.`
-          } else if (errAfastar) {
-            console.error('[coberturas] registrarCobertura: marcar ausente como afastado:', errAfastar.message)
-            atestadoMsg = `⚠ Atestado de ${ausenteNome} registrado mas status não foi atualizado — revise em Efetivo. (${errAfastar.message})`
+            atestadoMsg = `⚠ Atestado de ${ausenteNome} não foi salvo (${errAtest.message}) — registre manualmente em Atestados.`
           } else {
-            atestadoMsg = `Atestado de ${ausenteNome} registrado.`
+            const { error: errAfastar } = await adminSupabase.from('funcionarios').update({ status: 'afastado' }).eq('id', ausenteId)
+            if (errAfastar) {
+              console.error('[coberturas] registrarCobertura: marcar ausente como afastado:', errAfastar.message)
+              atestadoMsg = `⚠ Atestado de ${ausenteNome} registrado mas status não foi atualizado — revise em Efetivo. (${errAfastar.message})`
+            } else {
+              atestadoMsg = `Atestado de ${ausenteNome} registrado.`
+            }
           }
         }
       }
