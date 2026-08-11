@@ -124,7 +124,7 @@ export function ModalAfastar({ funcionario, open, onClose, isAdmin }: Props) {
                 <option value="Afastamento Judicial">Afastamento Judicial</option>
                 <option value="Outros">Outros</option>
               </select>
-              {!isAdmin && (
+              {!isAdmin && !motivo && (
                 <p className="mt-1 text-xs text-gray-400">
                   Afastamento por INSS só pode ser solicitado pelo administrador — lance o atestado
                   normalmente que ele avalia.
