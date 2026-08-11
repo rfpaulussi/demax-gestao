@@ -9,6 +9,7 @@ interface Props {
   funcionario: FuncionarioRow
   open: boolean
   onClose: () => void
+  isAdmin?: boolean
 }
 
 const labelClass = 'mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600'
@@ -23,7 +24,7 @@ function addDays(dateStr: string, days: number): string {
   return dt.toISOString().slice(0, 10)
 }
 
-export function ModalAfastar({ funcionario, open, onClose }: Props) {
+export function ModalAfastar({ funcionario, open, onClose, isAdmin }: Props) {
   const [erro, setErro]                       = useState<string | null>(null)
   const [pending, start]                      = useTransition()
   const [motivo, setMotivo]                   = useState('')
@@ -116,13 +117,19 @@ export function ModalAfastar({ funcionario, open, onClose }: Props) {
                 className={inputClass}
               >
                 <option value="">Selecione...</option>
-                <option value="INSS - Doença">INSS — Doença</option>
-                <option value="INSS - Acidente de Trabalho">INSS — Acidente de Trabalho</option>
+                {isAdmin && <option value="INSS - Doença">INSS — Doença</option>}
+                {isAdmin && <option value="INSS - Acidente de Trabalho">INSS — Acidente de Trabalho</option>}
                 <option value="Licença Maternidade">Licença Maternidade</option>
                 <option value="Licença Paternidade">Licença Paternidade</option>
                 <option value="Afastamento Judicial">Afastamento Judicial</option>
                 <option value="Outros">Outros</option>
               </select>
+              {!isAdmin && (
+                <p className="mt-1 text-xs text-gray-400">
+                  Afastamento por INSS só pode ser solicitado pelo administrador — lance o atestado
+                  normalmente que ele avalia.
+                </p>
+              )}
             </div>
 
             {/* Data início + Dias → Data Retorno automática */}

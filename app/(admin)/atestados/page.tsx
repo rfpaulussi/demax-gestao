@@ -312,7 +312,7 @@ export default async function AtestadosPage({
 
       {/* Tabela */}
       <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-        <AtestadosClient atestados={rows} cids={cids} />
+        <AtestadosClient atestados={rows} cids={cids} isAdmin={auth.perfil.role === 'admin'} />
       </div>
     </div>
   )

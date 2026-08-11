@@ -400,6 +400,10 @@ export async function solicitarAfastamento(fd: FormData): Promise<ActionResult> 
   const ehMedico              = fd.get('eh_medico') === 'true'
   let   data_retorno_prevista = (fd.get('data_retorno_prevista') as string) || null
 
+  if (MOTIVOS_MEDICOS_INSS.includes(motivo) && auth.perfil.role !== 'admin') {
+    return { success: false, error: 'Afastamento por INSS só pode ser solicitado pelo administrador — lance o atestado normalmente.' }
+  }
+
   // Calcular retorno a partir dos dias se não foi informado manualmente
   if (!data_retorno_prevista && diasStr) {
     const n = parseInt(diasStr)

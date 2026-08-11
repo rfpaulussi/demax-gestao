@@ -360,6 +360,7 @@ export function FuncionariosTable({
           open
           onClose={() => setAfastarFuncionario(null)}
           funcionario={afastarFuncionario}
+          isAdmin={isAdmin}
         />
       )}
 

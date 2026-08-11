@@ -69,6 +69,7 @@ const COLS: { label: string; sortKey?: SortCol; title?: string }[] = [
 interface Props {
   atestados: AtestadoRow[]
   cids: CidOpt[]
+  isAdmin: boolean
 }
 
 type InssModalState = {
@@ -305,7 +306,7 @@ function RankingCard({
   )
 }
 
-export function AtestadosClient({ atestados, cids }: Props) {
+export function AtestadosClient({ atestados, cids, isAdmin }: Props) {
   const [editando, setEditando] = useState<AtestadoRow | null>(null)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
   const [sortCol, setSortCol] = useState<SortCol>('data_inicio')
@@ -627,7 +628,7 @@ export function AtestadosClient({ atestados, cids }: Props) {
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap gap-1.5">
-                        {ultimoAlertaIds.has(a.id) && (
+                        {isAdmin && ultimoAlertaIds.has(a.id) && (
                           <button
                             type="button"
                             onClick={() => setInssModal({
