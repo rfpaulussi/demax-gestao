@@ -12,6 +12,7 @@ export interface TurnoData {
   hora_fim_almoco: string | null
   hora_saida_seg_qui: string
   hora_saida_sex: string | null
+  tipo_escala: TipoEscalaPosto
 }
 
 export async function listarTurnosPosto(postoId: string) {
@@ -43,16 +44,15 @@ export async function criarTurno(postoId: string, dados: TurnoData) {
   if (!auth || !['admin', 'coordenador'].includes(auth.perfil.role ?? '')) {
     return { success: false, error: 'Acesso negado' }
   }
-  const regime = await obterRegimePosto(postoId)
-  if (!regime) {
-    return { success: false, error: 'Configure o regime de trabalho deste posto antes de cadastrar turnos.' }
+  if (!isTipoEscalaPosto(dados.tipo_escala)) {
+    return { success: false, error: 'Selecione um regime de trabalho válido para o turno.' }
   }
   const supabase = createClient()
   const { error } = await supabase.from('turnos_postos').insert({
     posto_id: postoId,
     nome: dados.nome,
     hora_entrada: dados.hora_entrada,
-    tipo_escala: regime,
+    tipo_escala: dados.tipo_escala,
     hora_inicio_almoco: dados.hora_inicio_almoco,
     hora_fim_almoco: dados.hora_fim_almoco,
     hora_saida_seg_qui: dados.hora_saida_seg_qui,
@@ -68,12 +68,16 @@ export async function editarTurno(id: string, dados: TurnoData) {
   if (!auth || !['admin', 'coordenador'].includes(auth.perfil.role ?? '')) {
     return { success: false, error: 'Acesso negado' }
   }
+  if (!isTipoEscalaPosto(dados.tipo_escala)) {
+    return { success: false, error: 'Selecione um regime de trabalho válido para o turno.' }
+  }
   const supabase = createClient()
   const { error } = await supabase
     .from('turnos_postos')
     .update({
       nome: dados.nome,
       hora_entrada: dados.hora_entrada,
+      tipo_escala: dados.tipo_escala,
       hora_inicio_almoco: dados.hora_inicio_almoco,
       hora_fim_almoco: dados.hora_fim_almoco,
       hora_saida_seg_qui: dados.hora_saida_seg_qui,
