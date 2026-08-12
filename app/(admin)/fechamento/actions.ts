@@ -139,25 +139,6 @@ function buildSegmentosPosto(
   return segmentos
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- sem uso nesta função após Task 3 (regime único por funcionário); remoção fica pra Task 6 (limpeza)
-function diasUteisPorSegmentos(
-  segmentos: SegmentoPosto[],
-  s: Date,
-  e: Date,
-  postoConfigMap: Map<string, string>,
-  feriados: Set<string>,
-): number {
-  let total = 0
-  for (const seg of segmentos) {
-    const os = new Date(Math.max(seg.inicio.getTime(), s.getTime()))
-    const oe = new Date(Math.min(seg.fim.getTime(), e.getTime()))
-    if (os > oe) continue
-    const regime = postoConfigMap.get(seg.posto_id) ?? '5x2'
-    total += diasUteisNoPeriodo(os, oe, regime, feriados)
-  }
-  return total
-}
-
 // ─── main ────────────────────────────────────────────────────────────────────
 
 export async function calcularFechamento(mes: number, ano: number): Promise<ResultadoFechamento> {
