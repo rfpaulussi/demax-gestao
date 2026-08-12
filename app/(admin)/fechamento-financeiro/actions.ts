@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { getUser } from '@/lib/auth/get-user'
 import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
+import { obterRegimesPorFuncionario } from '@/lib/turnos/regime-funcionario'
 import type { Json } from '@/types/database'
 
 const DIAS_COBERTURA_ATESTADO = 15
@@ -180,6 +181,17 @@ export async function calcularFechamentoFinanceiro(
     postoConfigMap.set(pc.posto_id, pc.regime)
   }
 
+  const postoIdPorFuncionario = new Map<string, string | null>()
+  for (const f of funcionarios) {
+    postoIdPorFuncionario.set(f.id, f.posto_id ?? null)
+  }
+  const regimesPorFuncionario = await obterRegimesPorFuncionario(
+    supabase,
+    funcionarios.map(f => f.id),
+    postoConfigMap,
+    postoIdPorFuncionario,
+  )
+
   const feriados = feriadosDoAno(ano)
 
   type PostoJoin = { nome: string; secretaria: string | null; config_escalas_postos: { regime: string }[] | null } | null
@@ -206,7 +218,7 @@ export async function calcularFechamentoFinanceiro(
 
     const postos  = func.postos  as unknown as PostoJoin
     const funcoes = func.funcoes as unknown as FuncaoJoin
-    const regime  = postos?.config_escalas_postos?.[0]?.regime ?? postoConfigMap.get(func.posto_id ?? '') ?? '5x2'
+    const regime  = regimesPorFuncionario.get(func.id) ?? postos?.config_escalas_postos?.[0]?.regime ?? postoConfigMap.get(func.posto_id ?? '') ?? '5x2'
 
     const diasUteis = diasUteisNoPeriodo(periodoInicio, periodoFim, regime, feriados)
 
