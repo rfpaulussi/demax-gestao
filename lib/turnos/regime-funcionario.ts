@@ -28,16 +28,22 @@ export async function obterRegimesPorFuncionario(
   const regimes = new Map<string, string>()
   if (funcionarioIds.length === 0) return regimes
 
+  // Sem filtro .in(funcionario_id) de propósito: com centenas de IDs o GET do
+  // PostgREST estoura o limite de tamanho de URL e a API responde 400 Bad
+  // Request (visto em produção com ~860 funcionários ativos). A tabela de
+  // turnos vigentes é pequena (1 linha por funcionário com turno ativo), então
+  // trazer tudo e filtrar em memória é seguro e evita o problema.
   const { data, error } = await supabase
     .from('horarios_funcionarios')
     .select('funcionario_id, turnos_postos!turno_id ( tipo_escala )')
-    .in('funcionario_id', funcionarioIds)
     .is('data_fim', null)
 
   if (error) throw error
 
+  const idsDesejados = new Set(funcionarioIds)
+
   for (const row of (data ?? []) as unknown as { funcionario_id: string; turnos_postos: { tipo_escala: string } | null }[]) {
-    if (row.turnos_postos?.tipo_escala) {
+    if (idsDesejados.has(row.funcionario_id) && row.turnos_postos?.tipo_escala) {
       regimes.set(row.funcionario_id, row.turnos_postos.tipo_escala)
     }
   }
