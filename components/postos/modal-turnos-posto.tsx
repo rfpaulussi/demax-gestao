@@ -52,6 +52,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
   const [horaFimAlmoco, setHoraFimAlmoco]       = useState('')
   const [horaSaidaSegQui, setHoraSaidaSegQui]   = useState('')
   const [horaSaidaSex, setHoraSaidaSex]         = useState('')
+  const [tipoEscalaSelecionado, setTipoEscalaSelecionado] = useState<TipoEscalaPosto | null>(null)
   // cada grupo customizado manualmente para de ser sobrescrito quando a hora de entrada muda
   const [almocoTocado, setAlmocoTocado]         = useState(false)
   const [saidaTocado, setSaidaTocado]           = useState(false)
@@ -80,10 +81,10 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
   }, [open, carregar])
 
   function abrirNovo() {
-    if (!regime) return
     setForm('novo')
     setNome('')
     setHoraEntrada('07:00')
+    setTipoEscalaSelecionado(regime ?? null)
     setAlmocoTocado(false)
     setSaidaTocado(false)
     setPersonalizando(false)
@@ -105,6 +106,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     setHoraFimAlmoco(t.hora_fim_almoco?.slice(0, 5) ?? '')
     setHoraSaidaSegQui(t.hora_saida_seg_qui.slice(0, 5))
     setHoraSaidaSex(t.hora_saida_sex?.slice(0, 5) ?? '')
+    setTipoEscalaSelecionado(resolverTipoEscalaPosto(t.tipo_escala))
     // valores já gravados são tratados como customizados: mudar a entrada não os sobrescreve sozinho
     setAlmocoTocado(true)
     setSaidaTocado(true)
@@ -134,9 +136,17 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     setCatalogoAberto(false)
   }
 
+  function handleMudarRegimeForm(tipo: TipoEscalaPosto) {
+    setTipoEscalaSelecionado(tipo)
+    setAlmocoTocado(false)
+    setSaidaTocado(false)
+    setCatalogoAberto(true)
+    setGrupoCatalogo(null)
+  }
+
   async function handleSalvar() {
     if (!nome.trim()) { setErro('Informe o nome do turno'); return }
-    if (!tipoEscalaForm) return
+    if (!tipoEscalaForm) { setErro('Selecione o regime de trabalho deste turno.'); return }
     setSaving(true)
     setErro(null)
     const temAlmoco = tipoEscalaForm !== '12x36'
@@ -148,6 +158,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
       hora_fim_almoco: temAlmoco ? horaFimAlmoco : null,
       hora_saida_seg_qui: horaSaidaSegQui,
       hora_saida_sex: temSaidaSex ? horaSaidaSex : null,
+      tipo_escala: tipoEscalaForm,
     }
     const res = form === 'novo'
       ? await criarTurno(postoId, dados)
@@ -175,8 +186,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     setRegime(tipo)
   }
 
-  const tipoEscalaForm: TipoEscalaPosto | null =
-    form === 'novo' ? (regime ?? null) : form ? resolverTipoEscalaPosto(form.tipo_escala) : null
+  const tipoEscalaForm: TipoEscalaPosto | null = form !== null ? tipoEscalaSelecionado : null
 
   useEffect(() => {
     if (!tipoEscalaForm) return
@@ -221,11 +231,12 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
         </div>
 
         <div className="space-y-4 overflow-y-auto px-6 py-4">
-          {/* aviso: posto sem regime configurado */}
+          {/* aviso: posto sem regime padrão configurado */}
           {regime === null && (
             <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
               <p className="text-sm text-amber-800">
-                Este posto ainda não tem um regime de trabalho definido. Selecione um regime para poder cadastrar turnos.
+                Este posto ainda não tem um regime padrão definido. Isso não impede cadastrar turnos — o regime é
+                escolhido em cada turno — mas definir um padrão aqui pré-preenche o formulário e serve de sugestão.
               </p>
               <div className="flex flex-wrap gap-2">
                 {TIPOS_ESCALA_POSTO.map(tipo => (
@@ -249,7 +260,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
 
           {regime && (
             <p className="text-xs text-gray-400">
-              Regime definido em{' '}
+              Regime padrão sugerido (editável por turno): definido em{' '}
               <a href="/fechamento/config-escalas" className="underline hover:text-gray-600">
                 Config Escalas
               </a>.
@@ -304,18 +315,34 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
           )}
 
           {/* form de novo/editar turno */}
-          {form !== null && canWrite && tipoEscalaForm && (
-            <div className={cn('space-y-4 rounded-lg border border-l-4 bg-white p-5 shadow-sm', ESCALA_BORDER_CLASS[tipoEscalaForm])}>
+          {form !== null && canWrite && (
+            <div className={cn('space-y-4 rounded-lg border border-l-4 bg-white p-5 shadow-sm', tipoEscalaForm ? ESCALA_BORDER_CLASS[tipoEscalaForm] : 'border-l-gray-300')}>
               <div className="flex items-center justify-between">
                 <p className="text-base font-bold text-gray-800">
                   {form === 'novo' ? 'Novo turno' : 'Editar turno'}
                 </p>
-                <span className={cn(
-                  'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ring-1 ring-inset',
-                  ESCALA_BADGE_CLASS[tipoEscalaForm],
-                )}>
-                  {ESCALA_LABEL[tipoEscalaForm]}
-                </span>
+                {tipoEscalaForm && (
+                  <span className={cn(
+                    'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ring-1 ring-inset',
+                    ESCALA_BADGE_CLASS[tipoEscalaForm],
+                  )}>
+                    {ESCALA_LABEL[tipoEscalaForm]}
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Regime</label>
+                <select
+                  value={tipoEscalaForm ?? ''}
+                  onChange={e => handleMudarRegimeForm(e.target.value as TipoEscalaPosto)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-gray-400"
+                >
+                  <option value="" disabled>Selecione…</option>
+                  {TIPOS_ESCALA_POSTO.map(tipo => (
+                    <option key={tipo} value={tipo}>{ESCALA_LABEL[tipo]}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -478,7 +505,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
           )}
 
           {/* botão novo turno */}
-          {canWrite && form === null && regime && (
+          {canWrite && form === null && (
             <button type="button" onClick={abrirNovo}
               className="flex items-center gap-1.5 text-sm font-medium text-slate-700 hover:text-slate-900">
               <Plus className="h-4 w-4" />
