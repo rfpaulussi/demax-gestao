@@ -38,3 +38,6 @@ next-env.d.ts
 .vercel
 restore_errors.log
 .claude/settings.local.json
+
+# snapshots locais de scripts de regressão (não commitar)
+scripts/.regime-parity-snapshot.json
