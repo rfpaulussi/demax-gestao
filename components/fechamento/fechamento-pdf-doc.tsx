@@ -147,7 +147,7 @@ export function FechamentoPorPostoPDF({ porPosto, mes, ano, MESES }: PropsPosto)
                 const totalDias  = posto.funcionarios.reduce((s, f) => s + f.dias_no_posto, 0)
                 return (
                   <View key={posto.posto_id}>
-                    <Text style={sp.postoHeader}>{posto.posto_nome} ({posto.regime}) — {totalDias} dias · {titulares.length} titular{titulares.length !== 1 ? 'es' : ''}{coberturas.length > 0 ? ` · ${coberturas.length} cob.` : ''}</Text>
+                    <Text style={sp.postoHeader}>{posto.posto_nome} ({posto.regimes.join(' + ')}) — {totalDias} dias · {titulares.length} titular{titulares.length !== 1 ? 'es' : ''}{coberturas.length > 0 ? ` · ${coberturas.length} cob.` : ''}</Text>
                     <View style={sp.thead}>
                       {[
                         { label: 'Nome',    style: sp.cNome  },
