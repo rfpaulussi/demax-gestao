@@ -47,7 +47,7 @@ export default async function ConfigEscalasPage() {
       <BackButton href="/fechamento" label="Voltar ao Fechamento" />
       <div>
         <h1 className="text-lg font-bold text-gray-900">Configuração de Escalas</h1>
-        <p className="text-sm text-gray-400">Regime de trabalho por posto</p>
+        <p className="text-sm text-gray-400">Regime padrão sugerido por posto — pode ser sobrescrito em cada turno</p>
       </div>
 
       <ConfigEscalasClient postos={data} secretarias={secretarias} />
