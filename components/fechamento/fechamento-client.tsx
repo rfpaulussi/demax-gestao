@@ -111,7 +111,7 @@ function exportExcel(
       rows.push({ data: [sec.toUpperCase(), ...Array(NC - 1).fill('')], style: 'secHeader' })
 
       for (const posto of postosGrupo) {
-        rows.push({ data: [`${posto.posto_nome} (${posto.regime})`, ...Array(NC - 1).fill('')], style: 'postoHeader' })
+        rows.push({ data: [`${posto.posto_nome} (${posto.regimes.join(' + ')})`, ...Array(NC - 1).fill('')], style: 'postoHeader' })
         rows.push({ data: HEADERS_POSTO, style: 'colHeader' })
 
         const titulares  = posto.funcionarios.filter(f => f.tipo === 'titular')
@@ -469,7 +469,7 @@ function TabPorPosto({ porPosto }: { porPosto: FechamentoPosto[] }) {
                     <div className="flex items-center justify-between border-b border-gray-100 bg-slate-50 px-4 py-2.5">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-sm text-slate-800">{posto.posto_nome}</span>
-                        <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-mono text-slate-600">{posto.regime}</span>
+                        <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-mono text-slate-600">{posto.regimes.join(' + ')}</span>
                       </div>
                       <span className="text-xs text-slate-500">{totalDiasPosto} dias totais · {titulares.length} titular{titulares.length !== 1 ? 'es' : ''}{coberturas.length > 0 ? ` · ${coberturas.length} cobertura${coberturas.length !== 1 ? 's' : ''}` : ''}</span>
                     </div>
@@ -615,7 +615,7 @@ function TabPorSecretaria({ porFuncionario, porPosto }: { porFuncionario: Fecham
                       </div>
                       <div className="text-right shrink-0">
                         <p className="text-sm font-bold text-blue-700">{totalDias}</p>
-                        <p className="text-[10px] text-gray-400">{p.regime}</p>
+                        <p className="text-[10px] text-gray-400">{p.regimes.join(' + ')}</p>
                       </div>
                     </div>
                   )
