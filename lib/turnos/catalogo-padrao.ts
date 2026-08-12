@@ -85,8 +85,19 @@ export const CATALOGO_5X1: TurnoCatalogoItem[] = [
   { nome: 'Turno 14h 40m',    hora_entrada: '14:40', hora_inicio_almoco: '19:00', hora_fim_almoco: '20:00', hora_saida_seg_qui: '23:00', hora_saida_sex: null },
 ]
 
-/** Catálogo de turnos-padrão por regime. Só existe para 5x2 e 5x1 — 12x36 e jovem_aprendiz continuam com preenchimento livre. */
+export const CATALOGO_JOVEM_APRENDIZ: TurnoCatalogoItem[] = [
+  { nome: 'Turno Jovem Aprendiz 4h (a)', hora_entrada: '08:00', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '12:00', hora_saida_sex: '12:00' },
+  { nome: 'Turno Jovem Aprendiz 4h (b)', hora_entrada: '07:00', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '11:00', hora_saida_sex: '11:00' },
+  { nome: 'Turno Jovem Aprendiz 4h (c)', hora_entrada: '07:30', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '11:30', hora_saida_sex: '11:30' },
+  { nome: 'Turno Jovem Aprendiz 4h (d)', hora_entrada: '13:00', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '17:00', hora_saida_sex: '17:00' },
+  { nome: 'Turno Jovem Aprendiz 4h (e)', hora_entrada: '13:30', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '17:30', hora_saida_sex: '17:30' },
+  { nome: 'Turno Jovem Aprendiz 4h (f)', hora_entrada: '14:00', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '18:00', hora_saida_sex: '18:00' },
+  { nome: 'Turno Jovem Aprendiz 4h (g)', hora_entrada: '14:30', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '18:30', hora_saida_sex: '18:30' },
+]
+
+/** Catálogo de turnos-padrão por regime. Só existe para 5x2, 5x1 e jovem_aprendiz — 12x36 continua com preenchimento livre. */
 export const CATALOGO_POR_REGIME: Partial<Record<string, TurnoCatalogoItem[]>> = {
   '5x2': CATALOGO_5X2,
   '5x1': CATALOGO_5X1,
+  jovem_aprendiz: CATALOGO_JOVEM_APRENDIZ,
 }
