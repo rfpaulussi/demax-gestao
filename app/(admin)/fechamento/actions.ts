@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { getUser } from '@/lib/auth/get-user'
 import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
+import { obterRegimesPorFuncionario } from '@/lib/turnos/regime-funcionario'
 
 const DIAS_COBERTURA_ATESTADO = 15
 
@@ -138,6 +139,7 @@ function buildSegmentosPosto(
   return segmentos
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- sem uso nesta função após Task 3 (regime único por funcionário); remoção fica pra Task 6 (limpeza)
 function diasUteisPorSegmentos(
   segmentos: SegmentoPosto[],
   s: Date,
@@ -292,6 +294,17 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     postoConfigMap.set(pc.posto_id, pc.regime)
   }
 
+  const postoIdPorFuncionario = new Map<string, string | null>()
+  for (const f of funcionarios) {
+    postoIdPorFuncionario.set(f.id, f.posto_id ?? null)
+  }
+  const regimesPorFuncionario = await obterRegimesPorFuncionario(
+    supabase,
+    funcionarios.map(f => f.id),
+    postoConfigMap,
+    postoIdPorFuncionario,
+  )
+
   const supervisorPorPosto = new Map<string, string>()
   for (const sp of supPostoRes.data ?? []) {
     const perfil = sp.perfis as unknown as { nome: string } | null
@@ -325,7 +338,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
 
     const postos  = func.postos  as unknown as { nome: string; secretaria: string | null; config_escalas_postos: { regime: string }[] | null } | null
     const funcoes = func.funcoes as unknown as { nome: string } | null
-    const regime  = postos?.config_escalas_postos?.[0]?.regime ?? postoConfigMap.get(func.posto_id ?? '') ?? '5x2'
+    const regime  = regimesPorFuncionario.get(func.id) ?? postos?.config_escalas_postos?.[0]?.regime ?? postoConfigMap.get(func.posto_id ?? '') ?? '5x2'
 
     const segmentosPosto = buildSegmentosPosto(
       periodoInicio,
@@ -374,16 +387,17 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
       }, 0)
     }
 
-    const diasUteis = diasUteisPorSegmentos(segmentosPosto, periodoInicio, periodoFim, postoConfigMap, feriados)
+    const diasUteis = segmentosPosto.reduce(
+      (acc, seg) => acc + diasUteisNoPeriodo(seg.inicio, seg.fim, regime, feriados), 0)
 
     const feriasDias = segmentosPosto.reduce(
-      (acc, seg) => acc + feriasNoIntervalo(seg.inicio, seg.fim, postoConfigMap.get(seg.posto_id) ?? '5x2'), 0)
+      (acc, seg) => acc + feriasNoIntervalo(seg.inicio, seg.fim, regime), 0)
 
     const atestadosDias = segmentosPosto.reduce(
-      (acc, seg) => acc + atestadosNoIntervalo(seg.inicio, seg.fim, postoConfigMap.get(seg.posto_id) ?? '5x2'), 0)
+      (acc, seg) => acc + atestadosNoIntervalo(seg.inicio, seg.fim, regime), 0)
 
     const afastamentoDias = segmentosPosto.reduce(
-      (acc, seg) => acc + afastamentoNoIntervalo(seg.inicio, seg.fim, postoConfigMap.get(seg.posto_id) ?? '5x2'), 0)
+      (acc, seg) => acc + afastamentoNoIntervalo(seg.inicio, seg.fim, regime), 0)
 
     const faltasDias = faltasFunc.reduce((acc, f) => acc + (f.dias ?? 1), 0)
 
@@ -426,11 +440,10 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     // que caem dentro do segmento) — usados na etapa "por posto" pra ratear entre os postos, e
     // pra achar o posto preponderante mesmo quando houve transferência no meio do mês.
     const segmentosNet = segmentosPosto.map(seg => {
-      const regimeSeg = postoConfigMap.get(seg.posto_id) ?? '5x2'
-      const bruto = diasUteisNoPeriodo(seg.inicio, seg.fim, regimeSeg, feriados)
-      const fer   = feriasNoIntervalo(seg.inicio, seg.fim, regimeSeg)
-      const ates  = atestadosNoIntervalo(seg.inicio, seg.fim, regimeSeg)
-      const afa   = afastamentoNoIntervalo(seg.inicio, seg.fim, regimeSeg)
+      const bruto = diasUteisNoPeriodo(seg.inicio, seg.fim, regime, feriados)
+      const fer   = feriasNoIntervalo(seg.inicio, seg.fim, regime)
+      const ates  = atestadosNoIntervalo(seg.inicio, seg.fim, regime)
+      const afa   = afastamentoNoIntervalo(seg.inicio, seg.fim, regime)
       const falt  = faltasFunc.reduce((acc, f) => {
         if (!f.data_falta) return acc
         const d = toDate(f.data_falta)
