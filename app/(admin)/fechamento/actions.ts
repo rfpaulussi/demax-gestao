@@ -5,6 +5,7 @@ import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { getUser } from '@/lib/auth/get-user'
 import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
 import { obterRegimesPorFuncionario } from '@/lib/turnos/regime-funcionario'
+import { TIPOS_ESCALA_POSTO } from '@/lib/turnos/escala'
 
 const DIAS_COBERTURA_ATESTADO = 15
 
@@ -77,7 +78,7 @@ export interface FechamentoPosto {
   posto_id: string
   posto_nome: string
   secretaria: string
-  regime: string
+  regimes: string[]
   funcionarios: FechamentoItemPosto[]
 }
 
@@ -509,6 +510,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
 
   // 4. Por posto
   const porPostoMap = new Map<string, FechamentoPosto>()
+  const regimesVistosPorPosto = new Map<string, Set<string>>()
 
   function getOrCreatePosto(postoId: string): FechamentoPosto {
     if (!porPostoMap.has(postoId)) {
@@ -517,11 +519,17 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
         posto_id:   postoId,
         posto_nome: info?.nome ?? '—',
         secretaria: info?.secretaria ?? '',
-        regime:     postoConfigMap.get(postoId) ?? '5x2',
+        regimes:    [],
         funcionarios: [],
       })
     }
     return porPostoMap.get(postoId)!
+  }
+
+  function registrarRegimeNoPosto(postoId: string, regime: string) {
+    const set = regimesVistosPorPosto.get(postoId) ?? new Set<string>()
+    set.add(regime)
+    regimesVistosPorPosto.set(postoId, set)
   }
 
   // Titulares — um lançamento por segmento de posto (rateia dias entre os postos
@@ -531,6 +539,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     for (const seg of segmentos) {
       if (seg.dias_liquido <= 0) continue
       const posto = getOrCreatePosto(seg.posto_id)
+      registrarRegimeNoPosto(seg.posto_id, f.regime)
       const isAfastadoPosto = posto.secretaria === 'AFASTADOS'
       posto.funcionarios.push({
         funcionario_id:       f.funcionario_id,
@@ -565,6 +574,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     const dias    = diasUteisNoPeriodo(new Date(inicio + 'T12:00'), new Date(fim + 'T12:00'), regime, feriados)
 
     const posto = getOrCreatePosto(cob.posto_destino_id)
+    registrarRegimeNoPosto(cob.posto_destino_id, regime)
     posto.funcionarios.push({
       funcionario_id:         funcData.funcionario_id,
       funcionario_nome:       funcData.funcionario_nome,
@@ -581,6 +591,13 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
       is_posto_preponderante: funcData.posto_preponderante_id === cob.posto_destino_id,
       multi_posto:            funcData.multi_posto,
     })
+  }
+
+  for (const posto of Array.from(porPostoMap.values())) {
+    const vistos = regimesVistosPorPosto.get(posto.posto_id)
+    posto.regimes = vistos && vistos.size > 0
+      ? TIPOS_ESCALA_POSTO.filter(r => vistos.has(r))
+      : [postoConfigMap.get(posto.posto_id) ?? '5x2']
   }
 
   const porPosto = Array.from(porPostoMap.values()).sort((a, b) => {
