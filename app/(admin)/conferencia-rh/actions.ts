@@ -3,9 +3,9 @@
 import { getUser } from '@/lib/auth/get-user'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
-import { compararListagem, type SinonimoFuncaoResolvido } from '@/lib/conferencia-rh/comparar'
+import { compararListagem } from '@/lib/conferencia-rh/comparar'
 import { normalizarNome } from '@/lib/conferencia-rh/normalizar'
-import type { LinhaRH, FuncionarioSistema, ResultadoComparacao } from '@/lib/conferencia-rh/tipos'
+import type { LinhaRH, FuncionarioSistema, ResultadoComparacao, SinonimoFuncaoResolvido } from '@/lib/conferencia-rh/tipos'
 import { isAdminOrCoord, type Role } from '@/types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

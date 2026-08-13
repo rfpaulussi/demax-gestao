@@ -50,3 +50,7 @@ export type ResultadoComparacao = {
   codigosSemSupervisorVinculado: number[]
   linhasIgnoradas: number
 }
+
+/** Um sinônimo resolvido: forma normalizada (pra comparação) e bruta (pra exibição)
+ * da função do sistema equivalente à função do RH usada como chave do map. */
+export type SinonimoFuncaoResolvido = { normalizado: string; bruto: string }

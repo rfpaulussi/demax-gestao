@@ -7,6 +7,7 @@ import type {
   CelulaResumo,
   LinhaResumo,
   ResultadoComparacao,
+  SinonimoFuncaoResolvido,
 } from './tipos'
 
 function novaCelula(): CelulaResumo {
@@ -23,10 +24,6 @@ function somaCelula(a: CelulaResumo, lado: 'rh' | 'sistema') {
   a[lado] += 1
 }
 
-/** Um sinônimo resolvido: forma normalizada (pra comparação) e bruta (pra exibição)
- * da função do sistema equivalente à função do RH usada como chave do map. */
-export type SinonimoFuncaoResolvido = { normalizado: string; bruto: string }
-
 export function compararListagem(
   linhasRH: LinhaRH[],
   funcionariosSistema: FuncionarioSistema[],
@@ -35,21 +32,34 @@ export function compararListagem(
 ): ResultadoComparacao {
   const supervisoresApelidos = Array.from(new Set(codigoParaApelido.values())).sort()
 
-  /** Resolve a chave (bruta, pra exibição) usada em resumoPorFuncao, aplicando
-   * sinônimo quando existir: funcao bruta do RH -> normaliza -> busca sinônimo ->
-   * se achou, usa a função bruta do sistema equivalente (do próprio cadastro de
-   * sinônimos); senão usa a função bruta original do RH. */
-  function chaveResumoFuncaoRH(funcaoRH: string): string {
-    const sinonimo = sinonimosFuncao.get(normalizarNome(funcaoRH))
-    return sinonimo ? sinonimo.bruto : funcaoRH
-  }
-
-  // Idem, pro lado sistema: se a função do sistema é o alvo de algum sinônimo
-  // cadastrado, agrupa na mesma chave bruta pra bater com o lado RH.
+  // Índice canônico único (normalizado -> bruto) construído a partir de TODOS os
+  // sinônimos cadastrados. Usado pelos dois lados (RH e sistema) da agregação do
+  // resumo, pra garantir que ambos convirjam sempre na mesma chave bruta pra uma
+  // dada função normalizada — mesmo que duas linhas de config_sinonimos_funcao
+  // apontem pra funcao_sistema com textos brutos ligeiramente diferentes
+  // (ex: "JOVEM APRENDIZ" vs "Jovem Aprendiz "), o que sem essa canonicalização
+  // faria RH e sistema divergirem em qual bruto usar e recriaria o bug de linhas
+  // de resumo separadas.
   const brutoPorFuncaoSistemaNormalizada = new Map<string, string>()
   for (const sinonimo of Array.from(sinonimosFuncao.values())) {
     brutoPorFuncaoSistemaNormalizada.set(sinonimo.normalizado, sinonimo.bruto)
   }
+
+  /** Resolve a chave (bruta, pra exibição) usada em resumoPorFuncao pro lado RH,
+   * aplicando sinônimo quando existir: funcao bruta do RH -> normaliza -> busca
+   * sinônimo -> se achou, resolve o bruto CANÔNICO via brutoPorFuncaoSistemaNormalizada
+   * (o mesmo índice usado pelo lado sistema), com fallback pro bruto do próprio
+   * sinônimo só como defesa, caso o índice canônico não tenha a entrada por algum
+   * motivo — não deveria acontecer, já que o índice é construído a partir dos
+   * mesmos sinônimos; senão (sem sinônimo) usa a função bruta original do RH. */
+  function chaveResumoFuncaoRH(funcaoRH: string): string {
+    const sinonimo = sinonimosFuncao.get(normalizarNome(funcaoRH))
+    if (!sinonimo) return funcaoRH
+    return brutoPorFuncaoSistemaNormalizada.get(sinonimo.normalizado) ?? sinonimo.bruto
+  }
+
+  // Idem, pro lado sistema: se a função do sistema é o alvo de algum sinônimo
+  // cadastrado, agrupa na mesma chave bruta canônica pra bater com o lado RH.
   function chaveResumoFuncaoSistema(funcaoSistema: string): string {
     return brutoPorFuncaoSistemaNormalizada.get(normalizarNome(funcaoSistema)) ?? funcaoSistema
   }
