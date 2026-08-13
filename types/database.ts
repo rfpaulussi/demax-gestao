@@ -544,6 +544,35 @@ export type Database = {
           },
         ]
       }
+      config_codigos_rh: {
+        Row: {
+          codigo: number
+          apelido: string
+          supervisor_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          codigo: number
+          apelido: string
+          supervisor_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          codigo?: number
+          apelido?: string
+          supervisor_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_codigos_rh_supervisor_id_fkey"
+            columns: ["supervisor_id"]
+            isOneToOne: false
+            referencedRelation: "perfis"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       config_escalas_postos: {
         Row: {
           descricao: string | null
@@ -572,6 +601,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      config_sinonimos_funcao: {
+        Row: {
+          funcao_rh: string
+          funcao_sistema: string
+          created_at: string | null
+        }
+        Insert: {
+          funcao_rh: string
+          funcao_sistema: string
+          created_at?: string | null
+        }
+        Update: {
+          funcao_rh?: string
+          funcao_sistema?: string
+          created_at?: string | null
+        }
+        Relationships: []
       }
       config_supervisores_postos: {
         Row: {
