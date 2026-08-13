@@ -16,7 +16,7 @@ export default async function ConferenciaRHPage() {
   const supabase = createClient()
   const [{ data: codigosRaw, error: errCodigos }, { data: supervisoresRaw, error: errSupervisores }] = await Promise.all([
     (supabase as unknown as AnyQ).from('config_codigos_rh').select('codigo, apelido, supervisor_id').order('codigo'),
-    supabase.from('perfis').select('id, nome').eq('role', 'supervisor').eq('ativo', true).order('nome'),
+    supabase.from('perfis').select('id, nome').in('role', ['supervisor', 'admin']).eq('ativo', true).order('nome'),
   ])
 
   if (errCodigos || errSupervisores) {
