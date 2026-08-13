@@ -31,6 +31,9 @@ export function compararListagem(
   const supervisoresApelidos = Array.from(new Set(codigoParaApelido.values())).sort()
 
   // ── índices pro lado sistema ──
+  // Nota: se dois funcionários do sistema tiverem o mesmo RE ou nome normalizado,
+  // o último "ganha" no map (o anterior fica inacessível via fallback por RE/nome).
+  // Limitação conhecida — corrigir isso (ex: rastrear colisões) está fora do escopo aqui.
   const porRegistro = new Map<string, FuncionarioSistema>()
   const porNomeSistema = new Map<string, FuncionarioSistema>()
   for (const f of funcionariosSistema) {
@@ -53,7 +56,7 @@ export function compararListagem(
     return linha
   }
 
-  for (const linha of linhasRH) {
+  for (const [indice, linha] of Array.from(linhasRH.entries())) {
     if (!linha.re || !linha.nome) { linhasIgnoradas++; continue }
 
     const apelidoSupervisor = codigoParaApelido.get(linha.codigoSupervisor)
@@ -72,7 +75,7 @@ export function compararListagem(
 
     if (!matchSistema) {
       const porNome = porNomeSistema.get(normalizarNome(linha.nome))
-      if (porNome) {
+      if (porNome && !sistemaCasados.has(porNome.id)) {
         matchSistema = porNome
         tipos.push('re_divergente')
       }
@@ -81,7 +84,7 @@ export function compararListagem(
     if (!matchSistema) {
       tipos = ['so_no_rh']
       divergencias.push({
-        chave: `rh-${reNorm}`,
+        chave: `rh-${reNorm}-${indice}`,
         tipos,
         rh: { re: linha.re, nome: linha.nome, funcao: linha.funcao, afastado: !!linha.afastadoEm, supervisor: apelidoSupervisor ?? null },
         sistema: { id: null, re: null, nome: null, funcao: null, afastado: null, supervisor: null },
