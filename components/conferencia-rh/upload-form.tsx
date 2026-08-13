@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import * as XLSX from 'xlsx-js-style'
 import { compararConferenciaRH } from '@/app/(admin)/conferencia-rh/actions'
+import { gerarModeloListagemRH } from '@/lib/conferencia-rh/gerar-modelo'
 import { ResumoAgregado } from './resumo-agregado'
 import { TabelaDivergencias } from './tabela-divergencias'
 import type { LinhaRH, ResultadoComparacao } from '@/lib/conferencia-rh/tipos'
@@ -93,9 +94,18 @@ export function UploadForm({ supervisoresApelidos }: { supervisoresApelidos: str
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-        <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-gray-500">
-          Planilha do RH (.xlsx, aba LISTAGEM)
-        </label>
+        <div className="mb-2 flex items-center justify-between">
+          <label className="block text-xs font-semibold uppercase tracking-widest text-gray-500">
+            Planilha do RH (.xlsx, aba LISTAGEM)
+          </label>
+          <button
+            type="button"
+            onClick={() => gerarModeloListagemRH()}
+            className="text-xs font-medium text-slate-600 underline hover:text-slate-900"
+          >
+            Baixar modelo
+          </button>
+        </div>
         <input
           type="file"
           accept=".xlsx"
