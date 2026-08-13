@@ -56,6 +56,21 @@ export function compararListagem(
     return linha
   }
 
+  // ── Passe 1: matching exato por RE, pra ficar independente da ordem das linhas ──
+  // Reivindica sistemaCasados aqui pra que nenhuma linha do passe 2 (fallback por
+  // nome) consiga "roubar" um registro que já tem match direto por RE — não importa
+  // se a linha com match direto vem antes ou depois na planilha.
+  const matchPorIndice = new Map<number, FuncionarioSistema>()
+  for (const [indice, linha] of Array.from(linhasRH.entries())) {
+    if (!linha.re || !linha.nome) continue
+    const matchDireto = porRegistro.get(normalizarRE(linha.re))
+    if (matchDireto) {
+      matchPorIndice.set(indice, matchDireto)
+      sistemaCasados.add(matchDireto.id)
+    }
+  }
+
+  // ── Passe 2: resumo agregado, fallback por nome e construção das divergências ──
   for (const [indice, linha] of Array.from(linhasRH.entries())) {
     if (!linha.re || !linha.nome) { linhasIgnoradas++; continue }
 
@@ -70,13 +85,14 @@ export function compararListagem(
 
     // matching
     const reNorm = normalizarRE(linha.re)
-    let matchSistema = porRegistro.get(reNorm)
+    let matchSistema = matchPorIndice.get(indice)
     let tipos: TipoDivergencia[] = []
 
     if (!matchSistema) {
       const porNome = porNomeSistema.get(normalizarNome(linha.nome))
       if (porNome && !sistemaCasados.has(porNome.id)) {
         matchSistema = porNome
+        sistemaCasados.add(porNome.id)
         tipos.push('re_divergente')
       }
     }
@@ -91,8 +107,6 @@ export function compararListagem(
       })
       continue
     }
-
-    sistemaCasados.add(matchSistema.id)
 
     if (normalizarNome(matchSistema.nome) !== normalizarNome(linha.nome)) tipos.push('nome_diferente')
     if (normalizarNome(matchSistema.funcao ?? '') !== normalizarNome(linha.funcao)) tipos.push('funcao_diferente')
