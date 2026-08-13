@@ -115,7 +115,7 @@ export function compararListagem(
 
     if (tipos.length > 0) {
       divergencias.push({
-        chave: `par-${reNorm}`,
+        chave: `par-${reNorm}-${indice}`,
         tipos,
         rh: { re: linha.re, nome: linha.nome, funcao: linha.funcao, afastado: !!linha.afastadoEm, supervisor: apelidoSupervisor ?? null },
         sistema: { id: matchSistema.id, re: matchSistema.registro, nome: matchSistema.nome, funcao: matchSistema.funcao, afastado: matchSistema.afastado, supervisor: matchSistema.supervisorNome },
