@@ -27,10 +27,12 @@ function somaCelula(a: CelulaResumo, lado: 'rh' | 'sistema') {
 export function compararListagem(
   linhasRH: LinhaRH[],
   funcionariosSistema: FuncionarioSistema[],
-  codigoParaApelido: Map<number, string>,
+  // código RH -> label de agrupamento: nome do perfil vinculado (supervisor_id),
+  // ou apelido bruto quando não vinculado — ver resolverLabelCodigo em tipos.ts.
+  codigoParaLabel: Map<number, string>,
   sinonimosFuncao: Map<string, SinonimoFuncaoResolvido> = new Map(),
 ): ResultadoComparacao {
-  const supervisoresApelidos = Array.from(new Set(codigoParaApelido.values())).sort()
+  const labelsSupervisores = Array.from(new Set(codigoParaLabel.values())).sort()
 
   // Índice canônico único (normalizado -> bruto) construído a partir de TODOS os
   // sinônimos cadastrados. Usado pelos dois lados (RH e sistema) da agregação do
@@ -84,7 +86,7 @@ export function compararListagem(
   function linhaResumoDe(funcao: string): LinhaResumo {
     let linha = resumoPorFuncao.get(funcao)
     if (!linha) {
-      linha = novaLinhaResumo(funcao, supervisoresApelidos)
+      linha = novaLinhaResumo(funcao, labelsSupervisores)
       resumoPorFuncao.set(funcao, linha)
     }
     return linha
@@ -108,12 +110,12 @@ export function compararListagem(
   for (const [indice, linha] of Array.from(linhasRH.entries())) {
     if (!linha.re || !linha.nome) { linhasIgnoradas++; continue }
 
-    const apelidoSupervisor = codigoParaApelido.get(linha.codigoSupervisor)
-    if (!apelidoSupervisor) codigosSemSupervisor.add(linha.codigoSupervisor)
+    const supervisorLabel = codigoParaLabel.get(linha.codigoSupervisor)
+    if (!supervisorLabel) codigosSemSupervisor.add(linha.codigoSupervisor)
 
     // resumo agregado (lado RH)
     const linhaResumo = linhaResumoDe(chaveResumoFuncaoRH(linha.funcao))
-    if (apelidoSupervisor) somaCelula(linhaResumo.porSupervisor[apelidoSupervisor], 'rh')
+    if (supervisorLabel) somaCelula(linhaResumo.porSupervisor[supervisorLabel], 'rh')
     if (linha.afastadoEm) somaCelula(linhaResumo.afastados, 'rh')
     somaCelula(linhaResumo.total, 'rh')
 
@@ -136,7 +138,7 @@ export function compararListagem(
       divergencias.push({
         chave: `rh-${reNorm}-${indice}`,
         tipos,
-        rh: { re: linha.re, nome: linha.nome, funcao: linha.funcao, afastado: !!linha.afastadoEm, supervisor: apelidoSupervisor ?? null },
+        rh: { re: linha.re, nome: linha.nome, funcao: linha.funcao, afastado: !!linha.afastadoEm, supervisor: supervisorLabel ?? null },
         sistema: { id: null, re: null, nome: null, funcao: null, afastado: null, supervisor: null },
       })
       continue
@@ -148,13 +150,13 @@ export function compararListagem(
     const equivalentePorSinonimo = sinonimosFuncao.get(funcaoRHNorm)?.normalizado === funcaoSistemaNorm
     if (funcaoSistemaNorm !== funcaoRHNorm && !equivalentePorSinonimo) tipos.push('funcao_diferente')
     if (matchSistema.afastado !== !!linha.afastadoEm) tipos.push('afastado_diferente')
-    if (apelidoSupervisor && matchSistema.supervisorNome !== apelidoSupervisor) tipos.push('supervisor_diferente')
+    if (supervisorLabel && matchSistema.supervisorNome !== supervisorLabel) tipos.push('supervisor_diferente')
 
     if (tipos.length > 0) {
       divergencias.push({
         chave: `par-${reNorm}-${indice}`,
         tipos,
-        rh: { re: linha.re, nome: linha.nome, funcao: linha.funcao, afastado: !!linha.afastadoEm, supervisor: apelidoSupervisor ?? null },
+        rh: { re: linha.re, nome: linha.nome, funcao: linha.funcao, afastado: !!linha.afastadoEm, supervisor: supervisorLabel ?? null },
         sistema: { id: matchSistema.id, re: matchSistema.registro, nome: matchSistema.nome, funcao: matchSistema.funcao, afastado: matchSistema.afastado, supervisor: matchSistema.supervisorNome },
       })
     }
@@ -181,9 +183,9 @@ export function compararListagem(
     }
   }
 
-  const totalGeral = novaLinhaResumo('TOTAL', supervisoresApelidos)
+  const totalGeral = novaLinhaResumo('TOTAL', labelsSupervisores)
   for (const linha of Array.from(resumoPorFuncao.values())) {
-    for (const sup of supervisoresApelidos) {
+    for (const sup of labelsSupervisores) {
       totalGeral.porSupervisor[sup].rh += linha.porSupervisor[sup]?.rh ?? 0
       totalGeral.porSupervisor[sup].sistema += linha.porSupervisor[sup]?.sistema ?? 0
     }

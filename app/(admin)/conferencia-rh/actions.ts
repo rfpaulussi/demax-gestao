@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { compararListagem } from '@/lib/conferencia-rh/comparar'
 import { normalizarNome } from '@/lib/conferencia-rh/normalizar'
+import { resolverLabelCodigo } from '@/lib/conferencia-rh/tipos'
 import type { LinhaRH, FuncionarioSistema, ResultadoComparacao, SinonimoFuncaoResolvido } from '@/lib/conferencia-rh/tipos'
 import { isAdminOrCoord, type Role } from '@/types'
 
@@ -49,7 +50,7 @@ export async function compararConferenciaRH(linhasRH: LinhaRH[]): Promise<Result
           .neq('status', 'desligado')
           .range(from, to) as unknown as PromiseLike<{ data: FuncRaw[] | null; error: { message: string } | null }>,
       ),
-      (supabase as unknown as AnyQ).from('config_codigos_rh').select('codigo, apelido, supervisor_id'),
+      (supabase as unknown as AnyQ).from('config_codigos_rh').select('codigo, apelido, supervisor_id, perfis!supervisor_id ( nome )'),
       (supabase as unknown as AnyQ).from('config_sinonimos_funcao').select('funcao_rh, funcao_sistema'),
     ])
   } catch (e) {
@@ -72,9 +73,11 @@ export async function compararConferenciaRH(linhasRH: LinhaRH[]): Promise<Result
     }
   })
 
-  type CodigoRow = { codigo: number; apelido: string; supervisor_id: string | null }
-  const codigoParaApelido = new Map<number, string>()
-  for (const c of ((codigosRaw ?? []) as unknown as CodigoRow[])) codigoParaApelido.set(c.codigo, c.apelido)
+  type CodigoRow = { codigo: number; apelido: string; supervisor_id: string | null; perfis: { nome: string | null } | null }
+  const codigoParaLabel = new Map<number, string>()
+  for (const c of ((codigosRaw ?? []) as unknown as CodigoRow[])) {
+    codigoParaLabel.set(c.codigo, resolverLabelCodigo(c.apelido, c.perfis?.nome))
+  }
 
   type SinonimoRow = { funcao_rh: string; funcao_sistema: string }
   const sinonimosFuncao = new Map<string, SinonimoFuncaoResolvido>()
@@ -82,7 +85,7 @@ export async function compararConferenciaRH(linhasRH: LinhaRH[]): Promise<Result
     sinonimosFuncao.set(normalizarNome(s.funcao_rh), { normalizado: normalizarNome(s.funcao_sistema), bruto: s.funcao_sistema })
   }
 
-  return compararListagem(linhasRH, funcionariosSistema, codigoParaApelido, sinonimosFuncao)
+  return compararListagem(linhasRH, funcionariosSistema, codigoParaLabel, sinonimosFuncao)
 }
 
 export async function salvarConfigCodigoRH(codigo: number, supervisorId: string | null): Promise<{ ok: boolean; erro?: string }> {

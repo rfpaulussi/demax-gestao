@@ -38,7 +38,9 @@ export type CelulaResumo = { rh: number; sistema: number }
 
 export type LinhaResumo = {
   funcao: string
-  porSupervisor: Record<string, CelulaResumo>  // chave = apelido do supervisor
+  // chave = label do código RH: nome do perfil vinculado (config_codigos_rh.supervisor_id),
+  // ou o apelido bruto quando o código ainda não está vinculado a nenhum perfil.
+  porSupervisor: Record<string, CelulaResumo>
   afastados: CelulaResumo
   total: CelulaResumo
 }
@@ -54,3 +56,14 @@ export type ResultadoComparacao = {
 /** Um sinônimo resolvido: forma normalizada (pra comparação) e bruta (pra exibição)
  * da função do sistema equivalente à função do RH usada como chave do map. */
 export type SinonimoFuncaoResolvido = { normalizado: string; bruto: string }
+
+/** Resolve o label de exibição/agrupamento de um código RH: quando o código está
+ * vinculado a um perfil (config_codigos_rh.supervisor_id), usa o nome real desse
+ * perfil — é o que precisa bater com FuncionarioSistema.supervisorNome (também
+ * vindo de perfis.nome) pra comparação e resumo agregado funcionarem. Sem vínculo,
+ * cai pro apelido bruto cadastrado. Usado tanto em actions.ts (pra montar o Map
+ * código->label passado a compararListagem) quanto em page.tsx (pros headers do
+ * resumo agregado) — mesma lógica, pra headers e agregação nunca divergirem. */
+export function resolverLabelCodigo(apelido: string, nomePerfilVinculado: string | null | undefined): string {
+  return nomePerfilVinculado ?? apelido
+}
