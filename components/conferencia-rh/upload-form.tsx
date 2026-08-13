@@ -28,12 +28,15 @@ function parseListagem(file: File): Promise<{ linhas: LinhaRH[]; erro?: string }
         const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null }) as unknown[][]
         // linha 0 = cabeçalho: RE, NOME DO FUNCIONARIO, FUNCAO, ADMISSAO, AFASTADO, CONTRATO, ..., NUM
         const header = (raw[0] ?? []).map(h => String(h ?? '').trim().toUpperCase())
-        const HEADER_ESPERADO = ['RE', 'NOME DO FUNCIONARIO', 'FUNCAO', 'ADMISSAO', 'AFASTADO', 'CONTRATO']
-        const headerValido = HEADER_ESPERADO.every((esperado, i) => header[i] === esperado)
-        if (!headerValido) {
+        // Coluna A é só o identificador único (RE/matrícula/código) — o rótulo varia
+        // conforme quem editou a planilha, então só exigimos que não esteja vazia.
+        const HEADER_ESPERADO_B_A_F = ['NOME DO FUNCIONARIO', 'FUNCAO', 'ADMISSAO', 'AFASTADO', 'CONTRATO']
+        const colunaAValida = header[0] != null && header[0] !== ''
+        const colunasBaFValidas = HEADER_ESPERADO_B_A_F.every((esperado, i) => header[i + 1] === esperado)
+        if (!colunaAValida || !colunasBaFValidas) {
           resolve({
             linhas: [],
-            erro: 'Cabeçalho inesperado na aba LISTAGEM — confirme que as colunas são RE, NOME DO FUNCIONARIO, FUNCAO, ADMISSAO, AFASTADO, CONTRATO.',
+            erro: 'Cabeçalho inesperado na aba LISTAGEM — confirme que as colunas são [identificador], NOME DO FUNCIONARIO, FUNCAO, ADMISSAO, AFASTADO, CONTRATO.',
           })
           return
         }
