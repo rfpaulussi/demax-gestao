@@ -638,6 +638,24 @@ export type Database = {
           },
         ]
       }
+      config_sinonimos_funcao: {
+        Row: {
+          funcao_rh: string
+          funcao_sistema: string
+          created_at: string | null
+        }
+        Insert: {
+          funcao_rh: string
+          funcao_sistema: string
+          created_at?: string | null
+        }
+        Update: {
+          funcao_rh?: string
+          funcao_sistema?: string
+          created_at?: string | null
+        }
+        Relationships: []
+      }
       contratos: {
         Row: {
           ativo: boolean | null
