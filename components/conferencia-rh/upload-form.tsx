@@ -113,7 +113,7 @@ export function UploadForm({ supervisoresApelidos }: { supervisoresApelidos: str
           {resultado.codigosSemSupervisorVinculado.length > 0 && (
             <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
               Códigos do RH sem supervisor vinculado na configuração: {resultado.codigosSemSupervisorVinculado.join(', ')}.
-              A comparação seguiu, mas vincule-os na seção "Configuração de Códigos" abaixo pra conferir o supervisor corretamente.
+              A comparação seguiu, mas vincule-os na seção &quot;Configuração de Códigos&quot; abaixo pra conferir o supervisor corretamente.
             </p>
           )}
           {resultado.linhasIgnoradas > 0 && (

@@ -52,6 +52,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/supervisores',      label: 'Supervisores'      },
       { href: '/usuarios',         label: 'Usuários'          },
       { href: '/auditoria',        label: 'Auditoria'         },
+      { href: '/conferencia-rh',   label: 'Conferência RH'    },
       { href: '/funcoes',           label: 'Funções e Salários', alertBadge: true, allowedRoles: ROLES_GESTAO },
       { href: '/convencoes',       label: 'Conv. Coletivas', allowedRoles: ROLES_GESTAO },
       { href: '/revisor-operacional', label: 'Revisor Operacional', allowedRoles: ROLES_GESTAO },
