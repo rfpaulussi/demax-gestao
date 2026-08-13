@@ -2,8 +2,10 @@
 
 import { getUser } from '@/lib/auth/get-user'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { compararListagem } from '@/lib/conferencia-rh/comparar'
 import type { LinhaRH, FuncionarioSistema, ResultadoComparacao } from '@/lib/conferencia-rh/tipos'
+import { isAdminOrCoord, type Role } from '@/types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyQ = { from: (t: string) => any }
@@ -11,25 +13,9 @@ type AnyQ = { from: (t: string) => any }
 export async function compararConferenciaRH(linhasRH: LinhaRH[]): Promise<ResultadoComparacao | { erro: string }> {
   const auth = await getUser()
   if (!auth) return { erro: 'Não autenticado' }
-  if (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador') return { erro: 'Sem permissão' }
+  if (!isAdminOrCoord(auth.perfil.role as Role)) return { erro: 'Sem permissão' }
 
   const supabase = createClient()
-
-  const [{ data: funcsRaw }, { data: codigosRaw }] = await Promise.all([
-    supabase
-      .from('funcionarios')
-      .select(`
-        id, registro, nome, status,
-        funcoes!funcao_id ( nome ),
-        postos!posto_id (
-          id,
-          config_supervisores_postos ( ativo, perfis!supervisor_id ( nome ) )
-        )
-      `)
-      .neq('status', 'desligado')
-      .range(0, 1499),
-    (supabase as AnyQ).from('config_codigos_rh').select('codigo, apelido, supervisor_id'),
-  ])
 
   type FuncRaw = {
     id: string
@@ -40,7 +26,36 @@ export async function compararConferenciaRH(linhasRH: LinhaRH[]): Promise<Result
     postos: { id: string; config_supervisores_postos: { ativo: boolean | null; perfis: { nome: string | null } | null }[] } | null
   }
 
-  const funcionariosSistema: FuncionarioSistema[] = ((funcsRaw ?? []) as unknown as FuncRaw[]).map(f => {
+  let funcsRaw: FuncRaw[]
+  let codigosRaw: unknown[] | null
+  let errCodigos: { message: string } | null
+
+  try {
+    ;[funcsRaw, { data: codigosRaw, error: errCodigos }] = await Promise.all([
+      fetchAllRows((from, to) =>
+        supabase
+          .from('funcionarios')
+          .select(`
+            id, registro, nome, status,
+            funcoes!funcao_id ( nome ),
+            postos!posto_id (
+              id,
+              config_supervisores_postos ( ativo, perfis!supervisor_id ( nome ) )
+            )
+          `)
+          .neq('status', 'desligado')
+          .range(from, to) as unknown as PromiseLike<{ data: FuncRaw[] | null; error: { message: string } | null }>,
+      ),
+      (supabase as unknown as AnyQ).from('config_codigos_rh').select('codigo, apelido, supervisor_id'),
+    ])
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { erro: `Erro ao buscar funcionários: ${msg}` }
+  }
+
+  if (errCodigos) return { erro: `Erro ao buscar configuração de códigos: ${errCodigos.message}` }
+
+  const funcionariosSistema: FuncionarioSistema[] = funcsRaw.map(f => {
     const configAtiva = f.postos?.config_supervisores_postos?.find(c => c.ativo)
     return {
       id: f.id,
@@ -64,7 +79,7 @@ export async function salvarConfigCodigoRH(codigo: number, supervisorId: string 
   if (!auth || auth.perfil.role !== 'admin') return { ok: false, erro: 'Sem permissão' }
 
   const supabase = createClient()
-  const { error } = await (supabase as AnyQ)
+  const { error } = await (supabase as unknown as AnyQ)
     .from('config_codigos_rh')
     .update({ supervisor_id: supervisorId, updated_at: new Date().toISOString() })
     .eq('codigo', codigo)
