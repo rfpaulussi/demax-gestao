@@ -25,16 +25,15 @@ export function ResumoAgregado({
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="bg-slate-900 text-white">
-            <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-widest">Função</th>
+            <th scope="col" rowSpan={2} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-widest align-bottom">Função</th>
             {supervisores.map(s => (
-              <th key={s} className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-widest">{s}</th>
+              <th key={s} scope="col" className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-widest">{s}</th>
             ))}
-            <th className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-widest">Afast.</th>
-            <th className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-widest">Total</th>
+            <th scope="col" className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-widest">Afast.</th>
+            <th scope="col" className="px-2 py-2 text-center text-xs font-semibold uppercase tracking-widest">Total</th>
           </tr>
           <tr className="bg-slate-800 text-white/70">
-            <th className="px-3 py-1 text-left text-[10px] font-normal">RH / Sistema</th>
-            <th colSpan={supervisores.length + 2}></th>
+            <th scope="col" colSpan={supervisores.length + 2} className="px-3 py-1 text-center text-[10px] font-normal">RH / Sistema</th>
           </tr>
         </thead>
         <tbody>

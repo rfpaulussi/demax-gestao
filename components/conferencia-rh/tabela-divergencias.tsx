@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { exportToExcel } from '@/lib/export-excel'
+import { normalizarNome } from '@/lib/conferencia-rh/normalizar'
 import type { Divergencia, TipoDivergencia } from '@/lib/conferencia-rh/tipos'
 
 const TIPO_LABEL: Record<TipoDivergencia, string> = {
@@ -22,8 +23,8 @@ export function TabelaDivergencias({ divergencias }: { divergencias: Divergencia
     return divergencias.filter(d => {
       if (filtroTipo !== 'todos' && !d.tipos.includes(filtroTipo)) return false
       if (busca) {
-        const alvo = `${d.rh.nome ?? ''} ${d.sistema.nome ?? ''}`.toLowerCase()
-        if (!alvo.includes(busca.toLowerCase())) return false
+        const alvo = normalizarNome(`${d.rh.nome ?? ''} ${d.sistema.nome ?? ''}`)
+        if (!alvo.includes(normalizarNome(busca))) return false
       }
       return true
     })
@@ -53,6 +54,7 @@ export function TabelaDivergencias({ divergencias }: { divergencias: Divergencia
         <input
           type="text"
           placeholder="Buscar por nome..."
+          aria-label="Buscar por nome"
           value={busca}
           onChange={e => setBusca(e.target.value)}
           className="h-9 w-56 rounded-lg border border-gray-200 px-3 text-sm"
@@ -60,6 +62,7 @@ export function TabelaDivergencias({ divergencias }: { divergencias: Divergencia
         <select
           value={filtroTipo}
           onChange={e => setFiltroTipo(e.target.value as TipoDivergencia | 'todos')}
+          aria-label="Filtrar por tipo de divergência"
           className="h-9 rounded-lg border border-gray-200 px-3 text-sm"
         >
           <option value="todos">Todos os tipos</option>
@@ -79,10 +82,10 @@ export function TabelaDivergencias({ divergencias }: { divergencias: Divergencia
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50">
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Divergência</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">RH</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Sistema</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-widest text-gray-400"></th>
+              <th scope="col" className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Divergência</th>
+              <th scope="col" className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">RH</th>
+              <th scope="col" className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Sistema</th>
+              <th scope="col" className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-widest text-gray-400"></th>
             </tr>
           </thead>
           <tbody>
