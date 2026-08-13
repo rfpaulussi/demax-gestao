@@ -27,6 +27,16 @@ function parseListagem(file: File): Promise<{ linhas: LinhaRH[]; erro?: string }
         }
         const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null }) as unknown[][]
         // linha 0 = cabeçalho: RE, NOME DO FUNCIONARIO, FUNCAO, ADMISSAO, AFASTADO, CONTRATO, ..., NUM
+        const header = (raw[0] ?? []).map(h => String(h ?? '').trim().toUpperCase())
+        const HEADER_ESPERADO = ['RE', 'NOME DO FUNCIONARIO', 'FUNCAO', 'ADMISSAO', 'AFASTADO', 'CONTRATO']
+        const headerValido = HEADER_ESPERADO.every((esperado, i) => header[i] === esperado)
+        if (!headerValido) {
+          resolve({
+            linhas: [],
+            erro: 'Cabeçalho inesperado na aba LISTAGEM — confirme que as colunas são RE, NOME DO FUNCIONARIO, FUNCAO, ADMISSAO, AFASTADO, CONTRATO.',
+          })
+          return
+        }
         const linhas: LinhaRH[] = []
         for (const row of raw.slice(1)) {
           const re = row[0]
@@ -86,7 +96,11 @@ export function UploadForm({ supervisoresApelidos }: { supervisoresApelidos: str
         <input
           type="file"
           accept=".xlsx"
-          onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f) }}
+          onChange={e => {
+            const f = e.target.files?.[0]
+            e.target.value = ''
+            if (f) onFile(f)
+          }}
           className="text-sm"
         />
         {nomeArquivo && <p className="mt-2 text-xs text-gray-400">Arquivo: {nomeArquivo}</p>}

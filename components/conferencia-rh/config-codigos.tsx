@@ -8,14 +8,21 @@ type Supervisor = { id: string; nome: string | null }
 
 export function ConfigCodigos({ codigos, supervisores }: { codigos: ConfigCodigo[]; supervisores: Supervisor[] }) {
   const [salvando, setSalvando] = useState<number | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
   const [valores, setValores] = useState<Record<number, string>>(
     Object.fromEntries(codigos.map(c => [c.codigo, c.supervisor_id ?? '']))
   )
 
   async function onChange(codigo: number, supervisorId: string) {
+    const anterior = valores[codigo] ?? ''
     setValores(v => ({ ...v, [codigo]: supervisorId }))
     setSalvando(codigo)
-    await salvarConfigCodigoRH(codigo, supervisorId || null)
+    setErro(null)
+    const res = await salvarConfigCodigoRH(codigo, supervisorId || null)
+    if (!res.ok) {
+      setValores(v => ({ ...v, [codigo]: anterior }))
+      setErro(`Falha ao salvar código ${codigo}: ${res.erro ?? 'erro desconhecido'}`)
+    }
     setSalvando(null)
   }
 
@@ -24,6 +31,7 @@ export function ConfigCodigos({ codigos, supervisores }: { codigos: ConfigCodigo
       <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">
         Configuração de Códigos RH → Supervisor
       </h2>
+      {erro && <p className="mb-3 text-xs font-medium text-red-600">{erro}</p>}
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs text-gray-400">
