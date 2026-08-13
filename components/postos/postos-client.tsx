@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, Fragment } from 'react'
 import { UserPlus, FileSpreadsheet, ChevronRight, Clock, CalendarClock } from 'lucide-react'
+import { BadgePcd } from '@/components/efetivo/badge-pcd'
 import { ModalTurnosPosto } from './modal-turnos-posto'
 import { ModalAtribuirHorariosLote } from './modal-atribuir-horarios-lote'
 import * as XLSX from 'xlsx-js-style'
@@ -630,6 +631,7 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                                         <span className={cn('font-medium', NOME_COR_STATUS[chave] ?? 'text-gray-700')}>
                                           {f.nome}
                                         </span>
+                                        {f.pcd && <BadgePcd tipo={f.pcd_tipo} tipoOutro={f.pcd_tipo_outro} />}
                                         <span className="text-gray-400">— {f.funcao_nome}</span>
                                         {STATUS_LABEL_LISTA[chave] && (
                                           <span className={cn('font-semibold', NOME_COR_STATUS[chave])}>
