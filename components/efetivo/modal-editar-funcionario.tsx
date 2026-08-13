@@ -44,6 +44,9 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
   )
   const [dataFimFase1, setDataFimFase1] = useState('')
   const [dataFimFase2, setDataFimFase2] = useState('')
+  const [pcd,          setPcd]          = useState(funcionario.pcd ?? false)
+  const [pcdTipo,       setPcdTipo]      = useState(funcionario.pcd_tipo ?? '')
+  const [pcdTipoOutro,  setPcdTipoOutro] = useState(funcionario.pcd_tipo_outro ?? '')
   const [erro,         setErro]         = useState<string | null>(null)
   const [pending,      start]           = useTransition()
 
@@ -101,6 +104,9 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
         motivo_desligamento: (statusEnviado === 'ativo' || statusEnviado === 'rescisao_indireta') ? null : motivoDesligamento || null,
         tipo_desligamento:   (statusEnviado === 'ativo' || statusEnviado === 'rescisao_indireta') ? null : tipoDesligamento || null,
         periodo_experiencia: periodoExp || null,
+        pcd,
+        pcd_tipo:            pcd ? (pcdTipo || null) : null,
+        pcd_tipo_outro:      (pcd && pcdTipo === 'Outra') ? (pcdTipoOutro || null) : null,
       })
       if (!result.success) {
         setErro(result.error)
@@ -266,6 +272,42 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
                 </div>
               </>
             )}
+
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={pcd}
+                  onChange={e => { setPcd(e.target.checked); if (!e.target.checked) { setPcdTipo(''); setPcdTipoOutro('') } }}
+                  className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                />
+                Pessoa com deficiência (PCD)
+              </label>
+              {pcd && (
+                <div className="mt-2 space-y-2">
+                  <select
+                    value={pcdTipo}
+                    onChange={e => setPcdTipo(e.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="">Selecione o tipo...</option>
+                    <option value="Visual">Visual</option>
+                    <option value="Física">Física</option>
+                    <option value="Auditiva">Auditiva</option>
+                    <option value="Intelectual">Intelectual</option>
+                    <option value="Outra">Outra</option>
+                  </select>
+                  {pcdTipo === 'Outra' && (
+                    <input
+                      value={pcdTipoOutro}
+                      onChange={e => setPcdTipoOutro(e.target.value)}
+                      placeholder="Descreva o tipo..."
+                      className={inputClass}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
 
             {erro && (
               <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">

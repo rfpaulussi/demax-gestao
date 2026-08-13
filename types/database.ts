@@ -1351,6 +1351,9 @@ export type Database = {
           motivo_afastamento: string | null
           motivo_desligamento: string | null
           nome: string
+          pcd: boolean | null
+          pcd_tipo: string | null
+          pcd_tipo_outro: string | null
           periodo_experiencia: string | null
           posto_id: string | null
           registro: string | null
@@ -1374,6 +1377,9 @@ export type Database = {
           motivo_afastamento?: string | null
           motivo_desligamento?: string | null
           nome: string
+          pcd?: boolean | null
+          pcd_tipo?: string | null
+          pcd_tipo_outro?: string | null
           periodo_experiencia?: string | null
           posto_id?: string | null
           registro?: string | null
@@ -1397,6 +1403,9 @@ export type Database = {
           motivo_afastamento?: string | null
           motivo_desligamento?: string | null
           nome?: string
+          pcd?: boolean | null
+          pcd_tipo?: string | null
+          pcd_tipo_outro?: string | null
           periodo_experiencia?: string | null
           posto_id?: string | null
           registro?: string | null

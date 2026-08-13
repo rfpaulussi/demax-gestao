@@ -71,6 +71,9 @@ export type PostoFuncionario = {
   funcao_nome: string
   status: string
   motivo_afastamento: string | null
+  pcd: boolean
+  pcd_tipo: string | null
+  pcd_tipo_outro: string | null
 }
 
 export type PostoRow = {
@@ -135,6 +138,9 @@ interface FuncionarioRow {
   motivo_afastamento: string | null
   funcao_id: string | null
   eh_encarregado_volante: boolean | null
+  pcd: boolean | null
+  pcd_tipo: string | null
+  pcd_tipo_outro: string | null
   funcoes: { nome: string } | null
 }
 
@@ -165,7 +171,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
     fetchAllRows<FuncionarioRow>((from, to) =>
       supabase
         .from('funcionarios')
-        .select('id, nome, posto_id, status, motivo_afastamento, funcao_id, eh_encarregado_volante, funcoes!funcao_id(nome)')
+        .select('id, nome, posto_id, status, motivo_afastamento, funcao_id, eh_encarregado_volante, pcd, pcd_tipo, pcd_tipo_outro, funcoes!funcao_id(nome)')
         .in('status', ['ativo', 'ferias', 'atestado', 'afastado', 'faltante'])
         .order('id', { ascending: true })
         .range(from, to) as unknown as PromiseLike<{ data: FuncionarioRow[] | null; error: { message: string } | null }>,
@@ -204,6 +210,9 @@ export async function getPostosData(): Promise<PostoRow[]> {
       funcao_nome: f.funcoes?.nome ?? '—',
       status: f.status,
       motivo_afastamento: f.motivo_afastamento,
+      pcd: f.pcd ?? false,
+      pcd_tipo: f.pcd_tipo,
+      pcd_tipo_outro: f.pcd_tipo_outro,
     })
     funcionariosPorPosto.set(f.posto_id, lista)
 

@@ -568,6 +568,20 @@ export async function solicitarRescisaoIndireta(fd: FormData): Promise<ActionRes
   return { success: true }
 }
 
+type PcdTipo = 'Visual' | 'Física' | 'Auditiva' | 'Intelectual' | 'Outra'
+const PCD_TIPOS: readonly PcdTipo[] = ['Visual', 'Física', 'Auditiva', 'Intelectual', 'Outra']
+
+function validarPcd(pcd: boolean, pcdTipo: string | null, pcdTipoOutro: string | null): { error?: string } {
+  if (!pcd) return {}
+  if (!pcdTipo || !PCD_TIPOS.includes(pcdTipo as PcdTipo)) {
+    return { error: 'Selecione o tipo de PCD' }
+  }
+  if (pcdTipo === 'Outra' && !pcdTipoOutro?.trim()) {
+    return { error: 'Descreva o tipo de PCD em "Outra"' }
+  }
+  return {}
+}
+
 export async function editarFuncionario(
   id: string,
   campos: {
@@ -581,6 +595,9 @@ export async function editarFuncionario(
     motivo_desligamento: string | null
     tipo_desligamento: string | null
     periodo_experiencia?: '30+30' | '45+45' | null
+    pcd: boolean
+    pcd_tipo: string | null
+    pcd_tipo_outro: string | null
   },
 ): Promise<ActionResult> {
   const auth = await getUser()
@@ -591,6 +608,9 @@ export async function editarFuncionario(
   const supabase = createClient()
 
   const periodoExperiencia = campos.periodo_experiencia ?? null
+
+  const pcdCheck = validarPcd(campos.pcd, campos.pcd_tipo, campos.pcd_tipo_outro)
+  if (pcdCheck.error) return { success: false, error: pcdCheck.error }
 
   const updatePayload: Record<string, unknown> = {
     nome:                campos.nome,
@@ -603,6 +623,9 @@ export async function editarFuncionario(
     motivo_desligamento: (campos.status === 'ativo' || campos.status === 'rescisao_indireta') ? null : campos.motivo_desligamento || null,
     tipo_desligamento:   (campos.status === 'ativo' || campos.status === 'rescisao_indireta') ? null : campos.tipo_desligamento || null,
     periodo_experiencia: periodoExperiencia,
+    pcd:                 campos.pcd,
+    pcd_tipo:            campos.pcd ? campos.pcd_tipo : null,
+    pcd_tipo_outro:      (campos.pcd && campos.pcd_tipo === 'Outra') ? campos.pcd_tipo_outro : null,
   }
 
   // Lê estado atual para comparar e logar apenas o que mudou
@@ -709,10 +732,16 @@ export async function admitirFuncionarioAdmin(formData: FormData): Promise<{ err
   const cpf                = (formData.get('cpf') as string)?.trim() || null
   const periodoRaw         = (formData.get('periodo_experiencia') as string) || ''
   const periodo_experiencia = (periodoRaw === '30+30' || periodoRaw === '45+45') ? periodoRaw : '45+45'
+  const pcd          = formData.get('pcd') === 'on'
+  const pcd_tipo      = (formData.get('pcd_tipo') as string)?.trim() || null
+  const pcd_tipo_outro = (formData.get('pcd_tipo_outro') as string)?.trim() || null
 
   if (!nome || !funcao_id || !posto_id || !data_admissao) {
     return { error: 'Nome, função, posto e data de admissão são obrigatórios' }
   }
+
+  const pcdCheck = validarPcd(pcd, pcd_tipo, pcd_tipo_outro)
+  if (pcdCheck.error) return { error: pcdCheck.error }
 
   const payload: Record<string, unknown> = {
     nome, funcao_id, posto_id, data_admissao, status: 'ativo',
@@ -720,6 +749,9 @@ export async function admitirFuncionarioAdmin(formData: FormData): Promise<{ err
   }
   if (registro) payload.registro = registro
   if (cpf) payload.cpf = cpf
+  payload.pcd = pcd
+  payload.pcd_tipo = pcd ? pcd_tipo : null
+  payload.pcd_tipo_outro = (pcd && pcd_tipo === 'Outra') ? pcd_tipo_outro : null
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await supabase.from('funcionarios').insert(payload as any)

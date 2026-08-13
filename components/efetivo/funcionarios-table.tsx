@@ -12,12 +12,16 @@ import { ModalAfastar } from './modal-afastar'
 import { ModalNovaSolicitacao } from './modal-nova-solicitacao'
 import { ModalEditarFuncionario } from './modal-editar-funcionario'
 import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dialog'
+import { BadgePcd } from './badge-pcd'
 
 export type FuncionarioRow = {
   id: string
   nome: string
   registro: string | null
   cpf: string | null
+  pcd: boolean | null
+  pcd_tipo: string | null
+  pcd_tipo_outro: string | null
   status: 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado' | 'faltante' | 'rescisao_indireta' | null
   motivo_afastamento: 'ausencia_temporaria' | 'inss' | null
   origem_ocupacional_cat: string | null
@@ -177,6 +181,7 @@ export function FuncionariosTable({
                         )}
                       >
                         {f.nome}
+                        {f.pcd && <BadgePcd tipo={f.pcd_tipo} tipoOutro={f.pcd_tipo_outro} />}
                         {f.cpf && (
                           <span className="block text-xs font-normal text-gray-400">
                             ***.***.***-**
