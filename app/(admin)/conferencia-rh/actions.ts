@@ -50,7 +50,7 @@ export async function compararConferenciaRH(linhasRH: LinhaRH[]): Promise<Result
           .neq('status', 'desligado')
           .range(from, to) as unknown as PromiseLike<{ data: FuncRaw[] | null; error: { message: string } | null }>,
       ),
-      (supabase as unknown as AnyQ).from('config_codigos_rh').select('codigo, apelido, supervisor_id, perfis!supervisor_id ( nome )'),
+      (supabase as unknown as AnyQ).from('config_codigos_rh').select('codigo, apelido, supervisor_id, perfis!supervisor_id ( nome, ativo )'),
       (supabase as unknown as AnyQ).from('config_sinonimos_funcao').select('funcao_rh, funcao_sistema'),
     ])
   } catch (e) {
@@ -73,10 +73,10 @@ export async function compararConferenciaRH(linhasRH: LinhaRH[]): Promise<Result
     }
   })
 
-  type CodigoRow = { codigo: number; apelido: string; supervisor_id: string | null; perfis: { nome: string | null } | null }
+  type CodigoRow = { codigo: number; apelido: string; supervisor_id: string | null; perfis: { nome: string | null; ativo: boolean | null } | null }
   const codigoParaLabel = new Map<number, string>()
   for (const c of ((codigosRaw ?? []) as unknown as CodigoRow[])) {
-    codigoParaLabel.set(c.codigo, resolverLabelCodigo(c.apelido, c.perfis?.nome))
+    codigoParaLabel.set(c.codigo, resolverLabelCodigo(c.apelido, c.perfis))
   }
 
   type SinonimoRow = { funcao_rh: string; funcao_sistema: string }

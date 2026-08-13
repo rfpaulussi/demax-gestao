@@ -16,7 +16,7 @@ export default async function ConferenciaRHPage() {
 
   const supabase = createClient()
   const [{ data: codigosRaw, error: errCodigos }, { data: supervisoresRaw, error: errSupervisores }] = await Promise.all([
-    (supabase as unknown as AnyQ).from('config_codigos_rh').select('codigo, apelido, supervisor_id, perfis!supervisor_id ( nome )').order('codigo'),
+    (supabase as unknown as AnyQ).from('config_codigos_rh').select('codigo, apelido, supervisor_id, perfis!supervisor_id ( nome, ativo )').order('codigo'),
     supabase.from('perfis').select('id, nome').in('role', ['supervisor', 'admin']).eq('ativo', true).order('nome'),
   ])
 
@@ -36,12 +36,12 @@ export default async function ConferenciaRHPage() {
     )
   }
 
-  type ConfigCodigo = { codigo: number; apelido: string; supervisor_id: string | null; perfis: { nome: string | null } | null }
+  type ConfigCodigo = { codigo: number; apelido: string; supervisor_id: string | null; perfis: { nome: string | null; ativo: boolean | null } | null }
   const codigos = (codigosRaw ?? []) as unknown as ConfigCodigo[]
   // Mesma resolução usada em actions.ts pra montar o Map código->label da comparação:
   // headers do resumo agregado precisam bater com as chaves que compararListagem
-  // realmente usa (nome do perfil vinculado, senão o apelido bruto).
-  const supervisoresApelidos = codigos.map(c => resolverLabelCodigo(c.apelido, c.perfis?.nome))
+  // realmente usa (nome do perfil vinculado ativo, senão o apelido bruto).
+  const supervisoresApelidos = codigos.map(c => resolverLabelCodigo(c.apelido, c.perfis))
 
   return (
     <div className="space-y-6">

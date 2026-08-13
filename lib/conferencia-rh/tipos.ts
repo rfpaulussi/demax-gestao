@@ -58,12 +58,24 @@ export type ResultadoComparacao = {
 export type SinonimoFuncaoResolvido = { normalizado: string; bruto: string }
 
 /** Resolve o label de exibição/agrupamento de um código RH: quando o código está
- * vinculado a um perfil (config_codigos_rh.supervisor_id), usa o nome real desse
- * perfil — é o que precisa bater com FuncionarioSistema.supervisorNome (também
- * vindo de perfis.nome) pra comparação e resumo agregado funcionarem. Sem vínculo,
- * cai pro apelido bruto cadastrado. Usado tanto em actions.ts (pra montar o Map
- * código->label passado a compararListagem) quanto em page.tsx (pros headers do
- * resumo agregado) — mesma lógica, pra headers e agregação nunca divergirem. */
-export function resolverLabelCodigo(apelido: string, nomePerfilVinculado: string | null | undefined): string {
-  return nomePerfilVinculado ?? apelido
+ * vinculado a um perfil (config_codigos_rh.supervisor_id) que está ATIVO e tem
+ * nome não vazio, usa o nome real desse perfil — é o que precisa bater com
+ * FuncionarioSistema.supervisorNome (também vindo de perfis.nome) pra comparação
+ * e resumo agregado funcionarem. Caso contrário (sem vínculo, perfil inativo, ou
+ * nome vazio), cai pro apelido bruto cadastrado — isso mantém a comparação
+ * consistente com o que o dropdown de "Configuração de Códigos" mostra: um
+ * perfil desativado aparece como "não vinculado" lá (a lista de opções é
+ * filtrada por ativo=true), então a comparação não pode continuar usando o
+ * nome desse perfil por baixo dos panos. Usado tanto em actions.ts (pra montar
+ * o Map código->label passado a compararListagem) quanto em page.tsx (pros
+ * headers do resumo agregado) — mesma lógica, pra headers e agregação nunca
+ * divergirem. */
+export function resolverLabelCodigo(
+  apelido: string,
+  perfilVinculado: { nome: string | null; ativo: boolean | null } | null | undefined,
+): string {
+  if (perfilVinculado?.ativo && perfilVinculado.nome && perfilVinculado.nome.trim() !== '') {
+    return perfilVinculado.nome
+  }
+  return apelido
 }
