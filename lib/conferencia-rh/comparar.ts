@@ -23,12 +23,36 @@ function somaCelula(a: CelulaResumo, lado: 'rh' | 'sistema') {
   a[lado] += 1
 }
 
+/** Um sinônimo resolvido: forma normalizada (pra comparação) e bruta (pra exibição)
+ * da função do sistema equivalente à função do RH usada como chave do map. */
+export type SinonimoFuncaoResolvido = { normalizado: string; bruto: string }
+
 export function compararListagem(
   linhasRH: LinhaRH[],
   funcionariosSistema: FuncionarioSistema[],
   codigoParaApelido: Map<number, string>,
+  sinonimosFuncao: Map<string, SinonimoFuncaoResolvido> = new Map(),
 ): ResultadoComparacao {
   const supervisoresApelidos = Array.from(new Set(codigoParaApelido.values())).sort()
+
+  /** Resolve a chave (bruta, pra exibição) usada em resumoPorFuncao, aplicando
+   * sinônimo quando existir: funcao bruta do RH -> normaliza -> busca sinônimo ->
+   * se achou, usa a função bruta do sistema equivalente (do próprio cadastro de
+   * sinônimos); senão usa a função bruta original do RH. */
+  function chaveResumoFuncaoRH(funcaoRH: string): string {
+    const sinonimo = sinonimosFuncao.get(normalizarNome(funcaoRH))
+    return sinonimo ? sinonimo.bruto : funcaoRH
+  }
+
+  // Idem, pro lado sistema: se a função do sistema é o alvo de algum sinônimo
+  // cadastrado, agrupa na mesma chave bruta pra bater com o lado RH.
+  const brutoPorFuncaoSistemaNormalizada = new Map<string, string>()
+  for (const sinonimo of Array.from(sinonimosFuncao.values())) {
+    brutoPorFuncaoSistemaNormalizada.set(sinonimo.normalizado, sinonimo.bruto)
+  }
+  function chaveResumoFuncaoSistema(funcaoSistema: string): string {
+    return brutoPorFuncaoSistemaNormalizada.get(normalizarNome(funcaoSistema)) ?? funcaoSistema
+  }
 
   // ── índices pro lado sistema ──
   // Nota: se dois funcionários do sistema tiverem o mesmo RE ou nome normalizado,
@@ -78,7 +102,7 @@ export function compararListagem(
     if (!apelidoSupervisor) codigosSemSupervisor.add(linha.codigoSupervisor)
 
     // resumo agregado (lado RH)
-    const linhaResumo = linhaResumoDe(linha.funcao)
+    const linhaResumo = linhaResumoDe(chaveResumoFuncaoRH(linha.funcao))
     if (apelidoSupervisor) somaCelula(linhaResumo.porSupervisor[apelidoSupervisor], 'rh')
     if (linha.afastadoEm) somaCelula(linhaResumo.afastados, 'rh')
     somaCelula(linhaResumo.total, 'rh')
@@ -109,7 +133,10 @@ export function compararListagem(
     }
 
     if (normalizarNome(matchSistema.nome) !== normalizarNome(linha.nome)) tipos.push('nome_diferente')
-    if (normalizarNome(matchSistema.funcao ?? '') !== normalizarNome(linha.funcao)) tipos.push('funcao_diferente')
+    const funcaoSistemaNorm = normalizarNome(matchSistema.funcao ?? '')
+    const funcaoRHNorm = normalizarNome(linha.funcao)
+    const equivalentePorSinonimo = sinonimosFuncao.get(funcaoRHNorm)?.normalizado === funcaoSistemaNorm
+    if (funcaoSistemaNorm !== funcaoRHNorm && !equivalentePorSinonimo) tipos.push('funcao_diferente')
     if (matchSistema.afastado !== !!linha.afastadoEm) tipos.push('afastado_diferente')
     if (apelidoSupervisor && matchSistema.supervisorNome !== apelidoSupervisor) tipos.push('supervisor_diferente')
 
@@ -125,7 +152,7 @@ export function compararListagem(
 
   // resumo agregado (lado Sistema) + "só no sistema"
   for (const f of funcionariosSistema) {
-    const funcaoNome = f.funcao ?? '(sem função)'
+    const funcaoNome = f.funcao ? chaveResumoFuncaoSistema(f.funcao) : '(sem função)'
     const linhaResumo = linhaResumoDe(funcaoNome)
     if (f.supervisorNome) {
       if (!linhaResumo.porSupervisor[f.supervisorNome]) linhaResumo.porSupervisor[f.supervisorNome] = novaCelula()

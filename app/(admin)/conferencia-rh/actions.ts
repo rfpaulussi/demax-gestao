@@ -3,7 +3,8 @@
 import { getUser } from '@/lib/auth/get-user'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
-import { compararListagem } from '@/lib/conferencia-rh/comparar'
+import { compararListagem, type SinonimoFuncaoResolvido } from '@/lib/conferencia-rh/comparar'
+import { normalizarNome } from '@/lib/conferencia-rh/normalizar'
 import type { LinhaRH, FuncionarioSistema, ResultadoComparacao } from '@/lib/conferencia-rh/tipos'
 import { isAdminOrCoord, type Role } from '@/types'
 
@@ -29,9 +30,11 @@ export async function compararConferenciaRH(linhasRH: LinhaRH[]): Promise<Result
   let funcsRaw: FuncRaw[]
   let codigosRaw: unknown[] | null
   let errCodigos: { message: string } | null
+  let sinonimosRaw: unknown[] | null
+  let errSinonimos: { message: string } | null
 
   try {
-    ;[funcsRaw, { data: codigosRaw, error: errCodigos }] = await Promise.all([
+    ;[funcsRaw, { data: codigosRaw, error: errCodigos }, { data: sinonimosRaw, error: errSinonimos }] = await Promise.all([
       fetchAllRows((from, to) =>
         supabase
           .from('funcionarios')
@@ -47,6 +50,7 @@ export async function compararConferenciaRH(linhasRH: LinhaRH[]): Promise<Result
           .range(from, to) as unknown as PromiseLike<{ data: FuncRaw[] | null; error: { message: string } | null }>,
       ),
       (supabase as unknown as AnyQ).from('config_codigos_rh').select('codigo, apelido, supervisor_id'),
+      (supabase as unknown as AnyQ).from('config_sinonimos_funcao').select('funcao_rh, funcao_sistema'),
     ])
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
@@ -54,6 +58,7 @@ export async function compararConferenciaRH(linhasRH: LinhaRH[]): Promise<Result
   }
 
   if (errCodigos) return { erro: `Erro ao buscar configuração de códigos: ${errCodigos.message}` }
+  if (errSinonimos) return { erro: `Erro ao buscar sinônimos de função: ${errSinonimos.message}` }
 
   const funcionariosSistema: FuncionarioSistema[] = funcsRaw.map(f => {
     const configAtiva = f.postos?.config_supervisores_postos?.find(c => c.ativo)
@@ -71,7 +76,13 @@ export async function compararConferenciaRH(linhasRH: LinhaRH[]): Promise<Result
   const codigoParaApelido = new Map<number, string>()
   for (const c of ((codigosRaw ?? []) as unknown as CodigoRow[])) codigoParaApelido.set(c.codigo, c.apelido)
 
-  return compararListagem(linhasRH, funcionariosSistema, codigoParaApelido)
+  type SinonimoRow = { funcao_rh: string; funcao_sistema: string }
+  const sinonimosFuncao = new Map<string, SinonimoFuncaoResolvido>()
+  for (const s of ((sinonimosRaw ?? []) as unknown as SinonimoRow[])) {
+    sinonimosFuncao.set(normalizarNome(s.funcao_rh), { normalizado: normalizarNome(s.funcao_sistema), bruto: s.funcao_sistema })
+  }
+
+  return compararListagem(linhasRH, funcionariosSistema, codigoParaApelido, sinonimosFuncao)
 }
 
 export async function salvarConfigCodigoRH(codigo: number, supervisorId: string | null): Promise<{ ok: boolean; erro?: string }> {
