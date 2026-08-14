@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { FALTA_TIPO_LABELS, type FaltaTipo } from '@/components/faltas/faltas-config'
 
 type ActionResult = { success: true } | { success: false; error: string }
@@ -76,20 +77,26 @@ export async function getFuncionariosParaBusca(): Promise<FuncionarioBusca[]> {
   const supabase = createClient()
   const auth = await getUser()
 
-  let query = supabase
-    .from('funcionarios')
-    .select('id, nome, cpf, registro, postos!posto_id(nome, secretaria)')
-    .neq('status', 'desligado')
-    .order('nome')
-
+  let postoIds: string[] | null = null
   if (auth?.perfil.role === 'supervisor') {
-    const postoIds = await getPostoIdsSupervisor(supabase, auth.user.id)
+    postoIds = await getPostoIdsSupervisor(supabase, auth.user.id)
     if (postoIds.length === 0) return []
-    query = query.in('posto_id', postoIds)
   }
 
-  const { data } = await query
-  return ((data ?? []) as unknown as RawFuncBusca[]).map(f => ({
+  // fetchAllRows contorna o max_rows do PostgREST (1000) — a base de
+  // funcionários já ultrapassa esse limite em outras telas (ver postos/actions.ts).
+  const data = await fetchAllRows<RawFuncBusca>((from, to) => {
+    let query = supabase
+      .from('funcionarios')
+      .select('id, nome, cpf, registro, postos!posto_id(nome, secretaria)')
+      .neq('status', 'desligado')
+      .order('nome')
+      .range(from, to)
+    if (postoIds) query = query.in('posto_id', postoIds)
+    return query as unknown as PromiseLike<{ data: RawFuncBusca[] | null; error: { message: string } | null }>
+  })
+
+  return data.map(f => ({
     id: f.id,
     nome: f.nome,
     cpf: f.cpf,
