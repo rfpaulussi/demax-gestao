@@ -1,10 +1,10 @@
 import { getUser } from '@/lib/auth/get-user'
-import { getFuncionariosParaBusca, getSupervisoresSimples, getAlertas } from './actions'
+import { getPainelFuncionarios, getSupervisoresSimples, getAlertas } from './actions'
 import { OcorrenciasClient } from '@/components/ocorrencias/ocorrencias-client'
 
 export default async function OcorrenciasPage() {
   const [funcionarios, supervisores, alertas, auth] = await Promise.all([
-    getFuncionariosParaBusca(),
+    getPainelFuncionarios(),
     getSupervisoresSimples(),
     getAlertas(),
     getUser(),
