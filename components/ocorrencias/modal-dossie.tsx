@@ -61,6 +61,7 @@ export function ModalDossie({
   const [loading, setLoading]       = useState(true)
   const [filtroTipo, setFiltroTipo] = useState<TimelineTipo | ''>('')
   const [novaOpen, setNovaOpen]     = useState(false)
+  const [loadingPdf, setLoadingPdf] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   async function carregar() {
@@ -85,6 +86,16 @@ export function ModalDossie({
       if (result.success) carregar()
       else alert(result.error)
     })
+  }
+
+  async function handleBaixarPdf() {
+    if (!dossie) return
+    setLoadingPdf(true)
+    try {
+      await downloadDossiePDF(dossie)
+    } finally {
+      setLoadingPdf(false)
+    }
   }
 
   const timelineFiltrada = dossie
@@ -139,10 +150,11 @@ export function ModalDossie({
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => downloadDossiePDF(dossie)}
-                    className="h-8 rounded-lg bg-amber-500 px-3 text-xs font-semibold uppercase tracking-widest text-slate-900 hover:bg-amber-400"
+                    disabled={loadingPdf}
+                    onClick={handleBaixarPdf}
+                    className="h-8 rounded-lg bg-amber-500 px-3 text-xs font-semibold uppercase tracking-widest text-slate-900 hover:bg-amber-400 disabled:opacity-50"
                   >
-                    Baixar PDF
+                    {loadingPdf ? 'Gerando…' : 'Baixar PDF'}
                   </button>
                   {canWrite && (
                     <button
