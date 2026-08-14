@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { FuncionarioBusca, SupervisorSimples, AlertaRow } from '@/app/(admin)/ocorrencias/actions'
+import type { FuncionarioPainel, SupervisorSimples, AlertaRow } from '@/app/(admin)/ocorrencias/actions'
 import { BuscaFuncionario } from './busca-funcionario'
 import { AlertasSection } from './alertas-section'
 import { ModalDossie } from './modal-dossie'
@@ -12,7 +12,7 @@ export function OcorrenciasClient({
   alertasIniciais,
   canWrite,
 }: {
-  funcionarios: FuncionarioBusca[]
+  funcionarios: FuncionarioPainel[]
   supervisores: SupervisorSimples[]
   alertasIniciais: AlertaRow[]
   currentUserId: string | null
