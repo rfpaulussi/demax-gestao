@@ -146,6 +146,11 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
       [
         { label: 'Registro',   value: r => r.registro ?? '', asText: true },
         { label: 'Nome',       value: r => r.nome },
+        {
+          label: 'PCD',
+          value: r => r.pcd ? (r.pcd_tipo === 'Outra' && r.pcd_tipo_outro ? `Outra (${r.pcd_tipo_outro})` : r.pcd_tipo ?? 'Sim') : '',
+          cellStyle: r => r.pcd ? { fill: 'FFFBEB', color: 'B45309' } : undefined,
+        },
         { label: 'Função',     value: r => r.funcoes?.nome ?? '' },
         { label: 'Posto',      value: r => r.postos?.nome ?? '' },
         { label: 'Secretaria', value: r => r.postos?.secretaria ?? '' },
