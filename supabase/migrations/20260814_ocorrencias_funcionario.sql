@@ -38,3 +38,15 @@ CREATE POLICY ocorrencias_supervisor_insert ON ocorrencias
       OR tipo = 'alerta'
     )
   );
+
+-- ============================================================
+-- Gap encontrado em code review: advertencias não tinha policy
+-- de SELECT pra viewer (só tinha advertencias_admin_all), então
+-- o dossiê do funcionário voltava vazio nesse tipo pra esse role.
+-- Segue o padrão de atestados_viewer_select/ocorrencias_viewer_select
+-- (20260612_fix_viewer_select_m4.sql).
+-- ============================================================
+DROP POLICY IF EXISTS advertencias_viewer_select ON advertencias;
+CREATE POLICY advertencias_viewer_select ON advertencias
+  FOR SELECT TO authenticated
+  USING (is_viewer());
