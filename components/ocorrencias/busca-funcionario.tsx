@@ -7,10 +7,20 @@ import { exportToExcel } from '@/lib/export-excel'
 const inputClass =
   'h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm text-gray-700 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
 
-type SortCol = 'nome' | 'total' | 'advertencias' | 'atestados' | 'faltas' | 'ocorrencias'
+type SortCol = 'nome' | 'registro' | 'posto' | 'supervisor' | 'total' | 'advertencias' | 'atestados' | 'faltas' | 'ocorrencias'
 type SortDir = 'asc' | 'desc'
 
 const MAX_LINHAS = 200
+
+// colunas de texto ordenam A→Z no primeiro clique; colunas numéricas, maior→menor
+const TEXT_COLS = new Set<SortCol>(['nome', 'registro', 'posto', 'supervisor'])
+
+const FIXED_COLS: { key: SortCol; label: string }[] = [
+  { key: 'nome',       label: 'Funcionário'      },
+  { key: 'registro',   label: 'Matrícula'        },
+  { key: 'posto',      label: 'Posto de Trabalho' },
+  { key: 'supervisor', label: 'Supervisor(es)'   },
+]
 
 const COUNT_COLS: { key: SortCol; label: string }[] = [
   { key: 'advertencias', label: 'Advertências' },
@@ -69,6 +79,12 @@ export function BuscaFuncionario({
       switch (sortCol) {
         case 'nome':
           return dir * a.nome.localeCompare(b.nome, undefined, { sensitivity: 'base' })
+        case 'registro':
+          return dir * (a.registro ?? '').localeCompare(b.registro ?? '', undefined, { numeric: true })
+        case 'posto':
+          return dir * a.posto_nome.localeCompare(b.posto_nome, undefined, { sensitivity: 'base' })
+        case 'supervisor':
+          return dir * (a.supervisor_nomes.join(', ')).localeCompare(b.supervisor_nomes.join(', '), undefined, { sensitivity: 'base' })
         case 'total':
           return dir * (totalRegistros(a) - totalRegistros(b))
         case 'advertencias':
@@ -106,7 +122,7 @@ export function BuscaFuncionario({
 
   function handleSort(col: SortCol) {
     if (col === sortCol) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
-    else { setSortCol(col); setSortDir('desc') }
+    else { setSortCol(col); setSortDir(TEXT_COLS.has(col) ? 'asc' : 'desc') }
   }
 
   function handleExportar() {
@@ -167,11 +183,7 @@ export function BuscaFuncionario({
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Funcionário</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Matrícula</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Posto de Trabalho</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">Supervisor(es)</th>
-                {COUNT_COLS.map(col => (
+                {[...FIXED_COLS, ...COUNT_COLS].map(col => (
                   <th
                     key={col.key}
                     onClick={() => handleSort(col.key)}
