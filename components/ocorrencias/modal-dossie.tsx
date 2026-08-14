@@ -5,6 +5,7 @@ import { Dialog } from '@base-ui/react/dialog'
 import type { DossieFuncionario, SupervisorSimples, TimelineTipo } from '@/app/(admin)/ocorrencias/actions'
 import { getDossieFuncionario, updateStatusOcorrencia } from '@/app/(admin)/ocorrencias/actions'
 import { ModalNovaOcorrencia } from './modal-nova-ocorrencia'
+import { downloadDossiePDF } from './dossie-pdf'
 
 function maskCPF(cpf: string | null): string {
   if (!cpf) return '—'
@@ -136,14 +137,22 @@ export function ModalDossie({
                     </button>
                   ))}
                 </div>
-                {canWrite && (
+                <div className="flex gap-2">
                   <button
-                    onClick={() => setNovaOpen(true)}
-                    className="h-8 rounded-lg bg-slate-900 px-3 text-xs font-semibold uppercase tracking-widest text-white hover:bg-slate-700"
+                    onClick={() => downloadDossiePDF(dossie)}
+                    className="h-8 rounded-lg bg-amber-500 px-3 text-xs font-semibold uppercase tracking-widest text-slate-900 hover:bg-amber-400"
                   >
-                    Nova Ocorrência
+                    Baixar PDF
                   </button>
-                )}
+                  {canWrite && (
+                    <button
+                      onClick={() => setNovaOpen(true)}
+                      className="h-8 rounded-lg bg-slate-900 px-3 text-xs font-semibold uppercase tracking-widest text-white hover:bg-slate-700"
+                    >
+                      Nova Ocorrência
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-2">
