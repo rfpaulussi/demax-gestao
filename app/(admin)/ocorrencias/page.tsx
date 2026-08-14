@@ -1,28 +1,30 @@
 import { getUser } from '@/lib/auth/get-user'
-import { getOcorrenciasData, getPostosSimples, getSupervisoresSimples } from './actions'
+import { getFuncionariosParaBusca, getSupervisoresSimples, getAlertas } from './actions'
 import { OcorrenciasClient } from '@/components/ocorrencias/ocorrencias-client'
 
 export default async function OcorrenciasPage() {
-  const [ocorrencias, postos, supervisores, auth] = await Promise.all([
-    getOcorrenciasData(),
-    getPostosSimples(),
+  const [funcionarios, supervisores, alertas, auth] = await Promise.all([
+    getFuncionariosParaBusca(),
     getSupervisoresSimples(),
+    getAlertas(),
     getUser(),
   ])
+
+  const canWrite = auth?.perfil.role === 'admin' || auth?.perfil.role === 'coordenador' || auth?.perfil.role === 'supervisor'
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-lg font-bold text-gray-900">Ocorrências</h1>
-        <p className="text-sm text-gray-400">Registro e acompanhamento de ocorrências nos postos</p>
+        <p className="text-sm text-gray-400">Dossiê do funcionário: advertências, atestados, faltas e ocorrências num só lugar</p>
       </div>
 
       <OcorrenciasClient
-        ocorrencias={ocorrencias}
-        postos={postos}
+        funcionarios={funcionarios}
         supervisores={supervisores}
+        alertasIniciais={alertas}
         currentUserId={auth?.user.id ?? null}
-        isAdminOrCoord={auth?.perfil.role === 'admin' || auth?.perfil.role === 'coordenador'}
+        canWrite={canWrite}
       />
     </div>
   )
