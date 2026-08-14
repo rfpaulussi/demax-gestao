@@ -54,26 +54,70 @@ async function getPostoIdsSupervisor(
   return (data ?? []).map((r: { posto_id: string }) => r.posto_id)
 }
 
-// ─── busca de funcionário ─────────────────────────────────────────────────────
+// ─── painel de funcionários (tabela inicial da tela) ──────────────────────────
 
-export type FuncionarioBusca = {
+export type FuncionarioPainel = {
   id: string
   nome: string
-  cpf: string | null
   registro: string | null
   posto_nome: string
   secretaria: string
+  supervisor_nomes: string[]
+  contagens: {
+    advertencias: number
+    atestados: number
+    faltas: number
+    ocorrencias: number
+  }
 }
 
-type RawFuncBusca = {
+type RawFuncPainel = {
   id: string
   nome: string
-  cpf: string | null
   registro: string | null
+  posto_id: string | null
   postos: { nome: string; secretaria: string | null } | null
 }
 
-export async function getFuncionariosParaBusca(): Promise<FuncionarioBusca[]> {
+type RawContagem = { funcionario_id: string }
+
+async function contarPorFuncionario(
+  factory: (from: number, to: number) => PromiseLike<{ data: RawContagem[] | null; error: { message: string } | null }>,
+): Promise<Map<string, number>> {
+  const rows = await fetchAllRows<RawContagem>(factory)
+  const map = new Map<string, number>()
+  for (const r of rows) {
+    map.set(r.funcionario_id, (map.get(r.funcionario_id) ?? 0) + 1)
+  }
+  return map
+}
+
+type RawConfigSupervisor = {
+  posto_id: string
+  perfis: { nome: string | null } | { nome: string | null }[] | null
+}
+
+async function getSupervisoresPorPosto(
+  supabase: ReturnType<typeof createClient>,
+): Promise<Map<string, string[]>> {
+  const { data } = await supabase
+    .from('config_supervisores_postos')
+    .select('posto_id, perfis(nome)')
+    .eq('ativo', true)
+
+  const map = new Map<string, string[]>()
+  for (const row of (data ?? []) as unknown as RawConfigSupervisor[]) {
+    const perfil = Array.isArray(row.perfis) ? row.perfis[0] : row.perfis
+    const nome = perfil?.nome
+    if (!nome) continue
+    const list = map.get(row.posto_id) ?? []
+    list.push(nome)
+    map.set(row.posto_id, list)
+  }
+  return map
+}
+
+export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
   const supabase = createClient()
   const auth = await getUser()
 
@@ -85,24 +129,51 @@ export async function getFuncionariosParaBusca(): Promise<FuncionarioBusca[]> {
 
   // fetchAllRows contorna o max_rows do PostgREST (1000) — a base de
   // funcionários já ultrapassa esse limite em outras telas (ver postos/actions.ts).
-  const data = await fetchAllRows<RawFuncBusca>((from, to) => {
+  const funcionariosRaw = await fetchAllRows<RawFuncPainel>((from, to) => {
     let query = supabase
       .from('funcionarios')
-      .select('id, nome, cpf, registro, postos!posto_id(nome, secretaria)')
+      .select('id, nome, registro, posto_id, postos!posto_id(nome, secretaria)')
       .neq('status', 'desligado')
       .order('nome')
       .range(from, to)
     if (postoIds) query = query.in('posto_id', postoIds)
-    return query as unknown as PromiseLike<{ data: RawFuncBusca[] | null; error: { message: string } | null }>
+    return query as unknown as PromiseLike<{ data: RawFuncPainel[] | null; error: { message: string } | null }>
   })
 
-  return data.map(f => ({
+  const [advertenciasMap, atestadosMap, faltasMap, ocorrenciasMap, supervisoresPorPosto] = await Promise.all([
+    contarPorFuncionario((from, to) =>
+      supabase.from('advertencias').select('funcionario_id').range(from, to) as unknown as PromiseLike<{ data: RawContagem[] | null; error: { message: string } | null }>,
+    ),
+    contarPorFuncionario((from, to) =>
+      supabase.from('atestados').select('funcionario_id').range(from, to) as unknown as PromiseLike<{ data: RawContagem[] | null; error: { message: string } | null }>,
+    ),
+    contarPorFuncionario((from, to) =>
+      supabase.from('faltas').select('funcionario_id').range(from, to) as unknown as PromiseLike<{ data: RawContagem[] | null; error: { message: string } | null }>,
+    ),
+    contarPorFuncionario((from, to) =>
+      (supabase as unknown as AnyClient)
+        .from('ocorrencias')
+        .select('funcionario_id')
+        .eq('tipo', 'ocorrencia')
+        .not('funcionario_id', 'is', null)
+        .range(from, to) as unknown as PromiseLike<{ data: RawContagem[] | null; error: { message: string } | null }>,
+    ),
+    getSupervisoresPorPosto(supabase),
+  ])
+
+  return funcionariosRaw.map(f => ({
     id: f.id,
     nome: f.nome,
-    cpf: f.cpf,
     registro: f.registro,
     posto_nome: f.postos?.nome ?? '—',
     secretaria: f.postos?.secretaria ?? '',
+    supervisor_nomes: f.posto_id ? (supervisoresPorPosto.get(f.posto_id) ?? []) : [],
+    contagens: {
+      advertencias: advertenciasMap.get(f.id) ?? 0,
+      atestados: atestadosMap.get(f.id) ?? 0,
+      faltas: faltasMap.get(f.id) ?? 0,
+      ocorrencias: ocorrenciasMap.get(f.id) ?? 0,
+    },
   }))
 }
 
