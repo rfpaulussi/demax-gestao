@@ -74,6 +74,10 @@ export const CATALOGO_5X2: TurnoCatalogoItem[] = [
   { nome: 'Turno 9h 12m (a)', hora_entrada: '09:12', hora_inicio_almoco: '13:00', hora_fim_almoco: '14:00', hora_saida_seg_qui: '19:00', hora_saida_sex: '19:00' },
   { nome: 'Turno 9h 12m (b)', hora_entrada: '09:12', hora_inicio_almoco: '14:00', hora_fim_almoco: '15:00', hora_saida_seg_qui: '19:00', hora_saida_sex: '19:00' },
   { nome: 'Turno 9h 12m (c)', hora_entrada: '09:12', hora_inicio_almoco: '12:00', hora_fim_almoco: '13:00', hora_saida_seg_qui: '19:00', hora_saida_sex: '19:00' },
+  { nome: 'Turno 6h (e)',     hora_entrada: '06:00', hora_inicio_almoco: '12:00', hora_fim_almoco: '13:00', hora_saida_seg_qui: '15:48', hora_saida_sex: '15:48' },
+  { nome: 'Turno 6h (f)',     hora_entrada: '06:00', hora_inicio_almoco: '11:00', hora_fim_almoco: '12:00', hora_saida_seg_qui: '15:48', hora_saida_sex: '15:48' },
+  { nome: 'Turno 7h (n)',     hora_entrada: '07:00', hora_inicio_almoco: '13:00', hora_fim_almoco: '14:00', hora_saida_seg_qui: '16:48', hora_saida_sex: '16:48' },
+  { nome: 'Turno 7h (o)',     hora_entrada: '07:00', hora_inicio_almoco: '12:30', hora_fim_almoco: '13:30', hora_saida_seg_qui: '16:48', hora_saida_sex: '16:48' },
 ]
 
 export const CATALOGO_5X1: TurnoCatalogoItem[] = [
@@ -96,9 +100,14 @@ export const CATALOGO_JOVEM_APRENDIZ: TurnoCatalogoItem[] = [
   { nome: 'Turno Jovem Aprendiz 4h (g)', hora_entrada: '14:30', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '18:30', hora_saida_sex: '18:30' },
 ]
 
-/** Catálogo de turnos-padrão por regime. Só existe para 5x2, 5x1 e jovem_aprendiz — 12x36 continua com preenchimento livre. */
+export const CATALOGO_12X36: TurnoCatalogoItem[] = [
+  { nome: 'Turno 8h (a)', hora_entrada: '08:00', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '20:00', hora_saida_sex: null },
+]
+
+/** Catálogo de turnos-padrão por regime. */
 export const CATALOGO_POR_REGIME: Partial<Record<string, TurnoCatalogoItem[]>> = {
   '5x2': CATALOGO_5X2,
   '5x1': CATALOGO_5X1,
+  '12x36': CATALOGO_12X36,
   jovem_aprendiz: CATALOGO_JOVEM_APRENDIZ,
 }
