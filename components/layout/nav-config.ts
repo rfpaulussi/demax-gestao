@@ -36,6 +36,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/fechamento',     label: 'Fechamento'     },
       { href: '/relatorios',     label: 'Relatórios'     },
       { href: '/importacao',     label: 'Importação'     },
+      { href: '/auditoria-atestados', label: 'Auditoria SESMT' },
       { href: '/usuarios',       label: 'Usuários'       },
     ],
   },
