@@ -51,10 +51,14 @@ export function compararAuditoria(
     }
 
     const indeterminado = ehAfastamentoIndeterminado(linha.diasTexto)
+    // Pareamento guloso 1:1, na ordem das linhas do SESMT: um atestado do sistema já
+    // pareado com uma linha anterior deste registro não é oferecido como candidato de
+    // novo — evita que duas linhas SESMT "capturem" o mesmo atestado.
     const candidatos = candidatosTodos.filter(a =>
-      indeterminado
+      !atestadosUsados.has(a.id) &&
+      (indeterminado
         ? a.dataInicio <= linha.dataInicio && a.dataFim >= linha.dataInicio
-        : periodosSeSobrepoem(linha.dataInicio, linha.dataRetorno, a.dataInicio, a.dataFim),
+        : periodosSeSobrepoem(linha.dataInicio, linha.dataRetorno, a.dataInicio, a.dataFim)),
     )
 
     if (candidatos.length === 0) {
