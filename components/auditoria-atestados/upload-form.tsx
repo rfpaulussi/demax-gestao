@@ -22,7 +22,7 @@ function celulaParaDataIso(valor: unknown): string | null {
   return dataBrParaIso(String(valor))
 }
 
-function parseArquivoSesmt(file: File): Promise<{ linhas: LinhaSesmt[]; erro?: string }> {
+function parseArquivoSesmt(file: File): Promise<{ linhas: LinhaSesmt[]; linhasIgnoradas: number; erro?: string }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = e => {
@@ -31,7 +31,7 @@ function parseArquivoSesmt(file: File): Promise<{ linhas: LinhaSesmt[]; erro?: s
         const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
         const ws = wb.Sheets[wb.SheetNames[0]]
         if (!ws) {
-          resolve({ linhas: [], erro: 'Planilha vazia ou sem abas.' })
+          resolve({ linhas: [], linhasIgnoradas: 0, erro: 'Planilha vazia ou sem abas.' })
           return
         }
         const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null }) as unknown[][]
@@ -40,6 +40,7 @@ function parseArquivoSesmt(file: File): Promise<{ linhas: LinhaSesmt[]; erro?: s
         if (indices.some(i => i === -1)) {
           resolve({
             linhas: [],
+            linhasIgnoradas: 0,
             erro: `Cabeçalho inesperado. Colunas obrigatórias: ${COLUNAS_ESPERADAS.join(', ')}.`,
           })
           return
@@ -47,12 +48,13 @@ function parseArquivoSesmt(file: File): Promise<{ linhas: LinhaSesmt[]; erro?: s
         const [iData, iMatricula, iEmpregado, iAfastamento, iMotivo, iCid, iRetorno] = indices
 
         const linhas: LinhaSesmt[] = []
+        let linhasIgnoradas = 0
         for (const row of raw.slice(1)) {
           const matriculaRaw = row[iMatricula]
-          if (matriculaRaw == null || String(matriculaRaw).trim() === '') continue
+          if (matriculaRaw == null || String(matriculaRaw).trim() === '') { linhasIgnoradas++; continue }
           const dataInicio = celulaParaDataIso(row[iData])
           const dataRetorno = celulaParaDataIso(row[iRetorno])
-          if (!dataInicio || !dataRetorno) continue
+          if (!dataInicio || !dataRetorno) { linhasIgnoradas++; continue }
           linhas.push({
             matriculaRaw: String(matriculaRaw).trim(),
             nome: String(row[iEmpregado] ?? '').trim(),
@@ -63,7 +65,7 @@ function parseArquivoSesmt(file: File): Promise<{ linhas: LinhaSesmt[]; erro?: s
             dataRetorno,
           })
         }
-        resolve({ linhas })
+        resolve({ linhas, linhasIgnoradas })
       } catch (err) {
         reject(err)
       }
@@ -78,14 +80,17 @@ export function UploadForm() {
   const [erro, setErro] = useState<string | null>(null)
   const [resultado, setResultado] = useState<ResultadoAuditoria | null>(null)
   const [nomeArquivo, setNomeArquivo] = useState<string | null>(null)
+  const [linhasIgnoradas, setLinhasIgnoradas] = useState(0)
 
   async function onFile(file: File) {
     setCarregando(true)
     setErro(null)
     setResultado(null)
     setNomeArquivo(file.name)
+    setLinhasIgnoradas(0)
     try {
-      const { linhas, erro: erroParse } = await parseArquivoSesmt(file)
+      const { linhas, linhasIgnoradas: ignoradas, erro: erroParse } = await parseArquivoSesmt(file)
+      setLinhasIgnoradas(ignoradas)
       if (erroParse) { setErro(erroParse); return }
       if (linhas.length === 0) { setErro('Nenhuma linha válida encontrada na planilha.'); return }
 
@@ -119,6 +124,10 @@ export function UploadForm() {
         {carregando && <p className="mt-2 text-xs text-gray-500">Comparando...</p>}
         {erro && <p className="mt-2 text-xs font-medium text-red-600">{erro}</p>}
       </div>
+
+      {linhasIgnoradas > 0 && (
+        <p className="text-xs text-gray-400">{linhasIgnoradas} linha(s) da planilha ignorada(s) por matrícula ausente ou data inválida.</p>
+      )}
 
       {resultado && <TabelaResultado resultado={resultado} />}
     </div>
