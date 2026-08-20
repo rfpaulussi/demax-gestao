@@ -1,9 +1,12 @@
 // components/auditoria-atestados/tabela-resultado.tsx
 'use client'
 
+import { useState } from 'react'
+import Link from 'next/link'
 import * as XLSX from 'xlsx-js-style'
 import { cn } from '@/lib/utils'
 import { extrairRegistroDeMatricula } from '@/lib/auditoria-atestados/parse'
+import { ModalLancarAtestado } from './modal-lancar-atestado'
 import type { ResultadoAuditoria, LinhaResultado, CampoDivergente } from '@/lib/auditoria-atestados/tipos'
 
 const LABEL_STATUS: Record<LinhaResultado['status'], string> = {
@@ -67,6 +70,15 @@ function LinhaConfereOuDivergencia({ l }: { l: Extract<LinhaResultado, { status:
       />
       <td className={cn('px-3 py-2 text-sm', divergentes.includes('origem_ocupacional') ? 'bg-red-50 font-medium text-red-700' : 'text-gray-600')}>
         {l.sesmt.motivo}
+      </td>
+      <td className="px-3 py-2 text-sm">
+        <Link
+          href={`/atestados?busca=${encodeURIComponent(l.sesmt.nome)}`}
+          target="_blank"
+          className="font-medium text-blue-600 hover:underline"
+        >
+          Ver no sistema
+        </Link>
       </td>
     </tr>
   )
@@ -135,7 +147,9 @@ function exportarExcel(resultado: ResultadoAuditoria) {
 }
 
 export function TabelaResultado({ resultado }: { resultado: ResultadoAuditoria }) {
-  const { linhas, contadores } = resultado
+  const { linhas, contadores, cids } = resultado
+  const [modalIndex, setModalIndex] = useState<number | null>(null)
+  const [lancados, setLancados] = useState<Set<number>>(new Set())
 
   const divergencias = linhas.filter((l): l is Extract<LinhaResultado, { status: 'divergencia' }> => l.status === 'divergencia')
   const conferem = linhas.filter((l): l is Extract<LinhaResultado, { status: 'confere' }> => l.status === 'confere')
@@ -145,6 +159,7 @@ export function TabelaResultado({ resultado }: { resultado: ResultadoAuditoria }
   const ambiguosOuSemSesmt = linhas.filter(
     (l): l is Extract<LinhaResultado, { status: 'ambiguo' | 'sem_sesmt' }> => l.status === 'ambiguo' || l.status === 'sem_sesmt',
   )
+  const linhaModal = modalIndex !== null ? naoLancados[modalIndex] : null
 
   return (
     <div className="space-y-6">
@@ -180,6 +195,7 @@ export function TabelaResultado({ resultado }: { resultado: ResultadoAuditoria }
                   <th className="px-3 py-2">Fim</th>
                   <th className="px-3 py-2">CID</th>
                   <th className="px-3 py-2">Motivo</th>
+                  <th className="px-3 py-2">Ação</th>
                 </tr>
               </thead>
               <tbody>
@@ -196,7 +212,7 @@ export function TabelaResultado({ resultado }: { resultado: ResultadoAuditoria }
         <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
           <div className="border-b border-gray-100 px-4 py-3">
             <h2 className="text-sm font-bold text-gray-900">❌ Não lançados no sistema ({naoLancados.length})</h2>
-            <p className="text-xs text-gray-400">Use o Excel pra conferir/lançar em lote — clique em &quot;Baixar Excel&quot; acima</p>
+            <p className="text-xs text-gray-400">Clique em &quot;Lançar&quot; pra criar o atestado pré-preenchido com os dados do SESMT, ou use o Excel pra conferir em lote</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -208,6 +224,7 @@ export function TabelaResultado({ resultado }: { resultado: ResultadoAuditoria }
                   <th className="px-3 py-2">Retorno</th>
                   <th className="px-3 py-2">CID</th>
                   <th className="px-3 py-2">Motivo</th>
+                  <th className="px-3 py-2">Ação</th>
                 </tr>
               </thead>
               <tbody>
@@ -219,12 +236,41 @@ export function TabelaResultado({ resultado }: { resultado: ResultadoAuditoria }
                     <td className="px-3 py-2 text-sm text-gray-600">{formatarDataBr(l.sesmt.dataRetorno)}</td>
                     <td className="px-3 py-2 text-sm text-gray-600">{l.sesmt.cidTexto}</td>
                     <td className="px-3 py-2 text-sm text-gray-600">{l.sesmt.motivo}</td>
+                    <td className="px-3 py-2 text-sm">
+                      {lancados.has(i) ? (
+                        <span className="font-medium text-green-600">✓ Lançado</span>
+                      ) : l.status === 'nao_lancado' ? (
+                        <button
+                          type="button"
+                          onClick={() => setModalIndex(i)}
+                          className="rounded bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-700"
+                        >
+                          Lançar
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-400" title="Matrícula não encontrada no sistema — confira se é a matrícula correta">
+                          Matrícula não encontrada
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </div>
+      )}
+
+      {linhaModal?.status === 'nao_lancado' && (
+        <ModalLancarAtestado
+          linha={linhaModal}
+          cids={cids}
+          open={modalIndex !== null}
+          onClose={() => setModalIndex(null)}
+          onLancado={() => {
+            if (modalIndex !== null) setLancados(prev => new Set(prev).add(modalIndex))
+          }}
+        />
       )}
 
       {ambiguosOuSemSesmt.length > 0 && (

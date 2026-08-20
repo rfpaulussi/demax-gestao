@@ -39,6 +39,10 @@ export type LinhaResultado =
   | {
       status: 'nao_lancado'
       sesmt: LinhaSesmt
+      // Presentes apenas quando a matrícula foi resolvida a um funcionário real —
+      // permite oferecer "Lançar atestado" pré-preenchido direto na tela de auditoria.
+      funcionarioId: string
+      postoId: string | null
     }
   | {
       status: 'matricula_nao_encontrada'
@@ -56,6 +60,7 @@ export type LinhaResultado =
 
 export type ResultadoAuditoria = {
   linhas: LinhaResultado[]
+  cids: { codigo: string; descricao: string }[]
   contadores: {
     confere: number
     divergencia: number

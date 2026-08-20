@@ -5,10 +5,10 @@ import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { getUser } from '@/lib/auth/get-user'
 import { isAdminOrCoord, type Role } from '@/types'
 import { extrairRegistroDeMatricula } from '@/lib/auditoria-atestados/parse'
-import { compararAuditoria } from '@/lib/auditoria-atestados/comparar'
+import { compararAuditoria, type FuncionarioLookup } from '@/lib/auditoria-atestados/comparar'
 import type { LinhaSesmt, AtestadoSistema, ResultadoAuditoria } from '@/lib/auditoria-atestados/tipos'
 
-type FuncionarioRaw = { id: string; registro: string | null; nome: string }
+type FuncionarioRaw = { id: string; registro: string | null; nome: string; posto_id: string | null }
 type AtestadoRaw = {
   id: string
   funcionario_id: string
@@ -36,7 +36,7 @@ export async function auditarSesmt(linhasSesmt: LinhaSesmt[]): Promise<Resultado
   })
 
   const [{ data: funcRaw, error: errFunc }, { data: cidRaw, error: errCid }] = await Promise.all([
-    supabase.from('funcionarios').select('id, registro, nome').not('registro', 'is', null),
+    supabase.from('funcionarios').select('id, registro, nome, posto_id').not('registro', 'is', null),
     supabase.from('cid_referencia').select('codigo, descricao'),
   ])
 
@@ -44,12 +44,18 @@ export async function auditarSesmt(linhasSesmt: LinhaSesmt[]): Promise<Resultado
   if (errCid) return { erro: `Erro ao buscar CIDs: ${errCid.message}` }
 
   const funcionarios = (funcRaw ?? []) as FuncionarioRaw[]
+  const cids = (cidRaw ?? []) as CidRaw[]
+
+  const funcionariosPorRegistro = new Map<string, FuncionarioLookup>()
+  for (const f of funcionarios) {
+    if (f.registro) funcionariosPorRegistro.set(f.registro, { id: f.id, postoId: f.posto_id })
+  }
 
   const funcionarioIdsRelevantes = funcionarios
     .filter(f => f.registro && registrosNoArquivo.has(f.registro))
     .map(f => f.id)
 
-  const cidMap = new Map(((cidRaw ?? []) as CidRaw[]).map(c => [c.codigo, c.descricao] as [string, string]))
+  const cidMap = new Map(cids.map(c => [c.codigo, c.descricao] as [string, string]))
 
   let atestadosRaw: AtestadoRaw[] = []
   if (funcionarioIdsRelevantes.length > 0) {
@@ -82,5 +88,6 @@ export async function auditarSesmt(linhasSesmt: LinhaSesmt[]): Promise<Resultado
     atestadosPorRegistro.set(func.registro, lista)
   }
 
-  return compararAuditoria(linhasComRegistro, atestadosPorRegistro)
+  const resultado = compararAuditoria(linhasComRegistro, funcionariosPorRegistro, atestadosPorRegistro)
+  return { ...resultado, cids }
 }

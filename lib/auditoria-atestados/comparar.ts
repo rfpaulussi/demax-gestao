@@ -26,29 +26,36 @@ function compararCampos(sesmt: LinhaSesmt, sistema: AtestadoSistema): CampoDiver
   return divergentes
 }
 
+export type FuncionarioLookup = { id: string; postoId: string | null }
+
 /**
  * Cruza as linhas do SESMT com os atestados do sistema já filtrados por registro
  * (um funcionário pode ter 0, 1 ou N atestados candidatos por linha SESMT).
  *
  * @param linhasSesmt linhas parseadas da planilha SESMT
+ * @param funcionariosPorRegistro funcionários do sistema indexados por registro — usado pra
+ *   distinguir "matrícula não existe no sistema" de "funcionário existe mas sem atestado no
+ *   período" (nao_lancado), e pra saber o funcionário/posto certo pra pré-preencher o lançamento
  * @param atestadosPorRegistro atestados do sistema agrupados por registro do funcionário
  */
 export function compararAuditoria(
   linhasSesmt: Array<{ linha: LinhaSesmt; registro: string | null }>,
+  funcionariosPorRegistro: Map<string, FuncionarioLookup>,
   atestadosPorRegistro: Map<string, AtestadoSistema[]>,
-): ResultadoAuditoria {
+): Omit<ResultadoAuditoria, 'cids'> {
   const linhas: LinhaResultado[] = []
   const atestadosUsados = new Set<string>()
 
   for (const { linha, registro } of linhasSesmt) {
-    if (registro === null) {
+    const funcionario = registro ? funcionariosPorRegistro.get(registro) : undefined
+    if (registro === null || !funcionario) {
       linhas.push({ status: 'matricula_nao_encontrada', sesmt: linha })
       continue
     }
 
     const candidatosTodos = atestadosPorRegistro.get(registro) ?? []
     if (candidatosTodos.length === 0) {
-      linhas.push({ status: 'matricula_nao_encontrada', sesmt: linha })
+      linhas.push({ status: 'nao_lancado', sesmt: linha, funcionarioId: funcionario.id, postoId: funcionario.postoId })
       continue
     }
 
@@ -64,7 +71,7 @@ export function compararAuditoria(
     )
 
     if (candidatos.length === 0) {
-      linhas.push({ status: 'nao_lancado', sesmt: linha })
+      linhas.push({ status: 'nao_lancado', sesmt: linha, funcionarioId: funcionario.id, postoId: funcionario.postoId })
     } else if (candidatos.length === 1) {
       const sistema = candidatos[0]
       atestadosUsados.add(sistema.id)
