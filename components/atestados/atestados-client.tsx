@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo, useTransition, useRef } from 'react'
 import { AlertTriangle, Download } from 'lucide-react'
 import * as XLSX from 'xlsx-js-style'
 import { cn } from '@/lib/utils'
@@ -147,9 +147,11 @@ function ModalSolicitarInss({
   )
   const [erro, setErro] = useState<string | null>(null)
   const [pending, start] = useTransition()
+  const [tocouCampos, setTocouCampos] = useState(false)
 
   function handleDias(val: string) {
     setDias(val)
+    if (state.avisoFallback) setTocouCampos(true)
     const n = parseInt(val)
     if (dataInicio && n > 0) setDataRetorno(addDays(dataInicio, n))
     else if (!val) setDataRetorno('')
@@ -157,6 +159,7 @@ function ModalSolicitarInss({
 
   function handleDataInicio(val: string) {
     setDataInicio(val)
+    if (state.avisoFallback) setTocouCampos(true)
     const n = parseInt(dias)
     if (val && n > 0) setDataRetorno(addDays(val, n))
   }
@@ -234,14 +237,19 @@ function ModalSolicitarInss({
           </div>
           <div>
             <label className={labelCls}>Retorno Previsto</label>
-            <input type="date" value={dataRetorno} onChange={e => { setDataRetorno(e.target.value); setDias('') }} className={inputCls} />
+            <input type="date" value={dataRetorno} onChange={e => { setDataRetorno(e.target.value); setDias(''); if (state.avisoFallback) setTocouCampos(true) }} className={inputCls} />
           </div>
           {erro && <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{erro}</p>}
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} disabled={pending} className="rounded px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50">
               Cancelar
             </button>
-            <button type="submit" disabled={pending} className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
+            <button
+              type="submit"
+              disabled={pending || (!!state.avisoFallback && !tocouCampos)}
+              title={state.avisoFallback && !tocouCampos ? 'Revise e ajuste a data de início ou os dias antes de enviar' : undefined}
+              className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+            >
               {pending ? 'Enviando...' : 'Enviar Solicitação'}
             </button>
           </div>
@@ -343,6 +351,7 @@ export function AtestadosClient({ atestados, cids, isAdmin }: Props) {
   const [janelaRanking, setJanelaRanking] = useState<30 | 60 | 90 | 180>(90)
   const [inssModal, setInssModal] = useState<InssModalState | null>(null)
   const [calculandoEpisodioId, setCalculandoEpisodioId] = useState<string | null>(null)
+  const requestIdRef = useRef(0)
 
   // Data do atestado mais antigo por funcionário (para pré-preencher o modal INSS)
   const primeiroAtestadoMap = useMemo(() => {
@@ -366,6 +375,7 @@ export function AtestadosClient({ atestados, cids, isAdmin }: Props) {
   }, [atestados])
 
   async function abrirModalInss(a: AtestadoRow) {
+    const myRequestId = ++requestIdRef.current
     setCalculandoEpisodioId(a.id)
     const baseFallback: InssModalState = {
       funcionario_id: a.funcionario_id,
@@ -376,6 +386,7 @@ export function AtestadosClient({ atestados, cids, isAdmin }: Props) {
     }
     try {
       const res = await calcularEpisodioInssAction(a.funcionario_id, a.id)
+      if (requestIdRef.current !== myRequestId) return
       if ('erro' in res) {
         setInssModal({ ...baseFallback, avisoFallback: res.erro })
       } else {
@@ -387,9 +398,10 @@ export function AtestadosClient({ atestados, cids, isAdmin }: Props) {
         })
       }
     } catch {
+      if (requestIdRef.current !== myRequestId) return
       setInssModal({ ...baseFallback, avisoFallback: 'Erro ao calcular episódio' })
     } finally {
-      setCalculandoEpisodioId(null)
+      if (requestIdRef.current === myRequestId) setCalculandoEpisodioId(null)
     }
   }
 
