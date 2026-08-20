@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import { logSupervisorAcao } from '@/lib/log-supervisor'
+import { calcularEpisodioInss, type AtestadoParaEpisodio, type EpisodioInss } from '@/lib/atestados/episodio-inss'
 
 async function verificarAcessoAtestado(
   atestadoId: string,
@@ -139,4 +140,34 @@ export async function deleteAtestado(id: string): Promise<{ error?: string }> {
 
   revalidatePath('/atestados')
   return {}
+}
+
+export async function calcularEpisodioInssAction(
+  funcionarioId: string,
+  atestadoAncoraId: string,
+): Promise<EpisodioInss | { erro: string }> {
+  const auth = await getUser()
+  if (!auth) return { erro: 'Não autenticado' }
+  if (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador') return { erro: 'Sem permissão' }
+
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('atestados')
+    .select('id, data_inicio, data_fim, cid_codigo')
+    .eq('funcionario_id', funcionarioId)
+
+  if (error) return { erro: error.message }
+
+  const atestados: AtestadoParaEpisodio[] = (data ?? []).map(a => ({
+    id: a.id,
+    dataInicio: a.data_inicio,
+    dataFim: a.data_fim,
+    cidCodigo: a.cid_codigo,
+  }))
+
+  try {
+    return calcularEpisodioInss(atestadoAncoraId, atestados)
+  } catch (e) {
+    return { erro: e instanceof Error ? e.message : 'Erro ao calcular episódio' }
+  }
 }
