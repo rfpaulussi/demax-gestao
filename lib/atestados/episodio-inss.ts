@@ -74,7 +74,10 @@ export function calcularEpisodioInss(
 
   const grupo = ordenados.slice(inicio, fim + 1)
   const dataInicio = grupo[0].dataInicio
-  const dataFim = grupo[grupo.length - 1].dataFim
+  // dataFim é o MÁXIMO entre todos os atestados do grupo — não o do último elemento em ordem
+  // de início — porque atestados podem se sobrepor/aninhar (ex.: um atestado que começa depois
+  // mas termina antes de outro já incluído no grupo).
+  const dataFim = grupo.reduce((max, a) => (a.dataFim > max ? a.dataFim : max), grupo[0].dataFim)
 
   return {
     dataInicio,
