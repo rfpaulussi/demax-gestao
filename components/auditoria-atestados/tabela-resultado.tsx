@@ -2,14 +2,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import type { ResultadoAuditoria, LinhaResultado, CampoDivergente } from '@/lib/auditoria-atestados/tipos'
-
-const LABEL_CAMPO: Record<CampoDivergente, string> = {
-  data_inicio: 'Data início',
-  data_fim: 'Data fim',
-  cid: 'CID',
-  origem_ocupacional: 'Origem ocupacional',
-}
+import type { ResultadoAuditoria, LinhaResultado } from '@/lib/auditoria-atestados/tipos'
 
 function CardContador({ label, valor, cor }: { label: string; valor: number; cor: string }) {
   return (
