@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo, useTransition, useRef } from 'react'
 import { AlertTriangle, Download } from 'lucide-react'
 import * as XLSX from 'xlsx-js-style'
 import { cn } from '@/lib/utils'
-import { deleteAtestado } from '@/app/(admin)/atestados/actions'
+import { deleteAtestado, calcularEpisodioInssAction } from '@/app/(admin)/atestados/actions'
 import { solicitarAfastamento } from '@/app/(admin)/efetivo/actions'
 import { ModalEditarAtestado } from './modal-editar-atestado'
 import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dialog'
+import type { AtestadoParaEpisodio } from '@/lib/atestados/episodio-inss'
 
 export type AtestadoRow = {
   id: string
@@ -78,6 +79,12 @@ type InssModalState = {
   data_inicio: string
   dias: number
   motivo: string
+  // Presente quando o episódio foi calculado com sucesso pela action — lista os atestados
+  // que entraram no agrupamento, exibida no modal só pra conferência visual.
+  atestadosIncluidos?: AtestadoParaEpisodio[]
+  // Mensagem de aviso quando o cálculo do episódio falhou e caiu no fallback antigo
+  // (soma bruta de 30 dias) — mostrada no modal.
+  avisoFallback?: string
 }
 
 function exportExcel(rows: AtestadoRow[]) {
@@ -140,9 +147,11 @@ function ModalSolicitarInss({
   )
   const [erro, setErro] = useState<string | null>(null)
   const [pending, start] = useTransition()
+  const [tocouCampos, setTocouCampos] = useState(false)
 
   function handleDias(val: string) {
     setDias(val)
+    if (state.avisoFallback) setTocouCampos(true)
     const n = parseInt(val)
     if (dataInicio && n > 0) setDataRetorno(addDays(dataInicio, n))
     else if (!val) setDataRetorno('')
@@ -150,6 +159,7 @@ function ModalSolicitarInss({
 
   function handleDataInicio(val: string) {
     setDataInicio(val)
+    if (state.avisoFallback) setTocouCampos(true)
     const n = parseInt(dias)
     if (val && n > 0) setDataRetorno(addDays(val, n))
   }
@@ -186,6 +196,27 @@ function ModalSolicitarInss({
           💡 Isso gera um novo atestado “guarda-chuva” pro período do afastamento — sem CID, só pra
           cobrir o intervalo. Não duplica os atestados já lançados, que continuam valendo no histórico.
         </div>
+        {state.avisoFallback && (
+          <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            ⚠ {state.avisoFallback} — usando estimativa antiga (soma bruta de 30 dias). Revise as datas
+            manualmente antes de enviar.
+          </div>
+        )}
+
+        {state.atestadosIncluidos && state.atestadosIncluidos.length > 0 && (
+          <div className="mb-4 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+            <p className="mb-1 font-semibold text-gray-700">Atestados considerados neste episódio:</p>
+            <ul className="space-y-0.5">
+              {state.atestadosIncluidos.map(a => (
+                <li key={a.id}>
+                  {a.dataInicio.split('-').reverse().join('/')} – {a.dataFim.split('-').reverse().join('/')}
+                  {a.cidCodigo ? ` (${a.cidCodigo})` : ' (sem CID)'}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className={labelCls}>Motivo</label>
@@ -206,14 +237,19 @@ function ModalSolicitarInss({
           </div>
           <div>
             <label className={labelCls}>Retorno Previsto</label>
-            <input type="date" value={dataRetorno} onChange={e => { setDataRetorno(e.target.value); setDias('') }} className={inputCls} />
+            <input type="date" value={dataRetorno} onChange={e => { setDataRetorno(e.target.value); setDias(''); if (state.avisoFallback) setTocouCampos(true) }} className={inputCls} />
           </div>
           {erro && <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{erro}</p>}
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} disabled={pending} className="rounded px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50">
               Cancelar
             </button>
-            <button type="submit" disabled={pending} className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
+            <button
+              type="submit"
+              disabled={pending || (!!state.avisoFallback && !tocouCampos)}
+              title={state.avisoFallback && !tocouCampos ? 'Revise e ajuste a data de início ou os dias antes de enviar' : undefined}
+              className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+            >
               {pending ? 'Enviando...' : 'Enviar Solicitação'}
             </button>
           </div>
@@ -314,6 +350,8 @@ export function AtestadosClient({ atestados, cids, isAdmin }: Props) {
   const [aba, setAba] = useState<'lista' | 'ranking'>('lista')
   const [janelaRanking, setJanelaRanking] = useState<30 | 60 | 90 | 180>(90)
   const [inssModal, setInssModal] = useState<InssModalState | null>(null)
+  const [calculandoEpisodioId, setCalculandoEpisodioId] = useState<string | null>(null)
+  const requestIdRef = useRef(0)
 
   // Data do atestado mais antigo por funcionário (para pré-preencher o modal INSS)
   const primeiroAtestadoMap = useMemo(() => {
@@ -335,6 +373,37 @@ export function AtestadosClient({ atestados, cids, isAdmin }: Props) {
     }
     return new Set(Array.from(map.values()).map(v => v.id))
   }, [atestados])
+
+  async function abrirModalInss(a: AtestadoRow) {
+    const myRequestId = ++requestIdRef.current
+    setCalculandoEpisodioId(a.id)
+    const baseFallback: InssModalState = {
+      funcionario_id: a.funcionario_id,
+      funcionario_nome: a.funcionario_nome,
+      data_inicio: primeiroAtestadoMap.get(a.funcionario_id) ?? a.data_inicio,
+      dias: a.acumulado,
+      motivo: 'INSS - Doença',
+    }
+    try {
+      const res = await calcularEpisodioInssAction(a.funcionario_id, a.id)
+      if (requestIdRef.current !== myRequestId) return
+      if ('erro' in res) {
+        setInssModal({ ...baseFallback, avisoFallback: res.erro })
+      } else {
+        setInssModal({
+          ...baseFallback,
+          data_inicio: res.dataInicio,
+          dias: res.dias,
+          atestadosIncluidos: res.atestadosIncluidos,
+        })
+      }
+    } catch {
+      if (requestIdRef.current !== myRequestId) return
+      setInssModal({ ...baseFallback, avisoFallback: 'Erro ao calcular episódio' })
+    } finally {
+      if (requestIdRef.current === myRequestId) setCalculandoEpisodioId(null)
+    }
+  }
 
   function handleSort(col: SortCol) {
     if (col === sortCol) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))
@@ -631,16 +700,11 @@ export function AtestadosClient({ atestados, cids, isAdmin }: Props) {
                         {isAdmin && ultimoAlertaIds.has(a.id) && (
                           <button
                             type="button"
-                            onClick={() => setInssModal({
-                              funcionario_id: a.funcionario_id,
-                              funcionario_nome: a.funcionario_nome,
-                              data_inicio: primeiroAtestadoMap.get(a.funcionario_id) ?? a.data_inicio,
-                              dias: a.acumulado,
-                              motivo: 'INSS - Doença',
-                            })}
-                            className="rounded border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-100"
+                            disabled={calculandoEpisodioId === a.id}
+                            onClick={() => abrirModalInss(a)}
+                            className="rounded border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
                           >
-                            Solicitar INSS
+                            {calculandoEpisodioId === a.id ? 'Calculando...' : 'Solicitar INSS'}
                           </button>
                         )}
                         <button
