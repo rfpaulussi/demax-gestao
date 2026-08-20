@@ -52,3 +52,20 @@ export function dataBrParaIso(dataBr: string): string | null {
 export function motivoIndicaOcupacional(motivo: string): boolean {
   return motivo.trim().toLowerCase() === 'acidente/doença do trabalho'
 }
+
+/**
+ * A "Data Retorno" do SESMT é o dia em que o funcionário volta ao trabalho — ou seja, o dia
+ * seguinte ao último dia de afastamento. Já `atestados.data_fim` no sistema guarda o ÚLTIMO
+ * dia afastado (inclusive). As duas datas são sempre 1 dia diferentes por definição — não é
+ * divergência. Esta função converte a data de retorno do SESMT pro "último dia afastado"
+ * equivalente, pra comparar com data_fim do sistema de forma correta.
+ */
+export function ultimoDiaAfastadoAntesDoRetorno(dataRetornoIso: string): string {
+  const [y, m, d] = dataRetornoIso.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  dt.setUTCDate(dt.getUTCDate() - 1)
+  const yy = dt.getUTCFullYear()
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(dt.getUTCDate()).padStart(2, '0')
+  return `${yy}-${mm}-${dd}`
+}

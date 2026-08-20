@@ -1,6 +1,6 @@
 // lib/auditoria-atestados/comparar.ts
 
-import { extrairCodigoCid, ehAfastamentoIndeterminado, motivoIndicaOcupacional } from './parse'
+import { extrairCodigoCid, ehAfastamentoIndeterminado, motivoIndicaOcupacional, ultimoDiaAfastadoAntesDoRetorno } from './parse'
 import type { LinhaSesmt, AtestadoSistema, LinhaResultado, ResultadoAuditoria, CampoDivergente } from './tipos'
 
 function periodosSeSobrepoem(aInicio: string, aFim: string, bInicio: string, bFim: string): boolean {
@@ -12,7 +12,9 @@ function compararCampos(sesmt: LinhaSesmt, sistema: AtestadoSistema): CampoDiver
   const indeterminado = ehAfastamentoIndeterminado(sesmt.diasTexto)
 
   if (sesmt.dataInicio !== sistema.dataInicio) divergentes.push('data_inicio')
-  if (!indeterminado && sesmt.dataRetorno !== sistema.dataFim) divergentes.push('data_fim')
+  // sesmt.dataRetorno é o 1º dia de volta ao trabalho; sistema.dataFim é o último dia
+  // afastado (inclusive) — sempre 1 dia antes por definição, não comparar direto.
+  if (!indeterminado && ultimoDiaAfastadoAntesDoRetorno(sesmt.dataRetorno) !== sistema.dataFim) divergentes.push('data_fim')
 
   const cidSesmt = extrairCodigoCid(sesmt.cidTexto)
   if (cidSesmt !== sistema.cidCodigo) divergentes.push('cid')
@@ -58,7 +60,7 @@ export function compararAuditoria(
       !atestadosUsados.has(a.id) &&
       (indeterminado
         ? a.dataInicio <= linha.dataInicio && a.dataFim >= linha.dataInicio
-        : periodosSeSobrepoem(linha.dataInicio, linha.dataRetorno, a.dataInicio, a.dataFim)),
+        : periodosSeSobrepoem(linha.dataInicio, ultimoDiaAfastadoAntesDoRetorno(linha.dataRetorno), a.dataInicio, a.dataFim)),
     )
 
     if (candidatos.length === 0) {
