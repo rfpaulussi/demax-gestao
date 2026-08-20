@@ -255,9 +255,10 @@ export async function downloadAdvertenciaPDF(adv: AdvertenciaCompleta): Promise<
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '')
   const data = (adv.data_ocorrencia ?? new Date().toISOString()).split('T')[0]
+  const idCurto = adv.id.substring(0, 8)
   const a = document.createElement('a')
   a.href = url
-  a.download = `advertencia_${nomeSanitizado}_${data}.pdf`
+  a.download = `advertencia_${nomeSanitizado}_${data}_${idCurto}.pdf`
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
