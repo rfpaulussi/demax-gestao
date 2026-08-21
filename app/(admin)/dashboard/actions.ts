@@ -809,12 +809,29 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
     : { data: [] }
 
   // 3b. Retornos de INSS vencidos (funcionários com afastamento sem data_fim_real cujo
-  // data_fim_prevista já passou) — mesmos funcionários escopados pelos postos do supervisor
-  const { data: retornosInssData } = funcIds.length > 0
+  // data_fim_prevista já passou) — escopados aos funcionários com status='afastado' nos
+  // postos operacionais do supervisor, MAIS os que estão parqueados no posto-holding
+  // AFASTADOS (excluído de `postos`/`postoIds`/`funcs` acima, mas ainda pertence ao supervisor).
+  type AfastadoPostoFuncRow = { id: string; nome: string; posto_id: string | null; postos: { nome: string } | null }
+  const { data: funcsAfastadosPostoRaw } = afastadosPostoIds.length > 0
+    ? await supabase
+        .from('funcionarios')
+        .select('id, nome, posto_id, postos!posto_id(nome)')
+        .in('posto_id', afastadosPostoIds)
+        .eq('status', 'afastado')
+    : { data: [] }
+  const funcsAfastadosPosto = (funcsAfastadosPostoRaw ?? []) as unknown as AfastadoPostoFuncRow[]
+
+  const funcIdsAfastadosParaInss = [
+    ...funcs.filter(f => f.status === 'afastado').map(f => f.id),
+    ...funcsAfastadosPosto.map(f => f.id),
+  ]
+
+  const { data: retornosInssData } = funcIdsAfastadosParaInss.length > 0
     ? await supabase
         .from('afastamentos')
         .select('id, funcionario_id, data_fim_prevista')
-        .in('funcionario_id', funcIds)
+        .in('funcionario_id', funcIdsAfastadosParaInss)
         .is('data_fim_real', null)
         .not('data_fim_prevista', 'is', null)
         .lte('data_fim_prevista', hoje)
@@ -1059,6 +1076,11 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
 
   const postoNomePorFuncId = new Map(funcs.map(f => [f.id, postos.find(p => p.id === f.posto_id)?.nome ?? null]))
   const nomePorFuncId = new Map(funcs.map(f => [f.id, f.nome]))
+  // Inclui os funcionários do posto-holding AFASTADOS (fora de `funcs`/`postos`)
+  for (const f of funcsAfastadosPosto) {
+    nomePorFuncId.set(f.id, f.nome)
+    postoNomePorFuncId.set(f.id, f.postos?.nome ?? null)
+  }
 
   type RetornoInssRow = { id: string; funcionario_id: string; data_fim_prevista: string }
   const funcionariosVistosInss = new Set<string>()
