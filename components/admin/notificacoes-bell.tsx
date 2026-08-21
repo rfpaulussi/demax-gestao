@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Bell, X, CheckCheck, AlertTriangle, FileText, UserMinus, Shield, Trash2, CalendarDays } from 'lucide-react'
+import { Bell, X, CheckCheck, AlertTriangle, FileText, UserMinus, Shield, Trash2, CalendarDays, Timer } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { marcarTodasLidas, excluirNotificacoesLidas, excluirNotificacaoIndividual } from '@/app/(admin)/notificacoes/actions'
@@ -24,6 +24,7 @@ const TIPO_ICON: Record<string, React.ReactNode> = {
   cobertura:      <AlertTriangle size={14} className="text-orange-500" />,
   alerta_ferias:  <CalendarDays size={14} className="text-orange-500" />,
   ferias_agendada:<CalendarDays size={14} className="text-indigo-500" />,
+  alerta_retorno_inss: <Timer size={14} className="text-red-500" />,
 }
 
 const TIPO_LABEL: Record<string, string> = {
@@ -33,6 +34,7 @@ const TIPO_LABEL: Record<string, string> = {
   cobertura:       'Cobertura',
   alerta_ferias:   'Alerta de Férias',
   ferias_agendada: 'Férias',
+  alerta_retorno_inss: 'Retorno INSS Vencido',
 }
 
 const ACAO_LABEL: Record<string, string> = {
@@ -61,6 +63,23 @@ function renderConteudo(log: LogAcao): React.ReactNode | null {
         {criticos > 0 && <span className="text-orange-500">{criticos} vence{criticos !== 1 ? 'm' : ''} em 30d</span>}
         {' '}
         <Link href="/ferias/saldo" className="text-blue-500 underline hover:text-blue-700 text-[10px]">ver saldo</Link>
+      </p>
+    )
+  }
+  if (log.tipo === 'alerta_retorno_inss') {
+    let nomes: string[] = []
+    try {
+      const d = JSON.parse(log.detalhes ?? '{}')
+      nomes = Array.isArray(d.nomes) ? d.nomes : []
+    } catch { /* ignore */ }
+    return (
+      <p className="text-xs text-gray-700 leading-snug">
+        <span className="font-semibold text-red-700">Retorno INSS Vencido</span>
+        {' — '}
+        <span className="text-red-600 font-medium">{nomes.length} funcionário{nomes.length !== 1 ? 's' : ''}</span>
+        {nomes.length > 0 && <span className="text-gray-400"> ({nomes.slice(0, 3).join(', ')}{nomes.length > 3 ? '...' : ''})</span>}
+        {' '}
+        <Link href="/efetivo" className="text-blue-500 underline hover:text-blue-700 text-[10px]">ver efetivo</Link>
       </p>
     )
   }
