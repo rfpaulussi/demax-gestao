@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Timer } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getUser } from '@/lib/auth/get-user'
 import { createClient } from '@/lib/supabase/server'
@@ -65,7 +65,7 @@ function fmtDateFull(d: string) {
 }
 
 function SupervisorDashboard({ dados, nomeUsuario }: { dados: DadosSupervisor; nomeUsuario: string }) {
-  const { kpis, postos, coberturas, proximasFerias, atestadosRecentes, postosDeficit } = dados
+  const { kpis, postos, coberturas, proximasFerias, atestadosRecentes, postosDeficit, retornosInssVencidos } = dados
   const totalAusentes = kpis.atestados + kpis.afastados + kpis.ferias + kpis.faltantes
 
   const iniciais = nomeUsuario.trim().split(/\s+/).filter(Boolean)
@@ -111,7 +111,7 @@ function SupervisorDashboard({ dados, nomeUsuario }: { dados: DadosSupervisor; n
         {/* Alertas dos meus postos */}
         <div className="flex flex-col rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
           <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-400">Alertas Críticos</p>
-          {postosDeficit.length === 0 && kpis.descobertos === 0 ? (
+          {postosDeficit.length === 0 && kpis.descobertos === 0 && retornosInssVencidos.length === 0 ? (
             <div className="flex items-center gap-2.5 rounded-lg border border-green-100 bg-green-50 px-4 py-3">
               <CheckCircle2 className="h-4 w-4 shrink-0 text-green-500" />
               <p className="text-sm font-medium text-green-700">Nenhum alerta crítico.</p>
@@ -133,6 +133,17 @@ function SupervisorDashboard({ dados, nomeUsuario }: { dados: DadosSupervisor; n
                   <div className="min-w-0">
                     <p className="text-xs font-semibold text-red-800">Posto em déficit</p>
                     <p className="truncate text-xs text-red-700">{p.nome} — falta{p.gap === 1 ? '' : 'm'} {p.gap} pessoa{p.gap > 1 ? 's' : ''}</p>
+                  </div>
+                </div>
+              ))}
+              {retornosInssVencidos.map(r => (
+                <div key={r.id} className="flex items-start gap-3 rounded-lg border-l-[3px] border-red-500 bg-red-50 px-3 py-2.5">
+                  <Timer className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-red-800">Retorno INSS vencido</p>
+                    <p className="truncate text-xs text-red-700">
+                      {r.funcionarioNome} — venceu há {r.diasAtraso} dia{r.diasAtraso !== 1 ? 's' : ''} ({r.dataFimPrevista.split('-').reverse().join('/')})
+                    </p>
                   </div>
                 </div>
               ))}
