@@ -740,6 +740,7 @@ export type DadosSupervisor = {
   proximasFerias: SupervisorFerias[]
   atestadosRecentes: SupervisorAtestadoRecente[]
   postosDeficit: { id: string; nome: string; gap: number }[]
+  retornosInssVencidos: RetornoInssVencido[]
 }
 
 export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Promise<DadosSupervisor> {
@@ -768,7 +769,7 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
     .map(p => p!.id)
 
   if (postos.length === 0) {
-    return { postos: [], kpis: { ativos: 0, atestados: 0, afastados: 0, ferias: 0, feriasAgendadas: 0, faltantes: 0, descobertos: 0, coberturas_ativas: 0, ocorrencias: 0, aprovacoes: 0 }, atestadosAtivos: [], coberturas: [], proximasFerias: [], atestadosRecentes: [], postosDeficit: [] }
+    return { postos: [], kpis: { ativos: 0, atestados: 0, afastados: 0, ferias: 0, feriasAgendadas: 0, faltantes: 0, descobertos: 0, coberturas_ativas: 0, ocorrencias: 0, aprovacoes: 0 }, atestadosAtivos: [], coberturas: [], proximasFerias: [], atestadosRecentes: [], postosDeficit: [], retornosInssVencidos: [] }
   }
 
   const postoIds = postos.map(p => p.id)
@@ -805,6 +806,19 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
         .in('funcionario_id', funcIds)
         .gte('data_fim', hoje)
         .order('data_fim', { ascending: true })
+    : { data: [] }
+
+  // 3b. Retornos de INSS vencidos (funcionários com afastamento sem data_fim_real cujo
+  // data_fim_prevista já passou) — mesmos funcionários escopados pelos postos do supervisor
+  const { data: retornosInssData } = funcIds.length > 0
+    ? await supabase
+        .from('afastamentos')
+        .select('id, funcionario_id, data_fim_prevista')
+        .in('funcionario_id', funcIds)
+        .is('data_fim_real', null)
+        .not('data_fim_prevista', 'is', null)
+        .lte('data_fim_prevista', hoje)
+        .order('data_fim_prevista', { ascending: true })
     : { data: [] }
 
   // 4. Coberturas ativas nos postos
@@ -1043,6 +1057,26 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
     .map(p => ({ id: p.id, nome: p.nome, gap: p.efetivo_previsto - p.ativos }))
     .sort((a, b) => b.gap - a.gap)
 
+  const postoNomePorFuncId = new Map(funcs.map(f => [f.id, postos.find(p => p.id === f.posto_id)?.nome ?? null]))
+  const nomePorFuncId = new Map(funcs.map(f => [f.id, f.nome]))
+
+  type RetornoInssRow = { id: string; funcionario_id: string; data_fim_prevista: string }
+  const funcionariosVistosInss = new Set<string>()
+  const retornosInssVencidos: RetornoInssVencido[] = ((retornosInssData ?? []) as unknown as RetornoInssRow[])
+    .filter(r => {
+      if (funcionariosVistosInss.has(r.funcionario_id)) return false
+      funcionariosVistosInss.add(r.funcionario_id)
+      return true
+    })
+    .map(r => ({
+      id: r.id,
+      funcionarioId: r.funcionario_id,
+      funcionarioNome: nomePorFuncId.get(r.funcionario_id) ?? '—',
+      postoNome: postoNomePorFuncId.get(r.funcionario_id) ?? null,
+      dataFimPrevista: r.data_fim_prevista,
+      diasAtraso: diasAtraso(r.data_fim_prevista, hoje),
+    }))
+
   return {
     postos: postosKpi,
     kpis: {
@@ -1062,5 +1096,6 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
     proximasFerias,
     atestadosRecentes,
     postosDeficit,
+    retornosInssVencidos,
   }
 }
