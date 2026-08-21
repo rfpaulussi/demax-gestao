@@ -145,6 +145,24 @@ export default async function EfetivoPage() {
     }
   }
 
+  // Data prevista de retorno do afastamento aberto (data_fim_real IS NULL) de cada
+  // funcionário afastado — o mais recente, quando há mais de um aberto.
+  const afastamentoPrevistoMap = new Map<string, string | null>()
+  const soAfastadoIds = rawFuncs.filter(f => f.status === 'afastado').map(f => f.id)
+  if (soAfastadoIds.length > 0) {
+    const { data: afastData } = await supabase
+      .from('afastamentos')
+      .select('funcionario_id, data_fim_prevista')
+      .in('funcionario_id', soAfastadoIds)
+      .is('data_fim_real', null)
+      .order('created_at', { ascending: false })
+    for (const a of (afastData ?? []) as unknown as { funcionario_id: string; data_fim_prevista: string | null }[]) {
+      if (!afastamentoPrevistoMap.has(a.funcionario_id)) {
+        afastamentoPrevistoMap.set(a.funcionario_id, a.data_fim_prevista)
+      }
+    }
+  }
+
   // Faltas ativas hoje (para badge na tabela)
   const hoje = new Date().toISOString().split('T')[0]
   const { data: faltasRaw } = await (supabase as unknown as AnyQ)
@@ -220,6 +238,7 @@ export default async function EfetivoPage() {
       turno_atual_nome:       horario?.nome ?? null,
       turno_atual_regime:     horario?.regime ?? null,
       turno_atual_resumo:     horario?.resumo ?? null,
+      data_fim_prevista_afastamento: f.status === 'afastado' ? (afastamentoPrevistoMap.get(f.id) ?? null) : null,
     }
   })
 

@@ -951,3 +951,55 @@ export async function prorrogarAfastamento(
 
   return { success: true }
 }
+
+export async function cadastrarAfastamentoRastreado(
+  funcionarioId: string,
+  dataInicio: string,
+  dataFimPrevista: string,
+): Promise<ActionResult> {
+  const auth = await getUser()
+  if (!auth) return { success: false, error: 'Não autenticado' }
+  if (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador') {
+    return { success: false, error: 'Apenas admin/coordenador podem cadastrar afastamento' }
+  }
+  if (dataFimPrevista < dataInicio) {
+    return { success: false, error: 'Data prevista não pode ser anterior à data de início' }
+  }
+
+  const supabase = createClient()
+  const { data: func, error: errFunc } = await supabase
+    .from('funcionarios')
+    .select('id, status')
+    .eq('id', funcionarioId)
+    .single()
+
+  if (errFunc || !func) return { success: false, error: 'Funcionário não encontrado' }
+  if (func.status !== 'afastado') {
+    return { success: false, error: 'Funcionário não está com status afastado' }
+  }
+
+  const { error: errInsert } = await supabase.from('afastamentos').insert({
+    funcionario_id: funcionarioId,
+    data_inicio: dataInicio,
+    data_fim_prevista: dataFimPrevista,
+    motivo: null,
+    solicitacao_id: null,
+  })
+
+  if (errInsert) return { success: false, error: errInsert.message }
+
+  const { error: errMov } = await supabase.from('movimentacoes').insert({
+    funcionario_id: funcionarioId,
+    tipo: 'afastamento',
+    campo_alterado: 'cadastro_manual',
+    valor_antes: null,
+    valor_depois: JSON.stringify({ data_inicio: dataInicio, data_fim_prevista: dataFimPrevista }),
+    executado_por: auth.user.id,
+  })
+  if (errMov) console.error('[movimentacoes] cadastrarAfastamentoRastreado:', errMov.message)
+
+  revalidatePath('/efetivo')
+  revalidatePath('/dashboard')
+
+  return { success: true }
+}

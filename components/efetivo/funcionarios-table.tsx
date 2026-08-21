@@ -26,6 +26,7 @@ export type FuncionarioRow = {
   status: 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado' | 'faltante' | 'rescisao_indireta' | null
   motivo_afastamento: 'ausencia_temporaria' | 'inss' | null
   origem_ocupacional_cat: string | null
+  data_fim_prevista_afastamento?: string | null
   data_admissao: string | null
   data_desligamento: string | null
   motivo_desligamento: string | null
@@ -54,6 +55,13 @@ function fmtSupervisor(nome: string | null | undefined): string | null {
   const parts = nome.trim().split(/\s+/)
   if (parts.length === 1) return parts[0]
   return `${parts[0]} ${parts[parts.length - 1][0].toUpperCase()}.`
+}
+
+function fmtRetornoPrevisto(data: string | null | undefined): { texto: string; vencido: boolean; semData: boolean } {
+  if (!data) return { texto: 'sem data', vencido: false, semData: true }
+  const hoje = new Date().toISOString().split('T')[0]
+  const formatada = data.split('-').reverse().join('/')
+  return { texto: formatada, vencido: data <= hoje, semData: false }
 }
 
 const STATUS_BADGE: Record<
@@ -90,6 +98,7 @@ const COLS: { label: string; sortKey?: string }[] = [
   { label: 'Secretaria', sortKey: 'secretaria' },
   { label: 'Supervisor'                         },
   { label: 'Status',     sortKey: 'status'     },
+  { label: 'Retorno Previsto'                   },
   { label: 'Ações'                              },
 ]
 
@@ -162,6 +171,7 @@ export function FuncionariosTable({
                   const rowStyle = f.status ? STATUS_ROW[f.status] : null
                   const supLabel = fmtSupervisor(f.supervisor_nome)
                   const exp = calcularStatusExperiencia(f.data_admissao, f.periodo_experiencia)
+                  const retornoPrevisto = f.status === 'afastado' ? fmtRetornoPrevisto(f.data_fim_prevista_afastamento) : null
 
                   return (
                     <tr
@@ -248,6 +258,18 @@ export function FuncionariosTable({
                             )}
                           </div>
                         ) : '—'}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        {retornoPrevisto ? (
+                          <span className={cn(
+                            'text-xs',
+                            retornoPrevisto.semData ? 'text-gray-400 italic' : retornoPrevisto.vencido ? 'font-semibold text-red-600' : 'text-gray-600',
+                          )}>
+                            {retornoPrevisto.texto}{retornoPrevisto.vencido && !retornoPrevisto.semData ? ' (vencido)' : ''}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-300">—</span>
+                        )}
                       </td>
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-1.5">

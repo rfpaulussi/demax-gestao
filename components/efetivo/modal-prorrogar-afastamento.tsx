@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
-import { buscarAfastamentoAberto, prorrogarAfastamento } from '@/app/(admin)/efetivo/actions'
+import { buscarAfastamentoAberto, prorrogarAfastamento, cadastrarAfastamentoRastreado } from '@/app/(admin)/efetivo/actions'
 import type { FuncionarioRow } from './funcionarios-table'
 
 interface Props {
@@ -19,6 +19,7 @@ export function ModalProrrogarAfastamento({ funcionario, open, onClose }: Props)
   const [afastamentoId, setAfastamentoId] = useState<string | null>(null)
   const [dataAtual, setDataAtual] = useState<string | null>(null)
   const [novaData, setNovaData] = useState('')
+  const [novaDataInicio, setNovaDataInicio] = useState('')
   const [erro, setErro] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
 
@@ -48,10 +49,11 @@ export function ModalProrrogarAfastamento({ funcionario, open, onClose }: Props)
 
   function resetState() {
     setNovaData('')
+    setNovaDataInicio('')
     setErro(null)
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmitEdicao(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!afastamentoId) return
     setErro(null)
@@ -71,6 +73,25 @@ export function ModalProrrogarAfastamento({ funcionario, open, onClose }: Props)
     }
   }
 
+  async function handleSubmitCadastro(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setErro(null)
+    setPending(true)
+    try {
+      const res = await cadastrarAfastamentoRastreado(funcionario.id, novaDataInicio, novaData)
+      if (!res.success) {
+        setErro(res.error ?? 'Erro ao cadastrar')
+        return
+      }
+      resetState()
+      onClose()
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Erro ao cadastrar afastamento')
+    } finally {
+      setPending(false)
+    }
+  }
+
   return (
     <Dialog.Root open={open} onOpenChange={isOpen => { if (!isOpen) { resetState(); onClose() } }}>
       <Dialog.Portal>
@@ -82,11 +103,55 @@ export function ModalProrrogarAfastamento({ funcionario, open, onClose }: Props)
           {carregando ? (
             <p className="py-6 text-center text-sm text-gray-400">Carregando...</p>
           ) : !afastamentoId ? (
-            <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-              Nenhum afastamento rastreado pra esse funcionário — não é possível prorrogar por aqui.
-            </div>
+            <>
+              <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                Nenhum afastamento rastreado pra esse funcionário. Cadastre a data pra ele passar a entrar
+                nos alertas de retorno vencido.
+              </div>
+              <form onSubmit={handleSubmitCadastro} className="space-y-4">
+                <div>
+                  <label className={labelClass}>Data de início</label>
+                  <input
+                    type="date"
+                    required
+                    value={novaDataInicio}
+                    onChange={e => setNovaDataInicio(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>Data prevista de retorno</label>
+                  <input
+                    type="date"
+                    required
+                    value={novaData}
+                    onChange={e => setNovaData(e.target.value)}
+                    className={inputClass}
+                  />
+                </div>
+                {erro && (
+                  <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{erro}</p>
+                )}
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => { resetState(); onClose() }}
+                    className="rounded px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={pending}
+                    className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+                  >
+                    {pending ? 'Salvando...' : 'Cadastrar'}
+                  </button>
+                </div>
+              </form>
+            </>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmitEdicao} className="space-y-4">
               <div>
                 <label className={labelClass}>Data prevista atual</label>
                 <p className="rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
