@@ -172,7 +172,11 @@ export function SupervisorBell({ unread: initialUnread, notifs: initialNotifs, a
                 </div>
               )}
               {notifs.length === 0 ? (
-                alertas.length === 0 && <p className="px-4 py-8 text-center text-sm text-gray-400">Sem notificações recentes</p>
+                alertas.length === 0 ? (
+                  <p className="px-4 py-8 text-center text-sm text-gray-400">Sem notificações recentes</p>
+                ) : (
+                  <p className="px-4 pb-4 text-xs text-gray-400">Nenhuma solicitação recente</p>
+                )
               ) : (
                 notifs.map(n => (
                   <div
