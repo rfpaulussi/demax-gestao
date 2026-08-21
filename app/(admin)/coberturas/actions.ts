@@ -22,6 +22,23 @@ async function assertAuth(): Promise<{ success: true; userId: string } | { succe
   return { success: true, userId: auth.user.id }
 }
 
+/**
+ * Um funcionário "ausente" de uma cobertura pode ter uma ausência própria ainda em
+ * curso (atestado, falta multi-dia ou afastamento formal) que não tem relação com a
+ * cobertura que está sendo encerrada. Nesse caso não reverte pra 'ativo' — só porque
+ * a cobertura acabou não significa que ele voltou a trabalhar. Espelha a mesma
+ * checagem de lib/processar-retornos.ts.
+ */
+async function temAusenciaAindaVigente(admin: AnyClient, funcionarioId: string, hoje: string): Promise<boolean> {
+  const [{ data: atestados }, { data: faltas }, { data: afastamentos }] = await Promise.all([
+    admin.from('atestados').select('id').eq('funcionario_id', funcionarioId).gte('data_fim', hoje),
+    admin.from('faltas').select('id').eq('funcionario_id', funcionarioId).gte('data_fim', hoje),
+    admin.from('afastamentos').select('id').eq('funcionario_id', funcionarioId)
+      .or(`data_fim_prevista.is.null,data_fim_prevista.gte.${hoje}`),
+  ])
+  return (atestados?.length ?? 0) > 0 || (faltas?.length ?? 0) > 0 || (afastamentos?.length ?? 0) > 0
+}
+
 function calcUrgencia(dataPrevRetorno: string | null): 'baixa' | 'media' | 'alta' {
   if (!dataPrevRetorno) return 'baixa'
   const hoje = new Date()
@@ -285,7 +302,7 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
       .select('id', { count: 'exact', head: true })
       .eq('funcionario_ausente_id', cob.funcionario_ausente_id)
       .eq('status', 'ativa')
-    if (count === 0) {
+    if (count === 0 && !(await temAusenciaAindaVigente(adminSupabase as unknown as AnyClient, cob.funcionario_ausente_id, hoje))) {
       const { error: errRev } = await adminSupabase.from('funcionarios')
         .update({ status: 'ativo', motivo_afastamento: null })
         .eq('id', cob.funcionario_ausente_id)
@@ -349,7 +366,7 @@ export async function encerrarCoberturasVencidas(): Promise<{ encerradas: number
       .select('id', { count: 'exact', head: true })
       .eq('funcionario_ausente_id', ausenteId)
       .eq('status', 'ativa')
-    if (count === 0) {
+    if (count === 0 && !(await temAusenciaAindaVigente(supabase as unknown as AnyClient, ausenteId, hoje))) {
       const { error: errRev } = await supabase.from('funcionarios')
         .update({ status: 'ativo', motivo_afastamento: null })
         .eq('id', ausenteId)

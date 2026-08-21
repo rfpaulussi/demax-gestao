@@ -2,7 +2,6 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
-import { getUser } from '@/lib/auth/get-user'
 import { FALTA_TIPO_LABELS } from '@/components/faltas/faltas-config'
 
 export interface AnaliseGeralSecoes {
@@ -59,7 +58,7 @@ type AtestadoRaw = {
   funcionarios: FuncJoin | null
 }
 
-async function secaoAtestados(inicio: string, fim: string): Promise<string> {
+export async function secaoAtestados(inicio: string, fim: string): Promise<string> {
   const supabase = createClient()
 
   const [atestados, { data: cids }] = await Promise.all([
@@ -111,7 +110,7 @@ type FaltaRaw = {
   funcionarios: FuncJoin | null
 }
 
-async function secaoFaltas(inicio: string, fim: string): Promise<string> {
+export async function secaoFaltas(inicio: string, fim: string): Promise<string> {
   const supabase = createClient()
 
   const faltas = await fetchAllRows<FaltaRaw>((from, to) =>
@@ -154,7 +153,7 @@ type HistoricoRaw = {
   funcionarios: FuncJoin | null
 }
 
-async function secaoMudancasFuncao(inicio: string, fim: string): Promise<string> {
+export async function secaoMudancasFuncao(inicio: string, fim: string): Promise<string> {
   const supabase = createClient()
 
   const [historico, { data: funcoes }] = await Promise.all([
@@ -207,7 +206,7 @@ type AdvertenciaRaw = {
   funcionarios: FuncJoin | null
 }
 
-async function secaoAdvertencias(inicio: string, fim: string): Promise<string> {
+export async function secaoAdvertencias(inicio: string, fim: string): Promise<string> {
   const supabase = createClient()
 
   const advertencias = await fetchAllRows<AdvertenciaRaw>((from, to) =>

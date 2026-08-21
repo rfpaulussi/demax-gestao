@@ -48,7 +48,10 @@ Deno.serve(async (_req) => {
       }),
     )
 
-    // Reverter ausentes para 'ativo' se não há outra cobertura ativa cobrindo-os
+    // Reverter ausentes para 'ativo' se não há outra cobertura ativa cobrindo-os e
+    // se não têm uma ausência própria ainda em curso (atestado, falta ou afastamento
+    // sem relação com esta cobertura) — só porque a cobertura acabou não significa
+    // que a pessoa voltou a trabalhar.
     const ausenteIds = [...new Set(
       coberturas
         .map(c => c.funcionario_ausente_id as string | null)
@@ -61,13 +64,23 @@ Deno.serve(async (_req) => {
           .select('id', { count: 'exact', head: true })
           .eq('funcionario_ausente_id', ausenteId)
           .eq('status', 'ativa')
-        if (count === 0) {
-          const { error: errRev } = await supabase.from('funcionarios')
-            .update({ status: 'ativo' })
-            .eq('id', ausenteId)
-            .eq('status', 'afastado')
-          if (errRev) console.error(`[retorno-automatico] reverter status do ausente ${ausenteId}:`, errRev.message)
-        }
+        if (count !== 0) return
+
+        const [{ data: atestados }, { data: faltas }, { data: afastamentos }] = await Promise.all([
+          supabase.from('atestados').select('id').eq('funcionario_id', ausenteId).gte('data_fim', hoje),
+          supabase.from('faltas').select('id').eq('funcionario_id', ausenteId).gte('data_fim', hoje),
+          supabase.from('afastamentos').select('id').eq('funcionario_id', ausenteId)
+            .or(`data_fim_prevista.is.null,data_fim_prevista.gte.${hoje}`),
+        ])
+        const temAusenciaVigente =
+          (atestados?.length ?? 0) > 0 || (faltas?.length ?? 0) > 0 || (afastamentos?.length ?? 0) > 0
+        if (temAusenciaVigente) return
+
+        const { error: errRev } = await supabase.from('funcionarios')
+          .update({ status: 'ativo', motivo_afastamento: null })
+          .eq('id', ausenteId)
+          .in('status', ['afastado', 'atestado', 'faltante'])
+        if (errRev) console.error(`[retorno-automatico] reverter status do ausente ${ausenteId}:`, errRev.message)
       })
     )
 
