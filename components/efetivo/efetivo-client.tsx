@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { FileSpreadsheet, UserPlus } from 'lucide-react'
 import { ModalAdmitirAdmin } from './modal-admitir-admin'
 import { FiltrosEfetivo } from './filtros-efetivo'
@@ -58,8 +59,10 @@ interface Props {
 }
 
 export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cids, isAdmin, podeIgnorarAfastado, faltasAtivas, coberturaSubstitutos, coberturaAusentes }: Props) {
+  const searchParams = useSearchParams()
+  const buscaInicial = searchParams.get('busca') ?? ''
   const [values, setValues] = useState<FiltrosValues>({
-    busca: '', status: '', secretaria: '', supervisor: '', posto: '',
+    busca: buscaInicial, status: '', secretaria: '', supervisor: '', posto: '',
   })
   const [sortCol, setSortCol] = useState<string>('nome')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
