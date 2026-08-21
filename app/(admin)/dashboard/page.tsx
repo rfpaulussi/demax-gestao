@@ -99,6 +99,7 @@ function SupervisorDashboard({ dados, nomeUsuario }: { dados: DadosSupervisor; n
           if (kpis.atestados > 0) partes.push(`${kpis.atestados} atestado${kpis.atestados > 1 ? 's' : ''}`)
           if (kpis.afastados > 0) partes.push(`${kpis.afastados} INSS`)
           if (kpis.faltantes > 0) partes.push(`${kpis.faltantes} faltante${kpis.faltantes > 1 ? 's' : ''}`)
+          if (retornosInssVencidos.length > 0) partes.push(`${retornosInssVencidos.length} com retorno vencido`)
           return partes.length > 0 ? partes.join(', ') : undefined
         })()} />
         <KpiCardPrincipal label="Em Férias"          valor={kpis.ferias}      corBorda="border-t-green-500" href="/efetivo?status=ferias" aviso={kpis.feriasAgendadas > 0 ? `${kpis.feriasAgendadas} agendada${kpis.feriasAgendadas > 1 ? 's' : ''}` : undefined} />
@@ -555,6 +556,7 @@ export default async function DashboardPage({
           valor={kpis.afastados}
           corBorda="border-t-amber-500"
           delta={deltaAfastados}
+          aviso={alertas.retornosInssVencidos.length > 0 ? `${alertas.retornosInssVencidos.length} com retorno vencido` : undefined}
           sparklineData={sparkAfastados}
           sparkColor="#f59e0b"
           href="/efetivo?status=afastado"
