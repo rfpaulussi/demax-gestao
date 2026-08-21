@@ -11,6 +11,7 @@ import { ModalAtestado } from './modal-atestado'
 import { ModalAfastar } from './modal-afastar'
 import { ModalNovaSolicitacao } from './modal-nova-solicitacao'
 import { ModalEditarFuncionario } from './modal-editar-funcionario'
+import { ModalProrrogarAfastamento } from './modal-prorrogar-afastamento'
 import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dialog'
 import { BadgePcd } from './badge-pcd'
 
@@ -124,6 +125,7 @@ export function FuncionariosTable({
   const [solicitarFuncionario, setSolicitarFuncionario]   = useState<FuncionarioRow | null>(null)
   const [editarFuncionario,    setEditarFuncionario]      = useState<FuncionarioRow | null>(null)
   const [excluindoFuncionario, setExcluindoFuncionario]   = useState<FuncionarioRow | null>(null)
+  const [prorrogarFuncionario, setProrrogarFuncionario]   = useState<FuncionarioRow | null>(null)
 
   return (
     <>
@@ -287,6 +289,17 @@ export function FuncionariosTable({
                               Afastar
                             </Button>
                           )}
+                          {f.status === 'afastado' && isAdmin && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-amber-400 text-amber-700 hover:bg-amber-50"
+                              onClick={() => setProrrogarFuncionario(f)}
+                            >
+                              <Clock className="h-3.5 w-3.5" />
+                              Prorrogar
+                            </Button>
+                          )}
                           {f.status === 'faltante' && (
                             <Button
                               size="sm"
@@ -366,6 +379,14 @@ export function FuncionariosTable({
           onClose={() => setAfastarFuncionario(null)}
           funcionario={afastarFuncionario}
           isAdmin={isAdmin}
+        />
+      )}
+
+      {prorrogarFuncionario && (
+        <ModalProrrogarAfastamento
+          open
+          onClose={() => setProrrogarFuncionario(null)}
+          funcionario={prorrogarFuncionario}
         />
       )}
 
