@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { getUser } from '@/lib/auth/get-user'
+import { FALTA_TIPO_LABELS } from '@/components/faltas/faltas-config'
 
 export interface AnaliseGeralSecoes {
   atestados: boolean
@@ -110,11 +111,6 @@ type FaltaRaw = {
   funcionarios: FuncJoin | null
 }
 
-const TIPO_FALTA_LABEL: Record<string, string> = {
-  com_atestado: 'Com atestado',
-  sem_atestado: 'Sem atestado',
-}
-
 async function secaoFaltas(inicio: string, fim: string): Promise<string> {
   const supabase = createClient()
 
@@ -138,7 +134,7 @@ async function secaoFaltas(inicio: string, fim: string): Promise<string> {
       func?.nome ?? '—',
       func?.postos?.nome ?? '—',
       func?.postos?.secretaria ?? '—',
-      TIPO_FALTA_LABEL[f.tipo] ?? f.tipo,
+      FALTA_TIPO_LABELS[f.tipo as keyof typeof FALTA_TIPO_LABELS] ?? f.tipo,
       f.dias,
       f.observacao ?? '—',
     ]
