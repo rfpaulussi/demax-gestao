@@ -872,3 +872,82 @@ export async function solicitarMudancaHorario(formData: FormData): Promise<Actio
   revalidatePath('/aprovacoes')
   return { success: true }
 }
+
+export type AfastamentoAberto = {
+  id: string
+  dataInicio: string
+  dataFimPrevista: string | null
+}
+
+/**
+ * Busca o afastamento aberto (data_fim_real IS NULL) mais recente do funcionário.
+ * Retorna null se não houver nenhum (ex.: funcionário com status='afastado' definido
+ * fora do fluxo normal, sem registro em `afastamentos`).
+ */
+export async function buscarAfastamentoAberto(funcionarioId: string): Promise<AfastamentoAberto | null> {
+  const auth = await getUser()
+  if (!auth) return null
+  if (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador') return null
+
+  const supabase = createClient()
+  const { data } = await supabase
+    .from('afastamentos')
+    .select('id, data_inicio, data_fim_prevista')
+    .eq('funcionario_id', funcionarioId)
+    .is('data_fim_real', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!data) return null
+  return {
+    id: data.id,
+    dataInicio: data.data_inicio,
+    dataFimPrevista: data.data_fim_prevista,
+  }
+}
+
+export async function prorrogarAfastamento(
+  afastamentoId: string,
+  novaDataFimPrevista: string,
+): Promise<ActionResult> {
+  const auth = await getUser()
+  if (!auth) return { success: false, error: 'Não autenticado' }
+  if (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador') {
+    return { success: false, error: 'Apenas admin/coordenador podem prorrogar afastamento' }
+  }
+
+  const supabase = createClient()
+  const { data: atual, error: errBusca } = await supabase
+    .from('afastamentos')
+    .select('id, funcionario_id, data_inicio, data_fim_prevista')
+    .eq('id', afastamentoId)
+    .single()
+
+  if (errBusca || !atual) return { success: false, error: 'Afastamento não encontrado' }
+  if (novaDataFimPrevista < atual.data_inicio) {
+    return { success: false, error: 'Nova data não pode ser anterior à data de início do afastamento' }
+  }
+
+  const { error: errUpdate } = await supabase
+    .from('afastamentos')
+    .update({ data_fim_prevista: novaDataFimPrevista })
+    .eq('id', afastamentoId)
+
+  if (errUpdate) return { success: false, error: errUpdate.message }
+
+  const { error: errMov } = await supabase.from('movimentacoes').insert({
+    funcionario_id: atual.funcionario_id,
+    tipo: 'afastamento',
+    campo_alterado: 'data_fim_prevista',
+    valor_antes: atual.data_fim_prevista,
+    valor_depois: novaDataFimPrevista,
+    executado_por: auth.user.id,
+  })
+  if (errMov) console.error('[movimentacoes] prorrogarAfastamento:', errMov.message)
+
+  revalidatePath('/efetivo')
+  revalidatePath('/dashboard')
+
+  return { success: true }
+}
