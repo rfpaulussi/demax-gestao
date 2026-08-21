@@ -145,3 +145,100 @@ async function secaoFaltas(inicio: string, fim: string): Promise<string> {
     rows,
   )}`
 }
+
+type HistoricoRaw = {
+  id: string
+  data_evento: string
+  dados_anteriores: { funcao_id?: string } | null
+  dados_novos: { funcao_id?: string } | null
+  funcionarios: FuncJoin | null
+}
+
+async function secaoMudancasFuncao(inicio: string, fim: string): Promise<string> {
+  const supabase = createClient()
+
+  const [historico, { data: funcoes }] = await Promise.all([
+    fetchAllRows<HistoricoRaw>((from, to) =>
+      supabase
+        .from('historico_funcionarios')
+        .select(`
+          id, data_evento, dados_anteriores, dados_novos,
+          funcionarios!funcionario_id ( nome, registro, posto_id, postos!posto_id ( nome, secretaria ) )
+        `)
+        .eq('tipo', 'mudanca_funcao')
+        .gte('data_evento', inicio)
+        .lte('data_evento', fim)
+        .order('data_evento', { ascending: true })
+        .range(from, to) as unknown as PromiseLike<{ data: HistoricoRaw[] | null; error: { message: string } | null }>,
+    ),
+    supabase.from('funcoes').select('id, nome'),
+  ])
+
+  const funcaoById = new Map<string, string>((funcoes ?? []).map(f => [f.id, f.nome]))
+
+  const rows = historico.map(h => {
+    const func = h.funcionarios
+    const funcaoAnteriorId = h.dados_anteriores?.funcao_id ?? ''
+    const funcaoNovaId = h.dados_novos?.funcao_id ?? ''
+    return [
+      fmtData(h.data_evento),
+      func?.nome ?? '—',
+      func?.postos?.nome ?? '—',
+      func?.postos?.secretaria ?? '—',
+      funcaoById.get(funcaoAnteriorId) ?? '—',
+      funcaoById.get(funcaoNovaId) ?? '—',
+    ]
+  })
+
+  return `## Mudanças de Função\n\n${mdTable(
+    ['Data', 'Funcionário', 'Posto', 'Secretaria', 'Função Anterior', 'Função Nova'],
+    rows,
+  )}`
+}
+
+type AdvertenciaRaw = {
+  id: string
+  data_ocorrencia: string | null
+  grau: string | null
+  tipo: string | null
+  descricao: string | null
+  dias_suspensao: number | null
+  status: string | null
+  funcionarios: FuncJoin | null
+}
+
+async function secaoAdvertencias(inicio: string, fim: string): Promise<string> {
+  const supabase = createClient()
+
+  const advertencias = await fetchAllRows<AdvertenciaRaw>((from, to) =>
+    supabase
+      .from('advertencias')
+      .select(`
+        id, data_ocorrencia, grau, tipo, descricao, dias_suspensao, status,
+        funcionarios!funcionario_id ( nome, registro, posto_id, postos!posto_id ( nome, secretaria ) )
+      `)
+      .gte('data_ocorrencia', inicio)
+      .lte('data_ocorrencia', fim)
+      .order('data_ocorrencia', { ascending: true })
+      .range(from, to) as unknown as PromiseLike<{ data: AdvertenciaRaw[] | null; error: { message: string } | null }>,
+  )
+
+  const rows = advertencias.map(a => {
+    const func = a.funcionarios
+    return [
+      fmtData(a.data_ocorrencia),
+      func?.nome ?? '—',
+      func?.postos?.nome ?? '—',
+      func?.postos?.secretaria ?? '—',
+      a.grau ?? a.tipo ?? '—',
+      a.status ?? '—',
+      a.dias_suspensao ?? '—',
+      a.descricao ?? '—',
+    ]
+  })
+
+  return `## Advertências\n\n${mdTable(
+    ['Data', 'Funcionário', 'Posto', 'Secretaria', 'Grau', 'Status', 'Dias Suspensão', 'Descrição'],
+    rows,
+  )}`
+}
