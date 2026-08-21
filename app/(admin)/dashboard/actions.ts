@@ -85,12 +85,22 @@ export type CatAlerta = {
   emAtraso: boolean
 }
 
+export type RetornoInssVencido = {
+  id: string
+  funcionarioId: string
+  funcionarioNome: string
+  postoNome: string | null
+  dataFimPrevista: string
+  diasAtraso: number
+}
+
 export type AlertasDashboard = {
   postosDeficit: PostoDeficit[]
   postosExcedentes: PostoExcedente[]
   funcSemPosto: number
   feriasLimiteVencendo: number
   catAlertas: CatAlerta[]
+  retornosInssVencidos: RetornoInssVencido[]
 }
 
 export type ProximaFerias = {
@@ -153,6 +163,12 @@ function currentDateStr(): string {
   return new Date().toISOString().split('T')[0]
 }
 
+function diasAtraso(dataFimPrevista: string, hoje: string): number {
+  const a = new Date(dataFimPrevista + 'T00:00:00Z')
+  const b = new Date(hoje + 'T00:00:00Z')
+  return Math.round((b.getTime() - a.getTime()) / 86_400_000)
+}
+
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 export async function buscarKPIsDashboard(): Promise<KPIDashboard> {
@@ -189,6 +205,7 @@ export async function buscarAlertasDashboard(): Promise<AlertasDashboard> {
     { count: feriasLimiteVencendo },
     { data: catData },
     postoStatus,
+    { data: retornosInssData },
   ] = await Promise.all([
     supabase
       .from('funcionarios')
@@ -211,6 +228,14 @@ export async function buscarAlertasDashboard(): Promise<AlertasDashboard> {
       .gte('data_inicio', thirtyDaysAgoStr)
       .order('data_inicio', { ascending: false }),
     buscarPostoStatus(),
+    supabase
+      .from('afastamentos')
+      .select('id, funcionario_id, data_fim_prevista, funcionarios!inner(nome, status, postos!posto_id(nome))')
+      .is('data_fim_real', null)
+      .not('data_fim_prevista', 'is', null)
+      .lte('data_fim_prevista', todayStr)
+      .eq('funcionarios.status', 'afastado')
+      .order('data_fim_prevista', { ascending: true }),
   ])
 
   const postosDeficit = postoStatus.postosDeficit
@@ -231,12 +256,28 @@ export async function buscarAlertasDashboard(): Promise<AlertasDashboard> {
     }
   })
 
+  type RetornoInssRow = {
+    id: string
+    funcionario_id: string
+    data_fim_prevista: string
+    funcionarios: { nome: string; status: string; postos: { nome: string } | null } | null
+  }
+  const retornosInssVencidos: RetornoInssVencido[] = ((retornosInssData ?? []) as unknown as RetornoInssRow[]).map(r => ({
+    id: r.id,
+    funcionarioId: r.funcionario_id,
+    funcionarioNome: r.funcionarios?.nome ?? '—',
+    postoNome: r.funcionarios?.postos?.nome ?? null,
+    dataFimPrevista: r.data_fim_prevista,
+    diasAtraso: diasAtraso(r.data_fim_prevista, todayStr),
+  }))
+
   return {
     postosDeficit,
     postosExcedentes: postoStatus.postosExcedentes,
     funcSemPosto: funcSemPosto ?? 0,
     feriasLimiteVencendo: feriasLimiteVencendo ?? 0,
     catAlertas,
+    retornosInssVencidos,
   }
 }
 
