@@ -262,14 +262,24 @@ export async function buscarAlertasDashboard(): Promise<AlertasDashboard> {
     data_fim_prevista: string
     funcionarios: { nome: string; status: string; postos: { nome: string } | null } | null
   }
-  const retornosInssVencidos: RetornoInssVencido[] = ((retornosInssData ?? []) as unknown as RetornoInssRow[]).map(r => ({
-    id: r.id,
-    funcionarioId: r.funcionario_id,
-    funcionarioNome: r.funcionarios?.nome ?? '—',
-    postoNome: r.funcionarios?.postos?.nome ?? null,
-    dataFimPrevista: r.data_fim_prevista,
-    diasAtraso: diasAtraso(r.data_fim_prevista, todayStr),
-  }))
+  // Nada no modelo de dados impede mais de um afastamento aberto (data_fim_real IS NULL)
+  // para o mesmo funcionário. Mantemos apenas a primeira ocorrência — como a query já vem
+  // ordenada por data_fim_prevista ascendente, é a mais antiga/mais atrasada.
+  const funcionariosVistos = new Set<string>()
+  const retornosInssVencidos: RetornoInssVencido[] = ((retornosInssData ?? []) as unknown as RetornoInssRow[])
+    .filter(r => {
+      if (funcionariosVistos.has(r.funcionario_id)) return false
+      funcionariosVistos.add(r.funcionario_id)
+      return true
+    })
+    .map(r => ({
+      id: r.id,
+      funcionarioId: r.funcionario_id,
+      funcionarioNome: r.funcionarios?.nome ?? '—',
+      postoNome: r.funcionarios?.postos?.nome ?? null,
+      dataFimPrevista: r.data_fim_prevista,
+      diasAtraso: diasAtraso(r.data_fim_prevista, todayStr),
+    }))
 
   return {
     postosDeficit,
