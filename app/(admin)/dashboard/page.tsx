@@ -142,7 +142,8 @@ function SupervisorDashboard({ dados, nomeUsuario }: { dados: DadosSupervisor; n
                   <div className="min-w-0">
                     <p className="text-xs font-semibold text-red-800">Retorno INSS vencido</p>
                     <p className="truncate text-xs text-red-700">
-                      {r.funcionarioNome} — venceu há {r.diasAtraso} dia{r.diasAtraso !== 1 ? 's' : ''} ({r.dataFimPrevista.split('-').reverse().join('/')})
+                      {r.postoNome && <span className="mr-1 font-medium">{r.postoNome}</span>}
+                      {r.funcionarioNome} — venceu há {r.diasAtraso} dia{r.diasAtraso !== 1 ? 's' : ''} ({fmtDateFull(r.dataFimPrevista)})
                     </p>
                   </div>
                 </div>
