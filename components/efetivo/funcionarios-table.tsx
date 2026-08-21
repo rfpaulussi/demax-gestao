@@ -26,6 +26,7 @@ export type FuncionarioRow = {
   status: 'ativo' | 'atestado' | 'afastado' | 'ferias' | 'desligado' | 'faltante' | 'rescisao_indireta' | null
   motivo_afastamento: 'ausencia_temporaria' | 'inss' | null
   origem_ocupacional_cat: string | null
+  data_fim_prevista_afastamento?: string | null
   data_admissao: string | null
   data_desligamento: string | null
   motivo_desligamento: string | null
