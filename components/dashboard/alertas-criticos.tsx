@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { AlertCircle, Clock, Info, CheckCircle2, TrendingUp } from 'lucide-react'
+import { AlertCircle, Clock, Info, CheckCircle2, TrendingUp, Timer } from 'lucide-react'
 import type { AlertasDashboard } from '@/app/(admin)/dashboard/actions'
 
 interface Props {
@@ -7,10 +7,10 @@ interface Props {
 }
 
 export function AlertasCriticos({ alertas }: Props) {
-  const { postosDeficit, postosExcedentes, funcSemPosto, feriasLimiteVencendo, catAlertas } = alertas
+  const { postosDeficit, postosExcedentes, funcSemPosto, feriasLimiteVencendo, catAlertas, retornosInssVencidos } = alertas
 
   const temAlertas =
-    postosDeficit.length > 0 || funcSemPosto > 0 || feriasLimiteVencendo > 0 || catAlertas.length > 0
+    postosDeficit.length > 0 || funcSemPosto > 0 || feriasLimiteVencendo > 0 || catAlertas.length > 0 || retornosInssVencidos.length > 0
 
   return (
     <div className="flex h-full flex-col rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
@@ -118,6 +118,31 @@ export function AlertasCriticos({ alertas }: Props) {
             </div>
           </Link>
         ))}
+
+        {/* ── Retorno INSS vencido ─────────────────────────────────────────── */}
+        {retornosInssVencidos.length > 0 && (
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-red-400">
+              Retorno INSS vencido — {retornosInssVencidos.length} funcionário{retornosInssVencidos.length > 1 ? 's' : ''}
+            </p>
+            <div className="space-y-1.5">
+              {retornosInssVencidos.map(r => (
+                <Link href={`/efetivo?busca=${encodeURIComponent(r.funcionarioNome)}`} key={r.id}>
+                  <div className="flex items-start gap-3 rounded-lg border-l-[3px] border-red-500 bg-red-50 px-3 py-2 transition-opacity hover:opacity-90">
+                    <Timer className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold text-red-800">{r.funcionarioNome}</p>
+                      <p className="truncate text-[10px] text-red-600">
+                        {r.postoNome && <span className="mr-1 font-medium">{r.postoNome}</span>}
+                        venceu há {r.diasAtraso} dia{r.diasAtraso !== 1 ? 's' : ''} ({r.dataFimPrevista.split('-').reverse().join('/')})
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── Tudo OK ──────────────────────────────────────────────────────── */}
         {!temAlertas && postosExcedentes.length === 0 && (

@@ -85,12 +85,22 @@ export type CatAlerta = {
   emAtraso: boolean
 }
 
+export type RetornoInssVencido = {
+  id: string
+  funcionarioId: string
+  funcionarioNome: string
+  postoNome: string | null
+  dataFimPrevista: string
+  diasAtraso: number
+}
+
 export type AlertasDashboard = {
   postosDeficit: PostoDeficit[]
   postosExcedentes: PostoExcedente[]
   funcSemPosto: number
   feriasLimiteVencendo: number
   catAlertas: CatAlerta[]
+  retornosInssVencidos: RetornoInssVencido[]
 }
 
 export type ProximaFerias = {
@@ -153,6 +163,12 @@ function currentDateStr(): string {
   return new Date().toISOString().split('T')[0]
 }
 
+function diasAtraso(dataFimPrevista: string, hoje: string): number {
+  const a = new Date(dataFimPrevista + 'T00:00:00Z')
+  const b = new Date(hoje + 'T00:00:00Z')
+  return Math.round((b.getTime() - a.getTime()) / 86_400_000)
+}
+
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 export async function buscarKPIsDashboard(): Promise<KPIDashboard> {
@@ -189,6 +205,7 @@ export async function buscarAlertasDashboard(): Promise<AlertasDashboard> {
     { count: feriasLimiteVencendo },
     { data: catData },
     postoStatus,
+    { data: retornosInssData },
   ] = await Promise.all([
     supabase
       .from('funcionarios')
@@ -211,6 +228,14 @@ export async function buscarAlertasDashboard(): Promise<AlertasDashboard> {
       .gte('data_inicio', thirtyDaysAgoStr)
       .order('data_inicio', { ascending: false }),
     buscarPostoStatus(),
+    supabase
+      .from('afastamentos')
+      .select('id, funcionario_id, data_fim_prevista, funcionarios!inner(nome, status, postos!posto_id(nome))')
+      .is('data_fim_real', null)
+      .not('data_fim_prevista', 'is', null)
+      .lte('data_fim_prevista', todayStr)
+      .eq('funcionarios.status', 'afastado')
+      .order('data_fim_prevista', { ascending: true }),
   ])
 
   const postosDeficit = postoStatus.postosDeficit
@@ -231,12 +256,38 @@ export async function buscarAlertasDashboard(): Promise<AlertasDashboard> {
     }
   })
 
+  type RetornoInssRow = {
+    id: string
+    funcionario_id: string
+    data_fim_prevista: string
+    funcionarios: { nome: string; status: string; postos: { nome: string } | null } | null
+  }
+  // Nada no modelo de dados impede mais de um afastamento aberto (data_fim_real IS NULL)
+  // para o mesmo funcionário. Mantemos apenas a primeira ocorrência — como a query já vem
+  // ordenada por data_fim_prevista ascendente, é a mais antiga/mais atrasada.
+  const funcionariosVistos = new Set<string>()
+  const retornosInssVencidos: RetornoInssVencido[] = ((retornosInssData ?? []) as unknown as RetornoInssRow[])
+    .filter(r => {
+      if (funcionariosVistos.has(r.funcionario_id)) return false
+      funcionariosVistos.add(r.funcionario_id)
+      return true
+    })
+    .map(r => ({
+      id: r.id,
+      funcionarioId: r.funcionario_id,
+      funcionarioNome: r.funcionarios?.nome ?? '—',
+      postoNome: r.funcionarios?.postos?.nome ?? null,
+      dataFimPrevista: r.data_fim_prevista,
+      diasAtraso: diasAtraso(r.data_fim_prevista, todayStr),
+    }))
+
   return {
     postosDeficit,
     postosExcedentes: postoStatus.postosExcedentes,
     funcSemPosto: funcSemPosto ?? 0,
     feriasLimiteVencendo: feriasLimiteVencendo ?? 0,
     catAlertas,
+    retornosInssVencidos,
   }
 }
 
@@ -689,6 +740,7 @@ export type DadosSupervisor = {
   proximasFerias: SupervisorFerias[]
   atestadosRecentes: SupervisorAtestadoRecente[]
   postosDeficit: { id: string; nome: string; gap: number }[]
+  retornosInssVencidos: RetornoInssVencido[]
 }
 
 export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Promise<DadosSupervisor> {
@@ -717,7 +769,7 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
     .map(p => p!.id)
 
   if (postos.length === 0) {
-    return { postos: [], kpis: { ativos: 0, atestados: 0, afastados: 0, ferias: 0, feriasAgendadas: 0, faltantes: 0, descobertos: 0, coberturas_ativas: 0, ocorrencias: 0, aprovacoes: 0 }, atestadosAtivos: [], coberturas: [], proximasFerias: [], atestadosRecentes: [], postosDeficit: [] }
+    return { postos: [], kpis: { ativos: 0, atestados: 0, afastados: 0, ferias: 0, feriasAgendadas: 0, faltantes: 0, descobertos: 0, coberturas_ativas: 0, ocorrencias: 0, aprovacoes: 0 }, atestadosAtivos: [], coberturas: [], proximasFerias: [], atestadosRecentes: [], postosDeficit: [], retornosInssVencidos: [] }
   }
 
   const postoIds = postos.map(p => p.id)
@@ -754,6 +806,36 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
         .in('funcionario_id', funcIds)
         .gte('data_fim', hoje)
         .order('data_fim', { ascending: true })
+    : { data: [] }
+
+  // 3b. Retornos de INSS vencidos (funcionários com afastamento sem data_fim_real cujo
+  // data_fim_prevista já passou) — escopados aos funcionários com status='afastado' nos
+  // postos operacionais do supervisor, MAIS os que estão parqueados no posto-holding
+  // AFASTADOS (excluído de `postos`/`postoIds`/`funcs` acima, mas ainda pertence ao supervisor).
+  type AfastadoPostoFuncRow = { id: string; nome: string; posto_id: string | null; postos: { nome: string } | null }
+  const { data: funcsAfastadosPostoRaw } = afastadosPostoIds.length > 0
+    ? await supabase
+        .from('funcionarios')
+        .select('id, nome, posto_id, postos!posto_id(nome)')
+        .in('posto_id', afastadosPostoIds)
+        .eq('status', 'afastado')
+    : { data: [] }
+  const funcsAfastadosPosto = (funcsAfastadosPostoRaw ?? []) as unknown as AfastadoPostoFuncRow[]
+
+  const funcIdsAfastadosParaInss = [
+    ...funcs.filter(f => f.status === 'afastado').map(f => f.id),
+    ...funcsAfastadosPosto.map(f => f.id),
+  ]
+
+  const { data: retornosInssData } = funcIdsAfastadosParaInss.length > 0
+    ? await supabase
+        .from('afastamentos')
+        .select('id, funcionario_id, data_fim_prevista')
+        .in('funcionario_id', funcIdsAfastadosParaInss)
+        .is('data_fim_real', null)
+        .not('data_fim_prevista', 'is', null)
+        .lte('data_fim_prevista', hoje)
+        .order('data_fim_prevista', { ascending: true })
     : { data: [] }
 
   // 4. Coberturas ativas nos postos
@@ -992,6 +1074,31 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
     .map(p => ({ id: p.id, nome: p.nome, gap: p.efetivo_previsto - p.ativos }))
     .sort((a, b) => b.gap - a.gap)
 
+  const postoNomePorFuncId = new Map(funcs.map(f => [f.id, postos.find(p => p.id === f.posto_id)?.nome ?? null]))
+  const nomePorFuncId = new Map(funcs.map(f => [f.id, f.nome]))
+  // Inclui os funcionários do posto-holding AFASTADOS (fora de `funcs`/`postos`)
+  for (const f of funcsAfastadosPosto) {
+    nomePorFuncId.set(f.id, f.nome)
+    postoNomePorFuncId.set(f.id, f.postos?.nome ?? null)
+  }
+
+  type RetornoInssRow = { id: string; funcionario_id: string; data_fim_prevista: string }
+  const funcionariosVistosInss = new Set<string>()
+  const retornosInssVencidos: RetornoInssVencido[] = ((retornosInssData ?? []) as unknown as RetornoInssRow[])
+    .filter(r => {
+      if (funcionariosVistosInss.has(r.funcionario_id)) return false
+      funcionariosVistosInss.add(r.funcionario_id)
+      return true
+    })
+    .map(r => ({
+      id: r.id,
+      funcionarioId: r.funcionario_id,
+      funcionarioNome: nomePorFuncId.get(r.funcionario_id) ?? '—',
+      postoNome: postoNomePorFuncId.get(r.funcionario_id) ?? null,
+      dataFimPrevista: r.data_fim_prevista,
+      diasAtraso: diasAtraso(r.data_fim_prevista, hoje),
+    }))
+
   return {
     postos: postosKpi,
     kpis: {
@@ -1011,5 +1118,6 @@ export async function buscarDadosSupervisor(supervisorId: string, dias = 7): Pro
     proximasFerias,
     atestadosRecentes,
     postosDeficit,
+    retornosInssVencidos,
   }
 }
