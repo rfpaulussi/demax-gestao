@@ -24,9 +24,11 @@ export function ModalProrrogarAfastamento({ funcionario, open, onClose }: Props)
 
   useEffect(() => {
     if (!open) return
+    let cancelado = false
     setCarregando(true)
     setErro(null)
     buscarAfastamentoAberto(funcionario.id).then(res => {
+      if (cancelado) return
       if (!res) {
         setAfastamentoId(null)
         setDataAtual(null)
@@ -36,7 +38,12 @@ export function ModalProrrogarAfastamento({ funcionario, open, onClose }: Props)
         setNovaData(res.dataFimPrevista ?? '')
       }
       setCarregando(false)
+    }).catch(err => {
+      if (cancelado) return
+      setErro(err instanceof Error ? err.message : 'Erro ao buscar afastamento')
+      setCarregando(false)
     })
+    return () => { cancelado = true }
   }, [open, funcionario.id])
 
   function resetState() {
@@ -49,14 +56,19 @@ export function ModalProrrogarAfastamento({ funcionario, open, onClose }: Props)
     if (!afastamentoId) return
     setErro(null)
     setPending(true)
-    const res = await prorrogarAfastamento(afastamentoId, novaData)
-    setPending(false)
-    if (!res.success) {
-      setErro(res.error ?? 'Erro ao prorrogar')
-      return
+    try {
+      const res = await prorrogarAfastamento(afastamentoId, novaData)
+      if (!res.success) {
+        setErro(res.error ?? 'Erro ao prorrogar')
+        return
+      }
+      resetState()
+      onClose()
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Erro ao prorrogar afastamento')
+    } finally {
+      setPending(false)
     }
-    resetState()
-    onClose()
   }
 
   return (
