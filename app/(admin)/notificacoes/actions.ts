@@ -40,3 +40,18 @@ export async function marcarSolicitacoesLidasSupervisor() {
     .neq('status', 'pendente')
     .eq('lida_supervisor', false)
 }
+
+export async function marcarAlertasSupervisorLidos() {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role !== 'supervisor') return
+  // `alertas_supervisor` é tabela nova (Task 1), ainda não presente em types/database.ts
+  // até alguém regerar os tipos do Supabase — `as any` aqui, mesmo padrão já usado em
+  // `marcarSolicitacoesLidasSupervisor` logo acima nesta mesma função/arquivo.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = createClient() as any
+  await supabase
+    .from('alertas_supervisor')
+    .update({ lido: true })
+    .eq('supervisor_id', auth.perfil.id)
+    .eq('lido', false)
+}

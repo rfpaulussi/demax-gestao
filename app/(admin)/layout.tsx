@@ -8,7 +8,7 @@ import { SidebarNav } from '@/components/admin/sidebar-nav'
 import { NotificacoesBell } from '@/components/admin/notificacoes-bell'
 import type { LogAcao } from '@/components/admin/notificacoes-bell'
 import { SupervisorBell } from '@/components/admin/supervisor-bell'
-import type { SolicitacaoNotif } from '@/components/admin/supervisor-bell'
+import type { SolicitacaoNotif, AlertaSupervisor } from '@/components/admin/supervisor-bell'
 import { ROLE_LABELS } from '@/types'
 import type { Role } from '@/types'
 
@@ -46,6 +46,7 @@ export default async function AdminLayout({
     alertCount,
     { unread: notifUnread, logs: notifLogs },
     { unread: supNotifUnread, notifs: supNotifs },
+    { unread: supAlertasUnread, alertas: supAlertas },
   ] = await Promise.all([
     supabaseLayout
       .from('solicitacoes')
@@ -108,6 +109,28 @@ export default async function AdminLayout({
         })),
       }
     })(),
+
+    // Alertas do sistema direcionados ao supervisor (só para supervisor)
+    (async () => {
+      if (perfil.role !== 'supervisor') return { unread: 0, alertas: [] as AlertaSupervisor[] }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = createClient() as any
+      const [{ count: cntAlertas }, { data: alertasData }] = await Promise.all([
+        sb.from('alertas_supervisor')
+          .select('*', { count: 'exact', head: true })
+          .eq('supervisor_id', perfil.id)
+          .eq('lido', false),
+        sb.from('alertas_supervisor')
+          .select('id, tipo, titulo, detalhes, created_at, lido')
+          .eq('supervisor_id', perfil.id)
+          .order('created_at', { ascending: false })
+          .limit(30),
+      ])
+      return {
+        unread: cntAlertas ?? 0,
+        alertas: (alertasData ?? []) as AlertaSupervisor[],
+      }
+    })(),
   ])
 
   return (
@@ -144,7 +167,7 @@ export default async function AdminLayout({
               <NotificacoesBell unread={notifUnread} logs={notifLogs} />
             )}
             {perfil.role === 'supervisor' && (
-              <SupervisorBell unread={supNotifUnread} notifs={supNotifs} />
+              <SupervisorBell unread={supNotifUnread} notifs={supNotifs} alertasUnread={supAlertasUnread} alertas={supAlertas} />
             )}
 
             <div className="h-6 w-px bg-gray-200 hidden sm:block" aria-hidden />
