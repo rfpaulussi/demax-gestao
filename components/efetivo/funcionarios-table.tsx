@@ -61,7 +61,7 @@ function fmtRetornoPrevisto(data: string | null | undefined): { texto: string; v
   if (!data) return { texto: 'sem data', vencido: false, semData: true }
   const hoje = new Date().toISOString().split('T')[0]
   const formatada = data.split('-').reverse().join('/')
-  return { texto: formatada, vencido: data < hoje, semData: false }
+  return { texto: formatada, vencido: data <= hoje, semData: false }
 }
 
 const STATUS_BADGE: Record<
@@ -171,6 +171,7 @@ export function FuncionariosTable({
                   const rowStyle = f.status ? STATUS_ROW[f.status] : null
                   const supLabel = fmtSupervisor(f.supervisor_nome)
                   const exp = calcularStatusExperiencia(f.data_admissao, f.periodo_experiencia)
+                  const retornoPrevisto = f.status === 'afastado' ? fmtRetornoPrevisto(f.data_fim_prevista_afastamento) : null
 
                   return (
                     <tr
@@ -259,17 +260,14 @@ export function FuncionariosTable({
                         ) : '—'}
                       </td>
                       <td className="px-5 py-3.5">
-                        {f.status === 'afastado' ? (() => {
-                          const r = fmtRetornoPrevisto(f.data_fim_prevista_afastamento)
-                          return (
-                            <span className={cn(
-                              'text-xs',
-                              r.semData ? 'text-gray-400 italic' : r.vencido ? 'font-semibold text-red-600' : 'text-gray-600',
-                            )}>
-                              {r.texto}{r.vencido && !r.semData ? ' (vencido)' : ''}
-                            </span>
-                          )
-                        })() : (
+                        {retornoPrevisto ? (
+                          <span className={cn(
+                            'text-xs',
+                            retornoPrevisto.semData ? 'text-gray-400 italic' : retornoPrevisto.vencido ? 'font-semibold text-red-600' : 'text-gray-600',
+                          )}>
+                            {retornoPrevisto.texto}{retornoPrevisto.vencido && !retornoPrevisto.semData ? ' (vencido)' : ''}
+                          </span>
+                        ) : (
                           <span className="text-xs text-gray-300">—</span>
                         )}
                       </td>
