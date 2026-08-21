@@ -910,7 +910,7 @@ export async function buscarAfastamentoAberto(funcionarioId: string): Promise<Af
 export async function prorrogarAfastamento(
   afastamentoId: string,
   novaDataFimPrevista: string,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ActionResult> {
   const auth = await getUser()
   if (!auth) return { success: false, error: 'Não autenticado' }
   if (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador') {
@@ -936,7 +936,7 @@ export async function prorrogarAfastamento(
 
   if (errUpdate) return { success: false, error: errUpdate.message }
 
-  await supabase.from('movimentacoes').insert({
+  const { error: errMov } = await supabase.from('movimentacoes').insert({
     funcionario_id: atual.funcionario_id,
     tipo: 'afastamento',
     campo_alterado: 'data_fim_prevista',
@@ -944,6 +944,7 @@ export async function prorrogarAfastamento(
     valor_depois: novaDataFimPrevista,
     executado_por: auth.user.id,
   })
+  if (errMov) console.error('[movimentacoes] prorrogarAfastamento:', errMov.message)
 
   revalidatePath('/efetivo')
   revalidatePath('/dashboard')
