@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { FALTA_TIPO_LABELS } from '@/components/faltas/faltas-config'
+import { getUser } from '@/lib/auth/get-user'
 
 export interface AnaliseGeralSecoes {
   atestados: boolean
@@ -240,4 +241,141 @@ export async function secaoAdvertencias(inicio: string, fim: string): Promise<st
     ['Data', 'Funcionário', 'Posto', 'Secretaria', 'Grau', 'Status', 'Dias Suspensão', 'Descrição'],
     rows,
   )}`
+}
+
+type CoberturaRaw = {
+  id: string
+  data_cobertura: string
+  agente_ausente_nome: string | null
+  observacao: string | null
+  periodo_dias: number
+  funcionarios: { nome: string } | null
+  postos: { nome: string; secretaria: string | null } | null
+}
+
+async function secaoCoberturasInsalubres(inicio: string, fim: string): Promise<string> {
+  const supabase = createClient()
+
+  const coberturas = await fetchAllRows<CoberturaRaw>((from, to) =>
+    supabase
+      .from('insalubridade_coberturas')
+      .select(`
+        id, data_cobertura, agente_ausente_nome, observacao, periodo_dias,
+        funcionarios!funcionario_id ( nome ),
+        postos!posto_id ( nome, secretaria )
+      `)
+      .gte('data_cobertura', inicio)
+      .lte('data_cobertura', fim)
+      .order('data_cobertura', { ascending: true })
+      .range(from, to) as unknown as PromiseLike<{ data: CoberturaRaw[] | null; error: { message: string } | null }>,
+  )
+
+  const rows = coberturas.map(c => [
+    fmtData(c.data_cobertura),
+    c.funcionarios?.nome ?? '—',
+    c.agente_ausente_nome ?? '—',
+    c.postos?.nome ?? '—',
+    c.postos?.secretaria ?? '—',
+    c.periodo_dias,
+    c.observacao ?? '—',
+  ])
+
+  return `## Coberturas Insalubres\n\n${mdTable(
+    ['Data', 'Cobridor', 'Ausente (coberto)', 'Posto', 'Secretaria', 'Dias', 'Motivo'],
+    rows,
+  )}`
+}
+
+type PostoRaw = { id: string; nome: string; secretaria: string | null; efetivo_previsto: number | null }
+
+async function secaoEfetivoPostos(): Promise<string> {
+  const supabase = createClient()
+
+  const [{ data: postos }, funcionarios] = await Promise.all([
+    supabase
+      .from('postos')
+      .select('id, nome, secretaria, efetivo_previsto')
+      .eq('ativo', true)
+      .order('secretaria', { ascending: true })
+      .order('nome', { ascending: true }),
+    fetchAllRows<{ posto_id: string | null }>((from, to) =>
+      supabase
+        .from('funcionarios')
+        .select('posto_id')
+        .eq('status', 'ativo')
+        .not('posto_id', 'is', null)
+        .range(from, to) as unknown as PromiseLike<{ data: { posto_id: string | null }[] | null; error: { message: string } | null }>,
+    ),
+  ])
+
+  const atualPorPosto = new Map<string, number>()
+  for (const f of funcionarios) {
+    if (!f.posto_id) continue
+    atualPorPosto.set(f.posto_id, (atualPorPosto.get(f.posto_id) ?? 0) + 1)
+  }
+
+  const rows = ((postos ?? []) as PostoRaw[])
+    .map(p => {
+      const previsto = p.efetivo_previsto ?? 0
+      const atual = atualPorPosto.get(p.id) ?? 0
+      return { p, previsto, atual, gap: previsto - atual }
+    })
+    .sort((a, b) => b.gap - a.gap)
+    .map(({ p, previsto, atual, gap }) => [
+      p.nome,
+      p.secretaria ?? '—',
+      previsto,
+      atual,
+      gap > 0 ? `-${gap} (déficit)` : gap < 0 ? `+${-gap} (superávit)` : '0',
+    ])
+
+  return `## Efetivo x Postos\n\n_Situação atual — não depende do período selecionado._\n\n${mdTable(
+    ['Posto', 'Secretaria', 'Efetivo Previsto', 'Efetivo Atual', 'Déficit/Superávit'],
+    rows,
+  )}`
+}
+
+function construirPrompt(inicio: string, fim: string): string {
+  const geradoEm = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+  return `# Prompt para análise
+
+Você é um especialista em RH, Gestão de Pessoas e Medicina do Trabalho.
+Analise os dados abaixo (relatório consolidado do período de ${fmtData(inicio)} a ${fmtData(fim)}, gerado em ${geradoEm}) e produza um diagnóstico apontando:
+- Problemas, falhas e situações graves ou fora do padrão
+- Riscos (saúde ocupacional, rotatividade, conformidade, operacional)
+- Padrões preocupantes (ex.: funcionários com atestados recorrentes, postos com déficit crônico de efetivo, concentração de advertências)
+- Recomendações práticas e priorizadas
+
+---
+`
+}
+
+export async function gerarAnaliseGeral(
+  params: AnaliseGeralParams,
+): Promise<{ markdown: string } | { error: string }> {
+  try {
+    const userCtx = await getUser()
+    if (!userCtx || !['admin', 'coordenador'].includes(userCtx.perfil.role ?? '')) {
+      return { error: 'Acesso não autorizado.' }
+    }
+
+    const hoje = new Date()
+    const inicioDate = new Date(hoje)
+    inicioDate.setDate(inicioDate.getDate() - params.periodoDias)
+    const inicio = inicioDate.toISOString().slice(0, 10)
+    const fim = hoje.toISOString().slice(0, 10)
+
+    const partes: string[] = [construirPrompt(inicio, fim)]
+
+    if (params.secoes.atestados) partes.push(await secaoAtestados(inicio, fim))
+    if (params.secoes.faltas) partes.push(await secaoFaltas(inicio, fim))
+    if (params.secoes.mudancasFuncao) partes.push(await secaoMudancasFuncao(inicio, fim))
+    if (params.secoes.coberturasInsalubres) partes.push(await secaoCoberturasInsalubres(inicio, fim))
+    if (params.secoes.efetivoPostos) partes.push(await secaoEfetivoPostos())
+    if (params.secoes.advertencias) partes.push(await secaoAdvertencias(inicio, fim))
+
+    return { markdown: partes.join('\n') }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Erro ao gerar relatório.' }
+  }
 }
