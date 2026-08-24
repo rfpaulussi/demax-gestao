@@ -1,7 +1,15 @@
 import Link from 'next/link'
-import { Users, ArrowLeftRight, RefreshCw, CalendarX, AlertTriangle, UserX, LogOut } from 'lucide-react'
+import { Users, ArrowLeftRight, RefreshCw, CalendarX, AlertTriangle, UserX, LogOut, FileSearch } from 'lucide-react'
 
 const RELATORIOS = [
+  {
+    href: '/relatorios/analise-geral',
+    icon: FileSearch,
+    label: 'Análise Geral',
+    desc: 'Relatório consolidado em Markdown com prompt de análise pronto pra IA',
+    color: 'border-t-emerald-500',
+    iconColor: 'text-emerald-500',
+  },
   {
     href: '/relatorios/coberturas-insalubres',
     icon: ArrowLeftRight,
