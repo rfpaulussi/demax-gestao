@@ -77,6 +77,28 @@ function fmtMes(iso: string) {
   return `${meses[parseInt(m) - 1]} ${y}`
 }
 
+/**
+ * 12x36 é rodízio por data (trabalha 1 dia, folga 1 dia), não por dia-da-semana fixo —
+ * o dia da semana em que a pessoa trabalha muda toda semana. Gera os próximos 7 dias a
+ * partir de hoje, marcando trabalho/folga por paridade a partir de data_inicio (tratada
+ * como um dia de trabalho).
+ */
+function diasRotativo12x36(dataInicioIso: string): { label: string; numero: string; ativo: boolean }[] {
+  const [y, m, d] = dataInicioIso.split('T')[0].split('-').map(Number)
+  const inicio = new Date(y, m - 1, d)
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  const dias = []
+  for (let i = 0; i < 7; i++) {
+    const dia = new Date(hoje)
+    dia.setDate(hoje.getDate() + i)
+    const diffDias = Math.round((dia.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24))
+    const ativo = diffDias >= 0 && diffDias % 2 === 0
+    dias.push({ label: DIAS_SEMANA[dia.getDay()], numero: String(dia.getDate()).padStart(2, '0'), ativo })
+  }
+  return dias
+}
+
 function calcDuracao(inicio: string, fim: string | null): string {
   const from = new Date(inicio + 'T12:00:00')
   const to   = fim ? new Date(fim + 'T12:00:00') : new Date()
@@ -449,34 +471,52 @@ export function TabHorario({
               )
             })()}
 
-            {/* dias da semana */}
+            {/* dias de trabalho */}
             <div className="border-t border-blue-100 px-5 py-3">
               <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-blue-400">
-                Dias de trabalho · {regimeCfg.diasLabel}
+                {regime === '12x36' ? 'Próximos 7 dias · Rodízio 12×36' : `Dias de trabalho · ${regimeCfg.diasLabel}`}
               </p>
-              <div className="flex gap-2">
-                {DIAS_SEMANA.map((dia, i) => {
-                  const ehCurso = isJovemAprendiz && diaCursoAtual === i
-                  const ativo = ehCurso ? false : regimeCfg.diasAtivos[i]
-                  return (
-                    <div key={dia} className="flex flex-col items-center gap-1">
+              {regime === '12x36' ? (
+                <div className="flex gap-2">
+                  {diasRotativo12x36(horarioVigente.data_inicio).map((dia, i) => (
+                    <div key={i} className="flex flex-col items-center gap-1">
                       <div className={cn(
                         'h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors',
-                        ehCurso
-                          ? 'bg-teal-500 text-white'
-                          : ativo
-                            ? cn(regimeCfg.dotClass, 'text-white')
-                            : 'bg-gray-100 text-gray-400',
+                        dia.ativo ? cn(regimeCfg.dotClass, 'text-white') : 'bg-gray-100 text-gray-400',
                       )}>
-                        {ehCurso ? <GraduationCap className="h-3.5 w-3.5" /> : dia.slice(0, 1)}
+                        {dia.numero}
                       </div>
-                      <span className={cn('text-xs', (ativo || ehCurso) ? 'text-gray-600 font-medium' : 'text-gray-300')}>
-                        {dia}
+                      <span className={cn('text-xs', dia.ativo ? 'text-gray-600 font-medium' : 'text-gray-300')}>
+                        {dia.label}
                       </span>
                     </div>
-                  )
-                })}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  {DIAS_SEMANA.map((dia, i) => {
+                    const ehCurso = isJovemAprendiz && diaCursoAtual === i
+                    const ativo = ehCurso ? false : regimeCfg.diasAtivos[i]
+                    return (
+                      <div key={dia} className="flex flex-col items-center gap-1">
+                        <div className={cn(
+                          'h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors',
+                          ehCurso
+                            ? 'bg-teal-500 text-white'
+                            : ativo
+                              ? cn(regimeCfg.dotClass, 'text-white')
+                              : 'bg-gray-100 text-gray-400',
+                        )}>
+                          {ehCurso ? <GraduationCap className="h-3.5 w-3.5" /> : dia.slice(0, 1)}
+                        </div>
+                        <span className={cn('text-xs', (ativo || ehCurso) ? 'text-gray-600 font-medium' : 'text-gray-300')}>
+                          {dia}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
         ) : (

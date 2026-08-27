@@ -166,6 +166,12 @@ export function formatarResumoTurno(t: TurnoHorarios): string {
   if (t.tipo_escala === 'jovem_aprendiz') {
     return `Seg–Sex ${entrada}–${saida} (4h)`
   }
+  // 12x36 nunca segue lógica de dia-da-semana (seg-qui/sex) — é rotação por data,
+  // dia sim/dia não. Checar tipo_escala explicitamente, não só os campos, porque
+  // turnos antigos podem ter almoço/saída-sex herdados de antes dessa regra existir.
+  if (t.tipo_escala === '12x36') {
+    return `${entrada}–${saida} (12h + intervalo, rodízio dia sim/dia não)`
+  }
   if (t.hora_saida_sex !== null) {
     return `Seg–Qui ${entrada}–${saida} (almoço ${fmtHora(t.hora_inicio_almoco)}–${fmtHora(t.hora_fim_almoco)}) · Sex até ${fmtHora(t.hora_saida_sex)}`
   }
