@@ -606,6 +606,7 @@ export async function editarFuncionario(
   }
 
   const supabase = createClient()
+  const adminSupabase = createAdminClient()
 
   const periodoExperiencia = campos.periodo_experiencia ?? null
 
@@ -636,7 +637,7 @@ export async function editarFuncionario(
     .single()
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await supabase.from('funcionarios').update(updatePayload as any).eq('id', id)
+  const { error } = await adminSupabase.from('funcionarios').update(updatePayload as any).eq('id', id)
 
   if (error) return { success: false, error: error.message }
 
