@@ -1,0 +1,237 @@
+[
+ {
+  "posto": "CANIL DA GUARDA CIVIL MUNICIPAL",
+  "posto_id": "b57936f7-28c7-44f8-94fb-21eec73cb506",
+  "regime": "5x2"
+ },
+ {
+  "posto": "CAPS I",
+  "posto_id": "a8722784-5d97-449d-8163-31772c6210e8",
+  "regime": "5x2"
+ },
+ {
+  "posto": "CEIC DOCE LAR III CEIM THEREZA AMORIM MARTINEZ",
+  "posto_id": "3e04f752-0cc2-4542-84ea-6abcbea827fb",
+  "regime": "5x2"
+ },
+ {
+  "posto": "CEIM ARGÊU BATALHA",
+  "posto_id": "7b968cff-e573-48a8-9e97-7871b49fae89",
+  "regime": null
+ },
+ {
+  "posto": "CEIM HAYDÉE BRASIL DE CARVALHO",
+  "posto_id": "1c3fc0be-3e04-4013-bcdc-e3507f6175d8",
+  "regime": null
+ },
+ {
+  "posto": "CEIM HORÁCIA DE LIMA BARBOSA",
+  "posto_id": "26458b82-7deb-4541-b70f-7389b015d04c",
+  "regime": null
+ },
+ {
+  "posto": "CEIM INEZELIA MOTA RONDON",
+  "posto_id": "748c74b4-945a-4ee3-914f-781888a160a4",
+  "regime": null
+ },
+ {
+  "posto": "CEIM TAKAO IKEDA",
+  "posto_id": "b33b2dd4-9cde-42b8-83c1-375308ea5442",
+  "regime": null
+ },
+ {
+  "posto": "CEMPRE JOSÉ LIMONGI SOBRINHO",
+  "posto_id": "87916504-978e-471f-b8e6-ed5a9c622574",
+  "regime": null
+ },
+ {
+  "posto": "CENTRO DE ARTE, ESPORTE E DESENVOLVIMENTO - CAED",
+  "posto_id": "34fd6bf6-0ccd-4778-aeb9-88f2dc1eed2c",
+  "regime": null
+ },
+ {
+  "posto": "CENTRO MUNICIPAL DE SAÚDE MENTAL",
+  "posto_id": "ee7d5f28-815e-40b1-b49a-184a3257e159",
+  "regime": null
+ },
+ {
+  "posto": "CER RODEIO",
+  "posto_id": "c8331596-392c-46e9-bcab-677d00484891",
+  "regime": null
+ },
+ {
+  "posto": "CRESCER CEZAR DE SOUZA",
+  "posto_id": "7920780a-ab5e-4bbd-bca5-80c54b7fd1be",
+  "regime": null
+ },
+ {
+  "posto": "EM ANA MARIA BARBOSA GARCIA",
+  "posto_id": "d076942d-54bc-443d-a1b9-d59ec584f535",
+  "regime": null
+ },
+ {
+  "posto": "EM ANTONIO PEDRO RIBEIRO",
+  "posto_id": "0aa97f49-290c-42db-9d4e-5c6ce6406951",
+  "regime": null
+ },
+ {
+  "posto": "EM ARMINDO FREIRE MÁRMORA",
+  "posto_id": "cdb12607-7ba7-4a8e-b257-1add7599f2cf",
+  "regime": null
+ },
+ {
+  "posto": "EM BENEDITO PEREIRA DE PAULA",
+  "posto_id": "194ba8a6-feeb-4245-90a5-db52a54597a8",
+  "regime": null
+ },
+ {
+  "posto": "EM CENIRA ARAÚJO PEREIRA",
+  "posto_id": "9bd027a8-5425-4d10-8cdc-fcf38980ae9d",
+  "regime": null
+ },
+ {
+  "posto": "EM CLEONICE FELICIANO",
+  "posto_id": "658554ed-5aee-4c9d-9d1e-05e99ea0bfad",
+  "regime": null
+ },
+ {
+  "posto": "EM CYNIRA OLIVEIRA DE CASTRO",
+  "posto_id": "23b8420b-cd88-452e-8e4c-bbc3a821930d",
+  "regime": null
+ },
+ {
+  "posto": "EM EMILIE NEHME AFFONSO",
+  "posto_id": "25702e3d-b180-4027-8201-815de2c0aeef",
+  "regime": null
+ },
+ {
+  "posto": "EM ETELVINA CÁFARO SALUSTIANO",
+  "posto_id": "cb383548-e96a-418f-90f8-7dc67a831b2b",
+  "regime": null
+ },
+ {
+  "posto": "EM GUIOMAR PINHEIRO FRANCO",
+  "posto_id": "bf7b350b-721c-4c7d-a35c-b9c14b145712",
+  "regime": null
+ },
+ {
+  "posto": "EM HÉLIO DOS SANTOS NEVES",
+  "posto_id": "96f55f23-57a4-427e-ad4c-189e2dfa2bb9",
+  "regime": null
+ },
+ {
+  "posto": "EM IRACEMA BRASIL DE SIQUEIRA",
+  "posto_id": "13517535-91d4-45da-9981-351865e0f3a5",
+  "regime": null
+ },
+ {
+  "posto": "EM JOÃO CARDOSO PEREIRA",
+  "posto_id": "225d5102-0641-43b4-ac73-c297b2c9a212",
+  "regime": null
+ },
+ {
+  "posto": "EM MARIA COELI BEZERRA DE MELO",
+  "posto_id": "babe5208-bcec-4341-9a1d-4a07cb539083",
+  "regime": null
+ },
+ {
+  "posto": "EM MAURÍLIO DE SOUZA LEITE FILHO",
+  "posto_id": "21f89a4a-ccc9-47c1-9995-4d4150697bf7",
+  "regime": null
+ },
+ {
+  "posto": "EM MILTON CRUZ",
+  "posto_id": "18164737-a5ec-4bc8-85fa-ff24eab235e6",
+  "regime": null
+ },
+ {
+  "posto": "EM NOEMIA REAL FIDALGO",
+  "posto_id": "52099e1b-2a34-40be-9158-3131c1f8687c",
+  "regime": null
+ },
+ {
+  "posto": "EM NOSSA SENHORA DA CONCEIÇÃO",
+  "posto_id": "dd53f8bf-2174-479c-9c3a-7ada1a6f2cb3",
+  "regime": null
+ },
+ {
+  "posto": "EM SÔNIA BRASIL DE SIQUEIRA ANDREUCCI",
+  "posto_id": "9eb9bccd-b20a-4dbc-be7d-33a5156a9640",
+  "regime": null
+ },
+ {
+  "posto": "EM WILMA DE ALMEIDA RODRIGUES",
+  "posto_id": "55c6f8f0-dad4-46bc-a93b-11fac0b5d4f9",
+  "regime": null
+ },
+ {
+  "posto": "GINÁSIO PARADESPORTO",
+  "posto_id": "c47b0952-f995-429c-8f41-a00b543e1068",
+  "regime": null
+ },
+ {
+  "posto": "NUBEA",
+  "posto_id": "f824c06e-43b2-4713-8777-99915243e31b",
+  "regime": null
+ },
+ {
+  "posto": "PARQUE AIRTON NOGUEIRA",
+  "posto_id": "af14f19f-5e2c-4afe-95be-27e013a76e80",
+  "regime": "5x1"
+ },
+ {
+  "posto": "PARQUE CENTENÁRIO",
+  "posto_id": "656e21d3-d0e6-4962-a628-73641a22b6b3",
+  "regime": "12x36"
+ },
+ {
+  "posto": "UBS BOTUJURU",
+  "posto_id": "9ee4bfba-967a-44bf-85d3-34bc28bc61f9",
+  "regime": null
+ },
+ {
+  "posto": "UBS SABAÚNA",
+  "posto_id": "b15713e9-1ff4-4a97-a8b3-bde7b635fedd",
+  "regime": null
+ },
+ {
+  "posto": "UBS VILA SUISSA",
+  "posto_id": "25d29528-5a71-4123-b5f6-f0a7502d6f15",
+  "regime": null
+ },
+ {
+  "posto": "SED DEPTO EDUCAÇÃO TRÂNSITO E SEGURANÇA VIÁRIA",
+  "posto_id": "96ec29da-c025-4e3f-a236-a28378f9c60b",
+  "regime": null
+ },
+ {
+  "posto": "UBS VILA NOVA APARECIDA",
+  "posto_id": "3d8a781a-123f-421c-a184-dce7f9051b2a",
+  "regime": null
+ },
+ {
+  "posto": "UBS JARDIM MARICÁ",
+  "posto_id": "76637011-fb7e-4186-83fe-dcd7cb833b89",
+  "regime": null
+ },
+ {
+  "posto": "CIAS - PRO MULHER",
+  "posto_id": "9e3a54b7-918d-4908-931c-3d8bacc4ff72",
+  "regime": null
+ },
+ {
+  "posto": "AFASTADO - SIL",
+  "posto_id": "a1000001-0000-0000-0000-000000000007",
+  "regime": null
+ },
+ {
+  "posto": "EM KAORU HIRAMATSU R",
+  "posto_id": "b3c53c04-4fb1-414d-812a-a166c09a8e5c",
+  "regime": null
+ },
+ {
+  "posto": "EM KAORU HIRAMATSU",
+  "posto_id": "5947c0d6-6fd6-48d7-a895-5ca224aeec97",
+  "regime": null
+ }
+]

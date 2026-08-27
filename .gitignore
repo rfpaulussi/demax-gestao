@@ -41,3 +41,4 @@ restore_errors.log
 
 # snapshots locais de scripts de regressão (não commitar)
 scripts/.regime-parity-snapshot.json
+supabase/.temp/
