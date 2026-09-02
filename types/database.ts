@@ -2172,8 +2172,13 @@ export type Database = {
           ativo: boolean
           created_at: string | null
           hora_entrada: string
+          hora_entrada_sabado: string | null
+          hora_entrada_sex: string | null
           hora_fim_almoco: string | null
+          hora_fim_almoco_sabado: string | null
           hora_inicio_almoco: string | null
+          hora_inicio_almoco_sabado: string | null
+          hora_saida_sabado: string | null
           hora_saida_seg_qui: string
           hora_saida_sex: string | null
           id: string
@@ -2185,8 +2190,13 @@ export type Database = {
           ativo?: boolean
           created_at?: string | null
           hora_entrada: string
+          hora_entrada_sabado?: string | null
+          hora_entrada_sex?: string | null
           hora_fim_almoco?: string | null
+          hora_fim_almoco_sabado?: string | null
           hora_inicio_almoco?: string | null
+          hora_inicio_almoco_sabado?: string | null
+          hora_saida_sabado?: string | null
           hora_saida_seg_qui: string
           hora_saida_sex?: string | null
           id?: string
@@ -2198,8 +2208,13 @@ export type Database = {
           ativo?: boolean
           created_at?: string | null
           hora_entrada?: string
+          hora_entrada_sabado?: string | null
+          hora_entrada_sex?: string | null
           hora_fim_almoco?: string | null
+          hora_fim_almoco_sabado?: string | null
           hora_inicio_almoco?: string | null
+          hora_inicio_almoco_sabado?: string | null
+          hora_saida_sabado?: string | null
           hora_saida_seg_qui?: string
           hora_saida_sex?: string | null
           id?: string

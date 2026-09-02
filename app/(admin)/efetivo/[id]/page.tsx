@@ -105,8 +105,9 @@ export default async function PerfilFuncionarioPage({
         id, data_inicio, data_fim, dia_curso,
         turnos_postos!turno_id(
           id, posto_id, nome, tipo_escala,
-          hora_entrada, hora_saida_seg_qui, hora_saida_sex,
-          hora_inicio_almoco, hora_fim_almoco, ativo
+          hora_entrada, hora_saida_seg_qui, hora_saida_sex, hora_entrada_sex,
+          hora_inicio_almoco, hora_fim_almoco, ativo,
+          hora_entrada_sabado, hora_inicio_almoco_sabado, hora_fim_almoco_sabado, hora_saida_sabado
         )
       `)
       .eq('funcionario_id', id)
@@ -118,8 +119,9 @@ export default async function PerfilFuncionarioPage({
       .select(`
         id, data_inicio, data_fim, dia_curso,
         turnos_postos!turno_id(
-          nome, tipo_escala, hora_entrada, hora_saida_seg_qui, hora_saida_sex,
-          hora_inicio_almoco, hora_fim_almoco
+          nome, tipo_escala, hora_entrada, hora_saida_seg_qui, hora_saida_sex, hora_entrada_sex,
+          hora_inicio_almoco, hora_fim_almoco,
+          hora_entrada_sabado, hora_inicio_almoco_sabado, hora_fim_almoco_sabado, hora_saida_sabado
         )
       `)
       .eq('funcionario_id', id)
@@ -195,6 +197,9 @@ export default async function PerfilFuncionarioPage({
     id: string; posto_id: string | null; nome: string; ativo: boolean; tipo_escala: string
     hora_entrada: string; hora_saida_seg_qui: string; hora_saida_sex: string | null
     hora_inicio_almoco: string | null; hora_fim_almoco: string | null
+    hora_entrada_sex?: string | null
+    hora_entrada_sabado?: string | null; hora_inicio_almoco_sabado?: string | null
+    hora_fim_almoco_sabado?: string | null; hora_saida_sabado?: string | null
   }
   type RawHorario = {
     id: string; data_inicio: string; data_fim: string | null; dia_curso: number | null

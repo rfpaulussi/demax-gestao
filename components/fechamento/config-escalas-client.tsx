@@ -6,9 +6,10 @@ import { ArrowLeft, Check, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { saveEscala } from '@/app/(admin)/fechamento/config-escalas/actions'
 import type { PostoEscala } from '@/app/(admin)/fechamento/config-escalas/page'
+import { TIPOS_ESCALA_POSTO, ESCALA_LABEL, type TipoEscalaPosto } from '@/lib/turnos/escala'
 
-const REGIMES = ['5x2', '5x1', '12x36'] as const
-type Regime = typeof REGIMES[number]
+const REGIMES = TIPOS_ESCALA_POSTO
+type Regime = TipoEscalaPosto
 
 const badgeClass: Record<Regime, string> = {
   '5x2':   'bg-blue-100   text-blue-700   border-blue-200',
@@ -117,7 +118,7 @@ export function ConfigEscalasClient({ postos, secretarias }: Props) {
                         className={cn(sel, badgeClass[regime], 'disabled:opacity-60')}
                       >
                         {REGIMES.map(r => (
-                          <option key={r} value={r}>{r}</option>
+                          <option key={r} value={r}>{ESCALA_LABEL[r]}</option>
                         ))}
                       </select>
                       {err && (

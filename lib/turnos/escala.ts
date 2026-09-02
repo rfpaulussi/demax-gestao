@@ -31,7 +31,7 @@ export function resolverTipoEscalaPosto(value: string | null | undefined): TipoE
 
 export const ESCALA_LABEL: Record<TipoEscala, string> = {
   '5x2': '5×2 · 44h/sem',
-  '5x1': '5×1 · 44h/sem',
+  '5x1': '5×1 (6×1) · 44h/sem',
   '12x36': '12×36',
   'jovem_aprendiz': 'Jovem Aprendiz',
 }
@@ -64,6 +64,25 @@ export interface TurnoHorarios {
   hora_saida_sex: string | null
   hora_inicio_almoco: string | null
   hora_fim_almoco: string | null
+  // Sexta com ENTRADA diferente do dia de semana (regime 5x1/6x1 — diferente de
+  // hora_saida_sex, que já cobre sexta com SAÍDA diferente, usado pelo 5x2).
+  hora_entrada_sex?: string | null
+  // Sábado com horário próprio (regime 5x1/6x1) — null quando o sábado segue o mesmo
+  // horário do dia de semana, que é o caso de todo turno criado antes desses campos existirem.
+  hora_entrada_sabado?: string | null
+  hora_inicio_almoco_sabado?: string | null
+  hora_fim_almoco_sabado?: string | null
+  hora_saida_sabado?: string | null
+}
+
+/** Turno tem horário de sábado diferente do dia de semana (regime 5x1/6x1). */
+export function temSabadoDistinto(t: Pick<TurnoHorarios, 'hora_entrada_sabado' | 'hora_saida_sabado'>): boolean {
+  return !!t.hora_entrada_sabado && !!t.hora_saida_sabado
+}
+
+/** Turno tem sexta com entrada e/ou saída diferente do dia de semana. */
+export function temSextaDistinta(t: Pick<TurnoHorarios, 'hora_entrada_sex' | 'hora_saida_sex'>): boolean {
+  return !!t.hora_entrada_sex || t.hora_saida_sex !== null
 }
 
 function minutosParaHora(min: number): string {
@@ -172,11 +191,29 @@ export function formatarResumoTurno(t: TurnoHorarios): string {
   if (t.tipo_escala === '12x36') {
     return `${entrada}–${saida} (12h + intervalo, rodízio dia sim/dia não)`
   }
-  if (t.hora_saida_sex !== null) {
+  // 5x2 sempre tem sexta com saída própria (regra histórica); 5x1/6x1 pode ter sexta com
+  // entrada e/ou saída próprias, configurado por turno.
+  if (t.tipo_escala === '5x2' && t.hora_saida_sex !== null) {
     return `Seg–Qui ${entrada}–${saida} (almoço ${fmtHora(t.hora_inicio_almoco)}–${fmtHora(t.hora_fim_almoco)}) · Sex até ${fmtHora(t.hora_saida_sex)}`
   }
-  if (t.hora_inicio_almoco !== null && t.hora_fim_almoco !== null) {
-    return `Todos os dias ${entrada}–${saida} (almoço ${fmtHora(t.hora_inicio_almoco)}–${fmtHora(t.hora_fim_almoco)})`
+
+  const sextaDistinta = temSextaDistinta(t)
+  const temAlmoco = t.hora_inicio_almoco !== null && t.hora_fim_almoco !== null
+  const sufixoSexta = sextaDistinta
+    ? ` · Sex ${fmtHora(t.hora_entrada_sex ?? t.hora_entrada)}–${fmtHora(t.hora_saida_sex ?? t.hora_saida_seg_qui)}`
+    : ''
+
+  const sabadoDistinto = temSabadoDistinto(t)
+  const sabadoAlmoco = t.hora_inicio_almoco_sabado !== null && t.hora_inicio_almoco_sabado !== undefined
+    && t.hora_fim_almoco_sabado !== null && t.hora_fim_almoco_sabado !== undefined
+  const sufixoSabado = sabadoDistinto
+    ? ` · Sáb ${fmtHora(t.hora_entrada_sabado)}–${fmtHora(t.hora_saida_sabado)}${sabadoAlmoco ? ` (almoço ${fmtHora(t.hora_inicio_almoco_sabado)}–${fmtHora(t.hora_fim_almoco_sabado)})` : ''}`
+    : ''
+  const diasPrefixo = (sextaDistinta || sabadoDistinto) ? 'Seg–Qui' : 'Todos os dias'
+  const sufixos = `${sufixoSexta}${sufixoSabado}`
+
+  if (temAlmoco) {
+    return `${diasPrefixo} ${entrada}–${saida} (almoço ${fmtHora(t.hora_inicio_almoco)}–${fmtHora(t.hora_fim_almoco)})${sufixos}`
   }
-  return `${entrada}–${saida} (12h + intervalo)`
+  return `${diasPrefixo} ${entrada}–${saida} (sem almoço)${sufixos}`
 }
