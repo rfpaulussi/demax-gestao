@@ -23,6 +23,7 @@ export type PendenteRow = {
   funcao: string
   postoId: string
   postoNome: string
+  supervisorNome: string
   dataAdmissao: string | null
   turnos: TurnoOpcao[]
 }
@@ -73,6 +74,7 @@ function FuncionarioRow({ row, onResolvido }: { row: PendenteRow; onResolvido: (
         <p className="text-xs text-gray-400">{row.funcao}</p>
       </td>
       <td className="px-4 py-3 text-sm text-gray-600">{row.postoNome}</td>
+      <td className="px-4 py-3 text-sm text-gray-600">{row.supervisorNome}</td>
       <td className="px-4 py-3">
         {row.turnos.length === 0 ? (
           <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-600">
@@ -141,6 +143,7 @@ export function PendenciasHorarioClient({ rows: initialRows }: { rows: PendenteR
   const [resolvidos, setResolvidos] = useState<Set<string>>(new Set())
   const [busca, setBusca] = useState('')
   const [postoFiltro, setPostoFiltro] = useState('')
+  const [supervisorFiltro, setSupervisorFiltro] = useState('')
 
   const rows = useMemo(() => initialRows.filter(r => !resolvidos.has(r.id)), [initialRows, resolvidos])
 
@@ -149,13 +152,19 @@ export function PendenciasHorarioClient({ rows: initialRows }: { rows: PendenteR
     [initialRows],
   )
 
+  const supervisores = useMemo(
+    () => Array.from(new Set(initialRows.map(r => r.supervisorNome))).sort(),
+    [initialRows],
+  )
+
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase()
     return rows.filter(r =>
       (!termo || r.nome.toLowerCase().includes(termo)) &&
-      (!postoFiltro || r.postoNome === postoFiltro),
+      (!postoFiltro || r.postoNome === postoFiltro) &&
+      (!supervisorFiltro || r.supervisorNome === supervisorFiltro),
     )
-  }, [rows, busca, postoFiltro])
+  }, [rows, busca, postoFiltro, supervisorFiltro])
 
   function onResolvido(id: string) {
     setResolvidos(prev => new Set(prev).add(id))
@@ -196,6 +205,12 @@ export function PendenciasHorarioClient({ rows: initialRows }: { rows: PendenteR
             <option key={p} value={p}>{p}</option>
           ))}
         </select>
+        <select value={supervisorFiltro} onChange={e => setSupervisorFiltro(e.target.value)} className={inputClass}>
+          <option value="">Todos os supervisores</option>
+          {supervisores.map(s => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white shadow-sm">
@@ -204,11 +219,12 @@ export function PendenciasHorarioClient({ rows: initialRows }: { rows: PendenteR
             {rows.length === 0 ? 'Nenhum funcionário pendente. Tudo certo por aqui.' : 'Nenhum funcionário encontrado.'}
           </p>
         ) : (
-          <table className="w-full min-w-[860px] text-left">
+          <table className="w-full min-w-[980px] text-left">
             <thead>
               <tr className="border-b border-gray-100 text-xs font-semibold uppercase tracking-widest text-gray-400">
                 <th className="px-4 py-3">Funcionário</th>
                 <th className="px-4 py-3">Posto</th>
+                <th className="px-4 py-3">Supervisor</th>
                 <th className="px-4 py-3">Turno</th>
                 <th className="px-4 py-3">Início</th>
                 <th className="px-4 py-3">Dia curso</th>

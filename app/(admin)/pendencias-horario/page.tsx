@@ -67,12 +67,27 @@ export default async function PendenciasHorarioPage() {
     turnosPorPosto.get(t.posto_id)!.push(t)
   }
 
+  const { data: supervisoresRaw } = postoIdsPendentes.length
+    ? await supabase
+        .from('config_supervisores_postos')
+        .select('posto_id, ativo, perfis!supervisor_id(nome)')
+        .in('posto_id', postoIdsPendentes)
+        .eq('ativo', true)
+    : { data: [] }
+
+  type SupervisorRaw = { posto_id: string; perfis: { nome: string } | null }
+  const supervisorPorPosto = new Map<string, string>()
+  for (const s of (supervisoresRaw ?? []) as unknown as SupervisorRaw[]) {
+    if (s.perfis?.nome) supervisorPorPosto.set(s.posto_id, s.perfis.nome)
+  }
+
   const rows: PendenteRow[] = pendentes.map(f => ({
     id: f.id,
     nome: f.nome,
     funcao: f.funcoes?.nome ?? '—',
     postoId: f.posto_id as string,
     postoNome: f.postos?.nome ?? '—',
+    supervisorNome: supervisorPorPosto.get(f.posto_id as string) ?? '—',
     dataAdmissao: f.data_admissao,
     turnos: turnosPorPosto.get(f.posto_id as string) ?? [],
   }))
