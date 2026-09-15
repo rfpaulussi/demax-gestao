@@ -32,6 +32,7 @@ import {
   Briefcase,
   SearchCheck,
   FileSearch,
+  CalendarClock,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import { NAV_GROUPS } from './nav-config'
@@ -49,6 +50,7 @@ const ICONS: Record<string, React.ElementType> = {
   '/advertencias':  ShieldAlert,
   '/faltas':        UserMinus,
   '/atestados':     Stethoscope,
+  '/pendencias-horario': CalendarClock,
   '/insalubridade': Biohazard,
   '/ocorrencias':   Siren,
   '/desligamentos':   UserX,

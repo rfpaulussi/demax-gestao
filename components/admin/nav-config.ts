@@ -30,6 +30,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/advertencias',  label: 'Advertências'  },
       { href: '/faltas',        label: 'Faltas'        },
       { href: '/atestados',     label: 'Atestados'     },
+      { href: '/pendencias-horario', label: 'Horários Pendentes' },
       { href: '/insalubridade', label: 'Cobertura Insalubre' },
       { href: '/ocorrencias',   label: 'Ocorrências'   },
       { href: '/acordos',       label: 'Acordos'        },

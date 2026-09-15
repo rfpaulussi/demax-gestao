@@ -31,16 +31,19 @@ export async function listarTurnosJovemAprendiz() {
   return data ?? []
 }
 
-export async function alterarTurno(
+/**
+ * Núcleo de escrita de `alterarTurno`, sem checagem de role — quem chama já validou
+ * autorização (admin/coordenador direto, ou supervisor escopado ao próprio posto em
+ * pendencias-horario/actions.ts). Mantido junto de `alterarTurno` porque as duas
+ * variantes de autorização precisam da mesma lógica de fechar/abrir vigência.
+ */
+export async function executarAlteracaoTurno(
   funcionarioId: string,
   turnoId: string,
   dataInicio: string,
-  diaCurso?: number,
-) {
-  const auth = await getUser()
-  if (!auth || !['admin', 'coordenador'].includes(auth.perfil.role ?? '')) {
-    return { success: false, error: 'Acesso negado' }
-  }
+  diaCurso: number | undefined,
+  criadoPor: string,
+): Promise<{ success: boolean; error?: string }> {
   const supabase = createClient()
 
   const { data: turnoNovo, error: errTurnoNovo } = await supabase
@@ -99,7 +102,7 @@ export async function alterarTurno(
     turno_id: turnoId,
     data_inicio: dataInicio,
     dia_curso: ehJovemAprendiz ? diaCurso : null,
-    criado_por: auth.user.id,
+    criado_por: criadoPor,
   })
   if (error) return { success: false, error: error.message }
 
@@ -110,11 +113,24 @@ export async function alterarTurno(
     campo_alterado: 'turno_id',
     valor_antes: vigente?.turno_id ?? null,
     valor_depois: turnoId,
-    executado_por: auth.user.id,
+    executado_por: criadoPor,
   })
 
   revalidatePath(`/efetivo/${funcionarioId}`)
   return { success: true }
+}
+
+export async function alterarTurno(
+  funcionarioId: string,
+  turnoId: string,
+  dataInicio: string,
+  diaCurso?: number,
+): Promise<{ success: boolean; error?: string }> {
+  const auth = await getUser()
+  if (!auth || !['admin', 'coordenador'].includes(auth.perfil.role ?? '')) {
+    return { success: false, error: 'Acesso negado' }
+  }
+  return executarAlteracaoTurno(funcionarioId, turnoId, dataInicio, diaCurso, auth.user.id)
 }
 
 export async function deletarHorarioFuncionario(id: string) {
