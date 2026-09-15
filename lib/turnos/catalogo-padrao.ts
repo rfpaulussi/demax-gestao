@@ -108,6 +108,9 @@ export const CATALOGO_JOVEM_APRENDIZ: TurnoCatalogoItem[] = [
   { nome: 'Turno Jovem Aprendiz 4h (e)', hora_entrada: '13:30', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '17:30', hora_saida_sex: '17:30' },
   { nome: 'Turno Jovem Aprendiz 4h (f)', hora_entrada: '14:00', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '18:00', hora_saida_sex: '18:00' },
   { nome: 'Turno Jovem Aprendiz 4h (g)', hora_entrada: '14:30', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '18:30', hora_saida_sex: '18:30' },
+  { nome: 'Turno Jovem Aprendiz 4h (h)', hora_entrada: '09:00', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '13:00', hora_saida_sex: '13:00' },
+  { nome: 'Turno Jovem Aprendiz 4h (i)', hora_entrada: '11:00', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '15:00', hora_saida_sex: '15:00' },
+  { nome: 'Turno Jovem Aprendiz 4h (j)', hora_entrada: '12:00', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '16:00', hora_saida_sex: '16:00' },
 ]
 
 export const CATALOGO_12X36: TurnoCatalogoItem[] = [
