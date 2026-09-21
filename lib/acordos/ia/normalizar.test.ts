@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { aplicarExtracao, casarPosto, dataValida, horaValida, motivoDoCatalogo, type ContextoIA } from './normalizar'
+import { aplicarExtracao, casarPosto, dataValida, horaValida, mencionaPagamento, motivoDoCatalogo, type ContextoIA } from './normalizar'
 import { lerExtracao, type PedidoExtraido } from './schema'
 
 const ctx: ContextoIA = {
@@ -128,6 +128,29 @@ describe('aplicarExtracao', () => {
     const r = aplicarExtracao(ex({ situacao: 'T4', posto: 'Casarão', data_folga: '2026-10-30', motivo: 'ponto facultativo', folga_horas: '04:00' }), ctx)
     expect(r.form).toMatchObject({ folgaParcial: true, duracaoFolga: '04:00' })
     expect(r.perguntas).toEqual(['Até quando podem compensar (prazo máximo, até 6 meses)?'])
+  })
+})
+
+describe('data no campo vizinho', () => {
+  it('T3 sem data_folga usa data_evento; T2 sem data_evento usa data_folga', () => {
+    const t3 = aplicarExtracao(ex({ situacao: 'T3', posto: 'Casarão', data_evento: '2026-06-05', motivo: 'ponto facultativo' }), ctx)
+    expect(t3.form.dataFolga).toBe('2026-06-05')
+    expect(t3.perguntas).toEqual([])
+    const t2 = aplicarExtracao(ex({ situacao: 'T2', posto: 'Casarão', data_folga: '2026-09-14', nome_evento: 'Chuva', hora_dispensa: '12:00' }), ctx)
+    expect(t2.form.dataEvento).toBe('2026-09-14')
+  })
+})
+
+describe('mencionaPagamento', () => {
+  it('detecta pedido que fala em pagar horas', () => {
+    expect(mencionaPagamento('essas horas serão pagas nos dias 23 e 24')).toBe(true)
+    expect(mencionaPagamento('vão receber em dinheiro')).toBe(true)
+    expect(mencionaPagamento('pagar como hora extra')).toBe(true)
+  })
+
+  it('não confunde com compensação em tempo', () => {
+    expect(mencionaPagamento('Liberamos às 12h e repõem em 6 dias')).toBe(false)
+    expect(mencionaPagamento('folga dia 26 do banco de horas')).toBe(false)
   })
 })
 

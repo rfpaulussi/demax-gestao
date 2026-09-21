@@ -108,6 +108,15 @@ export function motivoDoCatalogo(motivo: string | null): string | null {
   return motivo.replace(/\s+/g, ' ').trim().slice(0, 80)
 }
 
+/** O pedido fala em pagar horas? O módulo só compensa em tempo. */
+export function mencionaPagamento(texto: string): boolean {
+  const t = ` ${chave(texto)} `
+  return /( pag(ar|a|as|o|os|ue|uem|amento|amentos|ando) | dinheiro | horas? extras? | holerite | receber | adicional de | banco de horas pago )/.test(t)
+}
+
+export const AVISO_PAGAMENTO =
+  'O pedido fala em pagamento de horas. Este módulo só compensa em tempo (folga, redução ou acréscimo de jornada); não paga horas.'
+
 const PERGUNTA_DE: Record<string, string> = {
   'data do evento': 'Em que dia foi?',
   'nome do evento': 'Qual foi o evento ou o motivo do dia?',
@@ -150,8 +159,11 @@ export function aplicarExtracao(ex: PedidoExtraido, ctx: ContextoIA): ResultadoI
   const usaFolga = template === 'T3' || template === 'T4' || template === 'T5'
   const usaMotivo = template === 'T2' || template === 'T3' || template === 'T4'
 
+  // a IA às vezes põe a data no campo vizinho: T3/T4 usam data_folga; T2, data_evento
+  const dataEventoBruta = ex.data_evento ?? (template === 'T2' ? ex.data_folga : null)
+  const dataFolgaBruta = ex.data_folga ?? (template === 'T3' || template === 'T4' ? ex.data_evento : null)
   if (usaEvento) {
-    form.dataEvento = dv(ex.data_evento, 'o evento')
+    form.dataEvento = dv(dataEventoBruta, 'o evento')
     if (ex.nome_evento) form.nomeEvento = ex.nome_evento.slice(0, 80)
   }
   if (usaPeriodo) {
@@ -168,7 +180,7 @@ export function aplicarExtracao(ex: PedidoExtraido, ctx: ContextoIA): ResultadoI
   if (template === 'T2') form.horaDispensa = horaValida(ex.hora_dispensa) ?? undefined
   if (usaMotivo) form.motivo = motivoDoCatalogo(ex.motivo) ?? undefined
   if (usaFolga) {
-    form.dataFolga = dv(ex.data_folga, 'a folga')
+    form.dataFolga = dv(dataFolgaBruta, 'a folga')
     if (template === 'T4' && ex.folga_horas) {
       const h = horaValida(ex.folga_horas)
       if (h) { form.folgaParcial = true; form.duracaoFolga = h }

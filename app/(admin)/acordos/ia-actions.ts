@@ -5,8 +5,13 @@ import { requireRole } from '@/lib/auth/assert-role'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { anonimizarPedido } from '@/lib/acordos/ia/anonimizar'
 import { ErroIA, extrairPedido, iaConfigurada } from '@/lib/acordos/ia/cliente'
-import { aplicarExtracao, type ContextoIA, type ResultadoIA } from '@/lib/acordos/ia/normalizar'
+import { aplicarExtracao, AVISO_PAGAMENTO, mencionaPagamento, type ContextoIA, type ResultadoIA } from '@/lib/acordos/ia/normalizar'
 import { lerExtracao, type PedidoExtraido } from '@/lib/acordos/ia/schema'
+import { simularPedido } from '@/lib/acordos/ia/aplicar'
+import type { Achado, FuncionarioCalc } from '@/lib/acordos/tipos'
+import { carregarCalendario } from '@/lib/calendario/mogi'
+import { calendarioParaMapa } from '@/lib/calendario/mapa'
+import { buscarFuncionariosPorPostos } from './actions'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyClient = any
@@ -38,6 +43,16 @@ export interface UsoIA {
   custoUsd: number
 }
 
+/** O pedido aplicado aos turnos reais do posto: dias escolhidos e o que a validação (CLT, divisão…) achou. */
+export interface SimulacaoResumo {
+  funcionarios: number
+  grupos: number
+  horasTotalMin: number
+  minutosPorDia: number
+  datasAjuste: string[]
+  achados: Achado[]
+}
+
 export interface RespostaInterpretacao {
   resultado: ResultadoIA
   /** Texto que foi de fato enviado à IA (sem CPF, contatos nem nomes de funcionários). */
@@ -45,6 +60,8 @@ export interface RespostaInterpretacao {
   /** Campos crus devolvidos pela IA, antes de validar. */
   extracao: PedidoExtraido
   uso: UsoIA
+  /** null quando faltou situação ou posto para simular. */
+  simulacao: SimulacaoResumo | null
 }
 
 async function interpretar(texto: string, userId: string): Promise<{ ok: true; dados: RespostaInterpretacao } | { ok: false; erro: string }> {
@@ -84,6 +101,36 @@ async function interpretar(texto: string, userId: string): Promise<{ ok: true; d
     const extracao = lerExtracao(r.entrada)
     if (!extracao) return { ok: false, erro: 'A IA devolveu uma resposta que não consegui ler. Tente reescrever o pedido.' }
     const resultado = aplicarExtracao(extracao, { postos, pessoas, mapa: anonimo.mapa, hoje })
+    if (mencionaPagamento(limpo)) resultado.avisos.unshift(AVISO_PAGAMENTO)
+
+    // valida contra os turnos reais do posto (mesmas regras do modal); falha aqui não derruba a interpretação
+    let simulacao: SimulacaoResumo | null = null
+    if (resultado.template && resultado.postoId) {
+      try {
+        const doPosto = await buscarFuncionariosPorPostos([resultado.postoId])
+        const escolhidos = resultado.funcionarioIds.length
+          ? doPosto.filter(f => resultado.funcionarioIds.includes(f.id))
+          : doPosto.filter(f => f.elegivel && (f.status === 'ativo' || f.status === 'ferias'))
+        const calc: FuncionarioCalc[] = escolhidos.map(f => ({
+          id: f.id, nome: f.nome, status: f.status, regime: f.regime, semana: f.semana, semTurno: f.sem_turno,
+        }))
+        const ano = Number(hoje.slice(0, 4))
+        const feriados = calendarioParaMapa(await carregarCalendario([ano, ano + 1]))
+        const sim = simularPedido(resultado, calc, feriados, hoje)
+        if (sim) {
+          simulacao = {
+            funcionarios: sim.funcionarios,
+            grupos: sim.grupos,
+            horasTotalMin: sim.horasTotalMin,
+            minutosPorDia: sim.minutosPorDia,
+            datasAjuste: sim.form.datasAjuste,
+            achados: sim.achados,
+          }
+        }
+      } catch {
+        simulacao = null
+      }
+    }
     return {
       ok: true,
       dados: {
@@ -96,6 +143,7 @@ async function interpretar(texto: string, userId: string): Promise<{ ok: true; d
           tokensSaida: r.tokensSaida,
           custoUsd: custoUsd(r.tokensEntrada, r.tokensSaida),
         },
+        simulacao,
       },
     }
   } catch (e) {

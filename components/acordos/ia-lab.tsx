@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { interpretarPedidoLab, type RespostaInterpretacao } from '@/app/(admin)/acordos/ia-actions'
 import { CASOS, conferirCaso, type CasoTeste, type ConferenciaCampo } from '@/lib/acordos/ia/casos'
 import { SITUACOES } from '@/lib/acordos/situacoes'
+import { fmtHM } from '@/lib/acordos/resumo'
 import { LABEL_CLS } from './passo'
 
 interface Props {
@@ -159,11 +160,37 @@ export function IaLab({ configurada, postos }: Props) {
                 <p className="text-sm text-green-700">Nada. O pedido tem tudo que o formulário exige.</p>
               )}
               {dados.resultado.avisos.length > 0 && (
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-700">
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs font-medium text-amber-700">
                   {dados.resultado.avisos.map(a => <li key={a}>{a}</li>)}
                 </ul>
               )}
             </Caixa>
+
+            <div className="lg:col-span-2">
+              <Caixa titulo="Validação com os turnos reais do posto">
+                {dados.simulacao ? (
+                  <div className="space-y-2 text-sm">
+                    <p className="text-slate-700">
+                      {dados.simulacao.funcionarios} funcionário(s) · {dados.simulacao.grupos} grupo(s) de compensação ·{' '}
+                      <b>{fmtHM(dados.simulacao.horasTotalMin)}</b> a compensar
+                      {dados.simulacao.minutosPorDia > 0 && <> · {dados.simulacao.minutosPorDia} min por dia</>}
+                      {dados.simulacao.datasAjuste.length > 0 && <> em {dados.simulacao.datasAjuste.length} dia(s)</>}
+                    </p>
+                    {dados.simulacao.achados.filter(a => a.nivel === 'erro').map((a, i) => (
+                      <p key={`e${i}`} className="rounded-lg border border-red-100 bg-red-50 px-3 py-1.5 text-red-700">✕ {a.mensagem}</p>
+                    ))}
+                    {dados.simulacao.achados.filter(a => a.nivel === 'aviso').map((a, i) => (
+                      <p key={`a${i}`} className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-1.5 text-amber-800">⚠ {a.mensagem}</p>
+                    ))}
+                    {dados.simulacao.achados.length === 0 && (
+                      <p className="rounded-lg border border-green-100 bg-green-50 px-3 py-1.5 text-green-700">✓ Sem erros nem avisos: o acordo passaria na validação.</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">Sem simulação: falta identificar a situação e o posto.</p>
+                )}
+              </Caixa>
+            </div>
 
             <Caixa titulo="Uso">
               <p className="text-sm text-slate-700">

@@ -65,6 +65,8 @@ export function sugerirDiasAjuste(
   funcs: FuncionarioCalc[],
   feriados: MapaFeriados,
   hoje?: string,
+  /** Quantidade de dias pedida pelo usuário; sem ela, a menor que divide certo para todos os turnos. */
+  quantidade?: number,
 ): string[] {
   if (c.template === 'T5') return []
   // Revezamento: reposição depois da última folga; acréscimo (T4) antes da primeira
@@ -85,7 +87,7 @@ export function sugerirDiasAjuste(
   const maxPorDia = c.template === 'T1'
     ? 60
     : Math.min(MAX_ACRESCIMO_DIA_MIN, MAX_JORNADA_DIA_MIN - jornadaMax)
-  const n = sugerirQuantidadeDiasComum(totais, maxPorDia)
+  const n = quantidade ?? sugerirQuantidadeDiasComum(totais, maxPorDia)
   if (n === null) return []
   if (c.template !== 'T4') return proximosDiasUteis(base, n, funcs, feriados)
   const dias = diasUteisAnteriores(base, n, funcs, feriados)

@@ -22,6 +22,7 @@ Como escolher a situação:
 - T5: TRABALHARAM num dia (sábado, domingo, evento) e ganham uma FOLGA em outro dia.
 - T1: TRABALHARAM além do horário e vão SAIR MAIS CEDO em vários dias (redução diária).
 - T4: vão TRABALHAR A MAIS nos próximos dias (banco de horas) para FOLGAR num dia definido, com prazo.
+- Datas: em T3 e T4 a data do dia sem trabalho/da folga vai em data_folga (não em data_evento). Em T2 a data da dispensa vai em data_evento. Em T1 e T5 o dia trabalhado vai em data_evento.
 - Regra de direção: quem trabalhou a mais descansa; quem deixou de trabalhar repõe. Se o pedido não deixa claro, situacao = null e pergunte.
 
 Motivos usuais (use palavras parecidas em "motivo"): ${MOTIVOS.map(m => m.rotulo).join('; ')}.
