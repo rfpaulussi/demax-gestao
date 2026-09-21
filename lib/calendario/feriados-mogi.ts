@@ -44,9 +44,11 @@ export const FACULTATIVOS_2026: FeriadoItem[] = [
   item('2026-02-17', 'Ponto facultativo (Carnaval)', 'facultativo', DEC),
   item('2026-02-18', 'Ponto facultativo (Quarta-feira de Cinzas)', 'facultativo', DEC, '13:00'),
   item('2026-04-20', 'Ponto facultativo', 'facultativo', DEC),
+  item('2026-06-04', 'Corpus Christi (consta no calendário administrativo)', 'facultativo', DEC),
   item('2026-06-05', 'Ponto facultativo', 'facultativo', DEC),
   item('2026-07-10', 'Ponto facultativo', 'facultativo', DEC),
   item('2026-08-31', 'Ponto facultativo', 'facultativo', DEC),
+  item('2026-10-30', 'Dia do Servidor Público (consta no calendário administrativo)', 'facultativo', DEC),
   item('2026-12-24', 'Ponto facultativo', 'facultativo', DEC),
   item('2026-12-31', 'Ponto facultativo', 'facultativo', DEC),
 ]

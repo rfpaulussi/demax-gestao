@@ -33,8 +33,8 @@ describe('feriados de Mogi', () => {
   })
 
   it('facultativos 2026 só entram em 2026', () => {
-    expect(FACULTATIVOS_2026).toHaveLength(10)
-    expect(feriadosParaAno(2026)).toHaveLength(23)
+    expect(FACULTATIVOS_2026).toHaveLength(12)
+    expect(feriadosParaAno(2026)).toHaveLength(25)
     expect(feriadosParaAno(2027)).toHaveLength(13)
     const cinzas = FACULTATIVOS_2026.find(f => f.data === '2026-02-18')
     expect(cinzas?.ate_hora).toBe('13:00')
