@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, Calendar, Clock, FileText, MapPin, Users, XCircle } from 'lucide-react'
 import { buscarFuncionariosPorPostos, criarAcordo } from '@/app/(admin)/acordos/actions'
@@ -10,11 +10,18 @@ import { DIAS_SEMANA, type Achado, type FuncionarioCalc, type TemplateId } from 
 import { agruparPorJornada, resumoCalculo } from '@/lib/acordos/movimentos'
 import { gerarObjeto, TEMPLATES } from '@/lib/acordos/templates'
 import { temErro, validarAcordo } from '@/lib/acordos/validar'
-import { jornadaDiaMin, semanaParaTexto, totalSemanalMin } from '@/lib/acordos/horario-do-turno'
-import { proximosDiasUteis, sugerirQuantidadeDias } from '@/lib/acordos/dias'
-import { MAX_ACRESCIMO_DIA_MIN, MAX_JORNADA_DIA_MIN } from '@/lib/acordos/regras'
-import { minParaHHMM } from '@/lib/acordos/tempo'
+import { assinaturaSemana, semanaParaTexto, totalSemanalMin } from '@/lib/acordos/horario-do-turno'
+import { sugerirDiasAjuste } from '@/lib/acordos/dias'
+import { fmtHorasTotal, hhmmParaMin, minParaHHMM } from '@/lib/acordos/tempo'
 import { CamposTemplate, FORM_VAZIO, montarCampos, type FormState } from './campos-template'
+
+const CORES_TURNO = [
+  { borda: 'border-t-blue-500', fundo: 'bg-blue-50' },
+  { borda: 'border-t-orange-500', fundo: 'bg-orange-50' },
+  { borda: 'border-t-purple-500', fundo: 'bg-purple-50' },
+  { borda: 'border-t-indigo-500', fundo: 'bg-indigo-50' },
+  { borda: 'border-t-green-500', fundo: 'bg-green-50' },
+]
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   ativo:    { label: 'Ativo',    cls: 'bg-green-100 text-green-700' },
@@ -55,9 +62,16 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [loadingFuncs, setLoadingFuncs] = useState(false)
   const [erro, setErro] = useState('')
+  const [diasManual, setDiasManual] = useState(false)
 
-  function set<K extends keyof FormState>(k: K, v: FormState[K]) {
+  const set = useCallback(<K extends keyof FormState>(k: K, v: FormState[K]) => {
     setF(prev => ({ ...prev, [k]: v }))
+  }, [])
+
+  function trocarTemplate(id: TemplateId) {
+    setTemplate(id)
+    setDiasManual(false)
+    set('datasAjuste', [])
   }
 
   // Carrega funcionários automaticamente ao escolher o(s) posto(s)
@@ -118,20 +132,24 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
     [campos, grupos],
   )
 
-  function sugerirDias() {
-    if (!calc.length) { setErro('Selecione os funcionários antes de sugerir os dias.'); return }
-    const r = resumoCalculo(campos, grupos[0] ?? calc)
-    const jornadaMax = Math.max(...calc.flatMap(x => DIAS_SEMANA.map(d => jornadaDiaMin(x.semana[d]))))
-    const maxPorDia = template === 'T1' ? 60 : Math.min(MAX_ACRESCIMO_DIA_MIN, MAX_JORNADA_DIA_MIN - jornadaMax)
-    const n = sugerirQuantidadeDias(r.horasTotalMin, maxPorDia)
-    const base = template === 'T3' ? f.dataFolga : f.dataEvento
-    if (!n || !base || r.horasTotalMin <= 0) {
-      setErro('Preencha a data e as horas antes de sugerir os dias (ou não existe divisão possível).')
-      return
+  // Dias de ajuste sugeridos automaticamente enquanto o usuário não editar a lista à mão
+  const sugestaoDias = useMemo(
+    () => sugerirDiasAjuste({ ...campos, datasAjuste: [] }, calc, feriados),
+    [campos, calc, feriados],
+  )
+  useEffect(() => {
+    if (diasManual) return
+    if (sugestaoDias.join('|') !== f.datasAjuste.join('|')) set('datasAjuste', sugestaoDias)
+  }, [diasManual, sugestaoDias, f.datasAjuste, set])
+
+  const turnos = useMemo(() => {
+    const m = new Map<string, FuncionarioCalc[]>()
+    for (const x of calc) {
+      const k = assinaturaSemana(x.semana)
+      m.set(k, [...(m.get(k) ?? []), x])
     }
-    setErro('')
-    set('datasAjuste', proximosDiasUteis(base, n, calc, feriados))
-  }
+    return Array.from(m.values())
+  }, [calc])
 
   function handleSalvar() {
     if (!titulo.trim()) { setErro('Informe o título do acordo.'); return }
@@ -158,6 +176,34 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
       router.refresh()
       onClose()
     })
+  }
+
+  function painelCompensar() {
+    const periodo = (template === 'T1' || template === 'T5') && f.dataEvento && f.periodoInicio && f.periodoFim
+      ? hhmmParaMin(f.periodoFim) - hhmmParaMin(f.periodoInicio)
+      : 0
+    return (
+      <div className="space-y-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-700">
+        <p className="font-bold uppercase tracking-widest text-slate-500">A compensar</p>
+        {grupos.map((g, gi) => {
+          const r = resumoCalculo(campos, g)
+          return (
+            <div key={gi}>
+              <p>
+                <span className="font-semibold">Grupo {gi + 1} ({g.length} func.)</span> — a compensar:{' '}
+                <span className="font-semibold">{fmtHorasTotal(r.horasTotalMin)}</span> por funcionário
+              </p>
+              {periodo > 0 && (
+                <p className="text-slate-500">
+                  Período de {f.periodoInicio} às {f.periodoFim}: {fmtHorasTotal(Math.max(0, periodo - r.horasTotalMin))} dentro do horário normal,{' '}
+                  {fmtHorasTotal(r.horasTotalMin)} fora (a compensar)
+                </p>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
   }
 
   const inputCls = 'w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300'
@@ -197,7 +243,7 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {(Object.keys(TEMPLATES) as TemplateId[]).map(id => (
                 <label key={id} className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 px-3 py-2.5 ${template === id ? 'border-slate-900 bg-slate-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <input type="radio" checked={template === id} onChange={() => setTemplate(id)} className="mt-1 accent-slate-900" />
+                  <input type="radio" checked={template === id} onChange={() => trocarTemplate(id)} className="mt-1 accent-slate-900" />
                   <div>
                     <p className="text-sm font-semibold text-gray-900">{TEMPLATES[id].titulo}</p>
                     <p className="text-xs text-gray-400">{TEMPLATES[id].resumo}</p>
@@ -271,23 +317,28 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
                 f={f}
                 set={set}
                 feriados={feriados}
-                onSugerirDias={template === 'T4' || template === 'T5' ? null : sugerirDias}
+                diasManual={diasManual}
+                onDatasManuais={() => setDiasManual(true)}
+                onRecalcular={() => setDiasManual(false)}
               />
             </div>
           </div>
 
-          {grupos.length > 0 && (
+          {grupos.some(g => resumoCalculo(campos, g).horasTotalMin > 0) && painelCompensar()}
+
+          {turnos.length > 0 && (
             <div>
               <SectionHeader icon={Clock} title="Horário (do turno cadastrado)" />
               <div className="mt-3 space-y-3">
-                {grupos.map((g, gi) => {
-                  const s = g[0].semana
+                {turnos.map((fs, ti) => {
+                  const s = fs[0].semana
                   const txt = semanaParaTexto(s)
+                  const cor = CORES_TURNO[ti % CORES_TURNO.length]
                   return (
-                    <div key={gi} className="overflow-hidden rounded-xl border border-gray-200">
-                      <div className="flex items-center justify-between bg-slate-50 px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-600">
-                        <span>{grupos.length > 1 ? `Grupo ${gi + 1} · ` : ''}{g.length} funcionário(s)</span>
-                        <span className="font-normal text-gray-400">{minParaHHMM(totalSemanalMin(s))}h/semana · ref. {g[0].nome}</span>
+                    <div key={ti} className={`overflow-hidden rounded-xl border border-t-4 border-gray-200 ${cor.borda}`}>
+                      <div className={`flex items-center justify-between px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-600 ${cor.fundo}`}>
+                        <span>Turno {ti + 1} · {fs.length} funcionário(s)</span>
+                        <span className="font-normal text-gray-500">{minParaHHMM(totalSemanalMin(s))}h/semana</span>
                       </div>
                       {DIAS_SEMANA.map(d => (
                         <div key={d} className="flex gap-3 border-t border-gray-100 px-4 py-1.5 text-xs">
@@ -295,12 +346,18 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
                           <span className={txt[d] === 'FOLGA' ? 'font-bold uppercase text-gray-400' : 'font-mono text-gray-700'}>{txt[d]}</span>
                         </div>
                       ))}
+                      <details className="border-t border-gray-100 px-4 py-1.5 text-xs">
+                        <summary className="cursor-pointer font-semibold text-slate-600">Ver funcionários</summary>
+                        <ul className="mt-1 space-y-0.5 text-gray-700">
+                          {fs.map(x => <li key={x.id}>{x.nome}</li>)}
+                        </ul>
+                      </details>
                     </div>
                   )
                 })}
                 {grupos.length > 1 && (
                   <p className="text-xs text-amber-700">
-                    Os funcionários têm jornadas diferentes nesse dia: serão gerados {grupos.length} acordos, um por grupo.
+                    Jornadas/horários diferentes nesse acordo: serão gerados {grupos.length} acordos, um por grupo.
                   </p>
                 )}
               </div>
@@ -326,9 +383,9 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
             <div className="mt-3 rounded-xl bg-slate-900 px-4 py-3">
               <p className="font-mono text-[11px] leading-relaxed text-slate-300">
                 <span className="text-slate-500">…com a finalidade de que os funcionários </span>
-                {texto?.ok
+                {texto?.ok && !temErro(achados)
                   ? <span className="text-amber-300">{texto.texto}</span>
-                  : <span className="italic text-slate-500">preencha os dados acima para gerar o texto</span>}
+                  : <span className="italic text-slate-500">{temErro(achados) ? 'Corrija os itens em vermelho para gerar o texto' : 'preencha os dados acima para gerar o texto'}</span>}
               </p>
             </div>
           </div>

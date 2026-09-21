@@ -12,7 +12,6 @@ export interface FormState {
   periodoInicio: string
   periodoFim: string
   duracao: string          // 'HH:MM' — usado quando não há período
-  horaNormal: string
   horaDispensa: string
   motivo: string
   dataFolga: string
@@ -22,11 +21,10 @@ export interface FormState {
 
 export const FORM_VAZIO: FormState = {
   dataEvento: '', nomeEvento: '', periodoInicio: '', periodoFim: '', duracao: '',
-  horaNormal: '', horaDispensa: '', motivo: '', dataFolga: '', datasAjuste: [], prazoLimite: '',
+  horaDispensa: '', motivo: '', dataFolga: '', datasAjuste: [], prazoLimite: '',
 }
 
 export function montarCampos(template: TemplateId, f: FormState): CamposAcordo {
-  const doPeriodo = f.periodoInicio && f.periodoFim ? hhmmParaMin(f.periodoFim) - hhmmParaMin(f.periodoInicio) : 0
   const daDuracao = f.duracao ? hhmmParaMin(f.duracao) : 0
   return {
     template,
@@ -34,8 +32,8 @@ export function montarCampos(template: TemplateId, f: FormState): CamposAcordo {
     nomeEvento: f.nomeEvento || undefined,
     periodoInicio: f.periodoInicio || undefined,
     periodoFim: f.periodoFim || undefined,
-    minutosOrigem: doPeriodo > 0 ? doPeriodo : daDuracao,
-    horaNormal: f.horaNormal || undefined,
+    // T1/T5 com período: o lib calcula por funcionário; aqui vai só a duração digitada
+    minutosOrigem: daDuracao,
     horaDispensa: f.horaDispensa || undefined,
     motivo: f.motivo || undefined,
     dataFolga: f.dataFolga || undefined,
@@ -92,15 +90,23 @@ function ListaDatas({ datas, onChange }: { datas: string[]; onChange: (d: string
   )
 }
 
+const MOTIVOS_RAPIDOS: Partial<Record<TemplateId, string[]>> = {
+  T2: ['decreto municipal', 'acordado com a direção da unidade'],
+  T3: ['ponto facultativo municipal', 'decreto municipal', 'acordado com a direção da unidade'],
+  T4: ['ponto facultativo municipal', 'decreto municipal', 'acordado com a direção da unidade'],
+}
+
 interface Props {
   template: TemplateId
   f: FormState
   set: <K extends keyof FormState>(k: K, v: FormState[K]) => void
   feriados: MapaFeriados
-  onSugerirDias: (() => void) | null
+  diasManual: boolean
+  onDatasManuais: () => void
+  onRecalcular: () => void
 }
 
-export function CamposTemplate({ template: t, f, set, feriados, onSugerirDias }: Props) {
+export function CamposTemplate({ template: t, f, set, feriados, diasManual, onDatasManuais, onRecalcular }: Props) {
   const usaEvento = t === 'T1' || t === 'T2' || t === 'T5'
   const usaPeriodo = t === 'T1' || t === 'T5'
   const usaFolga = t === 'T3' || t === 'T4' || t === 'T5'
@@ -137,14 +143,9 @@ export function CamposTemplate({ template: t, f, set, feriados, onSugerirDias }:
       )}
 
       {t === 'T2' && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Campo titulo="Horário normal de saída">
-            <input type="time" value={f.horaNormal} onChange={e => set('horaNormal', e.target.value)} className={input} />
-          </Campo>
-          <Campo titulo="Horário de dispensa">
-            <input type="time" value={f.horaDispensa} onChange={e => set('horaDispensa', e.target.value)} className={input} />
-          </Campo>
-        </div>
+        <Campo titulo="Horário de dispensa" dica="Cada funcionário é comparado ao horário de saída do próprio turno.">
+          <input type="time" value={f.horaDispensa} onChange={e => set('horaDispensa', e.target.value)} className={input} />
+        </Campo>
       )}
 
       {usaFolga && (
@@ -171,20 +172,42 @@ export function CamposTemplate({ template: t, f, set, feriados, onSugerirDias }:
       {usaMotivo && (
         <Campo titulo="Motivo" dica={t === 'T2' ? 'Se ficar em branco, o texto usa "decreto municipal".' : undefined}>
           <input value={f.motivo} onChange={e => set('motivo', e.target.value)} placeholder="ex: ponto facultativo municipal" className={input} />
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {(MOTIVOS_RAPIDOS[t] ?? []).map(m => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => set('motivo', m)}
+                className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              >
+                {m}
+              </button>
+            ))}
+          </div>
         </Campo>
       )}
 
       {usaAjuste && (
         <div>
-          <div className="mb-1.5 flex items-center justify-between">
-            <label className="text-xs font-bold uppercase tracking-widest text-slate-500">{rotuloAjuste}</label>
-            {onSugerirDias && (
-              <button type="button" onClick={onSugerirDias} className="text-xs font-semibold text-slate-600 underline hover:text-slate-900">
-                Sugerir dias
+          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-slate-500">{rotuloAjuste}</label>
+              {diasManual ? (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">editado manualmente</span>
+              ) : (
+                <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-medium text-green-700">sugerido automaticamente</span>
+              )}
+            </div>
+            {diasManual && (
+              <button type="button" onClick={onRecalcular} className="text-xs font-semibold text-slate-600 underline hover:text-slate-900">
+                Recalcular dias
               </button>
             )}
           </div>
-          <ListaDatas datas={f.datasAjuste} onChange={d => set('datasAjuste', d)} />
+          <ListaDatas
+            datas={f.datasAjuste}
+            onChange={d => { onDatasManuais(); set('datasAjuste', d) }}
+          />
         </div>
       )}
 
