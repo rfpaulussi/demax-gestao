@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { PROMPT_SISTEMA } from './prompt'
-import { FERRAMENTA_PREENCHER, NOME_FERRAMENTA } from './schema'
+import { FERRAMENTA_PREENCHER } from './schema'
 
 /** Modelo barato de extração; pode ser trocado por variável de ambiente sem mexer no código. */
 export const MODELO_PADRAO = 'claude-haiku-4-5'
@@ -23,8 +23,8 @@ export function iaConfigurada(): boolean {
   return !!process.env.ANTHROPIC_API_KEY
 }
 
-/** Uma chamada só, sem histórico: recebe o pedido já anonimizado e a data de hoje. */
-export async function extrairPedido(pedidoAnonimo: string, hoje: string, diaSemana: string): Promise<RespostaModelo> {
+/** Uma chamada só, sem histórico, forçando a ferramenta dada. O texto já deve estar anonimizado. */
+export async function chamarFerramenta(sistema: string, ferramenta: Anthropic.Tool, mensagem: string): Promise<RespostaModelo> {
   const chave = process.env.ANTHROPIC_API_KEY
   if (!chave) throw new ErroIA('NAO_CONFIGURADA', 'A IA não está configurada neste ambiente (falta ANTHROPIC_API_KEY).')
   const modelo = process.env.ANTHROPIC_MODEL_ACORDOS || MODELO_PADRAO
@@ -34,10 +34,10 @@ export async function extrairPedido(pedidoAnonimo: string, hoje: string, diaSema
       model: modelo,
       max_tokens: 1024,
       temperature: 0,
-      system: PROMPT_SISTEMA,
-      tools: [FERRAMENTA_PREENCHER],
-      tool_choice: { type: 'tool', name: NOME_FERRAMENTA },
-      messages: [{ role: 'user', content: `Hoje é ${hoje} (${diaSemana}).\n\nPedido:\n${pedidoAnonimo}` }],
+      system: sistema,
+      tools: [ferramenta],
+      tool_choice: { type: 'tool', name: ferramenta.name },
+      messages: [{ role: 'user', content: mensagem }],
     })
     const bloco = resp.content.find(b => b.type === 'tool_use')
     if (!bloco || bloco.type !== 'tool_use') throw new ErroIA('RESPOSTA_INVALIDA', 'A IA não devolveu os campos esperados.')
@@ -54,4 +54,9 @@ export async function extrairPedido(pedidoAnonimo: string, hoje: string, diaSema
     if (e instanceof Anthropic.APIError) throw new ErroIA('FALHA', `A IA respondeu com erro (${e.status}).`)
     throw new ErroIA('FALHA', 'Não foi possível falar com a IA. Tente novamente.')
   }
+}
+
+/** Pedido em texto livre (já anonimizado) + data de hoje -> campos do acordo. */
+export function extrairPedido(pedidoAnonimo: string, hoje: string, diaSemana: string): Promise<RespostaModelo> {
+  return chamarFerramenta(PROMPT_SISTEMA, FERRAMENTA_PREENCHER, `Hoje é ${hoje} (${diaSemana}).\n\nPedido:\n${pedidoAnonimo}`)
 }

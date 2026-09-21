@@ -6,6 +6,7 @@ import { CASOS, conferirCaso, type CasoTeste, type ConferenciaCampo } from '@/li
 import { SITUACOES } from '@/lib/acordos/situacoes'
 import { agruparAchados, fmtHM } from '@/lib/acordos/resumo'
 import { LABEL_CLS } from './passo'
+import { IaLegados } from './ia-legados'
 
 interface Props {
   configurada: boolean
@@ -270,6 +271,8 @@ export function IaLab({ configurada, postos }: Props) {
           </ul>
         )}
       </section>
+
+      <IaLegados />
     </div>
   )
 }
