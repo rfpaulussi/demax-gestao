@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { construirMovimentos, resumoCalculo, saldoMin, agruparPorJornada } from './movimentos'
+import { construirMovimentos, resumoCalculo, saldoMin, agruparPorJornada, folgaDe, datasDeFolga } from './movimentos'
 import { func, T_5X2_540 } from './__fixtures__'
 import type { CamposAcordo } from './tipos'
 
@@ -74,7 +74,7 @@ describe('resumoCalculo e agrupamento', () => {
   }
 
   it('resume total e minutos por dia', () => {
-    expect(resumoCalculo(c, [f1])).toEqual({ horasTotalMin: 528, minutosPorDia: 132, jornadaFolgaMin: 528, horaNormal: '' })
+    expect(resumoCalculo(c, [f1])).toEqual({ horasTotalMin: 528, minutosPorDia: 132, jornadaFolgaMin: 528, dataFolga: '2026-06-08', horaNormal: '' })
   })
 
   it('separa funcionários com jornadas diferentes no dia da folga', () => {
@@ -143,5 +143,37 @@ describe('resumoCalculo e agrupamento', () => {
     const c: CamposAcordo = { template: 'T5', dataEvento: '2026-06-13', nomeEvento: 'x', minutosOrigem: 240, dataFolga: '2026-06-05', datasAjuste: [] }
     expect(agruparPorJornada(c, [func('a'), func('b', T_5X2_540)]).map(g => g.map(f => f.id))).toEqual([['a'], ['b']])
     expect(agruparPorJornada({ ...c, dataFolga: undefined }, [func('a'), func('b', T_5X2_540)])).toHaveLength(1)
+  })
+})
+
+describe('revezamento (folga por funcionário)', () => {
+  const c: CamposAcordo = {
+    template: 'T3', dataFolga: '2026-06-04', folgasPorFuncionario: { a: '2026-06-05', b: '2026-06-04' }, motivo: 'x',
+    datasAjuste: ['2026-06-08', '2026-06-09', '2026-06-10', '2026-06-11', '2026-06-12', '2026-06-15', '2026-06-16', '2026-06-17'],
+  }
+
+  it('folgaDe usa a data do funcionário e, sem revezamento, a data comum', () => {
+    expect(folgaDe(c, { id: 'a' })).toBe('2026-06-05')
+    expect(folgaDe({ ...c, folgasPorFuncionario: undefined }, { id: 'a' })).toBe('2026-06-04')
+    expect(datasDeFolga(c)).toEqual(['2026-06-04', '2026-06-05'])
+  })
+
+  it('gera a origem de cada funcionário na data dele, com saldo zero', () => {
+    const movs = construirMovimentos(c, [func('a'), func('b')])
+    const origens = movs.filter(x => x.papel === 'origem').map(x => [x.funcionarioId, x.data])
+    expect(origens).toEqual([['a', '2026-06-05'], ['b', '2026-06-04']])
+    expect(saldoMin(movs.filter(x => x.funcionarioId === 'a'))).toBe(0)
+    expect(saldoMin(movs.filter(x => x.funcionarioId === 'b'))).toBe(0)
+  })
+
+  it('separa em grupos quem tem datas de folga diferentes, mesmo com o mesmo turno', () => {
+    const grupos = agruparPorJornada(c, [func('a'), func('b'), func('c')])
+    expect(grupos.map(g => g.map(f => f.id))).toEqual([['a'], ['b', 'c']]) // c sem data própria usa a comum (a validação exige a data)
+    const juntos = agruparPorJornada({ ...c, folgasPorFuncionario: { a: '2026-06-05', b: '2026-06-05', c: '2026-06-04' } }, [func('a'), func('b'), func('c')])
+    expect(juntos.map(g => g.map(f => f.id))).toEqual([['a', 'b'], ['c']])
+  })
+
+  it('resumoCalculo do grupo traz a folga do primeiro funcionário', () => {
+    expect(resumoCalculo(c, [func('b')]).dataFolga).toBe('2026-06-04')
   })
 })

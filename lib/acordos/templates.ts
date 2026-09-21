@@ -51,6 +51,7 @@ export function gerarObjeto(c: CamposAcordo, r: ResumoCalculo): ResultadoTexto {
   const sufixoPrazo = c.template !== 'T4' && c.prazoLimite
     ? ` O prazo máximo para a compensação é ${fmtDataBR(c.prazoLimite)}.`
     : ''
+  const dataFolga = r.dataFolga ?? c.dataFolga
   const horas = fmtHorasTotal(r.horasTotalMin)
   const porDia = fmtAcrescimo(r.minutosPorDia)
 
@@ -65,16 +66,16 @@ export function gerarObjeto(c: CamposAcordo, r: ResumoCalculo): ResultadoTexto {
       texto = `trabalharem normalmente até as ${fmtHoraCurta(r.horaNormal)} no dia ${fmtDataBR(c.dataEvento)} (${nome}), sendo dispensados às ${fmtHoraCurta(c.horaDispensa)} ${conectorDoMotivo(limpa(c.motivo))} ${motivo || 'decreto municipal'}, compensando as ${horas} não laboradas com acréscimo de ${porDia} diária no horário normal ${datas}.${sufixoPrazo}`
       break
     case 'T3':
-      if (!c.dataFolga || !motivo || !datas || r.minutosPorDia <= 0) return falta()
-      texto = `serem dispensados do trabalho no dia ${fmtDataBR(c.dataFolga)} (${motivo}), compensando as ${horas} não laboradas com acréscimo de ${porDia} diária no horário normal ${datas}.${sufixoPrazo}`
+      if (!dataFolga || !motivo || !datas || r.minutosPorDia <= 0) return falta()
+      texto = `serem dispensados do trabalho no dia ${fmtDataBR(dataFolga)} (${motivo}), compensando as ${horas} não laboradas com acréscimo de ${porDia} diária no horário normal ${datas}.${sufixoPrazo}`
       break
     case 'T4':
-      if (!c.dataFolga || !motivo || !datas || !c.prazoLimite || r.minutosPorDia <= 0) return falta()
-      texto = `trabalharem com acréscimo de ${porDia} diária no horário normal ${datas}, formando um saldo de ${horas} a ser compensado com a dispensa do trabalho no dia ${fmtDataBR(c.dataFolga)} (${motivo}), com prazo máximo de compensação até ${fmtDataBR(c.prazoLimite)}.`
+      if (!dataFolga || !motivo || !datas || !c.prazoLimite || r.minutosPorDia <= 0) return falta()
+      texto = `trabalharem com acréscimo de ${porDia} diária no horário normal ${datas}, formando um saldo de ${horas} a ser compensado com a dispensa do trabalho no dia ${fmtDataBR(dataFolga)} (${motivo}), com prazo máximo de compensação até ${fmtDataBR(c.prazoLimite)}.`
       break
     case 'T5': {
-      if (!c.dataEvento || !nome || !c.dataFolga || r.horasTotalMin <= 0) return falta()
-      const folga = fmtDataBR(c.dataFolga)
+      if (!c.dataEvento || !nome || !dataFolga || r.horasTotalMin <= 0) return falta()
+      const folga = fmtDataBR(dataFolga)
       const dispensa = r.horasTotalMin === r.jornadaFolgaMin
         ? `com a dispensa do trabalho no dia ${folga}`
         : `com a dispensa de ${horas} do horário de trabalho no dia ${folga}`

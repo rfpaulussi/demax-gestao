@@ -1,7 +1,7 @@
 import { DIAS_SEMANA, type CamposAcordo, type FuncionarioCalc } from './tipos'
 import { addDias } from './tempo'
 import { jornadaDiaMin } from './horario-do-turno'
-import { agruparPorJornada, jornadaDoDia, resumoCalculo } from './movimentos'
+import { agruparPorJornada, datasDeFolga, jornadaDoDia, resumoCalculo } from './movimentos'
 import { MAX_ACRESCIMO_DIA_MIN, MAX_JORNADA_DIA_MIN } from './regras'
 import type { MapaFeriados } from './validar'
 
@@ -67,7 +67,11 @@ export function sugerirDiasAjuste(
   hoje?: string,
 ): string[] {
   if (c.template === 'T5') return []
-  const base = c.template === 'T1' || c.template === 'T2' ? c.dataEvento : c.dataFolga
+  // Revezamento: reposição depois da última folga; acréscimo (T4) antes da primeira
+  const folgas = datasDeFolga(c)
+  const base = c.template === 'T1' || c.template === 'T2'
+    ? c.dataEvento
+    : c.template === 'T3' ? folgas[folgas.length - 1] : folgas[0]
   if (!base) return []
   const grupos = agruparPorJornada(c, funcs)
   if (grupos.length === 0) return []

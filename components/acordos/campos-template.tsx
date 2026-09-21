@@ -10,6 +10,7 @@ import { fmtHM, motivoDoCalendario, rotuloAtalhoCalendario } from '@/lib/acordos
 import { Campo, INPUT_CLS, INPUT_ERRO_CLS, SubPasso } from './passo'
 import { MotivoChips } from './motivo-chips'
 import { DiasChips } from './dias-chips'
+import { FolgasRevezamento, SeletorModoFolga, type FuncionarioFolga } from './folgas-revezamento'
 
 export interface FormState {
   dataEvento: string
@@ -20,20 +21,28 @@ export interface FormState {
   horaDispensa: string
   motivo: string
   dataFolga: string
+  /** Revezamento: cada funcionário na sua data de folga. */
+  revezamento: boolean
+  folgas: Record<string, string>
   datasAjuste: string[]
   prazoLimite: string
 }
 
 export const FORM_VAZIO: FormState = {
   dataEvento: '', nomeEvento: '', periodoInicio: '', periodoFim: '', duracao: '',
-  horaDispensa: '', motivo: '', dataFolga: '', datasAjuste: [], prazoLimite: '',
+  horaDispensa: '', motivo: '', dataFolga: '', revezamento: false, folgas: {}, datasAjuste: [], prazoLimite: '',
 }
 
-export function montarCampos(template: TemplateId, f: FormState): CamposAcordo {
+/** `idsSelecionados`: no revezamento só entram as datas de quem está no acordo. */
+export function montarCampos(template: TemplateId, f: FormState, idsSelecionados?: Set<string>): CamposAcordo {
   const usaEvento = template === 'T1' || template === 'T2' || template === 'T5'
   const usaPeriodo = template === 'T1' || template === 'T5'
   const usaFolga = template === 'T3' || template === 'T4' || template === 'T5'
   const usaMotivo = template === 'T2' || template === 'T3' || template === 'T4'
+  const folgas = usaFolga && f.revezamento
+    ? Object.fromEntries(Object.entries(f.folgas).filter(([id, d]) => d && (!idsSelecionados || idsSelecionados.has(id))))
+    : undefined
+  const dataFolga = folgas ? Object.values(folgas).sort()[0] : usaFolga ? f.dataFolga || undefined : undefined
   // Só repassa o que o template mostra: campos ocultos preenchidos antes não podem vazar para validação/gravação
   return {
     template,
@@ -45,7 +54,8 @@ export function montarCampos(template: TemplateId, f: FormState): CamposAcordo {
     minutosOrigem: usaPeriodo && f.duracao ? hhmmParaMin(f.duracao) : 0,
     horaDispensa: template === 'T2' ? f.horaDispensa || undefined : undefined,
     motivo: usaMotivo ? f.motivo || undefined : undefined,
-    dataFolga: usaFolga ? f.dataFolga || undefined : undefined,
+    dataFolga,
+    folgasPorFuncionario: folgas,
     datasAjuste: template === 'T5' ? [] : f.datasAjuste,
     prazoLimite: f.prazoLimite || undefined,
   }
@@ -102,10 +112,12 @@ interface Props {
   nomesEvento: string[]
   /** Próximos feriados/pontos facultativos do calendário de Mogi (atalhos para a data). */
   atalhosCalendario: CalendarioLinha[]
+  /** Funcionários do acordo (para a folga em revezamento). */
+  funcionarios: FuncionarioFolga[]
 }
 
 export function CamposTemplate({
-  template: t, f, set, feriados, diasManual, onDatasManuais, onRecalcular, erros, conta, dicaDispensa, notaPeriodo, nomesEvento, atalhosCalendario,
+  template: t, f, set, feriados, diasManual, onDatasManuais, onRecalcular, erros, conta, dicaDispensa, notaPeriodo, nomesEvento, atalhosCalendario, funcionarios,
 }: Props) {
   const [modo, setModo] = useState<'periodo' | 'horas'>(f.duracao && !f.periodoInicio ? 'horas' : 'periodo')
   const cls = (k: CampoChave) => (erros[k] ? INPUT_ERRO_CLS : INPUT_CLS)
@@ -227,6 +239,33 @@ export function CamposTemplate({
     </Campo>
   )
 
+  function trocarModoFolga(revezamento: boolean) {
+    set('revezamento', revezamento)
+    // ao entrar no revezamento, todos começam na data já escolhida
+    if (revezamento && f.dataFolga && Object.keys(f.folgas).length === 0) {
+      set('folgas', Object.fromEntries(funcionarios.map(x => [x.id, f.dataFolga])))
+    }
+  }
+
+  /** Folga de todos no mesmo dia, ou revezamento com uma data por funcionário. */
+  const blocoFolga = (rotulo: string, ajuda: string) => (
+    <div className="space-y-3">
+      <SeletorModoFolga revezamento={f.revezamento} onModo={trocarModoFolga} />
+      {f.revezamento ? (
+        <FolgasRevezamento
+          funcionarios={funcionarios}
+          folgas={f.folgas}
+          onFolga={(id, d) => set('folgas', { ...f.folgas, [id]: d })}
+          onTodos={d => set('folgas', Object.fromEntries(funcionarios.map(x => [x.id, d])))}
+          feriados={feriados}
+          erro={erros.dataFolga}
+        />
+      ) : (
+        dataCampo(rotulo, 'dataFolga', ajuda, calFolga, true)
+      )}
+    </div>
+  )
+
   const blocoMotivo = (opcional: boolean) => (
     <div id="passo-motivo" className="scroll-mt-4 space-y-2">
       <MotivoChips motivo={f.motivo} onChange={m => set('motivo', m)} sugestao={sugestaoMotivo} erro={!!erros.motivo} />
@@ -294,7 +333,7 @@ export function CamposTemplate({
       {t === 'T3' && (
         <>
           <SubPasso letra={proxima()} titulo="Dia da folga">
-            {dataCampo('Qual dia não trabalharam?', 'dataFolga', 'ex: sexta-feira, 05/06/2026', calFolga, true)}
+            {blocoFolga('Qual dia não trabalharam?', 'ex: sexta-feira, 05/06/2026')}
           </SubPasso>
           <SubPasso letra={proxima()} titulo="Motivo">{blocoMotivo(false)}</SubPasso>
           <SubPasso letra={proxima()} titulo="Dias de reposição">
@@ -306,7 +345,7 @@ export function CamposTemplate({
       {t === 'T4' && (
         <>
           <SubPasso letra={proxima()} titulo="Quando será a folga">
-            {dataCampo('Em que dia vão folgar?', 'dataFolga', 'ex: 12/06/2026', calFolga, true)}
+            {blocoFolga('Em que dia vão folgar?', 'ex: 12/06/2026')}
             <div>
               <p className="mb-1.5 text-xs font-bold uppercase tracking-widest text-slate-500">Motivo</p>
               {blocoMotivo(false)}
@@ -329,7 +368,7 @@ export function CamposTemplate({
             {periodoOuHoras()}
           </SubPasso>
           <SubPasso letra={proxima()} titulo="Dia da folga">
-            {dataCampo('Em que dia vão folgar?', 'dataFolga', 'ex: 26/06/2026', calFolga, true)}
+            {blocoFolga('Em que dia vão folgar?', 'ex: 26/06/2026')}
           </SubPasso>
         </>
       )}

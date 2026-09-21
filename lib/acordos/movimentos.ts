@@ -9,12 +9,25 @@ export interface ResumoCalculo {
   minutosPorDia: number
   /** Jornada do dia da folga do primeiro funcionário (0 se não há dia de folga). */
   jornadaFolgaMin: number
+  /** Data de folga do primeiro funcionário do grupo (T3/T4/T5). */
+  dataFolga?: string
   /** T2: saída normal do dia do evento (turno do primeiro funcionário); '' nos demais templates. */
   horaNormal: string
 }
 
 export function saldoMin(movs: { minutos: number }[]): number {
   return movs.reduce((acc, m) => acc + m.minutos, 0)
+}
+
+/** Data de folga de um funcionário: a dele no revezamento, senão a data comum a todos. */
+export function folgaDe(c: CamposAcordo, f: { id: string }): string | undefined {
+  return c.folgasPorFuncionario?.[f.id] ?? c.dataFolga
+}
+
+/** Todas as datas de folga do acordo (ordenadas, sem repetição). */
+export function datasDeFolga(c: CamposAcordo): string[] {
+  const todas = [...Object.values(c.folgasPorFuncionario ?? {}), c.dataFolga].filter((d): d is string => !!d)
+  return Array.from(new Set(todas)).sort()
 }
 
 export function jornadaDoDia(f: FuncionarioCalc, iso: string): number {
@@ -41,7 +54,7 @@ export function totalOrigem(c: CamposAcordo, f: FuncionarioCalc): number {
       break
     case 'T3':
     case 'T4':
-      total = c.dataFolga ? jornadaDoDia(f, c.dataFolga) : 0
+      total = folgaDe(c, f) ? jornadaDoDia(f, folgaDe(c, f)!) : 0
       break
   }
   return Math.max(0, total)
@@ -50,12 +63,14 @@ export function totalOrigem(c: CamposAcordo, f: FuncionarioCalc): number {
 export function resumoCalculo(c: CamposAcordo, funcs: FuncionarioCalc[]): ResumoCalculo {
   const f = funcs[0]
   if (!f) return { horasTotalMin: 0, minutosPorDia: 0, jornadaFolgaMin: 0, horaNormal: '' }
+  const dataFolga = folgaDe(c, f)
   const horasTotalMin = totalOrigem(c, f)
   const n = c.datasAjuste.length
   return {
     horasTotalMin,
     minutosPorDia: c.template === 'T5' || n === 0 ? 0 : Math.floor(horasTotalMin / n),
-    jornadaFolgaMin: c.dataFolga ? jornadaDoDia(f, c.dataFolga) : 0,
+    dataFolga,
+    jornadaFolgaMin: dataFolga ? jornadaDoDia(f, dataFolga) : 0,
     horaNormal: c.template === 'T2' && c.dataEvento ? saidaDoDia(f.semana[diaSemanaDe(c.dataEvento)]) : '',
   }
 }
@@ -66,6 +81,7 @@ export function construirMovimentos(c: CamposAcordo, funcs: FuncionarioCalc[]): 
   for (const f of funcs) {
     const total = totalOrigem(c, f)
     const porDia = n > 0 ? Math.floor(total / n) : 0
+    const dataFolga = folgaDe(c, f)
     const mov = (data: string, minutos: number, papel: PapelMovimento) =>
       out.push({ funcionarioId: f.id, data, minutos, papel })
     switch (c.template) {
@@ -78,16 +94,16 @@ export function construirMovimentos(c: CamposAcordo, funcs: FuncionarioCalc[]): 
         for (const d of c.datasAjuste) mov(d, porDia, 'quitacao')
         break
       case 'T3':
-        if (c.dataFolga) mov(c.dataFolga, -total, 'origem')
+        if (dataFolga) mov(dataFolga, -total, 'origem')
         for (const d of c.datasAjuste) mov(d, porDia, 'quitacao')
         break
       case 'T4':
         for (const d of c.datasAjuste) mov(d, porDia, 'origem')
-        if (c.dataFolga) mov(c.dataFolga, -total, 'quitacao')
+        if (dataFolga) mov(dataFolga, -total, 'quitacao')
         break
       case 'T5':
         if (c.dataEvento) mov(c.dataEvento, total, 'origem')
-        if (c.dataFolga) mov(c.dataFolga, -total, 'quitacao')
+        if (dataFolga) mov(dataFolga, -total, 'quitacao')
         break
     }
   }
@@ -108,9 +124,9 @@ export function agruparPorJornada(c: CamposAcordo, funcs: FuncionarioCalc[]): Fu
         return `${saidaDoDia(f.semana[diaSemanaDe(c.dataEvento)])}|${totalOrigem(c, f)}`
       case 'T3':
       case 'T4':
-        return c.dataFolga ? String(jornadaDoDia(f, c.dataFolga)) : null
+        return folgaDe(c, f) ? `${jornadaDoDia(f, folgaDe(c, f)!)}|${folgaDe(c, f)}` : null
       case 'T5':
-        return c.dataFolga ? `${totalOrigem(c, f)}|${jornadaDoDia(f, c.dataFolga)}` : null
+        return folgaDe(c, f) ? `${totalOrigem(c, f)}|${jornadaDoDia(f, folgaDe(c, f)!)}|${folgaDe(c, f)}` : null
     }
   }
   if (funcs.length === 0) return []

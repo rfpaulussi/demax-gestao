@@ -28,7 +28,7 @@ import { ResumoAcordo, type ItemResumo, type StatusResumo, type TextoGrupo, type
 /** Campo do formulário -> chave "tocada" (para só mostrar erro depois de interagir). */
 const CHAVE_DO_FORM: Partial<Record<keyof FormState, string>> = {
   dataEvento: 'dataEvento', nomeEvento: 'nomeEvento', periodoInicio: 'horas', periodoFim: 'horas', duracao: 'horas',
-  horaDispensa: 'horaDispensa', motivo: 'motivo', dataFolga: 'dataFolga', datasAjuste: 'dias', prazoLimite: 'prazo',
+  horaDispensa: 'horaDispensa', motivo: 'motivo', dataFolga: 'dataFolga', folgas: 'dataFolga', datasAjuste: 'dias', prazoLimite: 'prazo',
 }
 
 /** Chaves tocadas que "acendem" cada item do checklist. */
@@ -94,7 +94,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
     setF(prev => ({ ...prev, [k]: v }))
     const chave = CHAVE_DO_FORM[k]
     // limpar um campo (ex.: trocar de aba de período/horas) não conta como "tocar"
-    if (chave && (k === 'datasAjuste' || (typeof v === 'string' && v !== ''))) tocar(chave)
+    if (chave && (k === 'datasAjuste' || k === 'folgas' || (typeof v === 'string' && v !== ''))) tocar(chave)
   }, [tocar])
 
   function escolherSituacao(id: TemplateId) {
@@ -147,7 +147,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
     [selecionados],
   )
   const feriados = useMemo(() => calendarioParaMapa(calendario), [calendario])
-  const campos = useMemo(() => montarCampos(template, f), [template, f])
+  const campos = useMemo(() => montarCampos(template, f, selectedIds), [template, f, selectedIds])
   const grupos = useMemo(() => agruparPorJornada(campos, calc), [campos, calc])
 
   // Título automático enquanto o usuário não digitar nele
@@ -227,7 +227,8 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
       const r = gerarObjeto(campos, resumoCalculo(campos, g))
       return {
         cabecalho: grupos.length > 1 ? `Grupo ${grupos.indexOf(g) + 1} · ${juntarRotulos(turnosDoGrupo(g))} · ${g.length} func.` : null,
-        texto: r.ok ? r.texto : null,
+        // revezamento: o parágrafo abre com os nomes do grupo (igual ao PDF)
+        texto: r.ok ? (campos.folgasPorFuncionario ? `${juntarRotulos(g.map(x => x.nome))} ${r.texto}` : r.texto) : null,
       }
     }),
     [campos, grupos, situacaoEscolhida, turnosDoGrupo],
@@ -235,12 +236,14 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
 
   // ── Textos de apoio dos campos ────────────────────────────────────────────
   const r0 = grupos.length ? resumoCalculo(campos, grupos[0]) : null
-  const conta = r0 ? textoConta(template, campos.datasAjuste.length, r0.minutosPorDia, r0.horasTotalMin, grupos.length > 1) : null
+  // "varia por turno" só quando os totais mesmo diferem (no revezamento os grupos podem diferir só na data)
+  const variaPorTurno = new Set(grupos.map(g => resumoCalculo(campos, g).horasTotalMin)).size > 1
+  const conta = r0 ? textoConta(template, campos.datasAjuste.length, r0.minutosPorDia, r0.horasTotalMin, variaPorTurno) : null
   const periodoMin = (template === 'T1' || template === 'T5') && f.periodoInicio && f.periodoFim
     ? hhmmParaMin(f.periodoFim) - hhmmParaMin(f.periodoInicio)
     : 0
   const notaPeriodo = r0 && periodoMin > 0 && r0.horasTotalMin > 0
-    ? grupos.length === 1
+    ? !variaPorTurno
       ? `Deste período, ${fmtDuracao(r0.horasTotalMin)} ficam fora do horário normal e serão compensados.`
       : 'O quanto fica fora do horário normal varia por turno (veja o resumo ao lado).'
     : null
@@ -294,6 +297,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
     if (faltando.includes('motivo') && mostra('motivo')) out.motivo = 'Escolha ou escreva o motivo.'
     const faltaDias = faltando.find(x => x.startsWith('dias de '))
     if (faltaDias && mostra('dias')) out.dias = 'Informe ao menos um dia. Use "Adicionar outro dia" ou "Recalcular dias".'
+    out.dataFolga = out.dataFolga ?? msgDe(['FOLGA_SEM_DATA'])
     out.horas = out.horas ?? msgDe(CODIGOS_HORAS)
     out.dias = out.dias ?? msgDe(CODIGOS_DIAS)
     return out
@@ -428,6 +432,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
                   dicaDispensa={dicaDispensa}
                   notaPeriodo={notaPeriodo}
                   nomesEvento={nomesEvento}
+                  funcionarios={selecionados.map(x => ({ id: x.id, nome: x.nome }))}
                   atalhosCalendario={atalhosCalendario}
                 />
               ) : (

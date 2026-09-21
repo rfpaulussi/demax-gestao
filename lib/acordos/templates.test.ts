@@ -154,3 +154,15 @@ describe('normalizaMotivo', () => {
     expect(normalizaMotivo('Conforme Decreto municipal.')).toBe('decreto municipal')
   })
 })
+
+describe('gerarObjeto em revezamento', () => {
+  it('T3 usa a data de folga do grupo, não a mais cedo do acordo', () => {
+    const c: CamposAcordo = {
+      template: 'T3', dataFolga: '2026-06-04', folgasPorFuncionario: { a: '2026-06-05', b: '2026-06-04' },
+      motivo: 'ponto facultativo', datasAjuste: ['2026-06-08', '2026-06-09'],
+    }
+    const res = gerarObjeto(c, { ...r(120, 60, 528), dataFolga: '2026-06-05' })
+    expect(res.ok && res.texto).toContain('no dia 05/06/2026')
+    expect(res.ok && res.texto).not.toContain('04/06/2026')
+  })
+})

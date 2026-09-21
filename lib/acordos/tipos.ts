@@ -28,7 +28,9 @@ export interface CamposAcordo {
   minutosOrigem?: number        // T1/T5: horas extras digitadas (quando não há período)
   horaDispensa?: string         // T2: horário em que foram dispensados
   motivo?: string               // T2/T3/T4
-  dataFolga?: string            // T3/T4/T5
+  dataFolga?: string            // T3/T4/T5 (em revezamento: a folga mais cedo)
+  /** Revezamento: cada funcionário com a sua data de folga (T3/T4/T5). Ausente = todos folgam em `dataFolga`. */
+  folgasPorFuncionario?: Record<string, string>
   datasAjuste: string[]         // T1 redução; T2/T3/T4 acréscimo; T5 vazio
   prazoLimite?: string          // T4 obrigatório; demais quando cruza o mês
 }

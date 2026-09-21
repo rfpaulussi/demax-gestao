@@ -281,4 +281,31 @@ describe('validarAcordo', () => {
       expect(codigos(validarAcordo({ ...cruza, prazoLimite: '2026-07-03' }, [f1], new Map()))).toContain('PRAZO_ANTES')
     })
   })
+
+  describe('revezamento', () => {
+    const rev: CamposAcordo = { ...t3, dataFolga: '2026-06-04', folgasPorFuncionario: { a: '2026-06-05', b: '2026-06-04' } }
+    const a = func('a'), b = func('b')
+
+    it('aceita datas de folga diferentes por funcionário', () => {
+      expect(temErro(validarAcordo(rev, [a], new Map()))).toBe(false)
+      expect(temErro(validarAcordo(rev, [b], new Map()))).toBe(false)
+    })
+
+    it('exige a data de cada funcionário', () => {
+      const semB: CamposAcordo = { ...rev, folgasPorFuncionario: { a: '2026-06-05' } }
+      const r = validarAcordo(semB, [a, b], new Map())
+      expect(r.find(x => x.codigo === 'FOLGA_SEM_DATA')?.funcionarioId).toBe('b')
+    })
+
+    it('bloqueia a folga de um funcionário que cai no dia de folga da escala dele', () => {
+      const sab: CamposAcordo = { ...rev, folgasPorFuncionario: { a: '2026-06-06', b: '2026-06-04' } } // 06/06 = sábado
+      expect(codigos(validarAcordo(sab, [a], new Map()))).toContain('DIA_DE_FOLGA')
+    })
+
+    it('T3: os dias de reposição precisam vir depois da folga de cada um', () => {
+      const cedo: CamposAcordo = { ...rev, datasAjuste: ['2026-06-05', ...OITO_DIAS.slice(0, 7)] }
+      expect(codigos(validarAcordo(cedo, [a], new Map()))).toContain('ORDEM_DATAS')
+      expect(codigos(validarAcordo(cedo, [b], new Map()))).not.toContain('ORDEM_DATAS')
+    })
+  })
 })

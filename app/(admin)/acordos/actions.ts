@@ -159,13 +159,15 @@ function dataReal(iso: unknown): iso is string {
 /** Todas as datas de `campos` vêm do navegador: precisam ser reais e estar num intervalo de anos plausível. */
 function datasDosCamposValidas(c: CamposAcordo): boolean {
   if (!Array.isArray(c.datasAjuste)) return false
+  const folgas = c.folgasPorFuncionario
+  if (folgas !== undefined && (typeof folgas !== 'object' || folgas === null || Array.isArray(folgas))) return false
   const anoAtual = new Date().getFullYear()
-  const datas = [c.dataEvento, c.dataFolga, c.prazoLimite, ...c.datasAjuste].filter(d => d !== undefined && d !== null && d !== '')
+  const datas = [c.dataEvento, c.dataFolga, c.prazoLimite, ...Object.values(folgas ?? {}), ...c.datasAjuste].filter(d => d !== undefined && d !== null && d !== '')
   return datas.every(d => dataReal(d) && Number(d.slice(0, 4)) >= anoAtual - 1 && Number(d.slice(0, 4)) <= anoAtual + 3)
 }
 
 function anosDoAcordo(c: CamposAcordo): number[] {
-  const datas = [c.dataEvento, c.dataFolga, c.prazoLimite, ...c.datasAjuste].filter((d): d is string => !!d)
+  const datas = [c.dataEvento, c.dataFolga, c.prazoLimite, ...Object.values(c.folgasPorFuncionario ?? {}), ...c.datasAjuste].filter((d): d is string => !!d)
   return Array.from(new Set(datas.map(d => Number(d.slice(0, 4)))))
 }
 
@@ -198,6 +200,9 @@ export async function criarAcordo(dados: {
   if (ids.length === 0 || funcs.length !== ids.length) {
     return { error: 'Algum funcionário não foi encontrado ou você não tem acesso a ele.' }
   }
+  if (Object.keys(dados.campos.folgasPorFuncionario ?? {}).some(k => !ids.includes(k))) {
+    return { error: 'Há data de folga para um funcionário que não faz parte do acordo.' }
+  }
   const inelegivel = funcs.find(f => !f.elegivel)
   if (inelegivel) return { error: `${inelegivel.nome}: ${inelegivel.motivo_inelegivel}` }
 
@@ -224,13 +229,16 @@ export async function criarAcordo(dados: {
   }
   if (erros.length) return { error: erros.join(' ') }
 
+  // Revezamento: cada grupo (mesma data de folga) abre o parágrafo com os nomes dele
+  const revezamento = !!dados.campos.folgasPorFuncionario
   const objetoPorFunc = new Map<string, string>()
   const objetosDosGrupos: string[] = []
   for (const g of grupos) {
     const texto = gerarObjeto(dados.campos, resumoCalculo(dados.campos, g))
     if (!texto.ok) return { error: texto.erro }
-    objetosDosGrupos.push(texto.texto)
-    for (const f of g) objetoPorFunc.set(f.id, texto.texto)
+    const objeto = revezamento ? `${juntarRotulos(g.map(f => f.nome))} ${texto.texto}` : texto.texto
+    objetosDosGrupos.push(objeto)
+    for (const f of g) objetoPorFunc.set(f.id, objeto)
   }
 
   const porSemana = new Map<string, FuncionarioParaAcordo[]>()
@@ -243,7 +251,8 @@ export async function criarAcordo(dados: {
     label: gruposDeTurno.length === 1 ? 'Turno Único' : `Turno ${String.fromCharCode(65 + i)}`,
     horario: semanaParaTexto(g[0].semana),
     funcionario_ids: g.map(f => f.id),
-    objeto: objetoPorFunc.get(g[0].id),
+    // um turno pode ter grupos de datas diferentes no revezamento: junta os textos distintos, na ordem
+    objeto: Array.from(new Set(g.map(f => objetoPorFunc.get(f.id)!))).join('; e os funcionários '),
   }))
 
   // descricao_acordo: um texto só quando todos os grupos coincidem; senão, um trecho por grupo com os turnos dele
@@ -251,7 +260,7 @@ export async function criarAcordo(dados: {
     ? objetosDosGrupos[0]
     : grupos.map((g, gi) => {
         const ids = new Set(g.map(f => f.id))
-        const labels = horarios.filter(h => ids.has(h.funcionario_ids[0])).map(h => h.label)
+        const labels = horarios.filter(h => h.funcionario_ids.some(id => ids.has(id))).map(h => h.label)
         return `${juntarRotulos(labels)}: ${objetosDosGrupos[gi]}`
       }).join(' ')
 
