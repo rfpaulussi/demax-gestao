@@ -180,6 +180,14 @@ export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriado
       }
     }
   }
+  if (t === 'T2' && c.dataEvento) {
+    const fer = feriados.get(c.dataEvento)
+    if (fer && fer.tipo !== 'facultativo') {
+      add('aviso', 'FERIADO', `${fmtDataBR(c.dataEvento)} é feriado (${fer.nome}): não há expediente para dispensar.`)
+    } else if (fer && !/atés*d/i.test(fer.nome)) {
+      add('aviso', 'FERIADO', `${fmtDataBR(c.dataEvento)} é ${fer.nome}. Se o dia todo foi dispensado, use "Não trabalharam o dia todo".`)
+    }
+  }
   if (usaFolga) {
     for (const d of folgasDoGrupo) {
       const fer = feriados.get(d)

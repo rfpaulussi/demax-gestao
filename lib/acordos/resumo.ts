@@ -267,6 +267,17 @@ function tituloComDados(template: TemplateId, c: CamposAcordo, postoNome?: strin
 // ─── Atalhos do calendário ─────────────────────────────────────────────────────
 
 /** Datas do calendário (feriados e pontos facultativos) de hoje-antes até hoje+depois, em ordem, até `limite`. */
+/**
+ * Que datas do calendário fazem sentido como atalho em cada situação. Feriado de verdade não entra:
+ * já é dia de folga, então não há dispensa a compensar. Pontos facultativos servem de folga/emenda;
+ * na dispensa parcial (T2) só os de meio período (ex.: "até 13h").
+ */
+export function calendarioParaAtalhos(template: TemplateId, calendario: CalendarioLinha[]): CalendarioLinha[] {
+  if (template === 'T2') return calendario.filter(l => l.tipo === 'facultativo' && !!l.ate_hora)
+  if (template === 'T1') return []
+  return calendario.filter(l => l.tipo === 'facultativo')
+}
+
 export function proximasDatasCalendario(
   calendario: CalendarioLinha[],
   hoje: string,

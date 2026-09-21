@@ -1,7 +1,7 @@
 import { DIAS_SEMANA, type CamposAcordo, type FuncionarioCalc } from './tipos'
 import { addDias } from './tempo'
 import { jornadaDiaMin } from './horario-do-turno'
-import { agruparPorJornada, datasDeFolga, datasDoEvento, jornadaDoDia, resumoCalculo } from './movimentos'
+import { agruparPorJornada, datasDeFolga, datasDoEvento, jornadaDoDia, origemDoDia, resumoCalculo } from './movimentos'
 import { MAX_ACRESCIMO_DIA_MIN, MAX_JORNADA_DIA_MIN } from './regras'
 import type { MapaFeriados } from './validar'
 
@@ -90,4 +90,33 @@ export function sugerirDiasAjuste(
   if (c.template !== 'T4') return proximosDiasUteis(base, n, funcs, feriados)
   const dias = diasUteisAnteriores(base, n, funcs, feriados)
   return hoje && dias.some(d => d < hoje) ? [] : dias
+}
+
+/**
+ * Por que não há sugestão de dias (para explicar ao usuário em vez de só pedir "informe um dia").
+ * null quando faltam dados básicos ou quando há sugestão.
+ */
+export function motivoSemSugestao(
+  c: CamposAcordo,
+  funcs: FuncionarioCalc[],
+  feriados: MapaFeriados,
+  hoje?: string,
+): string | null {
+  if (c.template === 'T5' || funcs.length === 0) return null
+  const grupos = agruparPorJornada(c, funcs)
+  const totais = grupos.map(g => resumoCalculo(c, g).horasTotalMin)
+  if (totais.length === 0 || totais.some(t => t <= 0)) return null
+  if (sugerirDiasAjuste(c, funcs, feriados, hoje).length > 0) return null
+  if (c.template === 'T1' && funcs.some(f => datasDoEvento(c).some(d => origemDoDia(c, f, d) > MAX_JORNADA_DIA_MIN))) {
+    return 'As horas trabalhadas num dia do evento passam de 10h. Revise o período ou as horas.'
+  }
+  const jornadaMax = Math.max(0, ...funcs.flatMap(f => DIAS_SEMANA.map(dia => jornadaDiaMin(f.semana[dia]))))
+  const maxPorDia = c.template === 'T1' ? 60 : Math.min(MAX_ACRESCIMO_DIA_MIN, MAX_JORNADA_DIA_MIN - jornadaMax)
+  if (maxPorDia <= 0) return 'A jornada de algum turno já chega a 10h: não há margem para acréscimo. Escolha os dias manualmente.'
+  const maior = Math.max(...totais)
+  if (Math.ceil(maior / maxPorDia) > 31) {
+    return `São ${Math.floor(maior / 60)}h${String(maior % 60).padStart(2, '0')} a compensar e o limite é ${maxPorDia} min por dia (mais de 31 dias). Reduza as horas ou escolha os dias manualmente.`
+  }
+  if (c.template === 'T4') return 'Não há dias úteis suficientes entre hoje e a folga. Escolha uma folga mais adiante ou os dias manualmente.'
+  return 'Não há uma quantidade de dias que divida certo para todos os turnos. Escolha os dias manualmente.'
 }

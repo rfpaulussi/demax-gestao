@@ -30,14 +30,20 @@ const s = StyleSheet.create({
   cityDate:     { marginTop: 20, marginBottom: 6 },
   empresa:      { fontFamily: 'Helvetica-Bold', marginBottom: 20 },
   empLine:      { borderBottomWidth: 0.5, borderColor: '#000', marginTop: 20, width: 200, alignSelf: 'center' },
+  marcaDagua:   { position: 'absolute', top: 340, left: 10, width: '100%', textAlign: 'center', fontFamily: 'Helvetica-Bold', fontSize: 110, color: '#cbd5e1', opacity: 0.6, transform: 'rotate(-35deg)' },
+  avisoRascunho:{ position: 'absolute', top: 16, left: 0, width: '100%', textAlign: 'center', fontFamily: 'Helvetica-Bold', fontSize: 8, color: '#b91c1c' },
   empLineLabel: { fontSize: 8, color: '#555', textAlign: 'center', width: 200, alignSelf: 'center' },
 })
 
 const DIAS = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado','Domingo']
 
-interface Props { acordo: AcordoCompensacao }
+interface Props {
+  acordo: AcordoCompensacao
+  /** Rascunho para conferência: marca d'água em todas as páginas; não vale como documento. */
+  rascunho?: boolean
+}
 
-export function AcordoPdfDoc({ acordo }: Props) {
+export function AcordoPdfDoc({ acordo, rascunho = false }: Props) {
   const multiTurno = acordo.horarios.length > 1
 
   // Lookup funcId → funcionario
@@ -57,6 +63,8 @@ export function AcordoPdfDoc({ acordo }: Props) {
   return (
     <Document>
       <Page size="A4" style={s.page}>
+        {rascunho && <Text fixed style={s.marcaDagua}>RASCUNHO</Text>}
+        {rascunho && <Text fixed style={s.avisoRascunho}>RASCUNHO PARA CONFERÊNCIA — NÃO ASSINAR</Text>}
         <Text style={s.title}>ACORDO DE COMPENSAÇÃO DE HORAS</Text>
 
         {/* Intro */}

@@ -327,3 +327,11 @@ describe('evento em mais de um dia e folga parcial', () => {
     expect(codigos(validarAcordo({ ...t4, minutosFolga: 600 }, [f1], new Map()))).toContain('FOLGA_MAIOR')
   })
 })
+
+describe('T2 em dia de feriado', () => {
+  const t2: CamposAcordo = { template: 'T2', dataEvento: '2026-09-07', nomeEvento: 'x', horaDispensa: '12:00', datasAjuste: ['2026-09-08'] }
+  it('avisa quando o dia da dispensa já é feriado', () => {
+    const fer: MapaFeriados = new Map([['2026-09-07', { nome: 'Independência', tipo: 'nacional' }]])
+    expect(validarAcordo(t2, [func('a')], fer).find(a => a.codigo === 'FERIADO' && a.mensagem.includes('não há expediente'))?.nivel).toBe('aviso')
+  })
+})

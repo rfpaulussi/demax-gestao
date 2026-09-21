@@ -3,18 +3,20 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { buscarFuncionariosPorPostos, criarAcordo } from '@/app/(admin)/acordos/actions'
-import type { AcordoPostoItem, FuncionarioParaAcordo } from '@/app/(admin)/acordos/actions'
+import type { AcordoCompensacao, AcordoPostoItem, FuncionarioParaAcordo } from '@/app/(admin)/acordos/actions'
+import { montarTextosAcordo } from '@/lib/acordos/montar'
+import { AcordoPdfDoc } from './acordo-pdf'
 import { calendarioParaMapa, type CalendarioLinha } from '@/lib/calendario/mapa'
 import { DIAS_SEMANA, type Achado, type FuncionarioCalc, type TemplateId } from '@/lib/acordos/tipos'
 import { agruparPorJornada, resumoCalculo } from '@/lib/acordos/movimentos'
-import { gerarObjeto } from '@/lib/acordos/templates'
+import { gerarObjeto, TEMPLATES } from '@/lib/acordos/templates'
 import { camposFaltando, temErro, validarAcordo } from '@/lib/acordos/validar'
 import { assinaturaSemana, juntarRotulos, saidaDoDia } from '@/lib/acordos/horario-do-turno'
-import { sugerirDiasAjuste } from '@/lib/acordos/dias'
+import { motivoSemSugestao, sugerirDiasAjuste } from '@/lib/acordos/dias'
 import { fmtHoraCurta, hhmmParaMin } from '@/lib/acordos/tempo'
 import { NOMES_EVENTO_SUGERIDOS } from '@/lib/acordos/motivos'
 import {
-  agruparAchados, combinarNomesEvento, dataMaximaPrazo, fmtDuracao, montarChecklist, precisaPrazo, proximasDatasCalendario,
+  agruparAchados, combinarNomesEvento, calendarioParaAtalhos, dataMaximaPrazo, fmtDuracao, montarChecklist, precisaPrazo, proximasDatasCalendario,
   textoConta, tituloSugerido, verboCompensacao,
   type ItemChecklistId,
 } from '@/lib/acordos/resumo'
@@ -85,6 +87,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
   const [tocou, setTocou] = useState<Set<string>>(new Set())
   const [tentou, setTentou] = useState(false)
   const [prazoRevelado, setPrazoRevelado] = useState(false)
+  const [gerandoRascunho, setGerandoRascunho] = useState(false)
 
   const tocar = useCallback((k: string) => {
     setTocou(prev => (prev.has(k) ? prev : new Set(prev).add(k)))
@@ -156,7 +159,10 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
   const tituloAtual = tituloManual ? titulo : tituloAuto
 
   const nomesEvento = useMemo(() => combinarNomesEvento(nomesRecentes, NOMES_EVENTO_SUGERIDOS), [nomesRecentes])
-  const atalhosCalendario = useMemo(() => proximasDatasCalendario(calendario, hoje), [calendario, hoje])
+  const atalhosCalendario = useMemo(
+    () => proximasDatasCalendario(calendarioParaAtalhos(template, calendario), hoje),
+    [template, calendario, hoje],
+  )
 
   const achados: Achado[] = useMemo(() => {
     if (grupos.length === 0) return validarAcordo(campos, [], feriados)
@@ -175,6 +181,11 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
   const sugestaoDias = useMemo(
     () => sugerirDiasAjuste({ ...campos, datasAjuste: [] }, calc, feriados, hoje),
     [campos, calc, feriados, hoje],
+  )
+  // Sem sugestão por tamanho/limites: explica o motivo em vez de só pedir um dia
+  const motivoSemDias = useMemo(
+    () => (situacaoEscolhida ? motivoSemSugestao({ ...campos, datasAjuste: [] }, calc, feriados, hoje) : null),
+    [situacaoEscolhida, campos, calc, feriados, hoje],
   )
   useEffect(() => {
     if (diasManual) return
@@ -300,12 +311,12 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
     if (faltando.includes('horas de folga') && mostra('horasFolga')) out.horasFolga = 'Informe quantas horas de folga.'
     if (faltando.includes('motivo') && mostra('motivo')) out.motivo = 'Escolha ou escreva o motivo.'
     const faltaDias = faltando.find(x => x.startsWith('dias de '))
-    if (faltaDias && mostra('dias')) out.dias = 'Informe ao menos um dia. Use "Adicionar outro dia" ou "Recalcular dias".'
+    if (faltaDias && mostra('dias')) out.dias = motivoSemDias ?? 'Informe ao menos um dia. Use "Adicionar outro dia" ou "Recalcular dias".'
     out.dataFolga = out.dataFolga ?? msgDe(['FOLGA_SEM_DATA'])
     out.horas = out.horas ?? msgDe(CODIGOS_HORAS)
     out.dias = out.dias ?? msgDe(CODIGOS_DIAS)
     return out
-  }, [situacaoEscolhida, tentou, tocou, faltando, achados, f.periodoInicio, f.periodoFim])
+  }, [situacaoEscolhida, tentou, tocou, faltando, achados, f.periodoInicio, f.periodoFim, motivoSemDias])
 
   const gruposResumo = useMemo(
     () => (situacaoEscolhida ? agruparAchados(achados.filter(a => !CODIGOS_DO_CHECKLIST.includes(a.codigo))) : []),
@@ -321,6 +332,43 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
 
   function irPara(id: ItemChecklistId) {
     document.getElementById(ANCORA[id])?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+
+  /** PDF com marca d'água montado com o mesmo texto que será gravado; abre em outra aba, sem salvar. */
+  async function abrirRascunho() {
+    const t = montarTextosAcordo(campos, calc)
+    if (!t.ok) { setErroServidor(t.erro); return }
+    setErroServidor('')
+    setGerandoRascunho(true)
+    const aba = window.open('', '_blank') // abre já no clique para o navegador não bloquear
+    try {
+      const { pdf } = await import('@react-pdf/renderer')
+      const acordo: AcordoCompensacao = {
+        id: 'rascunho',
+        titulo: tituloAtual.trim() || 'Rascunho',
+        tipo,
+        subtipo: TEMPLATES[template].subtipo,
+        postos: postos.filter(p => postosSel.includes(p.id)),
+        funcionarios: selecionados.map(x => ({ id: x.id, nome: x.nome, funcao: x.funcao, status: x.status })),
+        horarios: t.horarios,
+        descricao_acordo: t.descricao,
+        data_documento: dataDoc,
+        criado_por: null,
+        criado_por_nome: null,
+        created_at: new Date().toISOString(),
+        entregue_rh: false,
+        entregue_em: null,
+      }
+      const blob = await pdf(<AcordoPdfDoc acordo={acordo} rascunho />).toBlob()
+      const url = URL.createObjectURL(blob)
+      if (aba) aba.location.href = url
+      else window.location.href = url
+    } catch {
+      aba?.close()
+      setErroServidor('Não foi possível gerar o rascunho. Tente novamente.')
+    } finally {
+      setGerandoRascunho(false)
+    }
   }
 
   function handleSalvar() {
@@ -479,6 +527,9 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
             pending={pending}
             onCancelar={onClose}
             onSalvar={handleSalvar}
+            onRascunho={abrirRascunho}
+            podeRascunho={situacaoEscolhida && !erroReal && textos.length > 0 && textos.every(x => !!x.texto)}
+            gerandoRascunho={gerandoRascunho}
           />
         </div>
       </div>

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  sugerirQuantidadeDias, sugerirQuantidadeDiasComum, proximosDiasUteis, diasUteisAnteriores, sugerirDiasAjuste,
+  sugerirQuantidadeDias, sugerirQuantidadeDiasComum, proximosDiasUteis, diasUteisAnteriores, sugerirDiasAjuste, motivoSemSugestao,
 } from './dias'
 import { func, T_5X2_540 } from './__fixtures__'
 import type { CamposAcordo } from './tipos'
@@ -103,5 +103,22 @@ describe('sugerirDiasAjuste', () => {
       '2026-06-09', '2026-06-10', '2026-06-11', '2026-06-12', '2026-06-15', '2026-06-16',
       '2026-06-17', '2026-06-18', '2026-06-19', '2026-06-22', '2026-06-23', '2026-06-24',
     ])
+  })
+})
+
+describe('motivoSemSugestao', () => {
+  const f = func('a')
+  it('T1 com horas demais: explica o limite de dias', () => {
+    const c: CamposAcordo = { template: 'T1', dataEvento: '2026-09-18', nomeEvento: 'x', minutosOrigem: 480, datasAjuste: [] }
+    const m = motivoSemSugestao({ ...c, datasEvento: ['2026-09-05', '2026-09-18'], minutosOrigem: 960 }, [f], new Map(), '2026-09-21')
+    expect(m).toContain('passam de 10h')
+    const t1: CamposAcordo = { template: 'T1', dataEvento: '2026-09-18', datasEvento: ['2026-09-05', '2026-09-18', '2026-09-19', '2026-09-20'], nomeEvento: 'x', minutosOrigem: 600, datasAjuste: [] }
+    expect(motivoSemSugestao(t1, [f], new Map(), '2026-09-21')).toContain('mais de 31 dias')
+  })
+
+  it('devolve null quando há sugestão ou faltam dados', () => {
+    const ok: CamposAcordo = { template: 'T1', dataEvento: '2026-09-18', nomeEvento: 'x', minutosOrigem: 240, datasAjuste: [] }
+    expect(motivoSemSugestao(ok, [f], new Map(), '2026-09-21')).toBeNull()
+    expect(motivoSemSugestao({ template: 'T1', datasAjuste: [] }, [f], new Map())).toBeNull()
   })
 })

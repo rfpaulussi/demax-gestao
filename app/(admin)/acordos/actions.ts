@@ -5,12 +5,13 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRole } from '@/lib/auth/assert-role'
 import {
-  montarSemana, semanaParaTexto, assinaturaSemana, juntarRotulos, removerObjetosDosTurnos, TURNO_PADRAO, type TurnoRow,
+  montarSemana, removerObjetosDosTurnos, TURNO_PADRAO, type TurnoRow,
 } from '@/lib/acordos/horario-do-turno'
 import { regimeElegivel } from '@/lib/acordos/regras'
 import { resolverTipoEscala, FUNCAO_JOVEM_APRENDIZ } from '@/lib/turnos/escala'
-import { agruparPorJornada, construirMovimentos, resumoCalculo } from '@/lib/acordos/movimentos'
-import { gerarObjeto, TEMPLATES } from '@/lib/acordos/templates'
+import { agruparPorJornada, construirMovimentos } from '@/lib/acordos/movimentos'
+import { TEMPLATES } from '@/lib/acordos/templates'
+import { montarTextosAcordo, type TurnoHorario } from '@/lib/acordos/montar'
 import { validarAcordo } from '@/lib/acordos/validar'
 import { nomesRecentesDistintos } from '@/lib/acordos/resumo'
 import type { CamposAcordo, FuncionarioCalc, SemanaTurno } from '@/lib/acordos/tipos'
@@ -42,13 +43,7 @@ export interface FuncionarioParaAcordo extends AcordoFuncionarioItem {
   posto_id: string | null
 }
 
-export interface TurnoHorario {
-  label: string
-  horario: Record<string, string>   // dia -> "07:00 às 12:00 / 13:12 às 17:00"
-  funcionario_ids: string[]
-  /** Parágrafo de compensação deste turno (depois de "…com a finalidade de que os funcionários "). Ausente em acordos antigos. */
-  objeto?: string
-}
+export type { TurnoHorario }
 
 // ─── Normaliza horario_semana v1 ou v2 → TurnoHorario[] ──────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -231,40 +226,9 @@ export async function criarAcordo(dados: {
   }
   if (erros.length) return { error: erros.join(' ') }
 
-  // Revezamento: cada grupo (mesma data de folga) abre o parágrafo com os nomes dele
-  const revezamento = !!dados.campos.folgasPorFuncionario
-  const objetoPorFunc = new Map<string, string>()
-  const objetosDosGrupos: string[] = []
-  for (const g of grupos) {
-    const texto = gerarObjeto(dados.campos, resumoCalculo(dados.campos, g))
-    if (!texto.ok) return { error: texto.erro }
-    const objeto = revezamento ? `${juntarRotulos(g.map(f => f.nome))} ${texto.texto}` : texto.texto
-    objetosDosGrupos.push(objeto)
-    for (const f of g) objetoPorFunc.set(f.id, objeto)
-  }
-
-  const porSemana = new Map<string, FuncionarioParaAcordo[]>()
-  for (const f of funcs) {
-    const chave = assinaturaSemana(f.semana)
-    porSemana.set(chave, [...(porSemana.get(chave) ?? []), f])
-  }
-  const gruposDeTurno = Array.from(porSemana.values())
-  const horarios: TurnoHorario[] = gruposDeTurno.map((g, i) => ({
-    label: gruposDeTurno.length === 1 ? 'Turno Único' : `Turno ${String.fromCharCode(65 + i)}`,
-    horario: semanaParaTexto(g[0].semana),
-    funcionario_ids: g.map(f => f.id),
-    // um turno pode ter grupos de datas diferentes no revezamento: junta os textos distintos, na ordem
-    objeto: Array.from(new Set(g.map(f => objetoPorFunc.get(f.id)!))).join('; e os funcionários '),
-  }))
-
-  // descricao_acordo: um texto só quando todos os grupos coincidem; senão, um trecho por grupo com os turnos dele
-  const descricao = objetosDosGrupos.every(o => o === objetosDosGrupos[0])
-    ? objetosDosGrupos[0]
-    : grupos.map((g, gi) => {
-        const ids = new Set(g.map(f => f.id))
-        const labels = horarios.filter(h => h.funcionario_ids.some(id => ids.has(id))).map(h => h.label)
-        return `${juntarRotulos(labels)}: ${objetosDosGrupos[gi]}`
-      }).join(' ')
+  const textos = montarTextosAcordo(dados.campos, calc)
+  if (!textos.ok) return { error: textos.erro }
+  const { horarios, descricao } = textos
 
   // Postos montados no servidor (não confiar no que veio do navegador); leitura com RLS de sessão.
   const postoIdsDosFuncs = Array.from(new Set(funcs.map(f => f.posto_id).filter((p): p is string => !!p)))

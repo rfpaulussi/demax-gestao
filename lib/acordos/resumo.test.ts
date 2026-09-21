@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   agruparAchados, combinarNomesEvento, dataMaximaPrazo, fmtDuracao, fmtHM, identificarMotivo, montarChecklist, montarMotivoDecreto,
   motivoDoCalendario, nomesRecentesDistintos, precisaPrazo, proximasDatasCalendario, rotuloAtalhoCalendario, rotuloDiaChip,
-  textoConta, tituloSugerido,
+  textoConta, tituloSugerido, calendarioParaAtalhos,
 } from './resumo'
 import type { Achado, CamposAcordo } from './tipos'
 import type { CalendarioLinha } from '../calendario/mapa'
@@ -355,5 +355,22 @@ describe('nomes de evento', () => {
     const muitos = combinarNomesEvento(['a', 'b'], Array.from({ length: 20 }, (_, i) => `S${i}`))
     expect(muitos).toHaveLength(12)
     expect(muitos.slice(0, 2)).toEqual(['a', 'b'])
+  })
+})
+
+describe('calendarioParaAtalhos', () => {
+  const l = (data: string, tipo: CalendarioLinha['tipo'], ate_hora: string | null = null): CalendarioLinha => ({ data, nome: 'x', tipo, ate_hora })
+  const cal = [l('2026-10-12', 'nacional'), l('2026-10-30', 'facultativo'), l('2026-02-18', 'facultativo', '13:00'), l('2026-11-20', 'municipal')]
+
+  it('folga (T3/T4/T5): só pontos facultativos, sem feriado de verdade', () => {
+    for (const t of ['T3', 'T4', 'T5'] as const) expect(calendarioParaAtalhos(t, cal).map(x => x.data)).toEqual(['2026-10-30', '2026-02-18'])
+  })
+
+  it('dispensa parcial (T2): só facultativo de meio período', () => {
+    expect(calendarioParaAtalhos('T2', cal).map(x => x.data)).toEqual(['2026-02-18'])
+  })
+
+  it('T1 não usa atalhos', () => {
+    expect(calendarioParaAtalhos('T1', cal)).toEqual([])
   })
 })

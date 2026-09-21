@@ -57,6 +57,10 @@ interface Props {
   pending: boolean
   onCancelar: () => void
   onSalvar: () => void
+  /** Abre o PDF com marca d'água, sem salvar. */
+  onRascunho: () => void
+  podeRascunho: boolean
+  gerandoRascunho: boolean
 }
 
 const SELO: Record<StatusResumo, { cls: string; texto: (p: number, a: number) => string }> = {
@@ -188,6 +192,18 @@ export function ResumoAcordo(p: Props) {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="border-t border-gray-100 pt-3">
+        <button
+          type="button"
+          onClick={p.onRascunho}
+          disabled={!p.podeRascunho || p.gerandoRascunho}
+          title={p.podeRascunho ? "Abre o PDF com marca d'água, sem salvar" : 'Preencha os dados para ver o rascunho'}
+          className="flex h-9 w-full items-center justify-center rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {p.gerandoRascunho ? 'Gerando rascunho…' : "Ver rascunho em PDF (marca d'água)"}
+        </button>
       </div>
 
       <div className="border-t border-gray-100 pt-3">
