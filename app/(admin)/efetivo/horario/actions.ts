@@ -3,6 +3,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUser } from '@/lib/auth/get-user'
 import { revalidatePath } from 'next/cache'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/database'
 import { resolverTipoEscala, FUNCAO_JOVEM_APRENDIZ } from '@/lib/turnos/escala'
 
 export async function listarTurnosDoPosto(postoId: string) {
@@ -43,9 +45,8 @@ export async function executarAlteracaoTurno(
   dataInicio: string,
   diaCurso: number | undefined,
   criadoPor: string,
+  supabase: SupabaseClient<Database> = createClient(),
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = createClient()
-
   const { data: turnoNovo, error: errTurnoNovo } = await supabase
     .from('turnos_postos')
     .select('tipo_escala')

@@ -28,6 +28,14 @@ export type PendenteRow = {
   turnos: TurnoOpcao[]
 }
 
+const DIAS_CURSO_OPCOES = [
+  { valor: 1, label: 'Segunda' },
+  { valor: 2, label: 'Terça' },
+  { valor: 3, label: 'Quarta' },
+  { valor: 4, label: 'Quinta' },
+  { valor: 5, label: 'Sexta' },
+]
+
 const inputClass =
   'flex h-9 rounded-lg border border-gray-200 bg-transparent px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
 
@@ -113,14 +121,16 @@ function FuncionarioRow({ row, onResolvido }: { row: PendenteRow; onResolvido: (
       </td>
       <td className="px-4 py-3">
         {ehJovemAprendiz && (
-          <input
-            type="number"
-            min={1}
-            placeholder="Dia curso"
+          <select
             value={diaCurso}
-            onChange={e => setDiaCurso(e.target.value)}
-            className={cn(inputClass, 'w-24')}
-          />
+            onChange={e => { setDiaCurso(e.target.value); setErro(null) }}
+            className={cn(inputClass, 'w-32')}
+          >
+            <option value="">Dia do curso…</option>
+            {DIAS_CURSO_OPCOES.map(d => (
+              <option key={d.valor} value={d.valor}>{d.label}</option>
+            ))}
+          </select>
         )}
       </td>
       <td className="px-4 py-3 text-right">
