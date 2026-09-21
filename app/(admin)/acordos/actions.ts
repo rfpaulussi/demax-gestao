@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRole } from '@/lib/auth/assert-role'
 import {
-  montarSemana, semanaParaTexto, assinaturaSemana, juntarRotulos, TURNO_PADRAO, type TurnoRow,
+  montarSemana, semanaParaTexto, assinaturaSemana, juntarRotulos, removerObjetosDosTurnos, TURNO_PADRAO, type TurnoRow,
 } from '@/lib/acordos/horario-do-turno'
 import { regimeElegivel } from '@/lib/acordos/regras'
 import { resolverTipoEscala, FUNCAO_JOVEM_APRENDIZ } from '@/lib/turnos/escala'
@@ -444,15 +444,28 @@ export async function editarAcordo(
   const guard = await requireRole(['admin', 'coordenador', 'supervisor'])
   if (!guard.success) return { error: guard.error }
 
-  const { error } = await (createAdminClient() as AnyClient)
+  const admin = createAdminClient() as AnyClient
+  const { data: atual, error: errLeitura } = await admin
     .from('acordos_compensacao')
-    .update({
-      titulo: dados.titulo,
-      data_documento: dados.data_documento,
-      descricao_acordo: dados.descricao_acordo,
-      subtipo: dados.subtipo ?? null,
-    })
+    .select('descricao_acordo, horario_semana')
     .eq('id', id)
+    .maybeSingle()
+  if (errLeitura) return { error: errLeitura.message }
+  if (!atual) return { error: 'Acordo não encontrado.' }
+
+  const update: Record<string, unknown> = {
+    titulo: dados.titulo,
+    data_documento: dados.data_documento,
+    descricao_acordo: dados.descricao_acordo,
+    subtipo: dados.subtipo ?? null,
+  }
+  // Texto editado à mão: os parágrafos por turno (`objeto`) ficam desatualizados; sem eles o PDF usa o parágrafo único.
+  if (dados.descricao_acordo !== atual.descricao_acordo) {
+    const semObjetos = removerObjetosDosTurnos(atual.horario_semana)
+    if (semObjetos !== atual.horario_semana) update.horario_semana = semObjetos
+  }
+
+  const { error } = await admin.from('acordos_compensacao').update(update).eq('id', id)
   if (error) return { error: error.message }
   revalidatePath('/acordos')
   return {}

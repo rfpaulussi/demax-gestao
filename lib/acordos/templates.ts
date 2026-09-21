@@ -31,6 +31,8 @@ const semAcento = (w: string) => w.normalize('NFD').replace(/[\u0300-\u036f]/g, 
 export function normalizaMotivo(m: string): string {
   let t = m.replace(/\s+/g, ' ').trim().replace(/[.,;:!]+$/, '').trim()
   t = t.replace(/^conforme\s+/i, '')
+  const mRazao = /^em raz[aã]o de\s+/.exec(semAcento(t))
+  if (mRazao) t = t.slice(mRazao[0].length)
   const primeira = semAcento(t.split(' ')[0] ?? '')
   if (t && INICIOS_COMUNS.includes(primeira)) return t[0].toLowerCase() + t.slice(1)
   return t
@@ -60,7 +62,7 @@ export function gerarObjeto(c: CamposAcordo, r: ResumoCalculo): ResultadoTexto {
       break
     case 'T2':
       if (!c.dataEvento || !nome || !r.horaNormal || !c.horaDispensa || !datas || r.minutosPorDia <= 0) return falta()
-      texto = `trabalharem normalmente até as ${fmtHoraCurta(r.horaNormal)} no dia ${fmtDataBR(c.dataEvento)} (${nome}), sendo dispensados às ${fmtHoraCurta(c.horaDispensa)} ${conectorDoMotivo(motivo)} ${motivo || 'decreto municipal'}, compensando as ${horas} não laboradas com acréscimo de ${porDia} diária no horário normal ${datas}.${sufixoPrazo}`
+      texto = `trabalharem normalmente até as ${fmtHoraCurta(r.horaNormal)} no dia ${fmtDataBR(c.dataEvento)} (${nome}), sendo dispensados às ${fmtHoraCurta(c.horaDispensa)} ${conectorDoMotivo(limpa(c.motivo))} ${motivo || 'decreto municipal'}, compensando as ${horas} não laboradas com acréscimo de ${porDia} diária no horário normal ${datas}.${sufixoPrazo}`
       break
     case 'T3':
       if (!c.dataFolga || !motivo || !datas || r.minutosPorDia <= 0) return falta()

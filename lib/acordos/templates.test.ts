@@ -38,6 +38,16 @@ describe('gerarObjeto', () => {
     expect(t.ok && t.texto).toContain('sendo dispensados às 12h em razão de falta de água, compensando as 03 hora(s)')
   })
 
+  it('T2 com "em razão de" digitado no motivo não duplica o conector', () => {
+    const c: CamposAcordo = {
+      template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Falta de água', horaDispensa: '12:00', motivo: 'em razão de falta de água',
+      datasAjuste: ['2026-06-08', '2026-06-09', '2026-06-10'],
+    }
+    const t = gerarObjeto(c, r(180, 60, 0, '15:00'))
+    expect(t.ok && t.texto).toContain('às 12h em razão de falta de água, compensando')
+    expect(t.ok && t.texto).not.toContain('conforme')
+  })
+
   it('T3', () => {
     const c: CamposAcordo = {
       template: 'T3', dataFolga: '2026-06-05', motivo: 'ponto facultativo municipal',
@@ -132,6 +142,11 @@ describe('normalizaMotivo', () => {
     expect(normalizaMotivo('Decreto 123/2026')).toBe('decreto 123/2026')
     expect(normalizaMotivo('Autorização da Secretária')).toBe('autorização da Secretária')
     expect(normalizaMotivo('Determinação superior')).toBe('determinação superior')
+  })
+
+  it('remove "em razão de" inicial (ignora acento e caixa)', () => {
+    expect(normalizaMotivo('em razão de falta de água')).toBe('falta de água')
+    expect(normalizaMotivo('Em Razao De obra na unidade.')).toBe('obra na unidade')
   })
 
   it('remove "conforme" inicial', () => {

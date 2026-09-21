@@ -2653,3 +2653,9 @@ Consistência de nomes conferida: `CamposAcordo`, `FuncionarioCalc`, `ResumoCalc
 - `lib/acordos/motivos.ts`: catálogo `MOTIVOS` (grupos Calendário, Determinação da unidade, Funcionamento da unidade, Infraestrutura, Outros), `NOMES_EVENTO_SUGERIDOS` e `conectorDoMotivo`. O T2 usa o conector: "…dispensados às 12h em razão de falta de água" / "…conforme decreto municipal" (texto livre ou vazio = "conforme").
 - PENDENTE: a redação final do T2 (conector "conforme" x "em razão de") segue sujeita à aprovação do RH.
 - Novo aviso `TURNO_FORA_44H` (não bloqueia): funcionário de regime elegível (5x2/5x1) com turno cadastrado que não soma 44:00h por semana; não emitido para quem está sem turno (padrão).
+
+### Errata pós-revisão da B1
+
+- `editarAcordo` lê a linha antes de atualizar: se `descricao_acordo` mudou e `horario_semana` é v2 com `objeto`, remove `objeto` de todos os turnos no mesmo update (helper `removerObjetosDosTurnos`), e o PDF volta ao parágrafo único com o texto editado. Texto igual, v1 ou nulo: turnos intactos.
+- `normalizaMotivo` remove também "em razão de" inicial. `conectorDoMotivo` respeita o conector já digitado ("em razão de …" ou "conforme …") antes de consultar o catálogo; o T2 passa o motivo digitado (não o normalizado) ao conector.
+- Modal: turnos rotulados Turno A/B/C (ou Turno Único) como no PDF/banco; o texto por grupo mostra os turnos do grupo ("Grupo 1 · Turno A e Turno C · 5 func.").

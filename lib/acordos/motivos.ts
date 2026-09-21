@@ -58,8 +58,11 @@ function normaliza(s: string): string {
 
 /** Conector que liga o motivo à frase ("conforme decreto…" / "em razão de falta de água"). Texto livre usa "conforme". */
 export function conectorDoMotivo(texto: string): ConectorMotivo {
-  const t = normaliza(texto).replace(/^conforme /, '')
+  const t = normaliza(texto)
   if (!t) return 'conforme'
+  // conector já digitado pelo usuário prevalece
+  if (t.startsWith('em razao de ')) return 'em razão de'
+  if (t.startsWith('conforme ')) return 'conforme'
   const achado = MOTIVOS.find(m => {
     const n = normaliza(m.texto)
     return t === n || t.startsWith(`${n} `)

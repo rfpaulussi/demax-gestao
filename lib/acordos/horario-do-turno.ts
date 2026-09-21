@@ -131,3 +131,22 @@ export function juntarRotulos(rotulos: string[]): string {
   if (rotulos.length <= 1) return rotulos.join('')
   return `${rotulos.slice(0, -1).join(', ')} e ${rotulos[rotulos.length - 1]}`
 }
+
+/**
+ * `horario_semana` v2: remove `objeto` de todos os turnos (usado quando o texto do acordo é editado à mão,
+ * para o PDF voltar ao parágrafo único). v1, nulo ou sem `objeto`: devolve o mesmo valor.
+ */
+export function removerObjetosDosTurnos(raw: unknown): unknown {
+  const r = raw as { _v?: number; turnos?: unknown } | null | undefined
+  if (!r || r._v !== 2 || !Array.isArray(r.turnos)) return raw
+  if (!r.turnos.some(t => t && typeof t === 'object' && 'objeto' in t)) return raw
+  return {
+    ...r,
+    turnos: r.turnos.map(t => {
+      if (!t || typeof t !== 'object') return t
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { objeto, ...resto } = t as Record<string, unknown>
+      return resto
+    }),
+  }
+}

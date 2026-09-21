@@ -10,7 +10,7 @@ import { DIAS_SEMANA, type Achado, type FuncionarioCalc, type TemplateId } from 
 import { agruparPorJornada, resumoCalculo } from '@/lib/acordos/movimentos'
 import { gerarObjeto, TEMPLATES } from '@/lib/acordos/templates'
 import { temErro, validarAcordo } from '@/lib/acordos/validar'
-import { assinaturaSemana, semanaParaTexto, totalSemanalMin } from '@/lib/acordos/horario-do-turno'
+import { assinaturaSemana, juntarRotulos, semanaParaTexto, totalSemanalMin } from '@/lib/acordos/horario-do-turno'
 import { sugerirDiasAjuste } from '@/lib/acordos/dias'
 import { fmtHorasTotal, hhmmParaMin, minParaHHMM } from '@/lib/acordos/tempo'
 import { CamposTemplate, FORM_VAZIO, montarCampos, type FormState } from './campos-template'
@@ -151,6 +151,18 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
     }
     return Array.from(m.values())
   }, [calc])
+  // Mesmos rótulos do PDF/banco: Turno A, B, C… (ou Turno Único)
+  const rotuloTurno = useCallback(
+    (i: number) => (turnos.length === 1 ? 'Turno Único' : `Turno ${String.fromCharCode(65 + i)}`),
+    [turnos.length],
+  )
+  const turnosDoGrupo = useCallback(
+    (g: FuncionarioCalc[]) => {
+      const ids = new Set(g.map(x => x.id))
+      return turnos.flatMap((fs, i) => (ids.has(fs[0].id) ? [rotuloTurno(i)] : []))
+    },
+    [turnos, rotuloTurno],
+  )
 
   function handleSalvar() {
     if (!titulo.trim()) { setErro('Informe o título do acordo.'); return }
@@ -335,7 +347,7 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
                   return (
                     <div key={ti} className={`overflow-hidden rounded-xl border border-t-4 border-gray-200 ${cor.borda}`}>
                       <div className={`flex items-center justify-between px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-600 ${cor.fundo}`}>
-                        <span>Turno {ti + 1} · {fs.length} funcionário(s)</span>
+                        <span>{rotuloTurno(ti)} · {fs.length} funcionário(s)</span>
                         <span className="font-normal text-gray-500">{minParaHHMM(totalSemanalMin(s))}h/semana</span>
                       </div>
                       {DIAS_SEMANA.map(d => (
@@ -383,7 +395,7 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
                 <div key={i}>
                   {textos.length > 1 && (
                     <p className="mb-0.5 font-sans text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                      Grupo {i + 1} · {grupos[i].length} func.
+                      Grupo {i + 1} · {juntarRotulos(turnosDoGrupo(grupos[i]))} · {grupos[i].length} func.
                     </p>
                   )}
                   <p className="font-mono text-[11px] leading-relaxed text-slate-300">

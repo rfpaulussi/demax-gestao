@@ -37,6 +37,12 @@ describe('conectorDoMotivo', () => {
     expect(conectorDoMotivo('obra ou reforma na unidade (bloco B)')).toBe('em razão de')
   })
 
+  it('prefixo explícito "em razão de"/"conforme" prevalece e não duplica', () => {
+    expect(conectorDoMotivo('em razão de falta de água')).toBe('em razão de')
+    expect(conectorDoMotivo('Em razao de algo digitado livre')).toBe('em razão de')
+    expect(conectorDoMotivo('conforme falta de água')).toBe('conforme')
+  })
+
   it('texto livre ou vazio -> "conforme"', () => {
     expect(conectorDoMotivo('algo digitado livre')).toBe('conforme')
     expect(conectorDoMotivo('')).toBe('conforme')

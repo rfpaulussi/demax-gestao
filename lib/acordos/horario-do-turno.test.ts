@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   montarSemana, jornadaDiaMin, totalSemanalMin, semanaParaTexto, assinaturaSemana,
-  saidaDoDia, minutosAposHorario, minutosForaDoHorario, juntarRotulos,
+  saidaDoDia, minutosAposHorario, minutosForaDoHorario, juntarRotulos, removerObjetosDosTurnos,
   TURNO_PADRAO, type TurnoRow,
 } from './horario-do-turno'
 
@@ -99,5 +99,26 @@ describe('juntarRotulos', () => {
     expect(juntarRotulos(['Turno A'])).toBe('Turno A')
     expect(juntarRotulos(['Turno A', 'Turno C'])).toBe('Turno A e Turno C')
     expect(juntarRotulos(['Turno A', 'Turno B', 'Turno C'])).toBe('Turno A, Turno B e Turno C')
+  })
+})
+
+describe('removerObjetosDosTurnos', () => {
+  it('v2: remove objeto de todos os turnos e preserva o resto', () => {
+    const raw = { _v: 2, turnos: [
+      { label: 'Turno A', horario: { 'Segunda-feira': '07:00 às 17:00' }, funcionario_ids: ['a'], objeto: 'x' },
+      { label: 'Turno B', horario: {}, funcionario_ids: ['b'], objeto: 'y' },
+    ] }
+    expect(removerObjetosDosTurnos(raw)).toEqual({ _v: 2, turnos: [
+      { label: 'Turno A', horario: { 'Segunda-feira': '07:00 às 17:00' }, funcionario_ids: ['a'] },
+      { label: 'Turno B', horario: {}, funcionario_ids: ['b'] },
+    ] })
+    expect(raw.turnos[0].objeto).toBe('x')
+  })
+
+  it('v1, nulo ou sem objeto: devolve o mesmo valor', () => {
+    const v1 = { 'Segunda-feira': '07:00 às 17:00' }
+    expect(removerObjetosDosTurnos(v1)).toBe(v1)
+    expect(removerObjetosDosTurnos(null)).toBeNull()
+    expect(removerObjetosDosTurnos(undefined)).toBeUndefined()
   })
 })
