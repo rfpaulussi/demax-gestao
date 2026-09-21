@@ -126,8 +126,8 @@ export function CamposTemplate({
       : f.duracao ? hhmmParaMin(f.duracao) : 0
 
   const nomeEvento = (rotulo: string) => (
-    <Campo titulo={rotulo} ajuda="ex: Festa Junina" erro={erros.nomeEvento}>
-      <input value={f.nomeEvento} onChange={e => set('nomeEvento', e.target.value)} placeholder="ex: Festa Junina" className={cls('nomeEvento')} />
+    <Campo titulo={rotulo} htmlFor="campo-nomeEvento" ajuda="ex: Festa Junina" erro={erros.nomeEvento}>
+      <input id="campo-nomeEvento" value={f.nomeEvento} onChange={e => set('nomeEvento', e.target.value)} placeholder="ex: Festa Junina" className={cls('nomeEvento')} />
     </Campo>
   )
 
@@ -143,7 +143,7 @@ export function CamposTemplate({
 
   const periodoOuHoras = () => (
     <div>
-      <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-500">Quanto tempo trabalharam?</label>
+      <p className="mb-1.5 text-xs font-bold uppercase tracking-widest text-slate-500">Quanto tempo trabalharam?</p>
       <div role="tablist" className="mb-2 flex gap-1 rounded-lg border border-gray-200 bg-white p-1">
         <button type="button" role="tab" aria-selected={modo === 'periodo'} onClick={() => trocarModo('periodo')} className={abaCls(modo === 'periodo')}>
           Informar o período
@@ -155,18 +155,18 @@ export function CamposTemplate({
       {modo === 'periodo' ? (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <span className="mb-1 block text-xs font-semibold text-slate-500">Das</span>
-            <input type="time" value={f.periodoInicio} onChange={e => set('periodoInicio', e.target.value)} className={cls('horas')} />
+            <label htmlFor="campo-periodoInicio" className="mb-1 block text-xs font-semibold text-slate-500">Das</label>
+            <input id="campo-periodoInicio" type="time" value={f.periodoInicio} onChange={e => set('periodoInicio', e.target.value)} className={cls('horas')} />
           </div>
           <div>
-            <span className="mb-1 block text-xs font-semibold text-slate-500">Às</span>
-            <input type="time" value={f.periodoFim} onChange={e => set('periodoFim', e.target.value)} className={cls('horas')} />
+            <label htmlFor="campo-periodoFim" className="mb-1 block text-xs font-semibold text-slate-500">Às</label>
+            <input id="campo-periodoFim" type="time" value={f.periodoFim} onChange={e => set('periodoFim', e.target.value)} className={cls('horas')} />
           </div>
         </div>
       ) : (
         <div className="max-w-[10rem]">
-          <span className="mb-1 block text-xs font-semibold text-slate-500">Horas trabalhadas</span>
-          <input type="time" value={f.duracao} onChange={e => set('duracao', e.target.value)} className={cls('horas')} />
+          <label htmlFor="campo-duracao" className="mb-1 block text-xs font-semibold text-slate-500">Horas trabalhadas</label>
+          <input id="campo-duracao" type="time" value={f.duracao} onChange={e => set('duracao', e.target.value)} className={cls('horas')} />
         </div>
       )}
       {totalMin > 0 && <p className="mt-1.5 text-sm font-semibold text-slate-700">= {fmtHM(totalMin)}</p>}
@@ -182,8 +182,8 @@ export function CamposTemplate({
   )
 
   const dataCampo = (rotulo: string, chave: 'dataEvento' | 'dataFolga', ajuda: string, cal?: { nome: string; tipo: string }) => (
-    <Campo titulo={rotulo} ajuda={ajuda} erro={erros[chave]}>
-      <input type="date" value={f[chave]} onChange={e => set(chave, e.target.value)} className={`max-w-xs ${cls(chave)}`} />
+    <Campo titulo={rotulo} htmlFor={`campo-${chave}`} ajuda={ajuda} erro={erros[chave]}>
+      <input id={`campo-${chave}`} type="date" value={f[chave]} onChange={e => set(chave, e.target.value)} className={`max-w-xs ${cls(chave)}`} />
       <div><ChipCalendario info={cal} /></div>
     </Campo>
   )
@@ -238,10 +238,11 @@ export function CamposTemplate({
             </div>
             <Campo
               titulo="A que horas foram liberados?"
+              htmlFor="campo-horaDispensa"
               ajuda={dicaDispensa || 'Cada funcionário é comparado ao horário de saída do próprio turno. ex: 12:00'}
               erro={erros.horaDispensa}
             >
-              <input type="time" value={f.horaDispensa} onChange={e => set('horaDispensa', e.target.value)} className={`max-w-[10rem] ${cls('horaDispensa')}`} />
+              <input id="campo-horaDispensa" type="time" value={f.horaDispensa} onChange={e => set('horaDispensa', e.target.value)} className={`max-w-[10rem] ${cls('horaDispensa')}`} />
             </Campo>
           </SubPasso>
           <SubPasso letra={proxima()} titulo="Motivo">{blocoMotivo(true)}</SubPasso>
@@ -268,7 +269,7 @@ export function CamposTemplate({
           <SubPasso letra={proxima()} titulo="Quando será a folga">
             {dataCampo('Em que dia vão folgar?', 'dataFolga', 'ex: 12/06/2026', calFolga)}
             <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-500">Motivo</label>
+              <p className="mb-1.5 text-xs font-bold uppercase tracking-widest text-slate-500">Motivo</p>
               {blocoMotivo(false)}
             </div>
           </SubPasso>

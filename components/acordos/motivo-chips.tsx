@@ -41,7 +41,7 @@ export function MotivoChips({ motivo, onChange, sugestao, erro }: Props) {
       {sugestao && motivo !== sugestao && (
         <button
           type="button"
-          onClick={() => { setOutroAberto(false); onChange(sugestao) }}
+          onClick={() => { setOutroAberto(identificarMotivo(sugestao).id === 'outro'); onChange(sugestao) }}
           className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-100"
         >
           usar &lsquo;{sugestao}&rsquo;
@@ -74,8 +74,9 @@ export function MotivoChips({ motivo, onChange, sugestao, erro }: Props) {
 
       {ativoId === 'decreto-municipal' && (
         <div>
-          <label className="mb-1 block text-xs font-semibold text-slate-500">Nº do decreto (opcional)</label>
+          <label htmlFor="campo-decreto" className="mb-1 block text-xs font-semibold text-slate-500">Nº do decreto (opcional)</label>
           <input
+            id="campo-decreto"
             value={decreto}
             onChange={e => { setDecreto(e.target.value); onChange(montarMotivoDecreto(e.target.value)) }}
             placeholder="ex: 12.345/2026"

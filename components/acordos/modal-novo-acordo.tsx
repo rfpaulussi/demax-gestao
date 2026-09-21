@@ -21,7 +21,7 @@ import { INPUT_CLS, INPUT_ERRO_CLS, LABEL_CLS, Passo } from './passo'
 import { SituacaoCards } from './situacao-cards'
 import { PassoFuncionarios } from './passo-funcionarios'
 import { PrazoLimite } from './prazo-limite'
-import { LinhaAchado, ResumoAcordo, type ItemResumo, type StatusResumo, type TextoGrupo, type TurnoResumo } from './resumo-acordo'
+import { ResumoAcordo, type ItemResumo, type StatusResumo, type TextoGrupo, type TurnoResumo } from './resumo-acordo'
 
 /** Campo do formulário -> chave "tocada" (para só mostrar erro depois de interagir). */
 const CHAVE_DO_FORM: Partial<Record<keyof FormState, string>> = {
@@ -108,6 +108,7 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
     if (postosSel.length === 0) {
       setFuncs([])
       setSelectedIds(new Set())
+      setLoadingFuncs(false)
       return
     }
     setLoadingFuncs(true)
@@ -270,7 +271,11 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
     const msgDe = (codigos: string[]) => achados.find(a => a.nivel === 'erro' && codigos.includes(a.codigo))?.mensagem
     if (faltando.includes('data do evento') && mostra('dataEvento')) out.dataEvento = 'Informe a data.'
     if (faltando.includes('nome do evento') && mostra('nomeEvento')) out.nomeEvento = 'Informe o nome do evento.'
-    if (faltando.includes('horas trabalhadas no evento') && mostra('horas')) out.horas = 'Informe o período ou as horas trabalhadas.'
+    if (faltando.includes('horas trabalhadas no evento') && mostra('horas')) {
+      out.horas = f.periodoInicio && !f.periodoFim ? 'Informe também o fim do período.'
+        : !f.periodoInicio && f.periodoFim ? 'Informe também o início do período.'
+        : 'Informe o período ou as horas trabalhadas.'
+    }
     if (faltando.includes('horário de dispensa') && mostra('horaDispensa')) out.horaDispensa = 'Informe o horário de dispensa.'
     if (faltando.includes('data da folga') && mostra('dataFolga')) out.dataFolga = 'Informe a data.'
     if (faltando.includes('motivo') && mostra('motivo')) out.motivo = 'Escolha ou escreva o motivo.'
@@ -279,13 +284,8 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
     out.horas = out.horas ?? msgDe(CODIGOS_HORAS)
     out.dias = out.dias ?? msgDe(CODIGOS_DIAS)
     return out
-  }, [situacaoEscolhida, tentou, tocou, faltando, achados])
+  }, [situacaoEscolhida, tentou, tocou, faltando, achados, f.periodoInicio, f.periodoFim])
 
-  const errosCard = useMemo(
-    () => agruparAchados(achados.filter(a =>
-      a.nivel === 'erro' && !CODIGOS_DO_CHECKLIST.includes(a.codigo) && !CODIGOS_DIAS.includes(a.codigo) && !CODIGOS_HORAS.includes(a.codigo))),
-    [achados],
-  )
   const gruposResumo = useMemo(
     () => (situacaoEscolhida ? agruparAchados(achados.filter(a => !CODIGOS_DO_CHECKLIST.includes(a.codigo))) : []),
     [achados, situacaoEscolhida],
@@ -331,7 +331,7 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
   }
 
   const erroTitulo = tentou && !titulo.trim()
-  const erroFuncionarios = !okDe('funcionarios') && itemVisivel('funcionarios')
+  const erroFuncionarios = !loadingFuncs && !okDe('funcionarios') && itemVisivel('funcionarios')
     ? postosSel.length === 0 ? 'Escolha um posto.' : selecionados.length === 0 ? 'Marque ao menos um funcionário.' : 'Há funcionários não elegíveis selecionados.'
     : null
   const numeroPrazo = 4
@@ -348,8 +348,9 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
           <div className="space-y-4">
             <section id="passo-topo" className="scroll-mt-4 space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
               <div>
-                <label className={`${LABEL_CLS} mb-1.5`}>Título do acordo</label>
+                <label htmlFor="campo-titulo" className={`${LABEL_CLS} mb-1.5`}>Título do acordo</label>
                 <input
+                  id="campo-titulo"
                   value={titulo}
                   onChange={e => { setTitulo(e.target.value); tocar('titulo') }}
                   placeholder="ex: Emenda 05/06 — Junho 2026"
@@ -395,24 +396,19 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
 
             <Passo id="passo-dados" numero={3} titulo="Dados do acordo" feito={situacaoEscolhida && okDe('datas') && okDe('motivo')}>
               {situacaoEscolhida ? (
-                <>
-                  <CamposTemplate
-                    template={template}
-                    f={f}
-                    set={set}
-                    feriados={feriados}
-                    diasManual={diasManual}
-                    onDatasManuais={() => setDiasManual(true)}
-                    onRecalcular={() => setDiasManual(false)}
-                    erros={erros}
-                    conta={conta}
-                    dicaDispensa={dicaDispensa}
-                    notaPeriodo={notaPeriodo}
-                  />
-                  {errosCard.length > 0 && (
-                    <div className="space-y-1.5">{errosCard.map(g => <LinhaAchado key={g.codigo} g={g} />)}</div>
-                  )}
-                </>
+                <CamposTemplate
+                  template={template}
+                  f={f}
+                  set={set}
+                  feriados={feriados}
+                  diasManual={diasManual}
+                  onDatasManuais={() => setDiasManual(true)}
+                  onRecalcular={() => setDiasManual(false)}
+                  erros={erros}
+                  conta={conta}
+                  dicaDispensa={dicaDispensa}
+                  notaPeriodo={notaPeriodo}
+                />
               ) : (
                 <p className="text-sm text-gray-400">Escolha a situação no passo 1 para ver os campos.</p>
               )}

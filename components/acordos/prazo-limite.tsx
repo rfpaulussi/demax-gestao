@@ -25,8 +25,9 @@ export function PrazoLimite({ numero, obrigatorio, valor, onChange, erro, max }:
   return (
     <Passo id="passo-prazo" numero={numero} titulo={titulo} erro={!!erro} feito={!erro && !!valor}>
       <div>
-        <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-500">Até quando?</label>
+        <label htmlFor="campo-prazo" className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-500">Até quando?</label>
         <input
+          id="campo-prazo"
           type="date"
           value={valor}
           max={max ?? undefined}
@@ -36,7 +37,7 @@ export function PrazoLimite({ numero, obrigatorio, valor, onChange, erro, max }:
         />
         {erro ? (
           <p className="mt-1.5 text-xs font-medium text-red-600">
-            {erro} Até quando? Máximo de {PRAZO_MAXIMO_MESES} meses{max ? `: ${fmtDataBR(max)}` : ''}.
+            {erro} Máximo de {PRAZO_MAXIMO_MESES} meses{max ? `: ${fmtDataBR(max)}` : ''}.
           </p>
         ) : (
           <p className="mt-1.5 text-xs text-gray-400">

@@ -2668,3 +2668,11 @@ Consistência de nomes conferida: `CamposAcordo`, `FuncionarioCalc`, `ResumoCalc
 - Helpers puros e testados em `lib/acordos/resumo.ts`: `precisaPrazo`, `dataMaximaPrazo`, `agruparAchados`, `montarChecklist`, `textoConta`, `rotuloDiaChip`, `identificarMotivo`, `montarMotivoDecreto`, `motivoDoCalendario`.
 - Erros: vermelho junto ao campo só depois de `tocou`/`tentou`; o checklist do resumo fica cinza até interagir. "Salvar Acordo" é clicável com pendência: marca `tentou`, rola até o primeiro item pendente e mostra "Faltam N itens" sem chamar o servidor.
 - Decisões: a situação começa sem seleção (o `template` interno segue T3 até o usuário escolher); o checklist ganhou o item "Título do acordo"; antes de qualquer interação o selo do resumo é neutro (não vermelho). Verificação visual pendente (o app exige login).
+
+### Errata pós-revisão da B2
+
+- Passo 2: "Marque ao menos um funcionário." e a borda vermelha só aparecem quando não está carregando (`!loadingFuncs`); sem posto, o efeito também zera `loadingFuncs`.
+- Motivo: a sugestão do calendário fora do catálogo abre o modo "outro" (`identificarMotivo(sugestao).id === 'outro'`), então o input de texto não some se o usuário apagar o texto.
+- Período com só "Das" (ou só "Às") mostra "Informe também o fim/início do período." em vez da mensagem geral de horas.
+- Acessibilidade: `htmlFor`/`id` em título, período, horas, nome, datas, horário de dispensa, prazo, decreto e data do documento; `key` dos nomes de turno inclui o índice (homônimos).
+- Erros de conteúdo (ex.: dia de folga) aparecem só no "Avisos" do resumo; o card do passo 3 mostra apenas erros de campo. Texto do prazo sem o "Até quando?" repetido.

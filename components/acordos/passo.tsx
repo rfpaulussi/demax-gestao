@@ -52,10 +52,10 @@ export function SubPasso({ id, letra, titulo, children }: { id?: string; letra: 
 }
 
 /** Campo com pergunta, linha de ajuda com exemplo e mensagem de erro (vermelha) opcional. */
-export function Campo({ titulo, ajuda, erro, children }: { titulo: string; ajuda?: string; erro?: string | null; children: React.ReactNode }) {
+export function Campo({ titulo, htmlFor, ajuda, erro, children }: { titulo: string; htmlFor?: string; ajuda?: string; erro?: string | null; children: React.ReactNode }) {
   return (
     <div>
-      <label className={`${LABEL_CLS} mb-1.5`}>{titulo}</label>
+      <label htmlFor={htmlFor} className={`${LABEL_CLS} mb-1.5`}>{titulo}</label>
       {children}
       {erro ? <p className="mt-1 text-xs font-medium text-red-600">{erro}</p> : ajuda && <p className="mt-1 text-xs text-gray-400">{ajuda}</p>}
     </div>

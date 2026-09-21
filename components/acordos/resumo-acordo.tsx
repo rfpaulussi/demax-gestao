@@ -156,7 +156,7 @@ export function ResumoAcordo(p: Props) {
                     ))}
                     <details className="border-t border-gray-100 px-3 py-1.5">
                       <summary className="cursor-pointer font-semibold text-slate-600">Ver funcionários</summary>
-                      <ul className="mt-1 space-y-0.5 text-gray-700">{t.nomes.map(n => <li key={n}>{n}</li>)}</ul>
+                      <ul className="mt-1 space-y-0.5 text-gray-700">{t.nomes.map((n, i) => <li key={`${i}-${n}`}>{n}</li>)}</ul>
                     </details>
                   </div>
                 )
@@ -191,8 +191,8 @@ export function ResumoAcordo(p: Props) {
       </div>
 
       <div className="border-t border-gray-100 pt-3">
-        <label className={`${LABEL_CLS} mb-1.5`}>Data do documento</label>
-        <input type="date" value={p.dataDoc} onChange={e => p.onDataDoc(e.target.value)} className={INPUT_CLS} />
+        <label htmlFor="campo-data-documento" className={`${LABEL_CLS} mb-1.5`}>Data do documento</label>
+        <input id="campo-data-documento" type="date" value={p.dataDoc} onChange={e => p.onDataDoc(e.target.value)} className={INPUT_CLS} />
       </div>
 
       {p.faltam && <div className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{p.faltam}</div>}
