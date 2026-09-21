@@ -1,5 +1,5 @@
 import type { Achado, CamposAcordo, NivelAchado, TemplateId } from './tipos'
-import { addDias, addMeses, diaSemanaDe, fmtHoraCurta, mesDe } from './tempo'
+import { addDias, addMeses, diaSemanaDe, fmtHoraCurta } from './tempo'
 import { camposFaltando } from './validar'
 import { PRAZO_MAXIMO_MESES } from './regras'
 import { MOTIVOS } from './motivos'
@@ -89,8 +89,12 @@ export function verboCompensacao(template: TemplateId): string {
 }
 
 /** "8 dias × 66 min = 8h48 a repor"; null quando não há dias ou horas. */
-export function textoConta(template: TemplateId, nDias: number, minPorDia: number, totalMin: number, variaPorTurno: boolean): string | null {
+/** `totalMax`: com turnos de totais diferentes, mostra a faixa ("de 3h18 a 5h") em vez de só o total do primeiro turno. */
+export function textoConta(template: TemplateId, nDias: number, minPorDia: number, totalMin: number, variaPorTurno: boolean, totalMax?: number): string | null {
   if (nDias <= 0 || minPorDia <= 0 || totalMin <= 0) return null
+  if (variaPorTurno && totalMax !== undefined && totalMax !== totalMin) {
+    return `${plural(nDias, 'dia', 'dias')} · de ${fmtDuracao(totalMin)} a ${fmtDuracao(totalMax)} ${VERBO[template]} (varia por turno)`
+  }
   const base = `${plural(nDias, 'dia', 'dias')} × ${minPorDia} min = ${fmtDuracao(totalMin)} ${VERBO[template]}`
   return variaPorTurno ? `${base} (varia por turno)` : base
 }
@@ -103,14 +107,14 @@ export interface RotuloDiaChip {
   mes: string | null
 }
 
-/** Mini-cartão de calendário: "seg", "8" e, se o mês difere do primeiro dia da lista, o mês abreviado. */
+/** Mini-cartão de calendário: "seg", "8" e o mês abreviado (com o ano de 2 dígitos se difere do primeiro dia da lista). */
 export function rotuloDiaChip(iso: string, primeiro: string | undefined): RotuloDiaChip {
-  const [, m, d] = iso.slice(0, 10).split('-').map(Number)
-  const outroMes = !!primeiro && mesDe(iso) !== mesDe(primeiro)
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number)
+  const outroAno = !!primeiro && Number(primeiro.slice(0, 4)) !== y
   return {
     semana: diaSemanaDe(iso).slice(0, 3).toLowerCase(),
     dia: String(d),
-    mes: outroMes ? MESES[m - 1] : null,
+    mes: primeiro ? `${MESES[m - 1]}${outroAno ? `/${String(y).slice(2)}` : ''}` : null,
   }
 }
 

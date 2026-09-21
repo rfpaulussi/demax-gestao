@@ -237,8 +237,11 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
   // ── Textos de apoio dos campos ────────────────────────────────────────────
   const r0 = grupos.length ? resumoCalculo(campos, grupos[0]) : null
   // "varia por turno" só quando os totais mesmo diferem (no revezamento os grupos podem diferir só na data)
-  const variaPorTurno = new Set(grupos.map(g => resumoCalculo(campos, g).horasTotalMin)).size > 1
-  const conta = r0 ? textoConta(template, campos.datasAjuste.length, r0.minutosPorDia, r0.horasTotalMin, variaPorTurno) : null
+  const totaisGrupos = grupos.map(g => resumoCalculo(campos, g).horasTotalMin)
+  const variaPorTurno = new Set(totaisGrupos).size > 1
+  const conta = r0
+    ? textoConta(template, campos.datasAjuste.length, r0.minutosPorDia, Math.min(...totaisGrupos), variaPorTurno, Math.max(...totaisGrupos))
+    : null
   const periodoMin = (template === 'T1' || template === 'T5') && f.periodoInicio && f.periodoFim
     ? hhmmParaMin(f.periodoFim) - hhmmParaMin(f.periodoInicio)
     : 0

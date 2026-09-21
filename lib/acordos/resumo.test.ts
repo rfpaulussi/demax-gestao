@@ -109,6 +109,10 @@ describe('textoConta', () => {
     expect(textoConta('T2', 2, 60, 120, true)).toBe('2 dias × 60 min = 2h a repor (varia por turno)')
   })
 
+  it('mostra a faixa quando os turnos têm totais diferentes', () => {
+    expect(textoConta('T2', 6, 40, 240, true, 300)).toBe('6 dias · de 4h a 5h a repor (varia por turno)')
+  })
+
   it('devolve null sem dias ou sem horas', () => {
     expect(textoConta('T3', 0, 0, 0, false)).toBeNull()
     expect(textoConta('T3', 3, 0, 0, false)).toBeNull()
@@ -127,13 +131,13 @@ describe('fmtDuracao / fmtHM', () => {
 })
 
 describe('rotuloDiaChip', () => {
-  it('dia da semana abreviado, número do dia e sem mês quando é o mesmo do primeiro', () => {
-    expect(rotuloDiaChip('2026-06-08', '2026-06-08')).toEqual({ semana: 'seg', dia: '8', mes: null })
-    expect(rotuloDiaChip('2026-06-13', '2026-06-08')).toEqual({ semana: 'sáb', dia: '13', mes: null })
+  it('dia da semana abreviado, número do dia e sempre o mês abreviado', () => {
+    expect(rotuloDiaChip('2026-06-08', '2026-06-08')).toEqual({ semana: 'seg', dia: '8', mes: 'jun' })
+    expect(rotuloDiaChip('2026-07-01', '2026-06-30')).toEqual({ semana: 'qua', dia: '1', mes: 'jul' })
   })
 
-  it('mostra o mês abreviado quando difere do primeiro', () => {
-    expect(rotuloDiaChip('2026-07-01', '2026-06-30')).toEqual({ semana: 'qua', dia: '1', mes: 'jul' })
+  it('acrescenta o ano quando difere do primeiro', () => {
+    expect(rotuloDiaChip('2027-01-04', '2026-12-30')).toEqual({ semana: 'seg', dia: '4', mes: 'jan/27' })
   })
 
   it('funciona sem referência', () => {

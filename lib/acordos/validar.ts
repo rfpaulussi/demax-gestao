@@ -119,7 +119,7 @@ export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriado
     const opcoes: number[] = []
     for (let k = 1; k <= 31 && opcoes.length < 4; k++) if (total % k === 0 && total / k <= teto) opcoes.push(k)
     const dica = opcoes.length ? ` Com ${opcoes.join(', ')} dias divide certo.` : ''
-    add('erro', 'DIVISAO', `As ${total} min a compensar não dividem igualmente por ${n} dias.${dica}`)
+    add('erro', 'DIVISAO', `${naoDivide.nome}: as ${total} min a compensar não dividem igualmente por ${n} dias.${dica}`)
   }
   const porDiaDe = (f: FuncionarioCalc) => (n > 0 && c.template !== 'T5' ? Math.floor(origem.get(f.id)! / n) : 0)
 
