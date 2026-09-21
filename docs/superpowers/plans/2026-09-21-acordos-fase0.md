@@ -2614,3 +2614,12 @@ Consistência de nomes conferida: `CamposAcordo`, `FuncionarioCalc`, `ResumoCalc
 - T2 com evento em dia de folga da escala: erro `DIA_DE_FOLGA`. T5 com evento em dia útil: aviso `EVENTO_EM_DIA_UTIL`.
 - `ORIGEM_LIMITE` (erro): T1/T5 com `minutosOrigem` acima de 10h; T2 com horas dispensadas maiores que a jornada do dia do evento (nesse caso o T2 em dia de folga só emite `DIA_DE_FOLGA`, sem duplicar).
 - Ficaram de fora de propósito: desconto do almoço no cálculo das horas do T2, e o fallback "decreto municipal" do T2 sem motivo (é a redação padrão da empresa).
+
+### Estágio 3
+
+`actions.ts` e `lib/calendario/mogi.ts` foram ajustados após a revisão do estágio 3 (o código vigente está nos arquivos, não nos blocos da Task 8/10):
+- `carregarFuncionarios` lê `config_escalas_postos` com service role (RLS só deixa admin ler), restrito aos postos dos funcionários já filtrados pela sessão; o regime do turno passa por `resolverTipoEscala`.
+- Nenhuma consulta engole erro: `carregarFuncionarios` e `mogi.ts` lançam; `criarAcordo` captura e devolve mensagem em português (em `mogi.ts`, tabela inexistente ainda devolve `[]`).
+- `postos` gravados são montados no servidor a partir de `posto_id` dos funcionários (`FuncionarioParaAcordo.posto_id`); `dados.postos` só precisa ser não vazio. `tipo` e `data_documento` são validados.
+- Todas as datas de `campos` são validadas antes de qualquer consulta: formato AAAA-MM-DD, data real e ano entre atual-1 e atual+3.
+- Rollback do acordo sem movimentos checa o erro do delete e cita o id órfão; erro de tabela/coluna ausente vira "migration 20260922 ainda não aplicada".

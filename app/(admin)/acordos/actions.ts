@@ -38,6 +38,7 @@ export interface FuncionarioParaAcordo extends AcordoFuncionarioItem {
   motivo_inelegivel: string | null
   semana: SemanaTurno
   sem_turno: boolean
+  posto_id: string | null
 }
 
 export interface TurnoHorario {
@@ -142,6 +143,24 @@ export async function listarAcordos(filters?: {
   })
 }
 
+const REGEX_MIGRATION = /does not exist|schema cache|Could not find/i
+const MSG_MIGRATION = 'A migration de acordos (20260922) ainda não foi aplicada no banco.'
+
+function dataReal(iso: unknown): iso is string {
+  if (typeof iso !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false
+  const [a, m, d] = iso.split('-').map(Number)
+  const dt = new Date(Date.UTC(a, m - 1, d))
+  return dt.getUTCFullYear() === a && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d
+}
+
+/** Todas as datas de `campos` vêm do navegador: precisam ser reais e estar num intervalo de anos plausível. */
+function datasDosCamposValidas(c: CamposAcordo): boolean {
+  if (!Array.isArray(c.datasAjuste)) return false
+  const anoAtual = new Date().getFullYear()
+  const datas = [c.dataEvento, c.dataFolga, c.prazoLimite, ...c.datasAjuste].filter(d => d !== undefined && d !== null && d !== '')
+  return datas.every(d => dataReal(d) && Number(d.slice(0, 4)) >= anoAtual - 1 && Number(d.slice(0, 4)) <= anoAtual + 3)
+}
+
 function anosDoAcordo(c: CamposAcordo): number[] {
   const datas = [c.dataEvento, c.dataFolga, c.prazoLimite, ...c.datasAjuste].filter((d): d is string => !!d)
   return Array.from(new Set(datas.map(d => Number(d.slice(0, 4)))))
@@ -158,10 +177,21 @@ export async function criarAcordo(dados: {
   const guard = await requireRole(['admin', 'coordenador', 'supervisor'])
   if (!guard.success) return { error: guard.error }
   if (!dados.titulo.trim()) return { error: 'Informe o título do acordo.' }
-  if (!dados.postos.length) return { error: 'Selecione ao menos um posto.' }
+  if (!Array.isArray(dados.postos) || !dados.postos.length) return { error: 'Selecione ao menos um posto.' }
+  if (dados.tipo !== 'individual' && dados.tipo !== 'coletivo') return { error: 'Tipo de acordo inválido.' }
+  if (!dataReal(dados.data_documento)) return { error: 'Data do documento inválida. Use o formato AAAA-MM-DD.' }
+  if (!dados.campos || !datasDosCamposValidas(dados.campos)) {
+    return { error: 'Data inválida ou fora do intervalo permitido.' }
+  }
+  if (!Array.isArray(dados.funcionarioIds)) return { error: 'Selecione ao menos um funcionário.' }
 
   const ids = Array.from(new Set(dados.funcionarioIds))
-  const funcs = await carregarFuncionarios({ ids })
+  let funcs: FuncionarioParaAcordo[]
+  try {
+    funcs = await carregarFuncionarios({ ids })
+  } catch {
+    return { error: 'Não foi possível carregar os funcionários. Tente novamente.' }
+  }
   if (ids.length === 0 || funcs.length !== ids.length) {
     return { error: 'Algum funcionário não foi encontrado ou você não tem acesso a ele.' }
   }
@@ -169,7 +199,12 @@ export async function criarAcordo(dados: {
   if (inelegivel) return { error: `${inelegivel.nome}: ${inelegivel.motivo_inelegivel}` }
 
   const calc = paraCalc(funcs)
-  const feriados = calendarioParaMapa(await carregarCalendario(anosDoAcordo(dados.campos)))
+  let feriados: ReturnType<typeof calendarioParaMapa>
+  try {
+    feriados = calendarioParaMapa(await carregarCalendario(anosDoAcordo(dados.campos)))
+  } catch {
+    return { error: 'Não foi possível carregar o calendário de feriados. Tente novamente.' }
+  }
   const achados = validarAcordo(dados.campos, calc, feriados)
   if (temErro(achados)) {
     return { error: achados.filter(a => a.nivel === 'erro').map(a => a.mensagem).join(' ') }
@@ -189,6 +224,19 @@ export async function criarAcordo(dados: {
     funcionario_ids: g.map(f => f.id),
   }))
 
+  // Postos montados no servidor (não confiar no que veio do navegador); leitura com RLS de sessão.
+  const postoIdsDosFuncs = Array.from(new Set(funcs.map(f => f.posto_id).filter((p): p is string => !!p)))
+  if (postoIdsDosFuncs.length === 0) return { error: 'Os funcionários selecionados não estão vinculados a um posto.' }
+  const { data: postosDb, error: errPostos } = await (createClient() as AnyClient)
+    .from('postos')
+    .select('id, nome, secretaria')
+    .in('id', postoIdsDosFuncs)
+  if (errPostos) return { error: 'Não foi possível carregar os postos. Tente novamente.' }
+  const postos: AcordoPostoItem[] = ((postosDb ?? []) as AcordoPostoItem[]).map(p => ({
+    id: p.id, nome: p.nome, secretaria: p.secretaria ?? null,
+  }))
+  if (postos.length === 0) return { error: 'Postos dos funcionários não encontrados.' }
+
   const admin = createAdminClient() as AnyClient
   const { data, error } = await admin
     .from('acordos_compensacao')
@@ -196,7 +244,7 @@ export async function criarAcordo(dados: {
       titulo: dados.titulo.trim(),
       tipo: dados.tipo,
       subtipo: TEMPLATES[dados.campos.template].subtipo,
-      postos: dados.postos,
+      postos,
       funcionarios: funcs.map(f => ({ id: f.id, nome: f.nome, funcao: f.funcao, status: f.status })),
       horario_semana: { _v: 2, turnos: horarios },
       descricao_acordo: texto.texto,
@@ -210,7 +258,7 @@ export async function criarAcordo(dados: {
     })
     .select('id')
     .single()
-  if (error) return { error: error.message }
+  if (error) return { error: REGEX_MIGRATION.test(error.message) ? MSG_MIGRATION : error.message }
 
   const movimentos = construirMovimentos(dados.campos, calc).map(m => ({
     acordo_id: data.id,
@@ -221,8 +269,17 @@ export async function criarAcordo(dados: {
   }))
   const { error: errMov } = await admin.from('acordo_movimentos').insert(movimentos)
   if (errMov) {
-    await admin.from('acordos_compensacao').delete().eq('id', data.id)
-    return { error: `Não foi possível gravar os movimentos do acordo: ${errMov.message}` }
+    const { error: errDel } = await admin.from('acordos_compensacao').delete().eq('id', data.id)
+    if (errDel) {
+      return {
+        error: `Não foi possível gravar os movimentos e o acordo incompleto não pôde ser removido (id ${data.id}). Avise o suporte para excluí-lo.`,
+      }
+    }
+    return {
+      error: REGEX_MIGRATION.test(errMov.message)
+        ? MSG_MIGRATION
+        : `Não foi possível gravar os movimentos do acordo: ${errMov.message}`,
+    }
   }
 
   revalidatePath('/acordos')
@@ -265,31 +322,36 @@ async function carregarFuncionarios(filtro: { postoIds?: string[]; ids?: string[
 
   type Row = { id: string; nome: string; status: string; posto_id: string | null; funcoes: { nome: string } | null }
   const rows = await emLotes<Row>(valores, async lote => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('funcionarios')
       .select('id, nome, status, posto_id, funcoes!funcao_id(nome)')
       .in(coluna, lote)
       .not('status', 'eq', 'desligado')
       .order('nome')
+    if (error) throw new Error('Falha ao carregar funcionários')
     return (data ?? []) as Row[]
   })
   if (!rows.length) return []
 
   type TurnoJoin = { funcionario_id: string; turnos_postos: (TurnoRow & { nome: string }) | null }
   const horarios = await emLotes<TurnoJoin>(rows.map(r => r.id), async lote => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('horarios_funcionarios')
       .select('funcionario_id, turnos_postos!turno_id(*)')
       .in('funcionario_id', lote)
       .is('data_fim', null)
+    if (error) throw new Error('Falha ao carregar horários dos funcionários')
     return (data ?? []) as TurnoJoin[]
   })
   const turnoPorFunc = new Map<string, TurnoRow & { nome: string }>()
   for (const h of horarios) if (h.turnos_postos) turnoPorFunc.set(h.funcionario_id, h.turnos_postos)
 
   const postoIds = Array.from(new Set(rows.map(r => r.posto_id).filter((p): p is string => !!p)))
+  // config_escalas_postos só é legível por admin (RLS); os postos aqui já passaram pela RLS de sessão via funcionários.
+  const admin = createAdminClient() as AnyClient
   const escalas = await emLotes<{ posto_id: string; regime: string }>(postoIds, async lote => {
-    const { data } = await supabase.from('config_escalas_postos').select('posto_id, regime').in('posto_id', lote)
+    const { data, error } = await admin.from('config_escalas_postos').select('posto_id, regime').in('posto_id', lote)
+    if (error) throw new Error('Falha ao carregar escalas dos postos')
     return (data ?? []) as { posto_id: string; regime: string }[]
   })
   const regimePosto = new Map(escalas.map(e => [e.posto_id, e.regime]))
@@ -300,7 +362,7 @@ async function carregarFuncionarios(filtro: { postoIds?: string[]; ids?: string[
     const jovem = (funcao ?? '').toUpperCase() === FUNCAO_JOVEM_APRENDIZ
     const regime = jovem
       ? 'jovem_aprendiz'
-      : turno?.tipo_escala ?? resolverTipoEscala(r.posto_id ? regimePosto.get(r.posto_id) : null)
+      : resolverTipoEscala(turno?.tipo_escala ?? (r.posto_id ? regimePosto.get(r.posto_id) : null))
     const elegivel = regimeElegivel(regime)
     return {
       id: r.id,
@@ -317,6 +379,7 @@ async function carregarFuncionarios(filtro: { postoIds?: string[]; ids?: string[
           : `Escala ${regime} não é elegível a acordo de compensação.`,
       semana: montarSemana(turno ?? TURNO_PADRAO),
       sem_turno: !turno,
+      posto_id: r.posto_id,
     }
   })
 }
