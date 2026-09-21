@@ -1,6 +1,8 @@
 import { listarAcordos, buscarPostosParaAcordo, buscarNomesEventoRecentes } from './actions'
 import { AcordosClient } from '@/components/acordos/acordos-client'
 import { carregarCalendario } from '@/lib/calendario/mogi'
+import { getUser } from '@/lib/auth/get-user'
+import Link from 'next/link'
 
 export default async function AcordosPage({
   searchParams,
@@ -11,6 +13,7 @@ export default async function AcordosPage({
   const mes = searchParams.mes ? Number(searchParams.mes) : agora.getMonth() + 1
   const ano = searchParams.ano ? Number(searchParams.ano) : agora.getFullYear()
 
+  const auth = await getUser()
   const [acordos, postos, calendario, nomesRecentes] = await Promise.all([
     listarAcordos({ mes, ano }),
     buscarPostosParaAcordo(),
@@ -27,6 +30,11 @@ export default async function AcordosPage({
       <div>
         <h1 className="text-lg font-bold text-gray-900">Acordos de Compensação</h1>
         <p className="text-sm text-gray-400">Termos de compensação de horas — geração e arquivo</p>
+        {auth?.perfil.role === 'admin' && (
+          <Link href="/acordos/ia-lab" className="mt-1 inline-block text-xs font-semibold text-slate-500 underline hover:text-slate-800">
+            Laboratório da IA (teste)
+          </Link>
+        )}
       </div>
 
       {/* Banner instrutivo */}
