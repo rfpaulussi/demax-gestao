@@ -335,3 +335,11 @@ describe('T2 em dia de feriado', () => {
     expect(validarAcordo(t2, [func('a')], fer).find(a => a.codigo === 'FERIADO' && a.mensagem.includes('não há expediente'))?.nivel).toBe('aviso')
   })
 })
+
+describe('LIMITE_JORNADA com saída', () => {
+  it('diz a partir de quantos dias o acréscimo cabe nas 10h', () => {
+    const c: CamposAcordo = { template: 'T3', dataFolga: '2026-06-04', motivo: 'x', datasAjuste: ['2026-06-08', '2026-06-09', '2026-06-10', '2026-06-11'] }
+    const a = validarAcordo(c, [func('a', T_5X2_540)], new Map()).find(x => x.codigo === 'LIMITE_JORNADA')
+    expect(a?.mensagem).toContain('Cabe com 9 dias ou mais (máx. 60 min por dia)')
+  })
+})

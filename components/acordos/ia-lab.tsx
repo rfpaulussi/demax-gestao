@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { interpretarPedidoLab, type RespostaInterpretacao } from '@/app/(admin)/acordos/ia-actions'
 import { CASOS, conferirCaso, type CasoTeste, type ConferenciaCampo } from '@/lib/acordos/ia/casos'
 import { SITUACOES } from '@/lib/acordos/situacoes'
-import { fmtHM } from '@/lib/acordos/resumo'
+import { agruparAchados, fmtHM } from '@/lib/acordos/resumo'
 import { LABEL_CLS } from './passo'
 
 interface Props {
@@ -176,11 +176,19 @@ export function IaLab({ configurada, postos }: Props) {
                       {dados.simulacao.minutosPorDia > 0 && <> · {dados.simulacao.minutosPorDia} min por dia</>}
                       {dados.simulacao.datasAjuste.length > 0 && <> em {dados.simulacao.datasAjuste.length} dia(s)</>}
                     </p>
-                    {dados.simulacao.achados.filter(a => a.nivel === 'erro').map((a, i) => (
-                      <p key={`e${i}`} className="rounded-lg border border-red-100 bg-red-50 px-3 py-1.5 text-red-700">✕ {a.mensagem}</p>
-                    ))}
-                    {dados.simulacao.achados.filter(a => a.nivel === 'aviso').map((a, i) => (
-                      <p key={`a${i}`} className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-1.5 text-amber-800">⚠ {a.mensagem}</p>
+                    {agruparAchados(dados.simulacao.achados).map(g => (
+                      <div
+                        key={g.codigo}
+                        className={`rounded-lg border px-3 py-1.5 ${g.nivel === 'erro' ? 'border-red-100 bg-red-50 text-red-700' : 'border-amber-100 bg-amber-50 text-amber-800'}`}
+                      >
+                        <p>{g.nivel === 'erro' ? '✕' : '⚠'} {g.titulo}{g.itens.length > 1 && g.titulo === g.itens[0] ? ` (+${g.itens.length - 1} iguais)` : ''}</p>
+                        {g.itens.length > 1 && (
+                          <details className="mt-1 text-xs">
+                            <summary className="cursor-pointer">ver os {g.itens.length}</summary>
+                            <ul className="mt-1 list-disc space-y-0.5 pl-5">{g.itens.map((m, i) => <li key={i}>{m}</li>)}</ul>
+                          </details>
+                        )}
+                      </div>
                     ))}
                     {dados.simulacao.achados.length === 0 && (
                       <p className="rounded-lg border border-green-100 bg-green-50 px-3 py-1.5 text-green-700">✓ Sem erros nem avisos: o acordo passaria na validação.</p>

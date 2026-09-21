@@ -145,7 +145,11 @@ export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriado
       if (jd === 0) {
         add('erro', 'DIA_DE_FOLGA', `${f.nome}: ${fmtDataBR(d)} é dia de folga na escala dele.`, f.id)
       } else if (acrescimo && jd + porDia > MAX_JORNADA_DIA_MIN) {
-        add('erro', 'LIMITE_JORNADA', `${f.nome}: em ${fmtDataBR(d)} a jornada passaria de 10h (${jd} + ${porDia} min).`, f.id)
+        const maxDia = MAX_JORNADA_DIA_MIN - jd
+        let nDias = Math.ceil(orig / Math.max(maxDia, 1))
+        for (let k = nDias; k <= 31; k++) if (orig % k === 0 && orig / k <= maxDia) { nDias = k; break }
+        const saida = maxDia > 0 && nDias <= 31 ? ` Cabe com ${nDias} dias ou mais (máx. ${maxDia} min por dia).` : ''
+        add('erro', 'LIMITE_JORNADA', `${f.nome}: em ${fmtDataBR(d)} a jornada passaria de 10h (${jd} + ${porDia} min).${saida}`, f.id)
       } else if (c.template === 'T1' && porDia > jd) {
         add('erro', 'REDUCAO_MAIOR', `${f.nome}: a redução de ${porDia} min é maior que a jornada de ${fmtDataBR(d)}.`, f.id)
       }
