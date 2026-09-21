@@ -528,6 +528,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
             onCancelar={onClose}
             onSalvar={handleSalvar}
             onRascunho={abrirRascunho}
+            onRecalcularDias={() => setDiasManual(false)}
             podeRascunho={situacaoEscolhida && !erroReal && textos.length > 0 && textos.every(x => !!x.texto)}
             gerandoRascunho={gerandoRascunho}
           />

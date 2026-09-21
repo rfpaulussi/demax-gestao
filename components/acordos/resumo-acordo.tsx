@@ -3,6 +3,7 @@ import { DIAS_SEMANA, type SemanaTurno } from '@/lib/acordos/tipos'
 import { semanaParaTexto, totalSemanalMin } from '@/lib/acordos/horario-do-turno'
 import { minParaHHMM } from '@/lib/acordos/tempo'
 import type { GrupoAchado, ItemChecklistId } from '@/lib/acordos/resumo'
+import { explicacaoDe, ROTULO_ORIGEM } from '@/lib/acordos/explicar'
 import { INPUT_CLS, LABEL_CLS } from './passo'
 
 export const CORES_TURNO = [
@@ -61,6 +62,8 @@ interface Props {
   onRascunho: () => void
   podeRascunho: boolean
   gerandoRascunho: boolean
+  /** Botão "Recalcular dias" nas explicações dos bloqueios de dias. */
+  onRecalcularDias?: () => void
 }
 
 const SELO: Record<StatusResumo, { cls: string; texto: (p: number, a: number) => string }> = {
@@ -71,7 +74,7 @@ const SELO: Record<StatusResumo, { cls: string; texto: (p: number, a: number) =>
 }
 
 /** Um grupo de achados: até 2 itens viram linhas; mais que isso vira uma linha expansível. */
-export function LinhaAchado({ g }: { g: GrupoAchado }) {
+function LinhaAchadoBase({ g }: { g: GrupoAchado }) {
   const erro = g.nivel === 'erro'
   const cls = erro ? 'border-red-100 bg-red-50 text-red-700' : 'border-amber-100 bg-amber-50 text-amber-800'
   const Icone = erro ? XCircle : AlertTriangle
@@ -96,6 +99,29 @@ export function LinhaAchado({ g }: { g: GrupoAchado }) {
         </div>
       ))}
     </>
+  )
+}
+
+/** Achado + o porquê (lei, regra do sistema ou cadastro) e, quando dá, o botão que corrige. */
+export function LinhaAchado({ g, onRecalcular }: { g: GrupoAchado; onRecalcular?: () => void }) {
+  const ex = explicacaoDe(g.codigo)
+  return (
+    <div className="space-y-1">
+      <LinhaAchadoBase g={g} />
+      {ex && (
+        <p className="px-1 text-[11px] leading-snug text-slate-500">
+          <span className="font-semibold">{ROTULO_ORIGEM[ex.origem]}:</span> {ex.porque}
+          {ex.acao === 'recalcular_dias' && onRecalcular && g.nivel === 'erro' && (
+            <>
+              {' '}
+              <button type="button" onClick={onRecalcular} className="font-semibold text-slate-700 underline hover:text-slate-900">
+                Recalcular dias
+              </button>
+            </>
+          )}
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -173,7 +199,7 @@ export function ResumoAcordo(p: Props) {
       {p.achados.length > 0 && (
         <div className="space-y-1.5 border-t border-gray-100 pt-3">
           <p className={LABEL_CLS}>Avisos</p>
-          {p.achados.map(g => <LinhaAchado key={g.codigo} g={g} />)}
+          {p.achados.map(g => <LinhaAchado key={g.codigo} g={g} onRecalcular={p.onRecalcularDias} />)}
         </div>
       )}
 
