@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, Calendar, Clock, FileText, MapPin, Users, XCircle } from 'lucide-react'
 import { buscarFuncionariosPorPostos, criarAcordo } from '@/app/(admin)/acordos/actions'
@@ -64,8 +64,6 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
   const [erro, setErro] = useState('')
   const [diasManual, setDiasManual] = useState(false)
   const [hoje] = useState(() => new Date().toLocaleDateString('sv-SE'))
-  // Grupos (ids ordenados) já gravados numa tentativa anterior que falhou no meio: não recriar
-  const criadosRef = useRef<Set<string>>(new Set())
 
   const set = useCallback(<K extends keyof FormState>(k: K, v: FormState[K]) => {
     setF(prev => ({ ...prev, [k]: v }))
@@ -161,28 +159,17 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
     setErro('')
     startTransition(async () => {
       const postosObj = postos.filter(p => postosSel.includes(p.id))
-      const chaveDe = (g: FuncionarioCalc[]) => g.map(x => x.id).sort().join(',')
-      for (let i = 0; i < grupos.length; i++) {
-        const chave = chaveDe(grupos[i])
-        if (criadosRef.current.has(chave)) continue
-        const res = await criarAcordo({
-          titulo: grupos.length > 1 ? `${titulo.trim()} — grupo ${i + 1}` : titulo.trim(),
-          tipo,
-          postos: postosObj,
-          funcionarioIds: grupos[i].map(x => x.id),
-          data_documento: dataDoc,
-          campos,
-        })
-        if ('error' in res) {
-          const criados = grupos.filter(g => criadosRef.current.has(chaveDe(g))).length
-          const aviso = criados > 0
-            ? ` ${criados} de ${grupos.length} grupo(s) já criado(s); ao salvar de novo só os restantes serão criados.`
-            : ''
-          setErro((grupos.length > 1 ? `Grupo ${i + 1}: ${res.error}` : res.error) + aviso)
-          router.refresh()
-          return
-        }
-        criadosRef.current.add(chave)
+      const res = await criarAcordo({
+        titulo: titulo.trim(),
+        tipo,
+        postos: postosObj,
+        funcionarioIds: selecionados.map(x => x.id),
+        data_documento: dataDoc,
+        campos,
+      })
+      if ('error' in res) {
+        setErro(res.error)
+        return
       }
       router.refresh()
       onClose()
@@ -368,7 +355,7 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
                 })}
                 {grupos.length > 1 && (
                   <p className="text-xs text-amber-700">
-                    Jornadas/horários diferentes nesse acordo: serão gerados {grupos.length} acordos, um por grupo.
+                    Será gerado um único acordo com {grupos.length} grupos de compensação (jornadas ou horários diferentes por turno).
                   </p>
                 )}
               </div>
@@ -428,7 +415,7 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
             title={temErro(achados) ? 'Corrija os itens em vermelho' : undefined}
             className="flex h-9 items-center rounded-lg bg-slate-900 px-6 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-40"
           >
-            {pending ? 'Salvando…' : grupos.length > 1 ? `Salvar ${grupos.length} acordos` : 'Salvar Acordo'}
+            {pending ? 'Salvando…' : 'Salvar Acordo'}
           </button>
         </div>
       </div>

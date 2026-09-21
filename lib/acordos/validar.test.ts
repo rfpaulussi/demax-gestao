@@ -11,6 +11,29 @@ const t3: CamposAcordo = { template: 'T3', dataFolga: '2026-06-05', motivo: 'pon
 const f1 = func('a')
 
 describe('validarAcordo', () => {
+  it('avisa (sem bloquear) quando o turno cadastrado não soma 44h semanais', () => {
+    // seg–sex 08:00–11:00 + 12:00–18:00 = 9h/dia = 45h/semana
+    const t45 = {
+      tipo_escala: '5x2', hora_entrada: '08:00', hora_saida_seg_qui: '18:00', hora_saida_sex: '18:00',
+      hora_inicio_almoco: '11:00', hora_fim_almoco: '12:00',
+    }
+    const a = validarAcordo(t3, [func('z', t45)], new Map())
+    const aviso = a.find(x => x.codigo === 'TURNO_FORA_44H')
+    expect(aviso?.nivel).toBe('aviso')
+    expect(aviso?.funcionarioId).toBe('z')
+    expect(aviso?.mensagem).toBe('Func z: o turno cadastrado soma 45:00h por semana (esperado 44:00h).')
+    expect(codigos(validarAcordo(t3, [f1], new Map()))).not.toContain('TURNO_FORA_44H')
+  })
+
+  it('não emite TURNO_FORA_44H para funcionário sem turno (padrão) nem para regime não elegível', () => {
+    const t45 = {
+      tipo_escala: '5x2', hora_entrada: '08:00', hora_saida_seg_qui: '18:00', hora_saida_sex: '18:00',
+      hora_inicio_almoco: '11:00', hora_fim_almoco: '12:00',
+    }
+    expect(codigos(validarAcordo(t3, [func('s', t45, { semTurno: true })], new Map()))).not.toContain('TURNO_FORA_44H')
+    expect(codigos(validarAcordo(t3, [func('r', t45, { regime: '12x36' })], new Map()))).not.toContain('TURNO_FORA_44H')
+  })
+
   it('T3 válido não gera achados', () => {
     expect(validarAcordo(t3, [f1], new Map())).toEqual([])
   })

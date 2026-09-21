@@ -5,13 +5,13 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireRole } from '@/lib/auth/assert-role'
 import {
-  montarSemana, semanaParaTexto, assinaturaSemana, TURNO_PADRAO, type TurnoRow,
+  montarSemana, semanaParaTexto, assinaturaSemana, juntarRotulos, TURNO_PADRAO, type TurnoRow,
 } from '@/lib/acordos/horario-do-turno'
 import { regimeElegivel } from '@/lib/acordos/regras'
 import { resolverTipoEscala, FUNCAO_JOVEM_APRENDIZ } from '@/lib/turnos/escala'
-import { construirMovimentos, resumoCalculo } from '@/lib/acordos/movimentos'
+import { agruparPorJornada, construirMovimentos, resumoCalculo } from '@/lib/acordos/movimentos'
 import { gerarObjeto, TEMPLATES } from '@/lib/acordos/templates'
-import { temErro, validarAcordo } from '@/lib/acordos/validar'
+import { validarAcordo } from '@/lib/acordos/validar'
 import type { CamposAcordo, FuncionarioCalc, SemanaTurno } from '@/lib/acordos/tipos'
 import { carregarCalendario } from '@/lib/calendario/mogi'
 import { calendarioParaMapa } from '@/lib/calendario/mapa'
@@ -45,6 +45,8 @@ export interface TurnoHorario {
   label: string
   horario: Record<string, string>   // dia -> "07:00 às 12:00 / 13:12 às 17:00"
   funcionario_ids: string[]
+  /** Parágrafo de compensação deste turno (depois de "…com a finalidade de que os funcionários "). Ausente em acordos antigos. */
+  objeto?: string
 }
 
 // ─── Normaliza horario_semana v1 ou v2 → TurnoHorario[] ──────────────────────
@@ -205,24 +207,52 @@ export async function criarAcordo(dados: {
   } catch {
     return { error: 'Não foi possível carregar o calendário de feriados. Tente novamente.' }
   }
-  const achados = validarAcordo(dados.campos, calc, feriados)
-  if (temErro(achados)) {
-    return { error: achados.filter(a => a.nivel === 'erro').map(a => a.mensagem).join(' ') }
+  // Um acordo por evento: funcionários com jornadas/horários diferentes formam grupos de compensação,
+  // cada um validado e com seu próprio parágrafo; cada turno cai inteiro dentro de um grupo.
+  const grupos = agruparPorJornada(dados.campos, calc)
+  if (grupos.length === 0) return { error: 'Selecione ao menos um funcionário.' }
+  const vistos = new Set<string>()
+  const erros: string[] = []
+  for (const g of grupos) {
+    for (const a of validarAcordo(dados.campos, g, feriados)) {
+      if (a.nivel === 'erro' && !vistos.has(a.mensagem)) {
+        vistos.add(a.mensagem)
+        erros.push(a.mensagem)
+      }
+    }
   }
-  const texto = gerarObjeto(dados.campos, resumoCalculo(dados.campos, calc))
-  if (!texto.ok) return { error: texto.erro }
+  if (erros.length) return { error: erros.join(' ') }
+
+  const objetoPorFunc = new Map<string, string>()
+  const objetosDosGrupos: string[] = []
+  for (const g of grupos) {
+    const texto = gerarObjeto(dados.campos, resumoCalculo(dados.campos, g))
+    if (!texto.ok) return { error: texto.erro }
+    objetosDosGrupos.push(texto.texto)
+    for (const f of g) objetoPorFunc.set(f.id, texto.texto)
+  }
 
   const porSemana = new Map<string, FuncionarioParaAcordo[]>()
   for (const f of funcs) {
     const chave = assinaturaSemana(f.semana)
     porSemana.set(chave, [...(porSemana.get(chave) ?? []), f])
   }
-  const grupos = Array.from(porSemana.values())
-  const horarios: TurnoHorario[] = grupos.map((g, i) => ({
-    label: grupos.length === 1 ? 'Turno Único' : `Turno ${String.fromCharCode(65 + i)}`,
+  const gruposDeTurno = Array.from(porSemana.values())
+  const horarios: TurnoHorario[] = gruposDeTurno.map((g, i) => ({
+    label: gruposDeTurno.length === 1 ? 'Turno Único' : `Turno ${String.fromCharCode(65 + i)}`,
     horario: semanaParaTexto(g[0].semana),
     funcionario_ids: g.map(f => f.id),
+    objeto: objetoPorFunc.get(g[0].id),
   }))
+
+  // descricao_acordo: um texto só quando todos os grupos coincidem; senão, um trecho por grupo com os turnos dele
+  const descricao = objetosDosGrupos.every(o => o === objetosDosGrupos[0])
+    ? objetosDosGrupos[0]
+    : grupos.map((g, gi) => {
+        const ids = new Set(g.map(f => f.id))
+        const labels = horarios.filter(h => ids.has(h.funcionario_ids[0])).map(h => h.label)
+        return `${juntarRotulos(labels)}: ${objetosDosGrupos[gi]}`
+      }).join(' ')
 
   // Postos montados no servidor (não confiar no que veio do navegador); leitura com RLS de sessão.
   const postoIdsDosFuncs = Array.from(new Set(funcs.map(f => f.posto_id).filter((p): p is string => !!p)))
@@ -247,7 +277,7 @@ export async function criarAcordo(dados: {
       postos,
       funcionarios: funcs.map(f => ({ id: f.id, nome: f.nome, funcao: f.funcao, status: f.status })),
       horario_semana: { _v: 2, turnos: horarios },
-      descricao_acordo: texto.texto,
+      descricao_acordo: descricao,
       data_documento: dados.data_documento,
       criado_por: guard.auth.user.id,
       evento_data: dados.campos.dataEvento ?? null,

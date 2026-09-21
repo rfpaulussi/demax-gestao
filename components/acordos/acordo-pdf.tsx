@@ -2,6 +2,7 @@
 
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import type { AcordoCompensacao } from '@/app/(admin)/acordos/actions'
+import { juntarRotulos } from '@/lib/acordos/horario-do-turno'
 
 const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
 
@@ -42,6 +43,17 @@ export function AcordoPdfDoc({ acordo }: Props) {
   // Lookup funcId → funcionario
   const funcMap = new Map(acordo.funcionarios.map(f => [f.id, f]))
 
+  // Um parágrafo de compensação por texto distinto (turnos com o mesmo texto compartilham o parágrafo).
+  // Acordos antigos, sem `objeto` nos turnos, ou com um texto só, mantêm o parágrafo único.
+  const paragrafos: { texto: string; turnos: string[] }[] = []
+  for (const t of acordo.horarios) {
+    if (!t.objeto) continue
+    const existente = paragrafos.find(p => p.texto === t.objeto)
+    if (existente) existente.turnos.push(t.label)
+    else paragrafos.push({ texto: t.objeto, turnos: [t.label] })
+  }
+  const paragrafoPorTurno = acordo.horarios.length > 0 && acordo.horarios.every(t => !!t.objeto) && paragrafos.length > 1
+
   return (
     <Document>
       <Page size="A4" style={s.page}>
@@ -81,10 +93,25 @@ export function AcordoPdfDoc({ acordo }: Props) {
         ))}
 
         {/* Texto livre */}
-        <Text style={s.para}>
-          {'     '}As partes celebram o presente acordo de compensação de horas, com a finalidade
-          de que os funcionários{' '}{acordo.descricao_acordo}
-        </Text>
+        {paragrafoPorTurno ? (
+          <>
+            <Text style={s.para}>
+              {'     '}As partes celebram o presente acordo de compensação de horas, com a finalidade
+              de que os funcionários, conforme o horário do turno a que pertencem:
+            </Text>
+            {paragrafos.map(p => (
+              <Text key={p.turnos.join('|')} style={s.para}>
+                {'     '}<Text style={s.bold}>{juntarRotulos(p.turnos)}: </Text>
+                os funcionários {p.texto}
+              </Text>
+            ))}
+          </>
+        ) : (
+          <Text style={s.para}>
+            {'     '}As partes celebram o presente acordo de compensação de horas, com a finalidade
+            de que os funcionários{' '}{acordo.descricao_acordo}
+          </Text>
+        )}
 
         {/* Cláusulas padrão */}
         <Text style={s.para}>

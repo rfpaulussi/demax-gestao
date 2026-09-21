@@ -1,5 +1,6 @@
 import type { CamposAcordo, TemplateId } from './tipos'
 import type { ResumoCalculo } from './movimentos'
+import { conectorDoMotivo } from './motivos'
 import { fmtAcrescimo, fmtDataBR, fmtDatasComPrefixo, fmtHoraCurta, fmtHorasTotal } from './tempo'
 
 export const TEMPLATES: Record<TemplateId, { titulo: string; resumo: string; subtipo: 'evento' | 'antecipado' }> = {
@@ -59,7 +60,7 @@ export function gerarObjeto(c: CamposAcordo, r: ResumoCalculo): ResultadoTexto {
       break
     case 'T2':
       if (!c.dataEvento || !nome || !r.horaNormal || !c.horaDispensa || !datas || r.minutosPorDia <= 0) return falta()
-      texto = `trabalharem normalmente até as ${fmtHoraCurta(r.horaNormal)} no dia ${fmtDataBR(c.dataEvento)} (${nome}), sendo dispensados às ${fmtHoraCurta(c.horaDispensa)} conforme ${motivo || 'decreto municipal'}, compensando as ${horas} não laboradas com acréscimo de ${porDia} diária no horário normal ${datas}.${sufixoPrazo}`
+      texto = `trabalharem normalmente até as ${fmtHoraCurta(r.horaNormal)} no dia ${fmtDataBR(c.dataEvento)} (${nome}), sendo dispensados às ${fmtHoraCurta(c.horaDispensa)} ${conectorDoMotivo(motivo)} ${motivo || 'decreto municipal'}, compensando as ${horas} não laboradas com acréscimo de ${porDia} diária no horário normal ${datas}.${sufixoPrazo}`
       break
     case 'T3':
       if (!c.dataFolga || !motivo || !datas || r.minutosPorDia <= 0) return falta()

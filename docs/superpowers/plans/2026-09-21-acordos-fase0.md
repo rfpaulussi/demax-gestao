@@ -2641,3 +2641,15 @@ Consistência de nomes conferida: `CamposAcordo`, `FuncionarioCalc`, `ResumoCalc
 - `sugerirDiasAjuste(c, funcs, feriados, hoje?)`: no T4, com `hoje`, devolve [] se algum dos `n` dias úteis anteriores à folga for anterior a `hoje`. `normalizaMotivo` só minusculiza a 1ª letra de palavras comuns (acordado, decreto, ponto…) e remove "conforme" inicial; nomes próprios e siglas ficam como digitados.
 - Modal: texto gerado por grupo; salvar com retry sem duplicar (grupos já criados guardados em `useRef`, chave = ids ordenados); botão Salvar desabilitado enquanto houver erro.
 - PENDENTE (decisão do RH): `minutosForaDoHorario` conta o intervalo de almoço como "fora do horário" (ex.: período 11:00–14:00 num turno com almoço 12:00–13:12 gera 1h12 a compensar). Não alterado.
+
+## Parte B1 — acordo único por evento
+
+- Regra: 1 evento = 1 acordo (1 PDF). `criarAcordo` cria UM acordo com todos os `funcionarioIds`; os grupos de `agruparPorJornada` (saída/horas diferentes) deixam de gerar acordos separados.
+- `criarAcordo` valida cada grupo com `validarAcordo` (mensagens de erro deduplicadas) e gera `gerarObjeto` por grupo; cada `TurnoHorario` ganha `objeto` (texto do grupo a que o turno pertence; um turno cai sempre inteiro num grupo).
+- `descricao_acordo`: o texto comum se todos os grupos coincidem; senão `"Turno A e Turno C: <objeto>"` por grupo, concatenados (fallback para lista e busca). Helper `juntarRotulos` em `horario-do-turno.ts`.
+- PDF (`acordo-pdf.tsx`): com `objeto` em todos os turnos e mais de um texto distinto, abertura "…com a finalidade de que os funcionários, conforme o horário do turno a que pertencem:" seguida de um parágrafo por texto, com os turnos em negrito. Acordos antigos ou com texto único mantêm o parágrafo único.
+- PENDENTE: essa mudança de estrutura do PDF PRECISA de aprovação do RH antes de ir para produção.
+- Modal: um único `criarAcordo`, botão sempre "Salvar Acordo", aviso "Será gerado um único acordo com N grupos de compensação"; sem `useRef` de grupos criados (não há mais criação parcial).
+- `lib/acordos/motivos.ts`: catálogo `MOTIVOS` (grupos Calendário, Determinação da unidade, Funcionamento da unidade, Infraestrutura, Outros), `NOMES_EVENTO_SUGERIDOS` e `conectorDoMotivo`. O T2 usa o conector: "…dispensados às 12h em razão de falta de água" / "…conforme decreto municipal" (texto livre ou vazio = "conforme").
+- PENDENTE: a redação final do T2 (conector "conforme" x "em razão de") segue sujeita à aprovação do RH.
+- Novo aviso `TURNO_FORA_44H` (não bloqueia): funcionário de regime elegível (5x2/5x1) com turno cadastrado que não soma 44:00h por semana; não emitido para quem está sem turno (padrão).

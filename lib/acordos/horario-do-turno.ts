@@ -125,3 +125,9 @@ export function minutosForaDoHorario(d: DiaTurno, inicio: string, fim: string): 
   )
   return Math.max(0, total - dentro)
 }
+
+/** ['Turno A'] -> 'Turno A'; dois -> 'Turno A e Turno C'; três ou mais -> 'Turno A, Turno B e Turno C'. */
+export function juntarRotulos(rotulos: string[]): string {
+  if (rotulos.length <= 1) return rotulos.join('')
+  return `${rotulos.slice(0, -1).join(', ')} e ${rotulos[rotulos.length - 1]}`
+}

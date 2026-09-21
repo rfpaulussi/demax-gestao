@@ -29,6 +29,15 @@ describe('gerarObjeto', () => {
     })
   })
 
+  it('T2 usa "em razão de" para motivos de infraestrutura/funcionamento', () => {
+    const c: CamposAcordo = {
+      template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Falta de água', horaDispensa: '12:00', motivo: 'falta de água',
+      datasAjuste: ['2026-06-08', '2026-06-09', '2026-06-10'],
+    }
+    const t = gerarObjeto(c, r(180, 60, 0, '15:00'))
+    expect(t.ok && t.texto).toContain('sendo dispensados às 12h em razão de falta de água, compensando as 03 hora(s)')
+  })
+
   it('T3', () => {
     const c: CamposAcordo = {
       template: 'T3', dataFolga: '2026-06-05', motivo: 'ponto facultativo municipal',

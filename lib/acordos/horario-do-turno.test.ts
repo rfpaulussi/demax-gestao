@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   montarSemana, jornadaDiaMin, totalSemanalMin, semanaParaTexto, assinaturaSemana,
-  saidaDoDia, minutosAposHorario, minutosForaDoHorario,
+  saidaDoDia, minutosAposHorario, minutosForaDoHorario, juntarRotulos,
   TURNO_PADRAO, type TurnoRow,
 } from './horario-do-turno'
 
@@ -91,5 +91,13 @@ describe('saidaDoDia / minutosAposHorario / minutosForaDoHorario', () => {
     expect(minutosForaDoHorario(d, '12:00', '13:12')).toBe(72)
     expect(minutosForaDoHorario(folga, '08:00', '12:00')).toBe(240)
     expect(minutosForaDoHorario(d, '10:00', '08:00')).toBe(0)
+  })
+})
+
+describe('juntarRotulos', () => {
+  it('junta rótulos de turno em português', () => {
+    expect(juntarRotulos(['Turno A'])).toBe('Turno A')
+    expect(juntarRotulos(['Turno A', 'Turno C'])).toBe('Turno A e Turno C')
+    expect(juntarRotulos(['Turno A', 'Turno B', 'Turno C'])).toBe('Turno A, Turno B e Turno C')
   })
 })

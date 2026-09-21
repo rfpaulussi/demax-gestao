@@ -1,7 +1,7 @@
 import type { Achado, CamposAcordo, FuncionarioCalc, NivelAchado } from './tipos'
-import { addMeses, diaSemanaDe, fmtDataBR, hhmmParaMin, mesDe } from './tempo'
-import { saidaDoDia } from './horario-do-turno'
-import { MAX_ACRESCIMO_DIA_MIN, MAX_JORNADA_DIA_MIN, PRAZO_MAXIMO_MESES, regimeElegivel } from './regras'
+import { addMeses, diaSemanaDe, fmtDataBR, hhmmParaMin, mesDe, minParaHHMM } from './tempo'
+import { saidaDoDia, totalSemanalMin } from './horario-do-turno'
+import { JORNADA_SEMANAL_MIN, MAX_ACRESCIMO_DIA_MIN, MAX_JORNADA_DIA_MIN, PRAZO_MAXIMO_MESES, regimeElegivel } from './regras'
 import { agruparPorJornada, construirMovimentos, jornadaDoDia, saldoMin, totalOrigem } from './movimentos'
 
 export type MapaFeriados = Map<string, { nome: string; tipo: string }>
@@ -42,6 +42,12 @@ export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriado
     }
     if (f.status !== 'ativo') add('aviso', 'STATUS', `${f.nome} está com status "${f.status}".`, f.id)
     if (f.semTurno) add('aviso', 'SEM_TURNO', `${f.nome}: sem horário cadastrado; usando o padrão 5x2 de 44h.`, f.id)
+    if (regimeElegivel(f.regime) && !f.semTurno) {
+      const semanal = totalSemanalMin(f.semana)
+      if (semanal !== JORNADA_SEMANAL_MIN) {
+        add('aviso', 'TURNO_FORA_44H', `${f.nome}: o turno cadastrado soma ${minParaHHMM(semanal)}h por semana (esperado ${minParaHHMM(JORNADA_SEMANAL_MIN)}h).`, f.id)
+      }
+    }
   }
 
   const faltando = camposFaltando(c)
