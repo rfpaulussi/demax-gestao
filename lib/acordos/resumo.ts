@@ -1,8 +1,9 @@
 import type { Achado, CamposAcordo, NivelAchado, TemplateId } from './tipos'
-import { addMeses, diaSemanaDe, mesDe } from './tempo'
+import { addDias, addMeses, diaSemanaDe, fmtHoraCurta, mesDe } from './tempo'
 import { camposFaltando } from './validar'
 import { PRAZO_MAXIMO_MESES } from './regras'
 import { MOTIVOS } from './motivos'
+import type { CalendarioLinha } from '../calendario/mapa'
 
 const p2 = (n: number) => String(n).padStart(2, '0')
 
@@ -198,4 +199,95 @@ export function montarChecklist(e: EntradaChecklist): ItemChecklist[] {
     })
   }
   return itens
+}
+
+// ─── Título automático ─────────────────────────────────────────────────────────
+
+const LIMITE_TITULO = 80
+const limpa = (s?: string) => (s ?? '').replace(/\s+/g, ' ').trim()
+const ddmm = (iso?: string) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : '')
+
+/** Monta o título com a parte variável (nome/posto) encurtada só se o total passar de 80 caracteres. */
+function cabeNoLimite(monta: (variavel: string) => string, variavel: string): string {
+  const t = monta(variavel)
+  if (t.length <= LIMITE_TITULO || !variavel) return t.length <= LIMITE_TITULO ? t : `${t.slice(0, LIMITE_TITULO - 1).trimEnd()}…`
+  const sobra = t.length - LIMITE_TITULO + 1
+  const curto = variavel.slice(0, Math.max(0, variavel.length - sobra)).trimEnd()
+  return monta(`${curto}…`)
+}
+
+/** Sugestão de título a partir dos campos já preenchidos; '' quando ainda não há nada para dizer. */
+export function tituloSugerido(template: TemplateId, c: CamposAcordo, postoNome?: string): string {
+  const nome = limpa(c.nomeEvento)
+  const posto = limpa(postoNome)
+  switch (template) {
+    case 'T1': {
+      const d = ddmm(c.dataEvento)
+      if (!nome && !d) return ''
+      return cabeNoLimite(v => `Evento${v ? ` ${v}` : ''}${d ? ` (${d})` : ''}`, nome)
+    }
+    case 'T2': {
+      const d = ddmm(c.dataEvento)
+      if (!nome && !d) return ''
+      return cabeNoLimite(v => `Dispensa${d ? ` ${d}` : ''}${v ? ` — ${v}` : ''}`, nome)
+    }
+    case 'T3': {
+      const d = ddmm(c.dataFolga)
+      if (!posto && !d) return ''
+      return cabeNoLimite(v => `Folga${d ? ` ${d}` : ''}${v ? ` — ${v}` : ''}`, posto)
+    }
+    case 'T4': {
+      const d = ddmm(c.dataFolga)
+      return d ? `Banco de horas — folga ${d}` : ''
+    }
+    case 'T5': {
+      const d = ddmm(c.dataEvento)
+      if (!nome && !d) return ''
+      return cabeNoLimite(v => `Descanso trabalhado${v ? `: ${v}` : ''}${d ? ` (${d})` : ''}`, nome)
+    }
+  }
+}
+
+// ─── Atalhos do calendário ─────────────────────────────────────────────────────
+
+/** Datas do calendário (feriados e pontos facultativos) de hoje-antes até hoje+depois, em ordem, até `limite`. */
+export function proximasDatasCalendario(
+  calendario: CalendarioLinha[],
+  hoje: string,
+  opts: { antes?: number; depois?: number; limite?: number } = {},
+): CalendarioLinha[] {
+  const { antes = 7, depois = 90, limite = 6 } = opts
+  const de = addDias(hoje, -antes)
+  const ate = addDias(hoje, depois)
+  return calendario
+    .filter(l => l.data >= de && l.data <= ate)
+    .sort((a, b) => a.data.localeCompare(b.data))
+    .slice(0, limite)
+}
+
+/** "sex 05/06 · ponto facultativo" (+ " · até 13h" em meio período). */
+export function rotuloAtalhoCalendario(l: CalendarioLinha): string {
+  const base = `${diaSemanaDe(l.data).slice(0, 3).toLowerCase()} ${ddmm(l.data)} · ${l.nome}`
+  return l.ate_hora ? `${base} · até ${fmtHoraCurta(l.ate_hora)}` : base
+}
+
+// ─── Nomes de evento ───────────────────────────────────────────────────────────
+
+/** Nomes distintos (sem diferenciar maiúsculas), na ordem recebida, até `max`. */
+export function nomesRecentesDistintos(nomes: (string | null | undefined)[], max = 8): string[] {
+  const vistos = new Set<string>()
+  const out: string[] = []
+  for (const n of nomes) {
+    const t = limpa(n ?? '')
+    if (!t || vistos.has(t.toLowerCase())) continue
+    vistos.add(t.toLowerCase())
+    out.push(t)
+    if (out.length >= max) break
+  }
+  return out
+}
+
+/** Recentes primeiro, depois os sugeridos sem duplicar (sem diferenciar maiúsculas); no máximo `max`. */
+export function combinarNomesEvento(recentes: string[], sugeridos: string[], max = 12): string[] {
+  return nomesRecentesDistintos([...recentes, ...sugeridos], max)
 }

@@ -2676,3 +2676,10 @@ Consistência de nomes conferida: `CamposAcordo`, `FuncionarioCalc`, `ResumoCalc
 - Período com só "Das" (ou só "Às") mostra "Informe também o fim/início do período." em vez da mensagem geral de horas.
 - Acessibilidade: `htmlFor`/`id` em título, período, horas, nome, datas, horário de dispensa, prazo, decreto e data do documento; `key` dos nomes de turno inclui o índice (homônimos).
 - Erros de conteúdo (ex.: dia de folga) aparecem só no "Avisos" do resumo; o card do passo 3 mostra apenas erros de campo. Texto do prazo sem o "Até quando?" repetido.
+
+## Parte B3 — pré-preenchimento
+
+- Título automático: `tituloSugerido(template, campos, postoNome?)` em `lib/acordos/resumo.ts` (≤ 80 caracteres, datas dd/mm, partes ausentes omitidas). O campo Título usa a sugestão enquanto `!tituloManual`; digitar liga o modo manual e o link "usar sugestão" volta ao automático. `postoNome` é o 1º posto selecionado.
+- Atalhos do calendário: `proximasDatasCalendario(calendario, hoje, {antes:7, depois:90, limite:6})` e `rotuloAtalhoCalendario`. No passo 3 (T2 data do evento; T3/T4/T5 data da folga) uma linha "Datas do calendário de Mogi:" com chips (âmbar = facultativo, cinza = feriado); clicar preenche a data, sugere o motivo via `motivoDoCalendario` só se o motivo estiver vazio e, com `ate_hora` no T2, preenche `horaDispensa`.
+- Nomes de evento recentes: Server Action `buscarNomesEventoRecentes()` (client de sessão, últimos 200 `evento_nome` de `acordos_compensacao`, distintos sem diferenciar maiúsculas, até 8; erro → []). `page.tsx` -> `AcordosClient` -> `ModalNovoAcordo` (`nomesRecentes`); chips = recentes primeiro + `NOMES_EVENTO_SUGERIDOS` sem duplicar, máx. 12 (`combinarNomesEvento`).
+- `actions.ts` e `acordos-client.tsx` mantiveram CRLF.

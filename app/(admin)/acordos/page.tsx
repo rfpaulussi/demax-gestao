@@ -1,4 +1,4 @@
-import { listarAcordos, buscarPostosParaAcordo } from './actions'
+import { listarAcordos, buscarPostosParaAcordo, buscarNomesEventoRecentes } from './actions'
 import { AcordosClient } from '@/components/acordos/acordos-client'
 import { carregarCalendario } from '@/lib/calendario/mogi'
 
@@ -11,10 +11,11 @@ export default async function AcordosPage({
   const mes = searchParams.mes ? Number(searchParams.mes) : agora.getMonth() + 1
   const ano = searchParams.ano ? Number(searchParams.ano) : agora.getFullYear()
 
-  const [acordos, postos, calendario] = await Promise.all([
+  const [acordos, postos, calendario, nomesRecentes] = await Promise.all([
     listarAcordos({ mes, ano }),
     buscarPostosParaAcordo(),
     carregarCalendario([agora.getFullYear(), agora.getFullYear() + 1]),
+    buscarNomesEventoRecentes(),
   ])
 
   // Anos disponíveis: de 2024 até este ano + 1
@@ -72,7 +73,7 @@ export default async function AcordosPage({
         </div>
       </div>
 
-      <AcordosClient acordos={acordos} postos={postos} calendario={calendario} mes={mes} ano={ano} anos={anos} />
+      <AcordosClient acordos={acordos} postos={postos} calendario={calendario} nomesRecentes={nomesRecentes} mes={mes} ano={ano} anos={anos} />
     </div>
   )
 }

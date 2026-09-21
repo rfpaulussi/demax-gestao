@@ -12,8 +12,10 @@ import { camposFaltando, temErro, validarAcordo } from '@/lib/acordos/validar'
 import { assinaturaSemana, juntarRotulos, saidaDoDia } from '@/lib/acordos/horario-do-turno'
 import { sugerirDiasAjuste } from '@/lib/acordos/dias'
 import { fmtHoraCurta, hhmmParaMin } from '@/lib/acordos/tempo'
+import { NOMES_EVENTO_SUGERIDOS } from '@/lib/acordos/motivos'
 import {
-  agruparAchados, dataMaximaPrazo, fmtDuracao, montarChecklist, precisaPrazo, textoConta, verboCompensacao,
+  agruparAchados, combinarNomesEvento, dataMaximaPrazo, fmtDuracao, montarChecklist, precisaPrazo, proximasDatasCalendario,
+  textoConta, tituloSugerido, verboCompensacao,
   type ItemChecklistId,
 } from '@/lib/acordos/resumo'
 import { CamposTemplate, FORM_VAZIO, montarCampos, type CampoChave, type FormState } from './campos-template'
@@ -57,14 +59,17 @@ const CODIGOS_DO_CHECKLIST = ['CAMPO_OBRIGATORIO', 'SEM_FUNCIONARIOS', ...CODIGO
 interface Props {
   postos: AcordoPostoItem[]
   calendario: CalendarioLinha[]
+  /** Nomes de evento de acordos recentes (atalhos). */
+  nomesRecentes: string[]
   onClose: () => void
 }
 
-export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
+export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
 
   const [titulo, setTitulo] = useState('')
+  const [tituloManual, setTituloManual] = useState(false)
   const [tipo, setTipo] = useState<'individual' | 'coletivo'>('individual')
   const [postosSel, setPostosSel] = useState<string[]>([])
   const [dataDoc, setDataDoc] = useState(new Date().toLocaleDateString('sv-SE'))
@@ -144,6 +149,14 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
   const feriados = useMemo(() => calendarioParaMapa(calendario), [calendario])
   const campos = useMemo(() => montarCampos(template, f), [template, f])
   const grupos = useMemo(() => agruparPorJornada(campos, calc), [campos, calc])
+
+  // Título automático enquanto o usuário não digitar nele
+  const postoNome = postos.find(p => p.id === postosSel[0])?.nome
+  const tituloAuto = situacaoEscolhida ? tituloSugerido(template, campos, postoNome) : ''
+  const tituloAtual = tituloManual ? titulo : tituloAuto
+
+  const nomesEvento = useMemo(() => combinarNomesEvento(nomesRecentes, NOMES_EVENTO_SUGERIDOS), [nomesRecentes])
+  const atalhosCalendario = useMemo(() => proximasDatasCalendario(calendario, hoje), [calendario, hoje])
 
   const achados: Achado[] = useMemo(() => {
     if (grupos.length === 0) return validarAcordo(campos, [], feriados)
@@ -239,10 +252,10 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
   const prazoMostrado = precisaPrazo(template, achados, f.prazoLimite)
   const checklist = useMemo(
     () => montarChecklist({
-      situacaoEscolhida, titulo, postosSel: postosSel.length, funcionarios: selecionados.length, campos, achados,
+      situacaoEscolhida, titulo: tituloAtual, postosSel: postosSel.length, funcionarios: selecionados.length, campos, achados,
       prazoObrigatorio: prazoMostrado,
     }),
-    [situacaoEscolhida, titulo, postosSel.length, selecionados.length, campos, achados, prazoMostrado],
+    [situacaoEscolhida, tituloAtual, postosSel.length, selecionados.length, campos, achados, prazoMostrado],
   )
   const pendentes = checklist.filter(i => !i.ok)
   const nPend = Math.max(pendentes.length, temErro(achados) ? 1 : 0)
@@ -314,7 +327,7 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
     startTransition(async () => {
       const postosObj = postos.filter(p => postosSel.includes(p.id))
       const res = await criarAcordo({
-        titulo: titulo.trim(),
+        titulo: tituloAtual.trim(),
         tipo,
         postos: postosObj,
         funcionarioIds: selecionados.map(x => x.id),
@@ -330,7 +343,7 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
     })
   }
 
-  const erroTitulo = tentou && !titulo.trim()
+  const erroTitulo = tentou && !tituloAtual.trim()
   const erroFuncionarios = !loadingFuncs && !okDe('funcionarios') && itemVisivel('funcionarios')
     ? postosSel.length === 0 ? 'Escolha um posto.' : selecionados.length === 0 ? 'Marque ao menos um funcionário.' : 'Há funcionários não elegíveis selecionados.'
     : null
@@ -351,12 +364,18 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
                 <label htmlFor="campo-titulo" className={`${LABEL_CLS} mb-1.5`}>Título do acordo</label>
                 <input
                   id="campo-titulo"
-                  value={titulo}
-                  onChange={e => { setTitulo(e.target.value); tocar('titulo') }}
+                  value={tituloAtual}
+                  onChange={e => { setTitulo(e.target.value); setTituloManual(true); tocar('titulo') }}
                   placeholder="ex: Emenda 05/06 — Junho 2026"
                   className={erroTitulo ? INPUT_ERRO_CLS : INPUT_CLS}
                 />
                 {erroTitulo && <p className="mt-1 text-xs font-medium text-red-600">Informe o título do acordo.</p>}
+                {!erroTitulo && !tituloManual && tituloAuto && <p className="mt-1 text-xs text-gray-400">Sugerido automaticamente. Pode editar.</p>}
+                {tituloManual && tituloAuto && tituloAuto !== titulo && (
+                  <button type="button" onClick={() => setTituloManual(false)} className="mt-1 text-xs font-medium text-slate-500 underline hover:text-slate-800">
+                    usar sugestão: {tituloAuto}
+                  </button>
+                )}
               </div>
               <div>
                 <label className={`${LABEL_CLS} mb-1.5`}>Abrangência</label>
@@ -408,6 +427,8 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
                   conta={conta}
                   dicaDispensa={dicaDispensa}
                   notaPeriodo={notaPeriodo}
+                  nomesEvento={nomesEvento}
+                  atalhosCalendario={atalhosCalendario}
                 />
               ) : (
                 <p className="text-sm text-gray-400">Escolha a situação no passo 1 para ver os campos.</p>

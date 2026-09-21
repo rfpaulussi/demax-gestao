@@ -12,6 +12,7 @@ import { resolverTipoEscala, FUNCAO_JOVEM_APRENDIZ } from '@/lib/turnos/escala'
 import { agruparPorJornada, construirMovimentos, resumoCalculo } from '@/lib/acordos/movimentos'
 import { gerarObjeto, TEMPLATES } from '@/lib/acordos/templates'
 import { validarAcordo } from '@/lib/acordos/validar'
+import { nomesRecentesDistintos } from '@/lib/acordos/resumo'
 import type { CamposAcordo, FuncionarioCalc, SemanaTurno } from '@/lib/acordos/tipos'
 import { carregarCalendario } from '@/lib/calendario/mogi'
 import { calendarioParaMapa } from '@/lib/calendario/mapa'
@@ -334,6 +335,22 @@ export async function buscarPostosParaAcordo(): Promise<AcordoPostoItem[]> {
     .eq('ativo', true)
     .order('nome')
   return (data ?? []) as AcordoPostoItem[]
+}
+
+/** Nomes de evento usados nos acordos mais recentes (distintos, até 8), para atalhos no modal. Erro → []. */
+export async function buscarNomesEventoRecentes(): Promise<string[]> {
+  try {
+    const { data, error } = await (createClient() as AnyClient)
+      .from('acordos_compensacao')
+      .select('evento_nome, created_at')
+      .not('evento_nome', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(200)
+    if (error) return []
+    return nomesRecentesDistintos(((data ?? []) as { evento_nome: string | null }[]).map(r => r.evento_nome), 8)
+  } catch {
+    return []
+  }
 }
 
 const TAM_LOTE = 100 // evita URL gigante no PostgREST com centenas de ids

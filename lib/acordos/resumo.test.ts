@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
-  agruparAchados, dataMaximaPrazo, fmtDuracao, fmtHM, identificarMotivo, montarChecklist, montarMotivoDecreto,
-  motivoDoCalendario, precisaPrazo, rotuloDiaChip, textoConta,
+  agruparAchados, combinarNomesEvento, dataMaximaPrazo, fmtDuracao, fmtHM, identificarMotivo, montarChecklist, montarMotivoDecreto,
+  motivoDoCalendario, nomesRecentesDistintos, precisaPrazo, proximasDatasCalendario, rotuloAtalhoCalendario, rotuloDiaChip,
+  textoConta, tituloSugerido,
 } from './resumo'
 import type { Achado, CamposAcordo } from './tipos'
+import type { CalendarioLinha } from '../calendario/mapa'
 
 const achado = (codigo: string, mensagem: string, nivel: Achado['nivel'] = 'aviso', funcionarioId?: string): Achado =>
   ({ codigo, mensagem, nivel, funcionarioId })
@@ -242,5 +244,109 @@ describe('montarChecklist', () => {
   it('item de prazo só existe quando exigido', () => {
     expect(montarChecklist(entrada()).some(i => i.id === 'prazo')).toBe(false)
     expect(montarChecklist(entrada({ prazoObrigatorio: true })).some(i => i.id === 'prazo')).toBe(true)
+  })
+})
+
+describe('tituloSugerido', () => {
+  it('T1: evento com nome e data', () => {
+    expect(tituloSugerido('T1', base({ template: 'T1', nomeEvento: 'Festa Junina', dataEvento: '2026-09-14' }))).toBe('Evento Festa Junina (14/09)')
+  })
+
+  it('T2: dispensa com data e nome', () => {
+    expect(tituloSugerido('T2', base({ template: 'T2', nomeEvento: 'Chuva forte', dataEvento: '2026-09-14' }))).toBe('Dispensa 14/09 — Chuva forte')
+  })
+
+  it('T3: folga com data e posto', () => {
+    expect(tituloSugerido('T3', base({ dataFolga: '2026-06-05' }), 'EMEF Centro')).toBe('Folga 05/06 — EMEF Centro')
+  })
+
+  it('T4: banco de horas com a data da folga', () => {
+    expect(tituloSugerido('T4', base({ template: 'T4', dataFolga: '2026-06-12' }))).toBe('Banco de horas — folga 12/06')
+  })
+
+  it('T5: descanso trabalhado com nome e data', () => {
+    expect(tituloSugerido('T5', base({ template: 'T5', nomeEvento: 'Mutirão', dataEvento: '2026-06-20' }))).toBe('Descanso trabalhado: Mutirão (20/06)')
+  })
+
+  it('omite partes ausentes sem deixar traços soltos', () => {
+    expect(tituloSugerido('T1', base({ template: 'T1', nomeEvento: 'Festa Junina' }))).toBe('Evento Festa Junina')
+    expect(tituloSugerido('T1', base({ template: 'T1', dataEvento: '2026-09-14' }))).toBe('Evento (14/09)')
+    expect(tituloSugerido('T2', base({ template: 'T2', dataEvento: '2026-09-14' }))).toBe('Dispensa 14/09')
+    expect(tituloSugerido('T2', base({ template: 'T2', nomeEvento: 'Chuva' }))).toBe('Dispensa — Chuva')
+    expect(tituloSugerido('T3', base({ dataFolga: '2026-06-05' }))).toBe('Folga 05/06')
+    expect(tituloSugerido('T3', base(), 'EMEF Centro')).toBe('Folga — EMEF Centro')
+    expect(tituloSugerido('T5', base({ template: 'T5', nomeEvento: 'Mutirão' }))).toBe('Descanso trabalhado: Mutirão')
+    expect(tituloSugerido('T5', base({ template: 'T5', dataEvento: '2026-06-20' }))).toBe('Descanso trabalhado (20/06)')
+  })
+
+  it('sem nenhuma informação devolve vazio', () => {
+    for (const t of ['T1', 'T2', 'T3', 'T4', 'T5'] as const) expect(tituloSugerido(t, base({ template: t }))).toBe('')
+    expect(tituloSugerido('T3', base(), '   ')).toBe('')
+  })
+
+  it('limita a 80 caracteres e normaliza espaços', () => {
+    const longo = tituloSugerido('T1', base({ template: 'T1', nomeEvento: 'A'.repeat(120), dataEvento: '2026-09-14' }))
+    expect(longo.length).toBeLessThanOrEqual(80)
+    expect(tituloSugerido('T1', base({ template: 'T1', nomeEvento: '  Festa   Junina ' }))).toBe('Evento Festa Junina')
+  })
+})
+
+describe('proximasDatasCalendario', () => {
+  const l = (data: string, nome = 'X', tipo: CalendarioLinha['tipo'] = 'facultativo', ate_hora: string | null = null): CalendarioLinha =>
+    ({ data, nome, tipo, ate_hora })
+
+  it('mantém datas entre hoje-7 e hoje+90, ordenadas', () => {
+    const r = proximasDatasCalendario(
+      [l('2026-09-30'), l('2026-06-01'), l('2026-09-14'), l('2026-09-10'), l('2026-12-31'), l('2026-09-24')],
+      '2026-09-17',
+    )
+    expect(r.map(x => x.data)).toEqual(['2026-09-10', '2026-09-14', '2026-09-24', '2026-09-30'])
+  })
+
+  it('bordas inclusivas', () => {
+    const r = proximasDatasCalendario([l('2026-09-10'), l('2026-09-09'), l('2026-12-16'), l('2026-12-17')], '2026-09-17')
+    expect(r.map(x => x.data)).toEqual(['2026-09-10', '2026-12-16'])
+  })
+
+  it('respeita limite e opções', () => {
+    const cal = Array.from({ length: 10 }, (_, i) => l(`2026-09-${String(18 + i).padStart(2, '0')}`))
+    expect(proximasDatasCalendario(cal, '2026-09-17')).toHaveLength(6)
+    expect(proximasDatasCalendario(cal, '2026-09-17', { limite: 2 })).toHaveLength(2)
+    expect(proximasDatasCalendario(cal, '2026-09-17', { depois: 3 }).map(x => x.data)).toEqual(['2026-09-18', '2026-09-19', '2026-09-20'])
+    expect(proximasDatasCalendario([l('2026-09-01')], '2026-09-17', { antes: 30 })).toHaveLength(1)
+  })
+
+  it('não altera o array de entrada e aceita vazio', () => {
+    const cal = [l('2026-09-20'), l('2026-09-18')]
+    proximasDatasCalendario(cal, '2026-09-17')
+    expect(cal[0].data).toBe('2026-09-20')
+    expect(proximasDatasCalendario([], '2026-09-17')).toEqual([])
+  })
+})
+
+describe('rotuloAtalhoCalendario', () => {
+  it('semana, dia/mês e nome', () => {
+    expect(rotuloAtalhoCalendario({ data: '2026-06-05', nome: 'ponto facultativo', tipo: 'facultativo', ate_hora: null })).toBe('sex 05/06 · ponto facultativo')
+  })
+
+  it('meio período mostra "até 13h"', () => {
+    expect(rotuloAtalhoCalendario({ data: '2026-06-05', nome: 'ponto facultativo', tipo: 'facultativo', ate_hora: '13:00:00' })).toBe('sex 05/06 · ponto facultativo · até 13h')
+    expect(rotuloAtalhoCalendario({ data: '2026-06-05', nome: 'X', tipo: 'facultativo', ate_hora: '12:30' })).toBe('sex 05/06 · X · até 12h30')
+  })
+})
+
+describe('nomes de evento', () => {
+  it('nomesRecentesDistintos: distintos sem diferenciar maiúsculas, ordem preservada, até o máximo', () => {
+    const r = nomesRecentesDistintos(['Festa Junina', null, 'festa junina', ' Reunião ', '', 'Mutirão'], 2)
+    expect(r).toEqual(['Festa Junina', 'Reunião'])
+    expect(nomesRecentesDistintos([])).toEqual([])
+    expect(nomesRecentesDistintos(Array.from({ length: 20 }, (_, i) => `N${i}`))).toHaveLength(8)
+  })
+
+  it('combinarNomesEvento: recentes primeiro, sem duplicar, no máximo 12', () => {
+    expect(combinarNomesEvento(['Sarau', 'festa junina'], ['Festa Junina', 'Formatura'])).toEqual(['Sarau', 'festa junina', 'Formatura'])
+    const muitos = combinarNomesEvento(['a', 'b'], Array.from({ length: 20 }, (_, i) => `S${i}`))
+    expect(muitos).toHaveLength(12)
+    expect(muitos.slice(0, 2)).toEqual(['a', 'b'])
   })
 })

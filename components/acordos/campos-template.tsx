@@ -5,8 +5,8 @@ import { CalendarDays } from 'lucide-react'
 import type { CamposAcordo, TemplateId } from '@/lib/acordos/tipos'
 import { hhmmParaMin } from '@/lib/acordos/tempo'
 import type { MapaFeriados } from '@/lib/acordos/validar'
-import { NOMES_EVENTO_SUGERIDOS } from '@/lib/acordos/motivos'
-import { fmtHM, motivoDoCalendario } from '@/lib/acordos/resumo'
+import type { CalendarioLinha } from '@/lib/calendario/mapa'
+import { fmtHM, motivoDoCalendario, rotuloAtalhoCalendario } from '@/lib/acordos/resumo'
 import { Campo, INPUT_CLS, INPUT_ERRO_CLS, SubPasso } from './passo'
 import { MotivoChips } from './motivo-chips'
 import { DiasChips } from './dias-chips'
@@ -98,10 +98,14 @@ interface Props {
   dicaDispensa?: string | null
   /** T1/T5: quanto do período fica fora do horário normal. */
   notaPeriodo?: string | null
+  /** Chips de nome de evento: recentes primeiro, depois os sugeridos. */
+  nomesEvento: string[]
+  /** Próximos feriados/pontos facultativos do calendário de Mogi (atalhos para a data). */
+  atalhosCalendario: CalendarioLinha[]
 }
 
 export function CamposTemplate({
-  template: t, f, set, feriados, diasManual, onDatasManuais, onRecalcular, erros, conta, dicaDispensa, notaPeriodo,
+  template: t, f, set, feriados, diasManual, onDatasManuais, onRecalcular, erros, conta, dicaDispensa, notaPeriodo, nomesEvento, atalhosCalendario,
 }: Props) {
   const [modo, setModo] = useState<'periodo' | 'horas'>(f.duracao && !f.periodoInicio ? 'horas' : 'periodo')
   const cls = (k: CampoChave) => (erros[k] ? INPUT_ERRO_CLS : INPUT_CLS)
@@ -133,7 +137,7 @@ export function CamposTemplate({
 
   const chipsNome = () => (
     <div className="-mt-1 flex flex-wrap gap-1.5">
-      {NOMES_EVENTO_SUGERIDOS.map(n => (
+      {nomesEvento.map(n => (
         <button key={n} type="button" aria-pressed={f.nomeEvento === n} onClick={() => set('nomeEvento', n)} className={chipCls(f.nomeEvento === n)}>
           {n}
         </button>
@@ -181,8 +185,43 @@ export function CamposTemplate({
     </div>
   )
 
-  const dataCampo = (rotulo: string, chave: 'dataEvento' | 'dataFolga', ajuda: string, cal?: { nome: string; tipo: string }) => (
+  /** Clique num atalho: preenche a data, sugere o motivo (se vazio) e, em meio período no T2, a hora de dispensa. */
+  function usarAtalho(chave: 'dataEvento' | 'dataFolga', l: CalendarioLinha) {
+    set(chave, l.data)
+    if (t === 'T2' || t === 'T3' || t === 'T4') {
+      if (!f.motivo) set('motivo', motivoDoCalendario({ nome: l.nome, tipo: l.tipo }))
+    }
+    if (t === 'T2' && l.ate_hora) set('horaDispensa', l.ate_hora.slice(0, 5))
+  }
+
+  const atalhos = (chave: 'dataEvento' | 'dataFolga') => (
+    <div className="mb-2">
+      <p className="mb-1 text-[11px] font-semibold text-gray-400">Datas do calendário de Mogi:</p>
+      <div className="flex flex-wrap gap-1.5">
+        {atalhosCalendario.map(l => (
+          <button
+            key={l.data + l.nome}
+            type="button"
+            aria-pressed={f[chave] === l.data}
+            onClick={() => usarAtalho(chave, l)}
+            className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition ${
+              f[chave] === l.data
+                ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500'
+                : l.tipo === 'facultativo'
+                  ? 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                  : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            {rotuloAtalhoCalendario(l)}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  const dataCampo = (rotulo: string, chave: 'dataEvento' | 'dataFolga', ajuda: string, cal?: { nome: string; tipo: string }, comAtalhos = false) => (
     <Campo titulo={rotulo} htmlFor={`campo-${chave}`} ajuda={ajuda} erro={erros[chave]}>
+      {comAtalhos && atalhosCalendario.length > 0 && atalhos(chave)}
       <input id={`campo-${chave}`} type="date" value={f[chave]} onChange={e => set(chave, e.target.value)} className={`max-w-xs ${cls(chave)}`} />
       <div><ChipCalendario info={cal} /></div>
     </Campo>
@@ -233,7 +272,7 @@ export function CamposTemplate({
         <>
           <SubPasso letra={proxima()} titulo="Quando foi">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {dataCampo('Em que dia foram liberados?', 'dataEvento', 'ex: 14/09/2026', calEvento)}
+              {dataCampo('Em que dia foram liberados?', 'dataEvento', 'ex: 14/09/2026', calEvento, true)}
               {nomeEvento('Nome do evento / motivo do dia')}
             </div>
             <Campo
@@ -255,7 +294,7 @@ export function CamposTemplate({
       {t === 'T3' && (
         <>
           <SubPasso letra={proxima()} titulo="Dia da folga">
-            {dataCampo('Qual dia não trabalharam?', 'dataFolga', 'ex: sexta-feira, 05/06/2026', calFolga)}
+            {dataCampo('Qual dia não trabalharam?', 'dataFolga', 'ex: sexta-feira, 05/06/2026', calFolga, true)}
           </SubPasso>
           <SubPasso letra={proxima()} titulo="Motivo">{blocoMotivo(false)}</SubPasso>
           <SubPasso letra={proxima()} titulo="Dias de reposição">
@@ -267,7 +306,7 @@ export function CamposTemplate({
       {t === 'T4' && (
         <>
           <SubPasso letra={proxima()} titulo="Quando será a folga">
-            {dataCampo('Em que dia vão folgar?', 'dataFolga', 'ex: 12/06/2026', calFolga)}
+            {dataCampo('Em que dia vão folgar?', 'dataFolga', 'ex: 12/06/2026', calFolga, true)}
             <div>
               <p className="mb-1.5 text-xs font-bold uppercase tracking-widest text-slate-500">Motivo</p>
               {blocoMotivo(false)}
@@ -290,7 +329,7 @@ export function CamposTemplate({
             {periodoOuHoras()}
           </SubPasso>
           <SubPasso letra={proxima()} titulo="Dia da folga">
-            {dataCampo('Em que dia vão folgar?', 'dataFolga', 'ex: 26/06/2026', calFolga)}
+            {dataCampo('Em que dia vão folgar?', 'dataFolga', 'ex: 26/06/2026', calFolga, true)}
           </SubPasso>
         </>
       )}

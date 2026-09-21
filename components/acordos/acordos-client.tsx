@@ -131,12 +131,13 @@ interface Props {
   acordos: AcordoCompensacao[]
   postos: AcordoPostoItem[]
   calendario: CalendarioLinha[]
+  nomesRecentes: string[]
   mes: number
   ano: number
   anos: number[]
 }
 
-export function AcordosClient({ acordos, postos, calendario, mes, ano, anos }: Props) {
+export function AcordosClient({ acordos, postos, calendario, nomesRecentes, mes, ano, anos }: Props) {
   const router = useRouter()
   const [showModal, setShowModal]   = useState(false)
   const [editando, setEditando]     = useState<AcordoCompensacao | null>(null)
@@ -390,6 +391,7 @@ export function AcordosClient({ acordos, postos, calendario, mes, ano, anos }: P
         <ModalNovoAcordo
           postos={postos}
           calendario={calendario}
+          nomesRecentes={nomesRecentes}
           onClose={() => setShowModal(false)}
         />
       )}
