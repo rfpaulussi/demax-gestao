@@ -1,108 +1,32 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Clock, MapPin, Users, FileText, Calendar, Plus, Trash2 } from 'lucide-react'
-import {
-  criarAcordo,
-  buscarFuncionariosPorPostos,
-} from '@/app/(admin)/acordos/actions'
-import type { AcordoPostoItem, AcordoFuncionarioItem, TurnoHorario } from '@/app/(admin)/acordos/actions'
-
-const DIAS = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado','Domingo']
-
-const HORARIOS_EXTRA_30 = new Set([5,6,7,8,11,12,13,14,15,16,17,18])
-const HORARIOS: string[] = []
-for (let h = 5; h <= 23; h++) {
-  for (let m = 0; m < 60; m += 12) {
-    if (h === 23 && m > 0) break
-    HORARIOS.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`)
-    if (m === 24 && HORARIOS_EXTRA_30.has(h)) {
-      HORARIOS.push(`${String(h).padStart(2,'0')}:30`)
-    }
-  }
-}
-
-function TimeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <select
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-slate-300"
-    >
-      <option value="">--:--</option>
-      {HORARIOS.map(h => <option key={h} value={h}>{h}</option>)}
-    </select>
-  )
-}
-
-interface DiaTimes { folga: boolean; e1: string; s1: string; e2: string; s2: string }
-
-const DEFAULT_TIMES: Record<string, DiaTimes> = {
-  'Segunda-feira': { folga: false, e1: '07:00', s1: '12:00', e2: '13:12', s2: '17:00' },
-  'Terça-feira':   { folga: false, e1: '07:00', s1: '12:00', e2: '13:12', s2: '17:00' },
-  'Quarta-feira':  { folga: false, e1: '07:00', s1: '12:00', e2: '13:12', s2: '17:00' },
-  'Quinta-feira':  { folga: false, e1: '07:00', s1: '12:00', e2: '13:12', s2: '17:00' },
-  'Sexta-feira':   { folga: false, e1: '07:00', s1: '12:00', e2: '13:12', s2: '17:00' },
-  'Sábado':        { folga: true,  e1: '',      s1: '',      e2: '',      s2: ''      },
-  'Domingo':       { folga: true,  e1: '',      s1: '',      e2: '',      s2: ''      },
-}
-
-function makeDefaultTimes(): Record<string, DiaTimes> {
-  return Object.fromEntries(Object.entries(DEFAULT_TIMES).map(([k, v]) => [k, { ...v }]))
-}
-
-const MODELOS = {
-  extra: `trabalharem no dia [DATA DO EVENTO] ([NOME DO EVENTO]), com acréscimo de [HH:MM] hora diária no horário normal nos dias [DATA COMP. 1], [DATA COMP. 2] e [DATA COMP. 3], compensando assim [X] hora(s) laborada(s) no referido evento.`,
-  dispensa: `trabalharem normalmente até as [HORA NORMAL]h no dia [DATA DO EVENTO] ([NOME DO EVENTO]), sendo dispensados às [HORA DISPENSA]h conforme decreto municipal, compensando as [X] horas não laboradas com acréscimo de [HH:MM]h diária no horário normal nos dias [DATA COMP. 1], [DATA COMP. 2] e [DATA COMP. 3].`,
-}
+import { AlertTriangle, Calendar, Clock, FileText, MapPin, Users, XCircle } from 'lucide-react'
+import { buscarFuncionariosPorPostos, criarAcordo } from '@/app/(admin)/acordos/actions'
+import type { AcordoPostoItem, FuncionarioParaAcordo } from '@/app/(admin)/acordos/actions'
+import { calendarioParaMapa, type CalendarioLinha } from '@/lib/calendario/mapa'
+import { DIAS_SEMANA, type Achado, type FuncionarioCalc, type TemplateId } from '@/lib/acordos/tipos'
+import { agruparPorJornada, resumoCalculo } from '@/lib/acordos/movimentos'
+import { gerarObjeto, TEMPLATES } from '@/lib/acordos/templates'
+import { temErro, validarAcordo } from '@/lib/acordos/validar'
+import { jornadaDiaMin, semanaParaTexto, totalSemanalMin } from '@/lib/acordos/horario-do-turno'
+import { proximosDiasUteis, sugerirQuantidadeDias } from '@/lib/acordos/dias'
+import { MAX_ACRESCIMO_DIA_MIN, MAX_JORNADA_DIA_MIN } from '@/lib/acordos/regras'
+import { minParaHHMM } from '@/lib/acordos/tempo'
+import { CamposTemplate, FORM_VAZIO, montarCampos, type FormState } from './campos-template'
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-  ativo:     { label: 'Ativo',     cls: 'bg-green-100 text-green-700' },
-  ferias:    { label: 'Férias',    cls: 'bg-orange-100 text-orange-700' },
-  afastado:  { label: 'Afastado', cls: 'bg-red-100 text-red-700' },
-  atestado:  { label: 'Atestado', cls: 'bg-amber-100 text-amber-700' },
-  faltante:  { label: 'Faltante', cls: 'bg-yellow-100 text-yellow-700' },
+  ativo:    { label: 'Ativo',    cls: 'bg-green-100 text-green-700' },
+  ferias:   { label: 'Férias',   cls: 'bg-orange-100 text-orange-700' },
+  afastado: { label: 'Afastado', cls: 'bg-red-100 text-red-700' },
+  atestado: { label: 'Atestado', cls: 'bg-amber-100 text-amber-700' },
+  faltante: { label: 'Faltante', cls: 'bg-yellow-100 text-yellow-700' },
 }
-
-function minutosEntre(a: string, b: string): number {
-  if (!a || !b) return 0
-  const [ah, am] = a.split(':').map(Number)
-  const [bh, bm] = b.split(':').map(Number)
-  return Math.max(0, (bh * 60 + bm) - (ah * 60 + am))
-}
-
-function calcTotalSemanal(times: Record<string, DiaTimes>): string {
-  let total = 0
-  for (const dia of DIAS) {
-    const t = times[dia]
-    if (!t || t.folga) continue
-    total += minutosEntre(t.e1, t.s1) + minutosEntre(t.e2, t.s2)
-  }
-  const h = Math.floor(total / 60)
-  const m = total % 60
-  return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2,'0')}min`
-}
-
-function timesToString(t: DiaTimes): string {
-  if (t.folga) return 'FOLGA'
-  const p1 = t.e1 && t.s1 ? `${t.e1} às ${t.s1}` : ''
-  const p2 = t.e2 && t.s2 ? `${t.e2} às ${t.s2}` : ''
-  return [p1, p2].filter(Boolean).join(' / ')
-}
-
-interface TurnoState {
-  id: string
-  label: string
-  times: Record<string, DiaTimes>
-}
-
-let turnoCounter = 1
-function newTurnoId() { return `turno-${turnoCounter++}` }
 
 function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: string }) {
   return (
-    <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
+    <div className="flex items-center gap-2 border-b border-slate-100 pb-1">
       <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-900">
         <Icon className="h-3.5 w-3.5 text-white" />
       </div>
@@ -113,180 +37,154 @@ function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: 
 
 interface Props {
   postos: AcordoPostoItem[]
+  calendario: CalendarioLinha[]
   onClose: () => void
 }
 
-export function ModalNovoAcordo({ postos, onClose }: Props) {
+export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
 
-  const [titulo, setTitulo]         = useState('')
-  const [tipo, setTipo]             = useState<'individual' | 'coletivo'>('individual')
-  const [subtipo, setSubtipo]       = useState<'evento' | 'antecipado' | ''>('')
-  const [postosSel, setPostosSel]   = useState<string[]>([])
-  const [descricao, setDescricao]   = useState('')
-  const [dataDoc, setDataDoc]       = useState(new Date().toISOString().split('T')[0])
-  const [erro, setErro]             = useState('')
-
-  // Funcionários — lista completa + seleção individual + turno assignment
-  const [allFuncs, setAllFuncs]         = useState<AcordoFuncionarioItem[]>([])
-  const [selectedIds, setSelectedIds]   = useState<Set<string>>(new Set())
-  const [funcTurno, setFuncTurno]       = useState<Record<string, string>>({})  // funcId → turnoId
+  const [titulo, setTitulo] = useState('')
+  const [tipo, setTipo] = useState<'individual' | 'coletivo'>('individual')
+  const [postosSel, setPostosSel] = useState<string[]>([])
+  const [dataDoc, setDataDoc] = useState(new Date().toLocaleDateString('sv-SE'))
+  const [template, setTemplate] = useState<TemplateId>('T3')
+  const [f, setF] = useState<FormState>(FORM_VAZIO)
+  const [funcs, setFuncs] = useState<FuncionarioParaAcordo[]>([])
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [loadingFuncs, setLoadingFuncs] = useState(false)
+  const [erro, setErro] = useState('')
 
-  // Turnos
-  const firstId = 'turno-0'
-  const [turnos, setTurnos] = useState<TurnoState[]>([
-    { id: firstId, label: 'Turno Único', times: makeDefaultTimes() }
-  ])
-
-  const multiTurno = turnos.length > 1
-
-  // ── Postos ───────────────────────────────────────────────────────────────────
-  function togglePosto(id: string) {
-    setPostosSel(prev =>
-      tipo === 'individual' ? [id] : prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    )
-    setAllFuncs([])
-    setSelectedIds(new Set())
-    setFuncTurno({})
+  function set<K extends keyof FormState>(k: K, v: FormState[K]) {
+    setF(prev => ({ ...prev, [k]: v }))
   }
 
-  // ── Funcionários ─────────────────────────────────────────────────────────────
-  async function carregarFuncionarios() {
-    if (!postosSel.length) return
+  // Carrega funcionários automaticamente ao escolher o(s) posto(s)
+  useEffect(() => {
+    let ativo = true
+    if (postosSel.length === 0) {
+      setFuncs([])
+      setSelectedIds(new Set())
+      return
+    }
     setLoadingFuncs(true)
-    const funcs = await buscarFuncionariosPorPostos(postosSel)
-    setAllFuncs(funcs)
-    // Auto-selecionar ativos e em férias; desmarcar afastados/atestado/faltante
-    const autoSelect = new Set(funcs.filter(f => f.status === 'ativo' || f.status === 'ferias').map(f => f.id))
-    setSelectedIds(autoSelect)
-    // Todos no primeiro turno por padrão
-    const turnoMap: Record<string, string> = {}
-    funcs.forEach(f => { turnoMap[f.id] = firstId })
-    setFuncTurno(turnoMap)
-    setLoadingFuncs(false)
+    buscarFuncionariosPorPostos(postosSel).then(res => {
+      if (!ativo) return
+      setFuncs(res)
+      setSelectedIds(new Set(res.filter(x => x.elegivel && (x.status === 'ativo' || x.status === 'ferias')).map(x => x.id)))
+      setLoadingFuncs(false)
+    })
+    return () => { ativo = false }
+  }, [postosSel])
+
+  function togglePosto(id: string) {
+    setPostosSel(prev => (tipo === 'individual' ? [id] : prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))
   }
 
   function toggleFunc(id: string) {
     setSelectedIds(prev => {
       const next = new Set(prev)
-      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
 
-  function setFuncTurnoId(funcId: string, turnoId: string) {
-    setFuncTurno(prev => ({ ...prev, [funcId]: turnoId }))
-  }
+  const selecionados = useMemo(() => funcs.filter(x => selectedIds.has(x.id)), [funcs, selectedIds])
+  const calc: FuncionarioCalc[] = useMemo(
+    () => selecionados.map(x => ({ id: x.id, nome: x.nome, status: x.status, regime: x.regime, semana: x.semana, semTurno: x.sem_turno })),
+    [selecionados],
+  )
+  const feriados = useMemo(() => calendarioParaMapa(calendario), [calendario])
+  const campos = useMemo(() => montarCampos(template, f), [template, f])
+  const grupos = useMemo(() => agruparPorJornada(campos, calc), [campos, calc])
 
-  // ── Turnos ───────────────────────────────────────────────────────────────────
-  function addTurno() {
-    const id = newTurnoId()
-    setTurnos(prev => {
-      const updated = prev.map((t, i) => i === 0 && t.label === 'Turno Único' ? { ...t, label: 'Turno A' } : t)
-      return [...updated, { id, label: `Turno ${String.fromCharCode(65 + prev.length)}`, times: makeDefaultTimes() }]
-    })
-  }
+  const achados: Achado[] = useMemo(() => {
+    if (grupos.length === 0) return validarAcordo(campos, [], feriados)
+    const vistos = new Set<string>()
+    const out: Achado[] = []
+    for (const g of grupos) {
+      for (const a of validarAcordo(campos, g, feriados)) {
+        const chave = `${a.codigo}|${a.funcionarioId ?? ''}|${a.mensagem}`
+        if (!vistos.has(chave)) { vistos.add(chave); out.push(a) }
+      }
+    }
+    return out
+  }, [campos, grupos, feriados])
 
-  function removeTurno(id: string) {
-    setTurnos(prev => {
-      const remaining = prev.filter(t => t.id !== id)
-      if (remaining.length === 1) remaining[0] = { ...remaining[0], label: 'Turno Único' }
-      return remaining
-    })
-    // Reassign employees from removed turno to first remaining
-    setFuncTurno(prev => {
-      const firstRemaining = turnos.find(t => t.id !== id)?.id ?? firstId
-      return Object.fromEntries(
-        Object.entries(prev).map(([fid, tid]) => [fid, tid === id ? firstRemaining : tid])
-      )
-    })
-  }
+  const texto = useMemo(
+    () => (grupos.length ? gerarObjeto(campos, resumoCalculo(campos, grupos[0])) : null),
+    [campos, grupos],
+  )
 
-  function updateTurnoLabel(id: string, label: string) {
-    setTurnos(prev => prev.map(t => t.id === id ? { ...t, label } : t))
-  }
-
-  function updateTime(turnoId: string, dia: string, field: keyof DiaTimes, value: string | boolean) {
-    setTurnos(prev => prev.map(t =>
-      t.id === turnoId ? { ...t, times: { ...t.times, [dia]: { ...t.times[dia], [field]: value } } } : t
-    ))
-  }
-
-  // ── Salvar ───────────────────────────────────────────────────────────────────
-  function handleSalvar() {
-    if (!titulo.trim())          { setErro('Informe o título do acordo.'); return }
-    if (!postosSel.length)       { setErro('Selecione ao menos um posto.'); return }
-    if (!allFuncs.length)        { setErro('Carregue os funcionários antes de salvar.'); return }
-    if (selectedIds.size === 0)  { setErro('Selecione ao menos um funcionário.'); return }
-    if (!descricao.trim())       { setErro('Descreva o evento e os termos de compensação.'); return }
-
+  function sugerirDias() {
+    if (!calc.length) { setErro('Selecione os funcionários antes de sugerir os dias.'); return }
+    const r = resumoCalculo(campos, grupos[0] ?? calc)
+    const jornadaMax = Math.max(...calc.flatMap(x => DIAS_SEMANA.map(d => jornadaDiaMin(x.semana[d]))))
+    const maxPorDia = template === 'T1' ? 60 : Math.min(MAX_ACRESCIMO_DIA_MIN, MAX_JORNADA_DIA_MIN - jornadaMax)
+    const n = sugerirQuantidadeDias(r.horasTotalMin, maxPorDia)
+    const base = template === 'T3' ? f.dataFolga : f.dataEvento
+    if (!n || !base || r.horasTotalMin <= 0) {
+      setErro('Preencha a data e as horas antes de sugerir os dias (ou não existe divisão possível).')
+      return
+    }
     setErro('')
+    set('datasAjuste', proximosDiasUteis(base, n, calc, feriados))
+  }
 
-    const selectedFuncs = allFuncs.filter(f => selectedIds.has(f.id))
-
-    const horarios: TurnoHorario[] = turnos.map(t => ({
-      label: t.label,
-      horario: Object.fromEntries(DIAS.map(dia => [dia, timesToString(t.times[dia])])),
-      funcionario_ids: selectedFuncs
-        .filter(f => (funcTurno[f.id] ?? firstId) === t.id)
-        .map(f => f.id),
-    })).filter(t => t.funcionario_ids.length > 0)
-
-    if (!horarios.length) { setErro('Nenhum funcionário foi atribuído a um turno.'); return }
-
+  function handleSalvar() {
+    if (!titulo.trim()) { setErro('Informe o título do acordo.'); return }
+    if (!postosSel.length) { setErro('Selecione ao menos um posto.'); return }
+    if (temErro(achados)) { setErro('Corrija os itens em vermelho antes de salvar.'); return }
+    setErro('')
     startTransition(async () => {
       const postosObj = postos.filter(p => postosSel.includes(p.id))
-      const res = await criarAcordo({
-        titulo: titulo.trim(),
-        tipo,
-        subtipo: subtipo || null,
-        postos: postosObj,
-        funcionarios: selectedFuncs,
-        horarios,
-        descricao_acordo: descricao.trim(),
-        data_documento: dataDoc,
-      })
-      if ('error' in res) { setErro(res.error); return }
+      for (let i = 0; i < grupos.length; i++) {
+        const res = await criarAcordo({
+          titulo: grupos.length > 1 ? `${titulo.trim()} — grupo ${i + 1}` : titulo.trim(),
+          tipo,
+          postos: postosObj,
+          funcionarioIds: grupos[i].map(x => x.id),
+          data_documento: dataDoc,
+          campos,
+        })
+        if ('error' in res) {
+          setErro(grupos.length > 1 ? `Grupo ${i + 1}: ${res.error}` : res.error)
+          router.refresh()
+          return
+        }
+      }
       router.refresh()
       onClose()
     })
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 overflow-y-auto overflow-x-hidden py-8 px-4">
-      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+  const inputCls = 'w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300'
+  const labelCls = 'mb-2 block text-xs font-bold uppercase tracking-widest text-slate-500'
 
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overflow-x-hidden bg-black/50 px-4 py-8">
+      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
         <div className="rounded-t-2xl bg-slate-900 px-6 py-5">
           <h2 className="text-base font-bold text-white">Novo Acordo de Compensação</h2>
-          <p className="mt-0.5 text-xs text-slate-400">O PDF com o texto jurídico completo é gerado após salvar</p>
+          <p className="mt-0.5 text-xs text-slate-400">O texto é gerado a partir dos campos; o PDF sai após salvar</p>
         </div>
 
         <div className="space-y-6 px-6 py-6">
-
-          {/* Título */}
           <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-500">Título do Acordo</label>
-            <input
-              value={titulo}
-              onChange={e => setTitulo(e.target.value)}
-              placeholder="ex: Festa Junina — Junho 2026"
-              className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-            />
+            <label className={labelCls}>Título do Acordo</label>
+            <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="ex: Emenda 05/06 — Junho 2026" className={inputCls} />
           </div>
 
-          {/* Tipo */}
           <div>
-            <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-500">Abrangência</label>
+            <label className={labelCls}>Abrangência</label>
             <div className="flex gap-3">
-              {([['individual','Individual','Uma unidade'], ['coletivo','Coletivo','Múltiplas unidades']] as const).map(([val, label, sub]) => (
-                <label key={val} className={`flex flex-1 cursor-pointer items-center gap-3 rounded-xl border-2 px-4 py-3 transition-colors ${
-                  tipo === val ? 'border-slate-900 bg-slate-50' : 'border-gray-200 hover:border-gray-300'
-                }`}>
-                  <input type="radio" checked={tipo === val} onChange={() => { setTipo(val); setPostosSel([]); setAllFuncs([]); setSelectedIds(new Set()); setFuncTurno({}) }} className="accent-slate-900" />
+              {([['individual', 'Individual', 'Uma unidade'], ['coletivo', 'Coletivo', 'Múltiplas unidades']] as const).map(([val, nome, sub]) => (
+                <label key={val} className={`flex flex-1 cursor-pointer items-center gap-3 rounded-xl border-2 px-4 py-3 ${tipo === val ? 'border-slate-900 bg-slate-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <input type="radio" checked={tipo === val} onChange={() => { setTipo(val); setPostosSel([]) }} className="accent-slate-900" />
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">{label}</p>
+                    <p className="text-sm font-semibold text-gray-900">{nome}</p>
                     <p className="text-xs text-gray-400">{sub}</p>
                   </div>
                 </label>
@@ -294,91 +192,68 @@ export function ModalNovoAcordo({ postos, onClose }: Props) {
             </div>
           </div>
 
-          {/* Subtipo */}
           <div>
-            <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-500">Tipo de Uso</label>
-            <div className="flex gap-3">
-              {([['', 'Não classificar', ''], ['evento', 'Evento', 'Horas já trabalhadas'], ['antecipado', 'Antecipado', 'Banco de horas']] as const).map(([val, label, sub]) => (
-                <label key={val} className={`flex flex-1 cursor-pointer items-center gap-3 rounded-xl border-2 px-3 py-2.5 transition-colors ${
-                  subtipo === val ? 'border-slate-900 bg-slate-50' : 'border-gray-200 hover:border-gray-300'
-                }`}>
-                  <input type="radio" checked={subtipo === val} onChange={() => setSubtipo(val as 'evento' | 'antecipado' | '')} className="accent-slate-900" />
+            <label className={labelCls}>Situação</label>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {(Object.keys(TEMPLATES) as TemplateId[]).map(id => (
+                <label key={id} className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 px-3 py-2.5 ${template === id ? 'border-slate-900 bg-slate-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <input type="radio" checked={template === id} onChange={() => setTemplate(id)} className="mt-1 accent-slate-900" />
                   <div>
-                    <p className="text-xs font-semibold text-gray-900">{label}</p>
-                    {sub && <p className="text-[10px] text-gray-400">{sub}</p>}
+                    <p className="text-sm font-semibold text-gray-900">{TEMPLATES[id].titulo}</p>
+                    <p className="text-xs text-gray-400">{TEMPLATES[id].resumo}</p>
                   </div>
                 </label>
               ))}
             </div>
           </div>
 
-          {/* Postos */}
           <div>
             <SectionHeader icon={MapPin} title="Posto(s)" />
-            <div className="mt-3 max-h-40 overflow-y-auto rounded-xl border border-gray-200 divide-y divide-gray-50">
+            <div className="mt-3 max-h-40 divide-y divide-gray-50 overflow-y-auto rounded-xl border border-gray-200">
               {postos.filter(p => !p.nome.startsWith('AFASTADO')).map(p => (
-                <label key={p.id} className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50">
+                <label key={p.id} className="flex cursor-pointer items-center gap-3 px-4 py-2.5 hover:bg-slate-50">
                   <input
                     type={tipo === 'individual' ? 'radio' : 'checkbox'}
                     checked={postosSel.includes(p.id)}
                     onChange={() => togglePosto(p.id)}
-                    className="accent-slate-900 shrink-0"
+                    className="shrink-0 accent-slate-900"
                   />
                   <span className="text-sm text-gray-800">{p.nome}</span>
-                  {p.secretaria && <span className="ml-auto text-xs text-gray-400 shrink-0">{p.secretaria}</span>}
+                  {p.secretaria && <span className="ml-auto shrink-0 text-xs text-gray-400">{p.secretaria}</span>}
                 </label>
               ))}
             </div>
           </div>
 
-          {/* Funcionários */}
           <div>
             <SectionHeader icon={Users} title="Funcionários" />
-            <div className="mt-3 space-y-3">
-              <button
-                type="button"
-                disabled={!postosSel.length || loadingFuncs}
-                onClick={carregarFuncionarios}
-                className="flex h-9 items-center gap-2 rounded-lg border-2 border-dashed border-slate-300 px-4 text-sm font-medium text-slate-600 hover:border-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors"
-              >
-                <Users className="h-4 w-4" />
-                {loadingFuncs ? 'Carregando…' : postosSel.length ? `Carregar funcionários (${postosSel.length} posto${postosSel.length > 1 ? 's' : ''})` : 'Selecione um posto acima'}
-              </button>
-
-              {allFuncs.length > 0 && (
-                <div className="rounded-xl border border-gray-200 overflow-hidden">
-                  <div className="bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-gray-400 flex items-center justify-between">
-                    <span>{selectedIds.size} de {allFuncs.length} selecionados</span>
-                    {multiTurno && <span className="text-gray-400">Turno</span>}
+            <div className="mt-3">
+              {postosSel.length === 0 && <p className="text-sm text-gray-400">Selecione um posto acima.</p>}
+              {loadingFuncs && <p className="text-sm text-gray-400">Carregando…</p>}
+              {funcs.length > 0 && (
+                <div className="overflow-hidden rounded-xl border border-gray-200">
+                  <div className="bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-gray-400">
+                    {selectedIds.size} de {funcs.length} selecionados
                   </div>
-                  <div className="divide-y divide-gray-50 max-h-56 overflow-y-auto">
-                    {allFuncs.map(f => {
-                      const badge = STATUS_BADGE[f.status]
+                  <div className="max-h-56 divide-y divide-gray-50 overflow-y-auto">
+                    {funcs.map(x => {
+                      const badge = STATUS_BADGE[x.status]
                       return (
-                        <label key={f.id} className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50">
+                        <label key={x.id} className={`flex items-center gap-3 px-4 py-2.5 ${x.elegivel ? 'cursor-pointer hover:bg-slate-50' : 'bg-gray-50 opacity-60'}`}>
                           <input
                             type="checkbox"
-                            checked={selectedIds.has(f.id)}
-                            onChange={() => toggleFunc(f.id)}
-                            className="accent-slate-900 shrink-0"
+                            checked={selectedIds.has(x.id)}
+                            disabled={!x.elegivel}
+                            onChange={() => toggleFunc(x.id)}
+                            className="shrink-0 accent-slate-900"
                           />
-                          <span className="flex-1 text-sm text-gray-800">{f.nome}</span>
-                          {f.funcao && <span className="text-xs text-gray-400 shrink-0">{f.funcao}</span>}
-                          {badge && (
-                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0 ${badge.cls}`}>
-                              {badge.label}
-                            </span>
-                          )}
-                          {multiTurno && selectedIds.has(f.id) && (
-                            <select
-                              value={funcTurno[f.id] ?? firstId}
-                              onChange={e => { e.stopPropagation(); setFuncTurnoId(f.id, e.target.value) }}
-                              onClick={e => e.stopPropagation()}
-                              className="ml-1 rounded border border-gray-200 text-xs px-1 py-0.5 shrink-0"
-                            >
-                              {turnos.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                            </select>
-                          )}
+                          <span className="flex-1 text-sm text-gray-800">
+                            {x.nome}
+                            {!x.elegivel && <span className="block text-xs text-red-600">{x.motivo_inelegivel}</span>}
+                            {x.elegivel && x.sem_turno && <span className="block text-xs text-amber-700">Sem horário cadastrado — usando o padrão 5x2 de 44h</span>}
+                          </span>
+                          {x.funcao && <span className="shrink-0 text-xs text-gray-400">{x.funcao}</span>}
+                          {badge && <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-xs font-medium ${badge.cls}`}>{badge.label}</span>}
                         </label>
                       )
                     })}
@@ -388,120 +263,82 @@ export function ModalNovoAcordo({ postos, onClose }: Props) {
             </div>
           </div>
 
-          {/* Horários por turno */}
           <div>
-            <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-900">
-                  <Clock className="h-3.5 w-3.5 text-white" />
-                </div>
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-700">Horário Semanal</span>
-              </div>
-              <button
-                type="button"
-                onClick={addTurno}
-                className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
-              >
-                <Plus className="h-3.5 w-3.5" /> Adicionar turno
-              </button>
+            <SectionHeader icon={FileText} title="Dados do acordo" />
+            <div className="mt-3">
+              <CamposTemplate
+                template={template}
+                f={f}
+                set={set}
+                feriados={feriados}
+                onSugerirDias={template === 'T4' || template === 'T5' ? null : sugerirDias}
+              />
             </div>
+          </div>
 
-            <div className="mt-3 space-y-4">
-              {turnos.map((turno, ti) => (
-                <div key={turno.id} className="rounded-xl border border-gray-200 overflow-hidden">
-                  {/* Turno header */}
-                  <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 border-b border-gray-200">
-                    {multiTurno ? (
-                      <input
-                        value={turno.label}
-                        onChange={e => updateTurnoLabel(turno.id, e.target.value)}
-                        className="flex-1 bg-transparent text-xs font-bold uppercase tracking-widest text-slate-600 focus:outline-none"
-                      />
-                    ) : (
-                      <span className="flex-1 text-xs font-bold uppercase tracking-widest text-slate-600">{turno.label}</span>
-                    )}
-                    <span className="text-xs text-gray-400">{calcTotalSemanal(turno.times)} {calcTotalSemanal(turno.times) === '44h' ? '✓' : '≠ 44h'}</span>
-                    {multiTurno && ti > 0 && (
-                      <button type="button" onClick={() => removeTurno(turno.id)} className="text-gray-400 hover:text-red-500">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Schedule rows */}
-                  {DIAS.map((dia, i) => {
-                    const t = turno.times[dia]
-                    const isLast = i === DIAS.length - 1
-                    return (
-                      <div key={dia} className={`flex items-center gap-2 px-4 py-2.5 min-w-0 ${!isLast ? 'border-b border-gray-100' : ''} ${t.folga ? 'bg-gray-50' : ''}`}>
-                        <span className="w-24 shrink-0 text-xs font-semibold text-slate-600">{dia}</span>
-                        {t.folga ? (
-                          <span className="flex-1 text-xs font-bold uppercase tracking-wider text-gray-400">Folga</span>
-                        ) : (
-                          <div className="flex min-w-0 flex-1 overflow-x-auto items-center gap-1.5 text-xs text-gray-600 pb-0.5">
-                            <TimeSelect value={t.e1} onChange={v => updateTime(turno.id, dia, 'e1', v)} />
-                            <span className="text-gray-400 shrink-0">–</span>
-                            <TimeSelect value={t.s1} onChange={v => updateTime(turno.id, dia, 's1', v)} />
-                            <span className="mx-1 text-gray-300 shrink-0">/</span>
-                            <TimeSelect value={t.e2} onChange={v => updateTime(turno.id, dia, 'e2', v)} />
-                            <span className="text-gray-400 shrink-0">–</span>
-                            <TimeSelect value={t.s2} onChange={v => updateTime(turno.id, dia, 's2', v)} />
-                          </div>
-                        )}
-                        <label className="flex shrink-0 cursor-pointer items-center gap-1.5">
-                          <input type="checkbox" checked={t.folga} onChange={e => updateTime(turno.id, dia, 'folga', e.target.checked)} className="accent-slate-900" />
-                          <span className="text-xs text-gray-500">Folga</span>
-                        </label>
+          {grupos.length > 0 && (
+            <div>
+              <SectionHeader icon={Clock} title="Horário (do turno cadastrado)" />
+              <div className="mt-3 space-y-3">
+                {grupos.map((g, gi) => {
+                  const s = g[0].semana
+                  const txt = semanaParaTexto(s)
+                  return (
+                    <div key={gi} className="overflow-hidden rounded-xl border border-gray-200">
+                      <div className="flex items-center justify-between bg-slate-50 px-4 py-2 text-xs font-bold uppercase tracking-widest text-slate-600">
+                        <span>{grupos.length > 1 ? `Grupo ${gi + 1} · ` : ''}{g.length} funcionário(s)</span>
+                        <span className="font-normal text-gray-400">{minParaHHMM(totalSemanalMin(s))}h/semana · ref. {g[0].nome}</span>
                       </div>
-                    )
-                  })}
+                      {DIAS_SEMANA.map(d => (
+                        <div key={d} className="flex gap-3 border-t border-gray-100 px-4 py-1.5 text-xs">
+                          <span className="w-28 shrink-0 font-semibold text-slate-600">{d}</span>
+                          <span className={txt[d] === 'FOLGA' ? 'font-bold uppercase text-gray-400' : 'font-mono text-gray-700'}>{txt[d]}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })}
+                {grupos.length > 1 && (
+                  <p className="text-xs text-amber-700">
+                    Os funcionários têm jornadas diferentes nesse dia: serão gerados {grupos.length} acordos, um por grupo.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {achados.length > 0 && (
+            <div className="space-y-1.5">
+              {achados.map((a, i) => (
+                <div
+                  key={i}
+                  className={`flex items-start gap-2 rounded-xl border px-3 py-2 text-sm ${a.nivel === 'erro' ? 'border-red-100 bg-red-50 text-red-700' : 'border-amber-100 bg-amber-50 text-amber-800'}`}
+                >
+                  {a.nivel === 'erro' ? <XCircle className="mt-0.5 h-4 w-4 shrink-0" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />}
+                  <span>{a.mensagem}</span>
                 </div>
               ))}
             </div>
-          </div>
+          )}
 
-          {/* Evento e compensação */}
           <div>
-            <SectionHeader icon={FileText} title="Evento e Compensação" />
+            <SectionHeader icon={FileText} title="Texto do acordo (gerado)" />
             <div className="mt-3 rounded-xl bg-slate-900 px-4 py-3">
               <p className="font-mono text-[11px] leading-relaxed text-slate-300">
                 <span className="text-slate-500">…com a finalidade de que os funcionários </span>
-                <span className="text-amber-400 italic">[seu texto aqui]</span>
+                {texto?.ok
+                  ? <span className="text-amber-300">{texto.texto}</span>
+                  : <span className="italic text-slate-500">preencha os dados acima para gerar o texto</span>}
               </p>
-              <div className="mt-2 flex gap-2 flex-wrap">
-                <button type="button" onClick={() => setDescricao(MODELOS.extra)}
-                  className="rounded-md bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-200 hover:bg-slate-600 transition-colors">
-                  ✦ Evento trabalhado
-                </button>
-                <button type="button" onClick={() => setDescricao(MODELOS.dispensa)}
-                  className="rounded-md bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-200 hover:bg-slate-600 transition-colors">
-                  ✦ Dispensa antecipada
-                </button>
-              </div>
             </div>
-            <textarea
-              value={descricao}
-              onChange={e => setDescricao(e.target.value)}
-              rows={4}
-              placeholder="Clique em 'Usar modelo' acima ou escreva diretamente…"
-              className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-            />
           </div>
 
-          {/* Data do documento */}
           <div>
             <SectionHeader icon={Calendar} title="Data do Documento" />
-            <input
-              type="date"
-              value={dataDoc}
-              onChange={e => setDataDoc(e.target.value)}
-              className="mt-3 w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-            />
+            <input type="date" value={dataDoc} onChange={e => setDataDoc(e.target.value)} className={`mt-3 ${inputCls}`} />
           </div>
 
-          {erro && (
-            <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">{erro}</div>
-          )}
+          {erro && <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{erro}</div>}
         </div>
 
         <div className="flex justify-end gap-2 rounded-b-2xl border-t border-gray-100 bg-gray-50 px-6 py-4">
@@ -513,7 +350,7 @@ export function ModalNovoAcordo({ postos, onClose }: Props) {
             disabled={pending}
             className="flex h-9 items-center rounded-lg bg-slate-900 px-6 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-40"
           >
-            {pending ? 'Salvando…' : 'Salvar Acordo'}
+            {pending ? 'Salvando…' : grupos.length > 1 ? `Salvar ${grupos.length} acordos` : 'Salvar Acordo'}
           </button>
         </div>
       </div>
