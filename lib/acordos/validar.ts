@@ -98,7 +98,12 @@ export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriado
   const naoDivide = c.template === 'T5' || n === 0 ? undefined : funcs.find(f => origem.get(f.id)! % n !== 0)
   const dividiu = !naoDivide
   if (naoDivide) {
-    add('erro', 'DIVISAO', `As ${origem.get(naoDivide.id)} min a compensar não dividem igualmente por ${n} dias. Ajuste a quantidade de dias.`)
+    const total = origem.get(naoDivide.id)!
+    const teto = c.template === 'T1' ? MAX_JORNADA_DIA_MIN : MAX_ACRESCIMO_DIA_MIN
+    const opcoes: number[] = []
+    for (let k = 1; k <= 31 && opcoes.length < 4; k++) if (total % k === 0 && total / k <= teto) opcoes.push(k)
+    const dica = opcoes.length ? ` Com ${opcoes.join(', ')} dias divide certo.` : ''
+    add('erro', 'DIVISAO', `As ${total} min a compensar não dividem igualmente por ${n} dias.${dica}`)
   }
   const porDiaDe = (f: FuncionarioCalc) => (n > 0 && c.template !== 'T5' ? Math.floor(origem.get(f.id)! / n) : 0)
 

@@ -279,9 +279,12 @@ describe('tituloSugerido', () => {
     expect(tituloSugerido('T5', base({ template: 'T5', dataEvento: '2026-06-20' }))).toBe('Descanso trabalhado (20/06)')
   })
 
-  it('sem nenhuma informação devolve vazio', () => {
-    for (const t of ['T1', 'T2', 'T3', 'T4', 'T5'] as const) expect(tituloSugerido(t, base({ template: t }))).toBe('')
-    expect(tituloSugerido('T3', base(), '   ')).toBe('')
+  it('sem nenhuma informação devolve o título genérico da situação', () => {
+    expect(tituloSugerido('T1', base({ template: 'T1' }))).toBe('Evento trabalhado')
+    expect(tituloSugerido('T2', base({ template: 'T2' }))).toBe('Dispensa antecipada')
+    expect(tituloSugerido('T3', base(), '   ')).toBe('Dia de folga (emenda)')
+    expect(tituloSugerido('T4', base({ template: 'T4' }))).toBe('Banco de horas')
+    expect(tituloSugerido('T5', base({ template: 'T5' }))).toBe('Dia de descanso trabalhado')
   })
 
   it('limita a 80 caracteres e normaliza espaços', () => {

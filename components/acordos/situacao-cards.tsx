@@ -1,4 +1,4 @@
-import { Lightbulb } from 'lucide-react'
+import { Lightbulb, Scale } from 'lucide-react'
 import type { TemplateId } from '@/lib/acordos/tipos'
 import { SITUACOES, type CorSituacao } from '@/lib/acordos/situacoes'
 
@@ -28,6 +28,7 @@ interface Props {
 
 export function SituacaoCards({ selecionado, onSelect }: Props) {
   return (
+    <div className="space-y-2.5">
     <div role="radiogroup" aria-label="O que aconteceu?" className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
       {ORDEM.map(id => {
         const s = SITUACOES[id]
@@ -49,9 +50,17 @@ export function SituacaoCards({ selecionado, onSelect }: Props) {
               <Lightbulb className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
               {s.exemplo}
             </span>
+            <span className="flex items-start gap-1.5 text-xs text-slate-600">
+              <Scale className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+              {s.regra}
+            </span>
           </button>
         )
       })}
+    </div>
+    <p className="text-xs text-gray-500">
+      Só compensação em tempo, sem pagamento de horas. Vale para escalas 5x2 e 5x1 (12x36 e jovem aprendiz ficam de fora). Convenção coletiva pode alterar os limites: o RH valida.
+    </p>
     </div>
   )
 }

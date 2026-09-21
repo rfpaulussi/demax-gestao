@@ -216,8 +216,20 @@ function cabeNoLimite(monta: (variavel: string) => string, variavel: string): st
   return monta(`${curto}…`)
 }
 
-/** Sugestão de título a partir dos campos já preenchidos; '' quando ainda não há nada para dizer. */
+const TITULO_BASE: Record<TemplateId, string> = {
+  T1: 'Evento trabalhado',
+  T2: 'Dispensa antecipada',
+  T3: 'Dia de folga (emenda)',
+  T4: 'Banco de horas',
+  T5: 'Dia de descanso trabalhado',
+}
+
+/** Título sugerido: nasce genérico ao escolher a situação e ganha nome/data conforme os campos são preenchidos. */
 export function tituloSugerido(template: TemplateId, c: CamposAcordo, postoNome?: string): string {
+  return tituloComDados(template, c, postoNome) || TITULO_BASE[template]
+}
+
+function tituloComDados(template: TemplateId, c: CamposAcordo, postoNome?: string): string {
   const nome = limpa(c.nomeEvento)
   const posto = limpa(postoNome)
   switch (template) {
