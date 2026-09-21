@@ -28,7 +28,7 @@ import { ResumoAcordo, type ItemResumo, type StatusResumo, type TextoGrupo, type
 /** Campo do formulário -> chave "tocada" (para só mostrar erro depois de interagir). */
 const CHAVE_DO_FORM: Partial<Record<keyof FormState, string>> = {
   dataEvento: 'dataEvento', nomeEvento: 'nomeEvento', periodoInicio: 'horas', periodoFim: 'horas', duracao: 'horas',
-  horaDispensa: 'horaDispensa', motivo: 'motivo', dataFolga: 'dataFolga', folgas: 'dataFolga', datasAjuste: 'dias', prazoLimite: 'prazo',
+  horaDispensa: 'horaDispensa', motivo: 'motivo', dataFolga: 'dataFolga', folgas: 'dataFolga', duracaoFolga: 'horasFolga', datasAjuste: 'dias', prazoLimite: 'prazo',
 }
 
 /** Chaves tocadas que "acendem" cada item do checklist. */
@@ -36,7 +36,7 @@ const CHAVES_DO_ITEM: Record<ItemChecklistId, string[]> = {
   titulo: ['titulo'],
   situacao: ['situacao'],
   funcionarios: ['posto', 'funcionarios'],
-  datas: ['dataEvento', 'nomeEvento', 'horas', 'horaDispensa', 'dataFolga', 'dias'],
+  datas: ['dataEvento', 'nomeEvento', 'horas', 'horaDispensa', 'dataFolga', 'horasFolga', 'dias'],
   motivo: ['motivo'],
   prazo: ['prazo'],
 }
@@ -244,7 +244,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
     : 0
   const notaPeriodo = r0 && periodoMin > 0 && r0.horasTotalMin > 0
     ? !variaPorTurno
-      ? `Deste período, ${fmtDuracao(r0.horasTotalMin)} ficam fora do horário normal e serão compensados.`
+      ? `${campos.datasEvento ? 'No total dos dias' : 'Deste período'}, ${fmtDuracao(r0.horasTotalMin)} ficam fora do horário normal e serão compensados.`
       : 'O quanto fica fora do horário normal varia por turno (veja o resumo ao lado).'
     : null
   const dicaDispensa = template === 'T2' && r0?.horaNormal
@@ -294,6 +294,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
     }
     if (faltando.includes('horário de dispensa') && mostra('horaDispensa')) out.horaDispensa = 'Informe o horário de dispensa.'
     if (faltando.includes('data da folga') && mostra('dataFolga')) out.dataFolga = 'Informe a data.'
+    if (faltando.includes('horas de folga') && mostra('horasFolga')) out.horasFolga = 'Informe quantas horas de folga.'
     if (faltando.includes('motivo') && mostra('motivo')) out.motivo = 'Escolha ou escreva o motivo.'
     const faltaDias = faltando.find(x => x.startsWith('dias de '))
     if (faltaDias && mostra('dias')) out.dias = 'Informe ao menos um dia. Use "Adicionar outro dia" ou "Recalcular dias".'

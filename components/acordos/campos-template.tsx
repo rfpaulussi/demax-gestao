@@ -14,6 +14,8 @@ import { FolgasRevezamento, SeletorModoFolga, type FuncionarioFolga } from './fo
 
 export interface FormState {
   dataEvento: string
+  /** T1/T5: outros dias trabalhados além de `dataEvento` (mesmo período em cada um). */
+  datasEventoExtras: string[]
   nomeEvento: string
   periodoInicio: string
   periodoFim: string
@@ -21,6 +23,9 @@ export interface FormState {
   horaDispensa: string
   motivo: string
   dataFolga: string
+  /** T4: folga de só algumas horas (em vez da jornada inteira). */
+  folgaParcial: boolean
+  duracaoFolga: string     // 'HH:MM'
   /** Revezamento: cada funcionário na sua data de folga. */
   revezamento: boolean
   folgas: Record<string, string>
@@ -29,8 +34,8 @@ export interface FormState {
 }
 
 export const FORM_VAZIO: FormState = {
-  dataEvento: '', nomeEvento: '', periodoInicio: '', periodoFim: '', duracao: '',
-  horaDispensa: '', motivo: '', dataFolga: '', revezamento: false, folgas: {}, datasAjuste: [], prazoLimite: '',
+  dataEvento: '', datasEventoExtras: [], nomeEvento: '', periodoInicio: '', periodoFim: '', duracao: '',
+  horaDispensa: '', motivo: '', dataFolga: '', folgaParcial: false, duracaoFolga: '', revezamento: false, folgas: {}, datasAjuste: [], prazoLimite: '',
 }
 
 /** `idsSelecionados`: no revezamento só entram as datas de quem está no acordo. */
@@ -39,6 +44,8 @@ export function montarCampos(template: TemplateId, f: FormState, idsSelecionados
   const usaPeriodo = template === 'T1' || template === 'T5'
   const usaFolga = template === 'T3' || template === 'T4' || template === 'T5'
   const usaMotivo = template === 'T2' || template === 'T3' || template === 'T4'
+  // T1/T5: o primeiro dia (ordenado) é a data do evento; os demais entram em datasEvento
+  const diasEvento = Array.from(new Set([f.dataEvento, ...f.datasEventoExtras].filter(Boolean))).sort()
   const folgas = usaFolga && f.revezamento
     ? Object.fromEntries(Object.entries(f.folgas).filter(([id, d]) => d && (!idsSelecionados || idsSelecionados.has(id))))
     : undefined
@@ -46,12 +53,14 @@ export function montarCampos(template: TemplateId, f: FormState, idsSelecionados
   // Só repassa o que o template mostra: campos ocultos preenchidos antes não podem vazar para validação/gravação
   return {
     template,
-    dataEvento: usaEvento ? f.dataEvento || undefined : undefined,
+    dataEvento: usaEvento ? (usaPeriodo ? diasEvento[0] : f.dataEvento) || undefined : undefined,
+    datasEvento: usaPeriodo && diasEvento.length > 1 ? diasEvento : undefined,
     nomeEvento: usaEvento ? f.nomeEvento || undefined : undefined,
     periodoInicio: usaPeriodo ? f.periodoInicio || undefined : undefined,
     periodoFim: usaPeriodo ? f.periodoFim || undefined : undefined,
     // T1/T5 com período: o lib calcula por funcionário; aqui vai só a duração digitada
     minutosOrigem: usaPeriodo && f.duracao ? hhmmParaMin(f.duracao) : 0,
+    minutosFolga: template === 'T4' && f.folgaParcial ? (f.duracaoFolga ? hhmmParaMin(f.duracaoFolga) : 0) : undefined,
     horaDispensa: template === 'T2' ? f.horaDispensa || undefined : undefined,
     motivo: usaMotivo ? f.motivo || undefined : undefined,
     dataFolga,
@@ -62,7 +71,7 @@ export function montarCampos(template: TemplateId, f: FormState, idsSelecionados
 }
 
 /** Campos que podem mostrar erro vermelho inline (depois de tocados ou de tentar salvar). */
-export type CampoChave = 'dataEvento' | 'nomeEvento' | 'horas' | 'horaDispensa' | 'dataFolga' | 'motivo' | 'dias' | 'prazo'
+export type CampoChave = 'dataEvento' | 'nomeEvento' | 'horas' | 'horaDispensa' | 'dataFolga' | 'horasFolga' | 'motivo' | 'dias' | 'prazo'
 
 const TIPO_LABEL: Record<string, string> = {
   nacional: 'Feriado nacional', estadual: 'Feriado estadual', municipal: 'Feriado municipal', facultativo: 'Ponto facultativo',
@@ -266,6 +275,68 @@ export function CamposTemplate({
     </div>
   )
 
+  /** T1/T5: mais de um dia trabalhado (ex.: sábado e domingo), com o mesmo período em cada dia. */
+  const blocoOutrosDias = () => (
+    <div className="space-y-2">
+      {f.datasEventoExtras.map((d, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <input
+            type="date"
+            aria-label={`Outro dia trabalhado ${i + 1}`}
+            value={d}
+            onChange={e => set('datasEventoExtras', f.datasEventoExtras.map((x, j) => (j === i ? e.target.value : x)))}
+            className={`max-w-xs ${INPUT_CLS}`}
+          />
+          <button
+            type="button"
+            onClick={() => set('datasEventoExtras', f.datasEventoExtras.filter((_, j) => j !== i))}
+            className="rounded-md border border-gray-200 px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
+          >
+            Remover
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => set('datasEventoExtras', [...f.datasEventoExtras, ''])}
+        className="text-xs font-medium text-slate-600 underline hover:text-slate-900"
+      >
+        + Trabalharam em outro dia também (ex.: sábado e domingo)
+      </button>
+      {f.datasEventoExtras.length > 0 && <p className="text-xs text-gray-400">O mesmo período (ou as mesmas horas) vale para cada dia.</p>}
+    </div>
+  )
+
+  /** T4: folga do dia inteiro ou só de algumas horas. */
+  const blocoDuracaoFolga = () => (
+    <div>
+      <p className="mb-1.5 text-xs font-bold uppercase tracking-widest text-slate-500">Quanto vão folgar nesse dia?</p>
+      <div role="tablist" className="mb-2 flex gap-1 rounded-lg border border-gray-200 bg-white p-1">
+        <button type="button" role="tab" aria-selected={!f.folgaParcial} onClick={() => set('folgaParcial', false)} className={abaCls(!f.folgaParcial)}>
+          Dia inteiro
+        </button>
+        <button type="button" role="tab" aria-selected={f.folgaParcial} onClick={() => set('folgaParcial', true)} className={abaCls(f.folgaParcial)}>
+          Só algumas horas
+        </button>
+      </div>
+      {f.folgaParcial && (
+        <div className="max-w-[10rem]">
+          <label htmlFor="campo-duracaoFolga" className="mb-1 block text-xs font-semibold text-slate-500">Horas de folga</label>
+          <input
+            id="campo-duracaoFolga"
+            type="time"
+            value={f.duracaoFolga}
+            onChange={e => set('duracaoFolga', e.target.value)}
+            className={erros.horasFolga ? INPUT_ERRO_CLS : INPUT_CLS}
+          />
+        </div>
+      )}
+      {erros.horasFolga
+        ? <p className="mt-1 text-xs font-medium text-red-600">{erros.horasFolga}</p>
+        : f.folgaParcial && <p className="mt-1 text-xs text-gray-400">ex: 04:00 para sair 4 horas mais cedo nesse dia. Precisa caber na jornada do dia.</p>}
+    </div>
+  )
+
   const blocoMotivo = (opcional: boolean) => (
     <div id="passo-motivo" className="scroll-mt-4 space-y-2">
       <MotivoChips motivo={f.motivo} onChange={m => set('motivo', m)} sugestao={sugestaoMotivo} erro={!!erros.motivo} />
@@ -299,6 +370,7 @@ export function CamposTemplate({
               {nomeEvento('Qual foi o evento?')}
             </div>
             {chipsNome()}
+            {blocoOutrosDias()}
             {periodoOuHoras()}
           </SubPasso>
           <SubPasso letra={proxima()} titulo="Dias em que vão sair mais cedo">
@@ -346,6 +418,7 @@ export function CamposTemplate({
         <>
           <SubPasso letra={proxima()} titulo="Quando será a folga">
             {blocoFolga('Em que dia vão folgar?', 'ex: 12/06/2026')}
+            {blocoDuracaoFolga()}
             <div>
               <p className="mb-1.5 text-xs font-bold uppercase tracking-widest text-slate-500">Motivo</p>
               {blocoMotivo(false)}
@@ -365,6 +438,7 @@ export function CamposTemplate({
               {nomeEvento('Qual foi o evento?')}
             </div>
             {chipsNome()}
+            {blocoOutrosDias()}
             {periodoOuHoras()}
           </SubPasso>
           <SubPasso letra={proxima()} titulo="Dia da folga">

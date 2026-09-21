@@ -1,6 +1,7 @@
 import type { CamposAcordo, TemplateId } from './tipos'
 import type { ResumoCalculo } from './movimentos'
 import { conectorDoMotivo } from './motivos'
+import { datasDoEvento } from './movimentos'
 import { fmtAcrescimo, fmtDataBR, fmtDatasComPrefixo, fmtHoraCurta, fmtHorasTotal } from './tempo'
 
 export const TEMPLATES: Record<TemplateId, { titulo: string; resumo: string; subtipo: 'evento' | 'antecipado' }> = {
@@ -45,8 +46,11 @@ export function gerarObjeto(c: CamposAcordo, r: ResumoCalculo): ResultadoTexto {
   const nome = limpa(c.nomeEvento)
   const motivo = normalizaMotivo(limpa(c.motivo))
   const datas = c.datasAjuste.length ? fmtDatasComPrefixo(c.datasAjuste) : ''
+  const diasEvento = datasDoEvento(c)
+  const variosDias = diasEvento.length > 1
+  const quandoEvento = variosDias ? fmtDatasComPrefixo(diasEvento) : c.dataEvento ? `no dia ${fmtDataBR(c.dataEvento)}` : ''
   const periodo = c.periodoInicio && c.periodoFim
-    ? `, das ${fmtHoraCurta(c.periodoInicio)} às ${fmtHoraCurta(c.periodoFim)}`
+    ? `, das ${fmtHoraCurta(c.periodoInicio)} às ${fmtHoraCurta(c.periodoFim)}${variosDias ? ' em cada dia' : ''}`
     : ''
   const sufixoPrazo = c.template !== 'T4' && c.prazoLimite
     ? ` O prazo máximo para a compensação é ${fmtDataBR(c.prazoLimite)}.`
@@ -59,7 +63,7 @@ export function gerarObjeto(c: CamposAcordo, r: ResumoCalculo): ResultadoTexto {
   switch (c.template) {
     case 'T1':
       if (!c.dataEvento || !nome || !datas || r.minutosPorDia <= 0) return falta()
-      texto = `trabalharem no dia ${fmtDataBR(c.dataEvento)} (${nome})${periodo}, com redução de ${porDia} diária no horário normal ${datas}, compensando assim ${horas} laborada(s) no referido evento.${sufixoPrazo}`
+      texto = `trabalharem ${quandoEvento} (${nome})${periodo}, com redução de ${porDia} diária no horário normal ${datas}, compensando assim ${horas} laborada(s) no referido evento.${sufixoPrazo}`
       break
     case 'T2':
       if (!c.dataEvento || !nome || !r.horaNormal || !c.horaDispensa || !datas || r.minutosPorDia <= 0) return falta()
@@ -71,7 +75,7 @@ export function gerarObjeto(c: CamposAcordo, r: ResumoCalculo): ResultadoTexto {
       break
     case 'T4':
       if (!dataFolga || !motivo || !datas || !c.prazoLimite || r.minutosPorDia <= 0) return falta()
-      texto = `trabalharem com acréscimo de ${porDia} diária no horário normal ${datas}, formando um saldo de ${horas} a ser compensado com a dispensa do trabalho no dia ${fmtDataBR(dataFolga)} (${motivo}), com prazo máximo de compensação até ${fmtDataBR(c.prazoLimite)}.`
+      texto = `trabalharem com acréscimo de ${porDia} diária no horário normal ${datas}, formando um saldo de ${horas} a ser compensado com ${r.jornadaFolgaMin <= 0 || r.horasTotalMin === r.jornadaFolgaMin ? 'a dispensa do trabalho' : `a dispensa de ${horas} do horário de trabalho`} no dia ${fmtDataBR(dataFolga)} (${motivo}), com prazo máximo de compensação até ${fmtDataBR(c.prazoLimite)}.`
       break
     case 'T5': {
       if (!c.dataEvento || !nome || !dataFolga || r.horasTotalMin <= 0) return falta()
@@ -79,7 +83,7 @@ export function gerarObjeto(c: CamposAcordo, r: ResumoCalculo): ResultadoTexto {
       const dispensa = r.horasTotalMin === r.jornadaFolgaMin
         ? `com a dispensa do trabalho no dia ${folga}`
         : `com a dispensa de ${horas} do horário de trabalho no dia ${folga}`
-      texto = `trabalharem no dia ${fmtDataBR(c.dataEvento)} (${nome})${periodo}, compensando as ${horas} laboradas ${dispensa}.${sufixoPrazo}`
+      texto = `trabalharem ${quandoEvento} (${nome})${periodo}, compensando as ${horas} laboradas ${dispensa}.${sufixoPrazo}`
       break
     }
   }

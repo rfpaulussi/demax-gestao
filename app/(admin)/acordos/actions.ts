@@ -161,13 +161,15 @@ function datasDosCamposValidas(c: CamposAcordo): boolean {
   if (!Array.isArray(c.datasAjuste)) return false
   const folgas = c.folgasPorFuncionario
   if (folgas !== undefined && (typeof folgas !== 'object' || folgas === null || Array.isArray(folgas))) return false
+  if (c.datasEvento !== undefined && !Array.isArray(c.datasEvento)) return false
+  if (c.minutosFolga !== undefined && !(Number.isInteger(c.minutosFolga) && c.minutosFolga >= 0 && c.minutosFolga <= 1440)) return false
   const anoAtual = new Date().getFullYear()
-  const datas = [c.dataEvento, c.dataFolga, c.prazoLimite, ...Object.values(folgas ?? {}), ...c.datasAjuste].filter(d => d !== undefined && d !== null && d !== '')
+  const datas = [c.dataEvento, c.dataFolga, c.prazoLimite, ...(c.datasEvento ?? []), ...Object.values(folgas ?? {}), ...c.datasAjuste].filter(d => d !== undefined && d !== null && d !== '')
   return datas.every(d => dataReal(d) && Number(d.slice(0, 4)) >= anoAtual - 1 && Number(d.slice(0, 4)) <= anoAtual + 3)
 }
 
 function anosDoAcordo(c: CamposAcordo): number[] {
-  const datas = [c.dataEvento, c.dataFolga, c.prazoLimite, ...Object.values(c.folgasPorFuncionario ?? {}), ...c.datasAjuste].filter((d): d is string => !!d)
+  const datas = [c.dataEvento, c.dataFolga, c.prazoLimite, ...(c.datasEvento ?? []), ...Object.values(c.folgasPorFuncionario ?? {}), ...c.datasAjuste].filter((d): d is string => !!d)
   return Array.from(new Set(datas.map(d => Number(d.slice(0, 4)))))
 }
 

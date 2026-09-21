@@ -177,3 +177,27 @@ describe('revezamento (folga por funcionário)', () => {
     expect(resumoCalculo(c, [func('b')]).dataFolga).toBe('2026-06-04')
   })
 })
+
+describe('evento em mais de um dia e folga de algumas horas', () => {
+  it('T5 com sábado e domingo: soma os dias e gera uma origem por dia', () => {
+    const c: CamposAcordo = {
+      template: 'T5', dataEvento: '2026-06-20', datasEvento: ['2026-06-20', '2026-06-21'], nomeEvento: 'Mutirão',
+      periodoInicio: '08:00', periodoFim: '12:00', dataFolga: '2026-06-26', datasAjuste: [],
+    }
+    const movs = construirMovimentos(c, [f1])
+    expect(movs.filter(x => x.papel === 'origem').map(x => [x.data, x.minutos])).toEqual([['2026-06-20', 240], ['2026-06-21', 240]])
+    expect(movs.find(x => x.papel === 'quitacao')).toMatchObject({ data: '2026-06-26', minutos: -480 })
+    expect(soma(movs)).toBe(0)
+  })
+
+  it('T4 com folga de só 4h: origem e quitação usam as 4h, não a jornada inteira', () => {
+    const c: CamposAcordo = {
+      template: 'T4', dataFolga: '2026-06-12', minutosFolga: 240, motivo: 'x',
+      datasAjuste: ['2026-06-08', '2026-06-09', '2026-06-10', '2026-06-11'], prazoLimite: '2026-12-01',
+    }
+    const movs = construirMovimentos(c, [f1])
+    expect(movs.filter(x => x.papel === 'origem').map(x => x.minutos)).toEqual([60, 60, 60, 60])
+    expect(movs.find(x => x.papel === 'quitacao')?.minutos).toBe(-240)
+    expect(soma(movs)).toBe(0)
+  })
+})

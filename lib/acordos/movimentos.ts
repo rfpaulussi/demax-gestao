@@ -30,6 +30,19 @@ export function datasDeFolga(c: CamposAcordo): string[] {
   return Array.from(new Set(todas)).sort()
 }
 
+/** Dias trabalhados no evento (ordenados, sem repetição). */
+export function datasDoEvento(c: CamposAcordo): string[] {
+  return Array.from(new Set([c.dataEvento, ...(c.datasEvento ?? [])].filter((d): d is string => !!d))).sort()
+}
+
+/** Minutos de origem (T1/T5) de um funcionário num dos dias do evento. */
+export function origemDoDia(c: CamposAcordo, f: FuncionarioCalc, data: string): number {
+  const min = c.periodoInicio && c.periodoFim
+    ? minutosForaDoHorario(f.semana[diaSemanaDe(data)], c.periodoInicio, c.periodoFim)
+    : c.minutosOrigem ?? 0 // sem período: a duração digitada já é hora extra
+  return Math.max(0, min)
+}
+
 export function jornadaDoDia(f: FuncionarioCalc, iso: string): number {
   return jornadaDiaMin(f.semana[diaSemanaDe(iso)])
 }
@@ -40,12 +53,7 @@ export function totalOrigem(c: CamposAcordo, f: FuncionarioCalc): number {
   switch (c.template) {
     case 'T1':
     case 'T5':
-      if (c.periodoInicio && c.periodoFim && c.dataEvento) {
-        total = minutosForaDoHorario(f.semana[diaSemanaDe(c.dataEvento)], c.periodoInicio, c.periodoFim)
-      } else {
-        // sem período: a duração digitada já é hora extra
-        total = c.minutosOrigem ?? 0
-      }
+      total = datasDoEvento(c).reduce((acc, d) => acc + origemDoDia(c, f, d), 0)
       break
     case 'T2':
       total = c.dataEvento && c.horaDispensa
@@ -53,8 +61,10 @@ export function totalOrigem(c: CamposAcordo, f: FuncionarioCalc): number {
         : 0
       break
     case 'T3':
-    case 'T4':
       total = folgaDe(c, f) ? jornadaDoDia(f, folgaDe(c, f)!) : 0
+      break
+    case 'T4':
+      total = c.minutosFolga !== undefined ? c.minutosFolga : folgaDe(c, f) ? jornadaDoDia(f, folgaDe(c, f)!) : 0
       break
   }
   return Math.max(0, total)
@@ -86,7 +96,7 @@ export function construirMovimentos(c: CamposAcordo, funcs: FuncionarioCalc[]): 
       out.push({ funcionarioId: f.id, data, minutos, papel })
     switch (c.template) {
       case 'T1':
-        if (c.dataEvento) mov(c.dataEvento, total, 'origem')
+        for (const d of datasDoEvento(c)) mov(d, origemDoDia(c, f, d), 'origem')
         for (const d of c.datasAjuste) mov(d, -porDia, 'quitacao')
         break
       case 'T2':
@@ -102,7 +112,7 @@ export function construirMovimentos(c: CamposAcordo, funcs: FuncionarioCalc[]): 
         if (dataFolga) mov(dataFolga, -total, 'quitacao')
         break
       case 'T5':
-        if (c.dataEvento) mov(c.dataEvento, total, 'origem')
+        for (const d of datasDoEvento(c)) mov(d, origemDoDia(c, f, d), 'origem')
         if (dataFolga) mov(dataFolga, -total, 'quitacao')
         break
     }

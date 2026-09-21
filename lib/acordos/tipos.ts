@@ -23,9 +23,12 @@ export interface CamposAcordo {
   template: TemplateId
   dataEvento?: string
   nomeEvento?: string
+  /** T1/T5: todas as datas trabalhadas (inclui `dataEvento`, a primeira). Ausente = só `dataEvento`. O mesmo período/horas vale em cada dia. */
+  datasEvento?: string[]
   periodoInicio?: string        // 'HH:MM' (opcional, T1/T5)
   periodoFim?: string
   minutosOrigem?: number        // T1/T5: horas extras digitadas (quando não há período)
+  minutosFolga?: number         // T4: folga só de algumas horas (ausente = jornada inteira do dia)
   horaDispensa?: string         // T2: horário em que foram dispensados
   motivo?: string               // T2/T3/T4
   dataFolga?: string            // T3/T4/T5 (em revezamento: a folga mais cedo)

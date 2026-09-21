@@ -309,3 +309,21 @@ describe('validarAcordo', () => {
     })
   })
 })
+
+describe('evento em mais de um dia e folga parcial', () => {
+  const evento2: CamposAcordo = {
+    template: 'T5', dataEvento: '2026-06-20', datasEvento: ['2026-06-20', '2026-06-21'], nomeEvento: 'Mutirão',
+    periodoInicio: '08:00', periodoFim: '12:00', dataFolga: '2026-06-26', datasAjuste: [],
+  }
+
+  it('T5 sábado e domingo é aceito; folga antes do último dia do evento não', () => {
+    expect(temErro(validarAcordo(evento2, [f1], new Map()))).toBe(false)
+    expect(codigos(validarAcordo({ ...evento2, dataFolga: '2026-06-21' }, [f1], new Map()))).toContain('ORDEM_DATAS')
+  })
+
+  it('T4 exige as horas quando a folga é parcial e barra horas acima da jornada', () => {
+    const t4: CamposAcordo = { template: 'T4', dataFolga: '2026-06-12', motivo: 'x', datasAjuste: ['2026-06-08'], prazoLimite: '2026-12-01' }
+    expect(camposFaltando({ ...t4, minutosFolga: 0 })).toContain('horas de folga')
+    expect(codigos(validarAcordo({ ...t4, minutosFolga: 600 }, [f1], new Map()))).toContain('FOLGA_MAIOR')
+  })
+})
