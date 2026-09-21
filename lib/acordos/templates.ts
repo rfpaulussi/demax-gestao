@@ -1,0 +1,65 @@
+import type { CamposAcordo, TemplateId } from './tipos'
+import type { ResumoCalculo } from './movimentos'
+import { fmtAcrescimo, fmtDataBR, fmtDatasComPrefixo, fmtHoraCurta, fmtHorasTotal } from './tempo'
+
+export const TEMPLATES: Record<TemplateId, { titulo: string; resumo: string; subtipo: 'evento' | 'antecipado' }> = {
+  T1: { titulo: 'Evento trabalhado', resumo: 'Trabalharam num evento; compensam com redução de jornada nos dias seguintes.', subtipo: 'evento' },
+  T2: { titulo: 'Dispensa antecipada', resumo: 'Saíram antes do horário; compensam com acréscimo de jornada depois.', subtipo: 'evento' },
+  T3: { titulo: 'Dia inteiro de folga', resumo: 'Dispensados o dia todo (emenda/ponto facultativo); compensam com acréscimo depois.', subtipo: 'evento' },
+  T4: { titulo: 'Banco de horas', resumo: 'Trabalham a mais antes e folgam depois, com prazo máximo.', subtipo: 'antecipado' },
+  T5: { titulo: 'Dia de descanso trabalhado', resumo: 'Trabalharam num dia de descanso; compensam com folga.', subtipo: 'evento' },
+}
+
+export type ResultadoTexto = { ok: true; texto: string } | { ok: false; erro: string }
+
+export function contemPlaceholder(texto: string): boolean {
+  return /\[[^\]]*\]/.test(texto)
+}
+
+const limpa = (s?: string) => (s ?? '').replace(/\s+/g, ' ').trim().slice(0, 80)
+const falta = (): ResultadoTexto => ({ ok: false, erro: 'O texto gerado contém colchetes ou campo em branco.' })
+
+/** Gera o parágrafo do objeto (depois de "…com a finalidade de que os funcionários "). */
+export function gerarObjeto(c: CamposAcordo, r: ResumoCalculo): ResultadoTexto {
+  const nome = limpa(c.nomeEvento)
+  const motivo = limpa(c.motivo)
+  const datas = c.datasAjuste.length ? fmtDatasComPrefixo(c.datasAjuste) : ''
+  const periodo = c.periodoInicio && c.periodoFim
+    ? `, das ${fmtHoraCurta(c.periodoInicio)} às ${fmtHoraCurta(c.periodoFim)}`
+    : ''
+  const sufixoPrazo = c.template !== 'T4' && c.prazoLimite
+    ? ` O prazo máximo para a compensação é ${fmtDataBR(c.prazoLimite)}.`
+    : ''
+  const horas = fmtHorasTotal(r.horasTotalMin)
+  const porDia = fmtAcrescimo(r.minutosPorDia)
+
+  let texto = ''
+  switch (c.template) {
+    case 'T1':
+      if (!c.dataEvento || !nome || !datas || r.minutosPorDia <= 0) return falta()
+      texto = `trabalharem no dia ${fmtDataBR(c.dataEvento)} (${nome})${periodo}, com redução de ${porDia} diária no horário normal ${datas}, compensando assim ${horas} laborada(s) no referido evento.${sufixoPrazo}`
+      break
+    case 'T2':
+      if (!c.dataEvento || !nome || !c.horaNormal || !c.horaDispensa || !datas || r.minutosPorDia <= 0) return falta()
+      texto = `trabalharem normalmente até as ${fmtHoraCurta(c.horaNormal)} no dia ${fmtDataBR(c.dataEvento)} (${nome}), sendo dispensados às ${fmtHoraCurta(c.horaDispensa)} conforme ${motivo || 'decreto municipal'}, compensando as ${horas} não laboradas com acréscimo de ${porDia} diária no horário normal ${datas}.${sufixoPrazo}`
+      break
+    case 'T3':
+      if (!c.dataFolga || !motivo || !datas || r.minutosPorDia <= 0) return falta()
+      texto = `serem dispensados do trabalho no dia ${fmtDataBR(c.dataFolga)} (${motivo}), compensando as ${horas} não laboradas com acréscimo de ${porDia} diária no horário normal ${datas}.${sufixoPrazo}`
+      break
+    case 'T4':
+      if (!c.dataFolga || !motivo || !datas || !c.prazoLimite || r.minutosPorDia <= 0) return falta()
+      texto = `trabalharem com acréscimo de ${porDia} diária no horário normal ${datas}, formando um saldo de ${horas} a ser compensado com a dispensa do trabalho no dia ${fmtDataBR(c.dataFolga)} (${motivo}), com prazo máximo de compensação até ${fmtDataBR(c.prazoLimite)}.`
+      break
+    case 'T5': {
+      if (!c.dataEvento || !nome || !c.dataFolga || r.horasTotalMin <= 0) return falta()
+      const folga = fmtDataBR(c.dataFolga)
+      const dispensa = r.horasTotalMin === r.jornadaFolgaMin
+        ? `com a dispensa do trabalho no dia ${folga}`
+        : `com a dispensa de ${horas} do horário de trabalho no dia ${folga}`
+      texto = `trabalharem no dia ${fmtDataBR(c.dataEvento)} (${nome})${periodo}, compensando as ${horas} laboradas ${dispensa}.${sufixoPrazo}`
+      break
+    }
+  }
+  return contemPlaceholder(texto) ? falta() : { ok: true, texto }
+}

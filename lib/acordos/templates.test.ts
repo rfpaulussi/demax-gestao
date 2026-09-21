@@ -1,0 +1,82 @@
+import { describe, it, expect } from 'vitest'
+import { gerarObjeto, contemPlaceholder, TEMPLATES } from './templates'
+import type { CamposAcordo } from './tipos'
+
+const r = (horasTotalMin: number, minutosPorDia: number, jornadaFolgaMin = 0) => ({ horasTotalMin, minutosPorDia, jornadaFolgaMin })
+
+describe('gerarObjeto', () => {
+  it('T1', () => {
+    const c: CamposAcordo = {
+      template: 'T1', dataEvento: '2026-06-27', nomeEvento: 'Festa Junina',
+      periodoInicio: '08:00', periodoFim: '10:00', datasAjuste: ['2026-06-30', '2026-07-01'],
+    }
+    expect(gerarObjeto(c, r(120, 60))).toEqual({
+      ok: true,
+      texto: 'trabalharem no dia 27/06/2026 (Festa Junina), das 08h às 10h, com redução de 01:00h diária no horário normal nos dias 30/06/2026 e 01/07/2026, compensando assim 02 hora(s) laborada(s) no referido evento.',
+    })
+  })
+
+  it('T2 usa "decreto municipal" quando não há motivo', () => {
+    const c: CamposAcordo = {
+      template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Corpus Christi', horaNormal: '15:00', horaDispensa: '12:00',
+      datasAjuste: ['2026-06-08', '2026-06-09', '2026-06-10'],
+    }
+    expect(gerarObjeto(c, r(180, 60))).toEqual({
+      ok: true,
+      texto: 'trabalharem normalmente até as 15h no dia 05/06/2026 (Corpus Christi), sendo dispensados às 12h conforme decreto municipal, compensando as 03 hora(s) não laboradas com acréscimo de 01:00h diária no horário normal nos dias 08/06/2026, 09/06/2026 e 10/06/2026.',
+    })
+  })
+
+  it('T3', () => {
+    const c: CamposAcordo = {
+      template: 'T3', dataFolga: '2026-06-05', motivo: 'ponto facultativo municipal',
+      datasAjuste: ['2026-06-08', '2026-06-09', '2026-06-10', '2026-06-11'],
+    }
+    expect(gerarObjeto(c, r(528, 132))).toEqual({
+      ok: true,
+      texto: 'serem dispensados do trabalho no dia 05/06/2026 (ponto facultativo municipal), compensando as 08h48min não laboradas com acréscimo de 02:12h diária no horário normal nos dias 08/06/2026, 09/06/2026, 10/06/2026 e 11/06/2026.',
+    })
+  })
+
+  it('T4 sempre traz o prazo', () => {
+    const c: CamposAcordo = {
+      template: 'T4', dataFolga: '2026-06-12', motivo: 'ponto facultativo', prazoLimite: '2026-11-30',
+      datasAjuste: ['2026-06-08', '2026-06-09'],
+    }
+    const res = gerarObjeto(c, r(480, 240))
+    expect(res).toEqual({
+      ok: true,
+      texto: 'trabalharem com acréscimo de 04:00h diária no horário normal nos dias 08/06/2026 e 09/06/2026, formando um saldo de 08 hora(s) a ser compensado com a dispensa do trabalho no dia 12/06/2026 (ponto facultativo), com prazo máximo de compensação até 30/11/2026.',
+    })
+  })
+
+  it('T5 diferencia folga de dia inteiro e parcial', () => {
+    const base: CamposAcordo = { template: 'T5', dataEvento: '2026-06-27', nomeEvento: 'Mutirão', dataFolga: '2026-06-29', datasAjuste: [] }
+    const cheia = gerarObjeto(base, r(528, 0, 528))
+    const parcial = gerarObjeto(base, r(240, 0, 528))
+    expect(cheia.ok && cheia.texto).toBe('trabalharem no dia 27/06/2026 (Mutirão), compensando as 08h48min laboradas com a dispensa do trabalho no dia 29/06/2026.')
+    expect(parcial.ok && parcial.texto).toBe('trabalharem no dia 27/06/2026 (Mutirão), compensando as 04 hora(s) laboradas com a dispensa de 04 hora(s) do horário de trabalho no dia 29/06/2026.')
+  })
+
+  it('acrescenta cláusula de prazo nos templates T1–T3 quando informado', () => {
+    const c: CamposAcordo = {
+      template: 'T3', dataFolga: '2026-06-26', motivo: 'ponto facultativo', prazoLimite: '2026-12-20',
+      datasAjuste: ['2026-06-29', '2026-06-30'],
+    }
+    const res = gerarObjeto(c, r(480, 240))
+    expect(res.ok && res.texto.endsWith(' O prazo máximo para a compensação é 20/12/2026.')).toBe(true)
+  })
+
+  it('rejeita campo faltando e colchetes no texto', () => {
+    expect(gerarObjeto({ template: 'T3', datasAjuste: [] }, r(0, 0)).ok).toBe(false)
+    const c: CamposAcordo = { template: 'T1', dataEvento: '2026-06-27', nomeEvento: 'Festa [X]', datasAjuste: ['2026-06-30'] }
+    expect(gerarObjeto(c, r(60, 60))).toEqual({ ok: false, erro: 'O texto gerado contém colchetes ou campo em branco.' })
+  })
+
+  it('detecta placeholder e expõe catálogo', () => {
+    expect(contemPlaceholder('dia [DATA DO EVENTO]')).toBe(true)
+    expect(contemPlaceholder('dia 27/06/2026')).toBe(false)
+    expect(Object.keys(TEMPLATES)).toEqual(['T1', 'T2', 'T3', 'T4', 'T5'])
+    expect(TEMPLATES.T4.subtipo).toBe('antecipado')
+  })
+})
