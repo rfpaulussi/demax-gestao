@@ -22,7 +22,7 @@ describe('construirMovimentos', () => {
   it('T2: dispensa parcial, quitação por acréscimo', () => {
     const c: CamposAcordo = {
       template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Emenda',
-      horaNormal: '15:00', horaDispensa: '12:00', datasAjuste: ['2026-06-08', '2026-06-09', '2026-06-10'],
+      horaDispensa: '14:00', datasAjuste: ['2026-06-08', '2026-06-09', '2026-06-10'],
     }
     const m = construirMovimentos(c, [f1])
     expect(m[0]).toMatchObject({ data: '2026-06-05', minutos: -180, papel: 'origem' })
@@ -74,7 +74,7 @@ describe('resumoCalculo e agrupamento', () => {
   }
 
   it('resume total e minutos por dia', () => {
-    expect(resumoCalculo(c, [f1])).toEqual({ horasTotalMin: 528, minutosPorDia: 132, jornadaFolgaMin: 528 })
+    expect(resumoCalculo(c, [f1])).toEqual({ horasTotalMin: 528, minutosPorDia: 132, jornadaFolgaMin: 528, horaNormal: '' })
   })
 
   it('separa funcionários com jornadas diferentes no dia da folga', () => {
@@ -85,5 +85,63 @@ describe('resumoCalculo e agrupamento', () => {
   it('templates sem dia de folga ficam em um grupo só', () => {
     const t1: CamposAcordo = { template: 'T1', dataEvento: '2026-06-13', nomeEvento: 'x', minutosOrigem: 60, datasAjuste: ['2026-06-15'] }
     expect(agruparPorJornada(t1, [func('a'), func('b', T_5X2_540)])).toHaveLength(1)
+  })
+
+  it('T1 com período: origem é só o que fica fora do horário do turno', () => {
+    const c: CamposAcordo = {
+      template: 'T1', dataEvento: '2026-06-08', nomeEvento: 'Festa', periodoInicio: '08:00', periodoFim: '20:00',
+      datasAjuste: ['2026-06-09', '2026-06-10', '2026-06-11'],
+    }
+    expect(resumoCalculo(c, [f1])).toMatchObject({ horasTotalMin: 252, minutosPorDia: 84 })
+    const m = construirMovimentos(c, [f1])
+    expect(m[0]).toMatchObject({ data: '2026-06-08', minutos: 252, papel: 'origem' })
+    expect(soma(m)).toBe(0)
+  })
+
+  it('T1 com período em dia de folga conta o período inteiro', () => {
+    const c: CamposAcordo = {
+      template: 'T1', dataEvento: '2026-06-13', nomeEvento: 'Festa', periodoInicio: '08:00', periodoFim: '10:00',
+      datasAjuste: ['2026-06-15', '2026-06-16'],
+    }
+    expect(resumoCalculo(c, [f1]).horasTotalMin).toBe(120)
+  })
+
+  it('T1 com período dentro do horário normal não gera origem', () => {
+    const c: CamposAcordo = {
+      template: 'T1', dataEvento: '2026-06-08', nomeEvento: 'Festa', periodoInicio: '08:00', periodoFim: '10:00',
+      datasAjuste: ['2026-06-09'],
+    }
+    expect(resumoCalculo(c, [f1]).horasTotalMin).toBe(0)
+  })
+
+  it('T2 informa a saída normal do dia do evento', () => {
+    const c: CamposAcordo = { template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'x', horaDispensa: '14:00', datasAjuste: ['2026-06-08'] }
+    expect(resumoCalculo(c, [f1])).toMatchObject({ horasTotalMin: 180, horaNormal: '17:00' })
+    expect(resumoCalculo(c, [func('b', T_5X2_540)])).toMatchObject({ horasTotalMin: 120, horaNormal: '16:00' })
+  })
+
+  it('T2 não conta o almoço como hora não trabalhada', () => {
+    const c: CamposAcordo = { template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'x', horaDispensa: '11:00', datasAjuste: ['2026-06-08'] }
+    expect(resumoCalculo(c, [f1]).horasTotalMin).toBe(288)
+  })
+
+  it('agrupa T2 por saída normal e horas dispensadas', () => {
+    const c: CamposAcordo = { template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'x', horaDispensa: '14:00', datasAjuste: ['2026-06-08'] }
+    const grupos = agruparPorJornada(c, [func('a'), func('b', T_5X2_540), func('c')])
+    expect(grupos.map(g => g.map(f => f.id))).toEqual([['a', 'c'], ['b']])
+  })
+
+  it('agrupa T1 por horas fora do horário de cada turno', () => {
+    // segunda 08:00-20:00: turno 528 -> 252; turno 540 (almoço 12:00-13:00, saída 17:00) -> 720-480=240
+    const c: CamposAcordo = {
+      template: 'T1', dataEvento: '2026-06-08', nomeEvento: 'x', periodoInicio: '08:00', periodoFim: '20:00', datasAjuste: ['2026-06-09'],
+    }
+    expect(agruparPorJornada(c, [func('a'), func('b', T_5X2_540)]).map(g => g.map(f => f.id))).toEqual([['a'], ['b']])
+  })
+
+  it('T5 agrupa por origem e jornada da folga; sem folga é um grupo só', () => {
+    const c: CamposAcordo = { template: 'T5', dataEvento: '2026-06-13', nomeEvento: 'x', minutosOrigem: 240, dataFolga: '2026-06-05', datasAjuste: [] }
+    expect(agruparPorJornada(c, [func('a'), func('b', T_5X2_540)]).map(g => g.map(f => f.id))).toEqual([['a'], ['b']])
+    expect(agruparPorJornada({ ...c, dataFolga: undefined }, [func('a'), func('b', T_5X2_540)])).toHaveLength(1)
   })
 })

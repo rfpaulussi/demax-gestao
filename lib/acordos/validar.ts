@@ -1,7 +1,8 @@
 import type { Achado, CamposAcordo, FuncionarioCalc, NivelAchado } from './tipos'
 import { addMeses, diaSemanaDe, fmtDataBR, hhmmParaMin, mesDe } from './tempo'
+import { saidaDoDia } from './horario-do-turno'
 import { MAX_ACRESCIMO_DIA_MIN, MAX_JORNADA_DIA_MIN, PRAZO_MAXIMO_MESES, regimeElegivel } from './regras'
-import { agruparPorJornada, construirMovimentos, jornadaDoDia, resumoCalculo, saldoMin } from './movimentos'
+import { agruparPorJornada, construirMovimentos, jornadaDoDia, saldoMin, totalOrigem } from './movimentos'
 
 export type MapaFeriados = Map<string, { nome: string; tipo: string }>
 
@@ -16,11 +17,10 @@ export function camposFaltando(c: CamposAcordo): string[] {
     if (!c.dataEvento) faltas.push('data do evento')
     if (!(c.nomeEvento ?? '').trim()) faltas.push('nome do evento')
   }
-  if ((t === 'T1' || t === 'T5') && !(c.minutosOrigem && c.minutosOrigem > 0)) faltas.push('horas trabalhadas no evento')
-  if (t === 'T2') {
-    if (!c.horaNormal) faltas.push('horário normal de saída')
-    if (!c.horaDispensa) faltas.push('horário de dispensa')
+  if ((t === 'T1' || t === 'T5') && !(c.periodoInicio && c.periodoFim) && !(c.minutosOrigem && c.minutosOrigem > 0)) {
+    faltas.push('horas trabalhadas no evento')
   }
+  if (t === 'T2' && !c.horaDispensa) faltas.push('horário de dispensa')
   if (t === 'T3' || t === 'T4' || t === 'T5') {
     if (!c.dataFolga) faltas.push('data da folga')
   }
@@ -57,10 +57,13 @@ export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriado
     add('erro', 'TEXTO_LONGO', 'Nome do evento/motivo passa de 80 caracteres.')
   }
 
+  let periodoRuim = false
   if (t === 'T1' || t === 'T5') {
     if (!!c.periodoInicio !== !!c.periodoFim) {
+      periodoRuim = true
       add('erro', 'PERIODO_INCOMPLETO', 'Informe o início e o fim do período trabalhado, ou deixe os dois em branco.')
     } else if (c.periodoInicio && c.periodoFim && hhmmParaMin(c.periodoFim) <= hhmmParaMin(c.periodoInicio)) {
+      periodoRuim = true
       add('erro', 'PERIODO_INVALIDO', 'O fim do período trabalhado deve ser posterior ao início.')
     }
   }
@@ -78,24 +81,25 @@ export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriado
   if (funcs.length === 0) return out
 
   if (new Set(ajuste).size !== ajuste.length) add('erro', 'DATAS_REPETIDAS', 'Há datas repetidas nos dias de compensação.')
-  if (c.template === 'T2' && hhmmParaMin(c.horaDispensa!) >= hhmmParaMin(c.horaNormal!)) {
-    add('erro', 'HORARIO_INVALIDO', 'O horário de dispensa deve ser anterior ao horário normal de saída.')
-  }
 
   if (agruparPorJornada(c, funcs).length > 1) {
-    add('erro', 'JORNADAS_DIFERENTES', 'Os funcionários têm jornadas diferentes no dia da folga. Gere um acordo por grupo de jornada.')
+    add('erro', 'JORNADAS_DIFERENTES', 'Os funcionários têm turnos diferentes para este acordo (horário, saída ou jornada do dia). Gere um acordo por grupo.')
   }
 
-  const r = resumoCalculo(c, funcs)
+  // origem (minutos a compensar) de cada funcionário, pelo turno dele
+  const origem = new Map(funcs.map(f => [f.id, totalOrigem(c, f)]))
   const n = ajuste.length
-  const dividiu = n === 0 || c.template === 'T5' || r.horasTotalMin % n === 0
-  if (!dividiu) {
-    add('erro', 'DIVISAO', `As ${r.horasTotalMin} min a compensar não dividem igualmente por ${n} dias. Ajuste a quantidade de dias.`)
+  const naoDivide = c.template === 'T5' || n === 0 ? undefined : funcs.find(f => origem.get(f.id)! % n !== 0)
+  const dividiu = !naoDivide
+  if (naoDivide) {
+    add('erro', 'DIVISAO', `As ${origem.get(naoDivide.id)} min a compensar não dividem igualmente por ${n} dias. Ajuste a quantidade de dias.`)
   }
+  const porDiaDe = (f: FuncionarioCalc) => (n > 0 && c.template !== 'T5' ? Math.floor(origem.get(f.id)! / n) : 0)
 
   const acrescimo = c.template === 'T2' || c.template === 'T3' || c.template === 'T4'
-  if (acrescimo && r.minutosPorDia > MAX_ACRESCIMO_DIA_MIN) {
-    add('erro', 'LIMITE_ACRESCIMO', `Acréscimo de ${r.minutosPorDia} min por dia excede o limite de ${MAX_ACRESCIMO_DIA_MIN} min (2h).`)
+  const maiorPorDia = Math.max(0, ...funcs.map(porDiaDe))
+  if (acrescimo && maiorPorDia > MAX_ACRESCIMO_DIA_MIN) {
+    add('erro', 'LIMITE_ACRESCIMO', `Acréscimo de ${maiorPorDia} min por dia excede o limite de ${MAX_ACRESCIMO_DIA_MIN} min (2h).`)
   }
 
   const feriadoAvisado = new Set<string>()
@@ -107,45 +111,44 @@ export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriado
     }
   }
   for (const f of funcs) {
+    const orig = origem.get(f.id)!
+    const porDia = porDiaDe(f)
     for (const d of ajuste) {
       const jd = jornadaDoDia(f, d)
       if (jd === 0) {
         add('erro', 'DIA_DE_FOLGA', `${f.nome}: ${fmtDataBR(d)} é dia de folga na escala dele.`, f.id)
-      } else if (acrescimo && jd + r.minutosPorDia > MAX_JORNADA_DIA_MIN) {
-        add('erro', 'LIMITE_JORNADA', `${f.nome}: em ${fmtDataBR(d)} a jornada passaria de 10h (${jd} + ${r.minutosPorDia} min).`, f.id)
-      } else if (c.template === 'T1' && r.minutosPorDia > jd) {
-        add('erro', 'REDUCAO_MAIOR', `${f.nome}: a redução de ${r.minutosPorDia} min é maior que a jornada de ${fmtDataBR(d)}.`, f.id)
+      } else if (acrescimo && jd + porDia > MAX_JORNADA_DIA_MIN) {
+        add('erro', 'LIMITE_JORNADA', `${f.nome}: em ${fmtDataBR(d)} a jornada passaria de 10h (${jd} + ${porDia} min).`, f.id)
+      } else if (c.template === 'T1' && porDia > jd) {
+        add('erro', 'REDUCAO_MAIOR', `${f.nome}: a redução de ${porDia} min é maior que a jornada de ${fmtDataBR(d)}.`, f.id)
       }
     }
     if (c.dataFolga && (c.template === 'T3' || c.template === 'T4' || c.template === 'T5')) {
       const jf = jornadaDoDia(f, c.dataFolga)
       if (jf === 0) {
         add('erro', 'DIA_DE_FOLGA', `${f.nome}: ${fmtDataBR(c.dataFolga)} já é dia de folga na escala dele.`, f.id)
-      } else if (c.template === 'T5' && r.horasTotalMin > jf) {
+      } else if (c.template === 'T5' && orig > jf) {
         add('erro', 'FOLGA_MAIOR', `${f.nome}: as horas trabalhadas superam a jornada do dia da folga.`, f.id)
       }
     }
     if (c.template === 'T2' && c.dataEvento) {
-      const je = jornadaDoDia(f, c.dataEvento)
-      if (je === 0) {
+      const dia = f.semana[diaSemanaDe(c.dataEvento)]
+      if (jornadaDoDia(f, c.dataEvento) === 0) {
         add('erro', 'DIA_DE_FOLGA', `${f.nome}: ${fmtDataBR(c.dataEvento)} é dia de folga na escala dele; não há horário a dispensar.`, f.id)
-      } else {
-        if (r.horasTotalMin > je) {
-          add('erro', 'ORIGEM_LIMITE', `${f.nome}: as ${r.horasTotalMin} min dispensadas superam a jornada de ${fmtDataBR(c.dataEvento)} (${je} min).`, f.id)
-        }
-        const dia = f.semana[diaSemanaDe(c.dataEvento)]
-        const saida = dia.s2 || dia.s1
-        if (saida && saida !== c.horaNormal) {
-          add('aviso', 'SAIDA_DIFERENTE', `${f.nome}: a saída normal em ${fmtDataBR(c.dataEvento)} é ${saida}, diferente de ${c.horaNormal}.`, f.id)
-        }
+      } else if (orig <= 0) {
+        add('erro', 'SEM_HORAS_A_COMPENSAR', `${f.nome}: já sai antes das ${c.horaDispensa} nesse dia (saída às ${saidaDoDia(dia)}).`, f.id)
+      }
+    }
+    if ((c.template === 'T1' || c.template === 'T5') && !periodoRuim) {
+      if (orig <= 0) {
+        add('erro', 'SEM_HORAS_A_COMPENSAR', `${f.nome}: as horas do evento estão dentro do horário normal dele; não há o que compensar.`, f.id)
+      } else if (orig > MAX_JORNADA_DIA_MIN) {
+        add('erro', 'ORIGEM_LIMITE', `${f.nome}: as ${orig} min trabalhadas no evento passam do limite de ${MAX_JORNADA_DIA_MIN} min (10h).`, f.id)
       }
     }
     if (c.template === 'T5' && c.dataEvento && jornadaDoDia(f, c.dataEvento) > 0) {
       add('aviso', 'EVENTO_EM_DIA_UTIL', `${f.nome}: ${fmtDataBR(c.dataEvento)} é dia normal de trabalho na escala dele.`, f.id)
     }
-  }
-  if ((c.template === 'T1' || c.template === 'T5') && (c.minutosOrigem ?? 0) > MAX_JORNADA_DIA_MIN) {
-    add('erro', 'ORIGEM_LIMITE', `As ${c.minutosOrigem} min trabalhadas no evento passam do limite de ${MAX_JORNADA_DIA_MIN} min (10h).`)
   }
   if (c.dataFolga && (c.template === 'T3' || c.template === 'T4' || c.template === 'T5')) {
     const fer = feriados.get(c.dataFolga)

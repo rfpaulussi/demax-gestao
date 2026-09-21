@@ -50,25 +50,58 @@ describe('validarAcordo', () => {
   })
 
   it('exige campos por template', () => {
+    expect(camposFaltando({ template: 'T2', datasAjuste: ['2026-06-08'] })).toEqual(['data do evento', 'nome do evento', 'horário de dispensa'])
+    expect(camposFaltando({ template: 'T1', dataEvento: '2026-06-13', nomeEvento: 'x', datasAjuste: ['2026-06-15'] })).toEqual(['horas trabalhadas no evento'])
+    expect(camposFaltando({ template: 'T1', dataEvento: '2026-06-13', nomeEvento: 'x', periodoInicio: '08:00', periodoFim: '10:00', datasAjuste: ['2026-06-15'] })).toEqual([])
     expect(camposFaltando({ template: 'T4', datasAjuste: [] })).toEqual(['data da folga', 'motivo', 'dias de acréscimo', 'prazo limite'])
     const a = validarAcordo({ template: 'T4', datasAjuste: [] }, [f1], new Map())
     expect(a.find(x => x.codigo === 'CAMPO_OBRIGATORIO')?.mensagem).toContain('prazo limite')
   })
 
-  it('bloqueia horário de dispensa não anterior ao horário normal (T2)', () => {
+  it('T2 válido (dispensa às 14:00, saída 17:00) não gera achados', () => {
     const c: CamposAcordo = {
-      template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Emenda', horaNormal: '12:00', horaDispensa: '15:00',
-      datasAjuste: ['2026-06-08', '2026-06-09'],
-    }
-    expect(codigos(validarAcordo(c, [f1], new Map()))).toContain('HORARIO_INVALIDO')
-  })
-
-  it('avisa quando a saída normal do turno difere da informada (T2)', () => {
-    const c: CamposAcordo = {
-      template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Emenda', horaNormal: '16:00', horaDispensa: '13:00',
+      template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Emenda', horaDispensa: '14:00',
       datasAjuste: ['2026-06-08', '2026-06-09', '2026-06-10'],
     }
-    expect(codigos(validarAcordo(c, [f1], new Map()))).toContain('SAIDA_DIFERENTE')
+    expect(validarAcordo(c, [f1], new Map())).toEqual([])
+  })
+
+  it('T2 com dispensa depois da saída normal do turno: nada a compensar', () => {
+    const c: CamposAcordo = {
+      template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Emenda', horaDispensa: '17:30',
+      datasAjuste: ['2026-06-08', '2026-06-09'],
+    }
+    const a = validarAcordo(c, [f1], new Map())
+    const ach = a.find(x => x.codigo === 'SEM_HORAS_A_COMPENSAR')
+    expect(ach).toMatchObject({ nivel: 'erro', funcionarioId: 'a' })
+    expect(ach?.mensagem).toBe('Func a: já sai antes das 17:30 nesse dia (saída às 17:00).')
+  })
+
+  it('T2 aponta só o funcionário cujo turno já sai antes da dispensa', () => {
+    const c: CamposAcordo = {
+      template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Emenda', horaDispensa: '16:00',
+      datasAjuste: ['2026-06-08', '2026-06-09'],
+    }
+    const a = validarAcordo(c, [f1, func('b', T_5X2_540)], new Map())
+    expect(a.filter(x => x.codigo === 'SEM_HORAS_A_COMPENSAR').map(x => x.funcionarioId)).toEqual(['b'])
+  })
+
+  it('T1 com período dentro do horário normal não tem o que compensar', () => {
+    const c: CamposAcordo = {
+      template: 'T1', dataEvento: '2026-06-08', nomeEvento: 'Festa', periodoInicio: '08:00', periodoFim: '10:00',
+      datasAjuste: ['2026-06-09', '2026-06-10'],
+    }
+    const ach = validarAcordo(c, [f1], new Map()).find(x => x.codigo === 'SEM_HORAS_A_COMPENSAR')
+    expect(ach).toMatchObject({ nivel: 'erro', funcionarioId: 'a' })
+    expect(ach?.mensagem).toBe('Func a: as horas do evento estão dentro do horário normal dele; não há o que compensar.')
+  })
+
+  it('T1 com período que passa do horário em dia útil conta só o excedente (252 min)', () => {
+    const c: CamposAcordo = {
+      template: 'T1', dataEvento: '2026-06-08', nomeEvento: 'Festa', periodoInicio: '08:00', periodoFim: '20:00',
+      datasAjuste: ['2026-06-09', '2026-06-10', '2026-06-11'],
+    }
+    expect(validarAcordo(c, [f1], new Map())).toEqual([])
   })
 
   it('separa jornadas diferentes no dia da folga', () => {
@@ -120,7 +153,7 @@ describe('validarAcordo', () => {
   describe('dia do evento e horas de origem', () => {
     it('T2 com evento em dia de folga da escala (sábado) bloqueia', () => {
       const c: CamposAcordo = {
-        template: 'T2', dataEvento: '2026-06-13', nomeEvento: 'Emenda', horaNormal: '15:00', horaDispensa: '12:00',
+        template: 'T2', dataEvento: '2026-06-13', nomeEvento: 'Emenda', horaDispensa: '12:00',
         datasAjuste: ['2026-06-15', '2026-06-16', '2026-06-17'],
       }
       const a = validarAcordo(c, [f1], new Map())
@@ -145,12 +178,21 @@ describe('validarAcordo', () => {
       expect(codigos(validarAcordo(c, [f1], new Map()))).toContain('ORIGEM_LIMITE')
     })
 
-    it('T2 com horas dispensadas maiores que a jornada do dia bloqueia', () => {
+    it('T2 com dispensa antes da entrada dispensa a jornada inteira sem estourar', () => {
       const c: CamposAcordo = {
-        template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Emenda', horaNormal: '23:00', horaDispensa: '07:00',
+        template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Emenda', horaDispensa: '06:00',
         datasAjuste: ['2026-06-08', '2026-06-09', '2026-06-10', '2026-06-11', '2026-06-12', '2026-06-15', '2026-06-16', '2026-06-17'],
       }
-      expect(codigos(validarAcordo(c, [f1], new Map()))).toContain('ORIGEM_LIMITE')
+      expect(validarAcordo(c, [f1], new Map())).toEqual([])
+    })
+
+    it('T1 com mais de 10h por funcionário bloqueia apontando quem', () => {
+      const c: CamposAcordo = {
+        template: 'T1', dataEvento: '2026-06-13', nomeEvento: 'Festa', periodoInicio: '00:00', periodoFim: '11:00',
+        datasAjuste: ['2026-06-15', '2026-06-16'],
+      }
+      const ach = validarAcordo(c, [f1], new Map()).find(x => x.codigo === 'ORIGEM_LIMITE')
+      expect(ach).toMatchObject({ nivel: 'erro', funcionarioId: 'a' })
     })
   })
 

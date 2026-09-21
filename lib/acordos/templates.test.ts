@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { gerarObjeto, contemPlaceholder, TEMPLATES } from './templates'
+import { gerarObjeto, contemPlaceholder, normalizaMotivo, TEMPLATES } from './templates'
 import type { CamposAcordo } from './tipos'
 
-const r = (horasTotalMin: number, minutosPorDia: number, jornadaFolgaMin = 0) => ({ horasTotalMin, minutosPorDia, jornadaFolgaMin })
+const r = (horasTotalMin: number, minutosPorDia: number, jornadaFolgaMin = 0, horaNormal = '') => ({
+  horasTotalMin, minutosPorDia, jornadaFolgaMin, horaNormal,
+})
 
 describe('gerarObjeto', () => {
   it('T1', () => {
@@ -18,10 +20,10 @@ describe('gerarObjeto', () => {
 
   it('T2 usa "decreto municipal" quando não há motivo', () => {
     const c: CamposAcordo = {
-      template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Corpus Christi', horaNormal: '15:00', horaDispensa: '12:00',
+      template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Corpus Christi', horaDispensa: '12:00',
       datasAjuste: ['2026-06-08', '2026-06-09', '2026-06-10'],
     }
-    expect(gerarObjeto(c, r(180, 60))).toEqual({
+    expect(gerarObjeto(c, r(180, 60, 0, '15:00'))).toEqual({
       ok: true,
       texto: 'trabalharem normalmente até as 15h no dia 05/06/2026 (Corpus Christi), sendo dispensados às 12h conforme decreto municipal, compensando as 03 hora(s) não laboradas com acréscimo de 01:00h diária no horário normal nos dias 08/06/2026, 09/06/2026 e 10/06/2026.',
     })
@@ -78,5 +80,40 @@ describe('gerarObjeto', () => {
     expect(contemPlaceholder('dia 27/06/2026')).toBe(false)
     expect(Object.keys(TEMPLATES)).toEqual(['T1', 'T2', 'T3', 'T4', 'T5'])
     expect(TEMPLATES.T4.subtipo).toBe('antecipado')
+  })
+
+  it('T2 sem horário normal derivado do turno falha', () => {
+    const c: CamposAcordo = {
+      template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Emenda', horaDispensa: '12:00', datasAjuste: ['2026-06-08'],
+    }
+    expect(gerarObjeto(c, r(180, 60)).ok).toBe(false)
+  })
+
+  it('T2, T3 e T4 normalizam o motivo', () => {
+    const t2: CamposAcordo = {
+      template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Emenda', horaDispensa: '12:00',
+      motivo: 'Acordado com a Diretora da Unidade.', datasAjuste: ['2026-06-08'],
+    }
+    const a = gerarObjeto(t2, r(180, 180, 0, '15:00'))
+    expect(a.ok && a.texto).toContain('conforme acordado com a Diretora da Unidade,')
+    const t3: CamposAcordo = { template: 'T3', dataFolga: '2026-06-05', motivo: 'Ponto facultativo municipal.', datasAjuste: ['2026-06-08'] }
+    const b = gerarObjeto(t3, r(60, 60))
+    expect(b.ok && b.texto).toContain('(ponto facultativo municipal)')
+    const t4: CamposAcordo = { template: 'T4', dataFolga: '2026-06-12', motivo: 'SMS autorizou;', prazoLimite: '2026-11-30', datasAjuste: ['2026-06-08'] }
+    const c4 = gerarObjeto(t4, r(60, 60))
+    expect(c4.ok && c4.texto).toContain('(SMS autorizou)')
+  })
+})
+
+describe('normalizaMotivo', () => {
+  it('minúscula na primeira letra, sem pontuação final', () => {
+    expect(normalizaMotivo('Acordado com a Diretora da Unidade.')).toBe('acordado com a Diretora da Unidade')
+    expect(normalizaMotivo('decreto municipal,')).toBe('decreto municipal')
+    expect(normalizaMotivo('  ponto   facultativo  ;: ')).toBe('ponto facultativo')
+  })
+
+  it('preserva siglas e palavras de uma letra', () => {
+    expect(normalizaMotivo('SMS autorizou')).toBe('SMS autorizou')
+    expect(normalizaMotivo('A pedido do prefeito')).toBe('A pedido do prefeito')
   })
 })

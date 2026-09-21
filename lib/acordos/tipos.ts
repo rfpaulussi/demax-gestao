@@ -25,8 +25,7 @@ export interface CamposAcordo {
   nomeEvento?: string
   periodoInicio?: string        // 'HH:MM' (opcional, T1/T5)
   periodoFim?: string
-  minutosOrigem?: number        // T1/T5: minutos trabalhados no evento
-  horaNormal?: string           // T2: horário normal de saída
+  minutosOrigem?: number        // T1/T5: horas extras digitadas (quando não há período)
   horaDispensa?: string         // T2: horário em que foram dispensados
   motivo?: string               // T2/T3/T4
   dataFolga?: string            // T3/T4/T5

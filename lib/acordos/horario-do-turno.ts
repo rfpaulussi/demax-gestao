@@ -91,3 +91,37 @@ export function semanaParaTexto(s: SemanaTurno): Record<DiaSemana, string> {
 export function assinaturaSemana(s: SemanaTurno): string {
   return JSON.stringify(DIAS_SEMANA.map(d => s[d]))
 }
+
+/** Períodos trabalhados do dia em minutos [início, fim]; vazio na folga. */
+function periodosMin(d: DiaTurno): [number, number][] {
+  if (d.folga) return []
+  const out: [number, number][] = []
+  if (d.e1 && d.s1) out.push([hhmmParaMin(d.e1), hhmmParaMin(d.s1)])
+  if (d.e2 && d.s2) out.push([hhmmParaMin(d.e2), hhmmParaMin(d.s2)])
+  return out
+}
+
+/** Horário de saída normal do dia ('' se folga). */
+export function saidaDoDia(d: DiaTurno): string {
+  if (d.folga) return ''
+  return d.s2 || d.s1
+}
+
+/** Minutos trabalhados (sem almoço) de `hhmm` até o fim do dia; folga = 0. */
+export function minutosAposHorario(d: DiaTurno, hhmm: string): number {
+  const h = hhmmParaMin(hhmm)
+  return periodosMin(d).reduce((acc, [ini, fim]) => acc + Math.max(0, fim - Math.max(ini, h)), 0)
+}
+
+/** Minutos do intervalo [inicio, fim] que ficam fora dos períodos trabalhados do dia; nunca negativo. */
+export function minutosForaDoHorario(d: DiaTurno, inicio: string, fim: string): number {
+  const i = hhmmParaMin(inicio)
+  const f = hhmmParaMin(fim)
+  const total = f - i
+  if (total <= 0) return 0
+  const dentro = periodosMin(d).reduce(
+    (acc, [ini, fimP]) => acc + Math.max(0, Math.min(fimP, f) - Math.max(ini, i)),
+    0,
+  )
+  return Math.max(0, total - dentro)
+}

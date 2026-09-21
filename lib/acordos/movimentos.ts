@@ -1,6 +1,6 @@
 import type { CamposAcordo, FuncionarioCalc, Movimento, PapelMovimento } from './tipos'
-import { diaSemanaDe, hhmmParaMin } from './tempo'
-import { jornadaDiaMin } from './horario-do-turno'
+import { diaSemanaDe } from './tempo'
+import { jornadaDiaMin, minutosAposHorario, minutosForaDoHorario, saidaDoDia } from './horario-do-turno'
 
 export interface ResumoCalculo {
   /** Minutos "devidos" por funcionário (movimento de origem). */
@@ -9,6 +9,8 @@ export interface ResumoCalculo {
   minutosPorDia: number
   /** Jornada do dia da folga do primeiro funcionário (0 se não há dia de folga). */
   jornadaFolgaMin: number
+  /** T2: saída normal do dia do evento (turno do primeiro funcionário); '' nos demais templates. */
+  horaNormal: string
 }
 
 export function saldoMin(movs: { minutos: number }[]): number {
@@ -19,15 +21,23 @@ export function jornadaDoDia(f: FuncionarioCalc, iso: string): number {
   return jornadaDiaMin(f.semana[diaSemanaDe(iso)])
 }
 
-function totalOrigem(c: CamposAcordo, f: FuncionarioCalc): number {
+/** Minutos de origem de um funcionário, calculados a partir do turno dele. */
+export function totalOrigem(c: CamposAcordo, f: FuncionarioCalc): number {
   let total = 0
   switch (c.template) {
     case 'T1':
     case 'T5':
-      total = c.minutosOrigem ?? 0
+      if (c.periodoInicio && c.periodoFim && c.dataEvento) {
+        total = minutosForaDoHorario(f.semana[diaSemanaDe(c.dataEvento)], c.periodoInicio, c.periodoFim)
+      } else {
+        // sem período: a duração digitada já é hora extra
+        total = c.minutosOrigem ?? 0
+      }
       break
     case 'T2':
-      total = c.horaNormal && c.horaDispensa ? hhmmParaMin(c.horaNormal) - hhmmParaMin(c.horaDispensa) : 0
+      total = c.dataEvento && c.horaDispensa
+        ? minutosAposHorario(f.semana[diaSemanaDe(c.dataEvento)], c.horaDispensa)
+        : 0
       break
     case 'T3':
     case 'T4':
@@ -39,13 +49,14 @@ function totalOrigem(c: CamposAcordo, f: FuncionarioCalc): number {
 
 export function resumoCalculo(c: CamposAcordo, funcs: FuncionarioCalc[]): ResumoCalculo {
   const f = funcs[0]
-  if (!f) return { horasTotalMin: 0, minutosPorDia: 0, jornadaFolgaMin: 0 }
+  if (!f) return { horasTotalMin: 0, minutosPorDia: 0, jornadaFolgaMin: 0, horaNormal: '' }
   const horasTotalMin = totalOrigem(c, f)
   const n = c.datasAjuste.length
   return {
     horasTotalMin,
     minutosPorDia: c.template === 'T5' || n === 0 ? 0 : Math.floor(horasTotalMin / n),
     jornadaFolgaMin: c.dataFolga ? jornadaDoDia(f, c.dataFolga) : 0,
+    horaNormal: c.template === 'T2' && c.dataEvento ? saidaDoDia(f.semana[diaSemanaDe(c.dataEvento)]) : '',
   }
 }
 
@@ -84,15 +95,29 @@ export function construirMovimentos(c: CamposAcordo, funcs: FuncionarioCalc[]): 
 }
 
 /**
- * Nos templates com dia de folga (T3/T4/T5) a jornada daquele dia muda de pessoa para pessoa.
- * Um único texto não descreve jornadas diferentes, então separamos em grupos (um acordo por grupo).
+ * Funcionários com turnos diferentes geram textos diferentes (jornada da folga, saída normal, horas fora do horário).
+ * Um único texto não descreve todos, então separamos em grupos (um acordo por grupo), na ordem da primeira aparição.
  */
 export function agruparPorJornada(c: CamposAcordo, funcs: FuncionarioCalc[]): FuncionarioCalc[][] {
-  const usaFolga = c.template === 'T3' || c.template === 'T4' || c.template === 'T5'
-  if (!usaFolga || !c.dataFolga) return funcs.length ? [funcs] : []
-  const grupos = new Map<number, FuncionarioCalc[]>()
+  const chaveDe = (f: FuncionarioCalc): string | null => {
+    switch (c.template) {
+      case 'T1':
+        return String(totalOrigem(c, f))
+      case 'T2':
+        if (!c.dataEvento || !c.horaDispensa) return null
+        return `${saidaDoDia(f.semana[diaSemanaDe(c.dataEvento)])}|${totalOrigem(c, f)}`
+      case 'T3':
+      case 'T4':
+        return c.dataFolga ? String(jornadaDoDia(f, c.dataFolga)) : null
+      case 'T5':
+        return c.dataFolga ? `${totalOrigem(c, f)}|${jornadaDoDia(f, c.dataFolga)}` : null
+    }
+  }
+  if (funcs.length === 0) return []
+  if (chaveDe(funcs[0]) === null) return [funcs]
+  const grupos = new Map<string, FuncionarioCalc[]>()
   for (const f of funcs) {
-    const chave = jornadaDoDia(f, c.dataFolga)
+    const chave = chaveDe(f) as string
     grupos.set(chave, [...(grupos.get(chave) ?? []), f])
   }
   return Array.from(grupos.values())

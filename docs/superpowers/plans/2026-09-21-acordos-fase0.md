@@ -2623,3 +2623,14 @@ Consistência de nomes conferida: `CamposAcordo`, `FuncionarioCalc`, `ResumoCalc
 - `postos` gravados são montados no servidor a partir de `posto_id` dos funcionários (`FuncionarioParaAcordo.posto_id`); `dados.postos` só precisa ser não vazio. `tipo` e `data_documento` são validados.
 - Todas as datas de `campos` são validadas antes de qualquer consulta: formato AAAA-MM-DD, data real e ano entre atual-1 e atual+3.
 - Rollback do acordo sem movimentos checa o erro do delete e cita o id órfão; erro de tabela/coluna ausente vira "migration 20260922 ainda não aplicada".
+
+## Parte A — correção de lógica (pós-teste no preview)
+
+- `horario-do-turno.ts`: novas funções puras `saidaDoDia`, `minutosAposHorario` (minutos trabalhados dali até o fim do dia, sem almoço) e `minutosForaDoHorario` (intervalo menos sobreposição com os períodos do turno).
+- `CamposAcordo.horaNormal` removido: a saída normal do T2 é derivada do turno de cada funcionário (`ResumoCalculo.horaNormal`, usado pelo texto do T2).
+- Origem por funcionário: T1/T5 com período contam só as horas fora do horário do turno (sem período, `minutosOrigem` vale como hora extra); T2 conta os minutos líquidos não trabalhados após `horaDispensa`; T3/T4 seguem a jornada do dia da folga.
+- `agruparPorJornada` agrupa por template: T1 pela origem, T2 por saída + origem, T3/T4 pela jornada da folga, T5 por origem + jornada da folga.
+- `validar.ts`: saem `HORARIO_INVALIDO` e `SAIDA_DIFERENTE`; entram `SEM_HORAS_A_COMPENSAR` (por funcionário, origem <= 0) e `ORIGEM_LIMITE` por funcionário no T1/T5; T1/T5 exigem período completo ou `minutosOrigem`.
+- `templates.ts`: `normalizaMotivo` (sem pontuação final, 1ª letra minúscula exceto siglas) aplicado a T2, T3 e T4.
+- `dias.ts`: `sugerirQuantidadeDiasComum`, `diasUteisAnteriores` e `sugerirDiasAjuste` (sugestão automática dos dias de ajuste, exceto T5; T1 até 60 min/dia, T2/T3/T4 até min(2h, 10h − maior jornada)).
+- Pendente (Parte B, UI): `components/acordos/campos-template.tsx` ainda referencia `horaNormal` e deve passar a usar `sugerirDiasAjuste` e os novos códigos de achado.

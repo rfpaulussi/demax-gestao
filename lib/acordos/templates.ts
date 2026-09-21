@@ -17,12 +17,21 @@ export function contemPlaceholder(texto: string): boolean {
 }
 
 const limpa = (s?: string) => (s ?? '').replace(/\s+/g, ' ').trim().slice(0, 80)
+/** Encaixa o motivo no meio da frase: sem pontuação final e com a 1ª letra minúscula (exceto siglas). */
+export function normalizaMotivo(m: string): string {
+  const t = m.replace(/\s+/g, ' ').trim().replace(/[.,;:!]+$/, '').trim()
+  const maiuscula = (ch: string) => ch !== ch.toLowerCase()
+  const minuscula = (ch: string) => ch !== ch.toUpperCase()
+  if (t.length >= 2 && maiuscula(t[0]) && minuscula(t[1])) return t[0].toLowerCase() + t.slice(1)
+  return t
+}
+
 const falta = (): ResultadoTexto => ({ ok: false, erro: 'O texto gerado contém colchetes ou campo em branco.' })
 
 /** Gera o parágrafo do objeto (depois de "…com a finalidade de que os funcionários "). */
 export function gerarObjeto(c: CamposAcordo, r: ResumoCalculo): ResultadoTexto {
   const nome = limpa(c.nomeEvento)
-  const motivo = limpa(c.motivo)
+  const motivo = normalizaMotivo(limpa(c.motivo))
   const datas = c.datasAjuste.length ? fmtDatasComPrefixo(c.datasAjuste) : ''
   const periodo = c.periodoInicio && c.periodoFim
     ? `, das ${fmtHoraCurta(c.periodoInicio)} às ${fmtHoraCurta(c.periodoFim)}`
@@ -40,8 +49,8 @@ export function gerarObjeto(c: CamposAcordo, r: ResumoCalculo): ResultadoTexto {
       texto = `trabalharem no dia ${fmtDataBR(c.dataEvento)} (${nome})${periodo}, com redução de ${porDia} diária no horário normal ${datas}, compensando assim ${horas} laborada(s) no referido evento.${sufixoPrazo}`
       break
     case 'T2':
-      if (!c.dataEvento || !nome || !c.horaNormal || !c.horaDispensa || !datas || r.minutosPorDia <= 0) return falta()
-      texto = `trabalharem normalmente até as ${fmtHoraCurta(c.horaNormal)} no dia ${fmtDataBR(c.dataEvento)} (${nome}), sendo dispensados às ${fmtHoraCurta(c.horaDispensa)} conforme ${motivo || 'decreto municipal'}, compensando as ${horas} não laboradas com acréscimo de ${porDia} diária no horário normal ${datas}.${sufixoPrazo}`
+      if (!c.dataEvento || !nome || !r.horaNormal || !c.horaDispensa || !datas || r.minutosPorDia <= 0) return falta()
+      texto = `trabalharem normalmente até as ${fmtHoraCurta(r.horaNormal)} no dia ${fmtDataBR(c.dataEvento)} (${nome}), sendo dispensados às ${fmtHoraCurta(c.horaDispensa)} conforme ${motivo || 'decreto municipal'}, compensando as ${horas} não laboradas com acréscimo de ${porDia} diária no horário normal ${datas}.${sufixoPrazo}`
       break
     case 'T3':
       if (!c.dataFolga || !motivo || !datas || r.minutosPorDia <= 0) return falta()

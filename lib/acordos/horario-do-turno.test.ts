@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   montarSemana, jornadaDiaMin, totalSemanalMin, semanaParaTexto, assinaturaSemana,
+  saidaDoDia, minutosAposHorario, minutosForaDoHorario,
   TURNO_PADRAO, type TurnoRow,
 } from './horario-do-turno'
 
@@ -61,5 +62,34 @@ describe('montarSemana', () => {
   it('TURNO_PADRAO fecha 44h e assinatura é estável', () => {
     expect(totalSemanalMin(montarSemana(TURNO_PADRAO))).toBe(2640)
     expect(assinaturaSemana(montarSemana(TURNO_PADRAO))).toBe(assinaturaSemana(montarSemana({ ...TURNO_PADRAO })))
+  })
+})
+
+describe('saidaDoDia / minutosAposHorario / minutosForaDoHorario', () => {
+  const d = montarSemana(turno5x2c)['Segunda-feira'] // 07:00–12:00 / 13:12–17:00
+  const folga = montarSemana(turno5x2c)['Domingo']
+
+  it('saidaDoDia devolve a última saída ou vazio na folga', () => {
+    expect(saidaDoDia(d)).toBe('17:00')
+    expect(saidaDoDia(folga)).toBe('')
+    expect(saidaDoDia({ folga: false, e1: '07:00', s1: '13:00', e2: '', s2: '' })).toBe('13:00')
+  })
+
+  it('minutosAposHorario conta só o tempo trabalhado dali até o fim', () => {
+    expect(minutosAposHorario(d, '14:00')).toBe(180)
+    expect(minutosAposHorario(d, '11:00')).toBe(60 + 228)
+    expect(minutosAposHorario(d, '12:30')).toBe(228)
+    expect(minutosAposHorario(d, '17:30')).toBe(0)
+    expect(minutosAposHorario(d, '06:00')).toBe(528)
+    expect(minutosAposHorario(folga, '08:00')).toBe(0)
+  })
+
+  it('minutosForaDoHorario desconta a sobreposição com os períodos trabalhados', () => {
+    expect(minutosForaDoHorario(d, '08:00', '20:00')).toBe(252)
+    expect(minutosForaDoHorario(d, '08:00', '10:00')).toBe(0)
+    expect(minutosForaDoHorario(d, '17:00', '19:00')).toBe(120)
+    expect(minutosForaDoHorario(d, '12:00', '13:12')).toBe(72)
+    expect(minutosForaDoHorario(folga, '08:00', '12:00')).toBe(240)
+    expect(minutosForaDoHorario(d, '10:00', '08:00')).toBe(0)
   })
 })
