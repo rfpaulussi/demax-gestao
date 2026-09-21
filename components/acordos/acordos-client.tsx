@@ -8,6 +8,7 @@ import type { AcordoCompensacao, AcordoPostoItem } from '@/app/(admin)/acordos/a
 import { excluirAcordo, marcarEntregueRH, editarAcordo } from '@/app/(admin)/acordos/actions'
 import { AcordoPdfDoc } from './acordo-pdf'
 import { ModalNovoAcordo } from './modal-novo-acordo'
+import type { CalendarioLinha } from '@/lib/calendario/mapa'
 import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dialog'
 
 const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho',
@@ -129,12 +130,13 @@ function ModalEditarAcordo({
 interface Props {
   acordos: AcordoCompensacao[]
   postos: AcordoPostoItem[]
+  calendario: CalendarioLinha[]
   mes: number
   ano: number
   anos: number[]
 }
 
-export function AcordosClient({ acordos, postos, mes, ano, anos }: Props) {
+export function AcordosClient({ acordos, postos, calendario, mes, ano, anos }: Props) {
   const router = useRouter()
   const [showModal, setShowModal]   = useState(false)
   const [editando, setEditando]     = useState<AcordoCompensacao | null>(null)
@@ -387,6 +389,7 @@ export function AcordosClient({ acordos, postos, mes, ano, anos }: Props) {
       {showModal && (
         <ModalNovoAcordo
           postos={postos}
+          calendario={calendario}
           onClose={() => setShowModal(false)}
         />
       )}
