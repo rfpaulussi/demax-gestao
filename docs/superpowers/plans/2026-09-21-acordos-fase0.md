@@ -2604,3 +2604,13 @@ Reportar ao usuário o resultado dos passos 1–4, o que ficou pendente (migrati
 | Emenda em 1 clique, IA/voz, aba Controle, tela do calendário | fora do plano (planos 1a, 1b, 2) |
 
 Consistência de nomes conferida: `CamposAcordo`, `FuncionarioCalc`, `ResumoCalculo`, `agruparPorJornada`, `resumoCalculo`, `construirMovimentos`, `gerarObjeto`, `validarAcordo`, `carregarCalendario`, `calendarioParaMapa`, `FuncionarioParaAcordo` usados com a mesma assinatura em todas as tasks.
+
+
+## Errata pós-revisão do estágio 2
+
+`validarAcordo` (Task 7) ganhou, além do código listado na Task 7 (que fica como base histórica), estas regras; o código vigente está em `lib/acordos/validar.ts`. Para T5 o corpo usa `ajuste = []`.
+- `TEXTO_LONGO` (erro): `nomeEvento`/`motivo` com mais de 80 caracteres. `PERIODO_INCOMPLETO` / `PERIODO_INVALIDO` (erro): T1/T5 com só um horário do período, ou fim <= início.
+- `ORDEM_DATAS` (erro): T1/T2 compensação depois do evento; T3 compensação depois da folga; T4 acréscimos antes da folga; T5 folga depois do evento.
+- T2 com evento em dia de folga da escala: erro `DIA_DE_FOLGA`. T5 com evento em dia útil: aviso `EVENTO_EM_DIA_UTIL`.
+- `ORIGEM_LIMITE` (erro): T1/T5 com `minutosOrigem` acima de 10h; T2 com horas dispensadas maiores que a jornada do dia do evento (nesse caso o T2 em dia de folga só emite `DIA_DE_FOLGA`, sem duplicar).
+- Ficaram de fora de propósito: desconto do almoço no cálculo das horas do T2, e o fallback "decreto municipal" do T2 sem motivo (é a redação padrão da empresa).

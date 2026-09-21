@@ -86,6 +86,114 @@ describe('validarAcordo', () => {
     expect(temErro(a)).toBe(false)
   })
 
+  describe('ordem das datas', () => {
+    it('T1: redução antes do evento é inválida', () => {
+      const c: CamposAcordo = {
+        template: 'T1', dataEvento: '2026-06-13', nomeEvento: 'Festa', minutosOrigem: 120,
+        datasAjuste: ['2026-06-10', '2026-06-11'],
+      }
+      expect(codigos(validarAcordo(c, [f1], new Map()))).toContain('ORDEM_DATAS')
+    })
+
+    it('T3: dia de compensação no mesmo dia da folga é inválido', () => {
+      const c = { ...t3, datasAjuste: ['2026-06-05', ...OITO_DIAS.slice(0, 7)] }
+      expect(codigos(validarAcordo(c, [f1], new Map()))).toContain('ORDEM_DATAS')
+    })
+
+    it('T4: folga no meio dos acréscimos é inválida', () => {
+      const c: CamposAcordo = {
+        template: 'T4', dataFolga: '2026-06-05', motivo: 'ponto facultativo', prazoLimite: '2026-11-30',
+        datasAjuste: ['2026-06-01', '2026-06-02', '2026-06-03', '2026-06-04', '2026-06-08', '2026-06-09', '2026-06-10', '2026-06-11'],
+      }
+      expect(codigos(validarAcordo(c, [f1], new Map()))).toContain('ORDEM_DATAS')
+    })
+
+    it('T5: folga antes do evento é inválida', () => {
+      const c: CamposAcordo = {
+        template: 'T5', dataEvento: '2026-06-13', nomeEvento: 'Mutirão', minutosOrigem: 240,
+        dataFolga: '2026-06-09', datasAjuste: [],
+      }
+      expect(codigos(validarAcordo(c, [f1], new Map()))).toContain('ORDEM_DATAS')
+    })
+  })
+
+  describe('dia do evento e horas de origem', () => {
+    it('T2 com evento em dia de folga da escala (sábado) bloqueia', () => {
+      const c: CamposAcordo = {
+        template: 'T2', dataEvento: '2026-06-13', nomeEvento: 'Emenda', horaNormal: '15:00', horaDispensa: '12:00',
+        datasAjuste: ['2026-06-15', '2026-06-16', '2026-06-17'],
+      }
+      const a = validarAcordo(c, [f1], new Map())
+      expect(a.find(x => x.codigo === 'DIA_DE_FOLGA')?.nivel).toBe('erro')
+    })
+
+    it('T5 com evento em dia útil só avisa', () => {
+      const c: CamposAcordo = {
+        template: 'T5', dataEvento: '2026-06-09', nomeEvento: 'Mutirão', minutosOrigem: 240,
+        dataFolga: '2026-06-15', datasAjuste: [],
+      }
+      const a = validarAcordo(c, [f1], new Map())
+      expect(a.find(x => x.codigo === 'EVENTO_EM_DIA_UTIL')?.nivel).toBe('aviso')
+      expect(temErro(a)).toBe(false)
+    })
+
+    it('T1 com mais de 10h trabalhadas no evento bloqueia', () => {
+      const c: CamposAcordo = {
+        template: 'T1', dataEvento: '2026-06-13', nomeEvento: 'Festa', minutosOrigem: 1200,
+        datasAjuste: ['2026-06-15', '2026-06-16'],
+      }
+      expect(codigos(validarAcordo(c, [f1], new Map()))).toContain('ORIGEM_LIMITE')
+    })
+
+    it('T2 com horas dispensadas maiores que a jornada do dia bloqueia', () => {
+      const c: CamposAcordo = {
+        template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Emenda', horaNormal: '23:00', horaDispensa: '07:00',
+        datasAjuste: ['2026-06-08', '2026-06-09', '2026-06-10', '2026-06-11', '2026-06-12', '2026-06-15', '2026-06-16', '2026-06-17'],
+      }
+      expect(codigos(validarAcordo(c, [f1], new Map()))).toContain('ORIGEM_LIMITE')
+    })
+  })
+
+  describe('período e texto', () => {
+    const t1: CamposAcordo = {
+      template: 'T1', dataEvento: '2026-06-13', nomeEvento: 'Festa', minutosOrigem: 120,
+      datasAjuste: ['2026-06-15', '2026-06-16'],
+    }
+
+    it('período com só um horário é incompleto', () => {
+      expect(codigos(validarAcordo({ ...t1, periodoInicio: '08:00' }, [f1], new Map()))).toContain('PERIODO_INCOMPLETO')
+      expect(codigos(validarAcordo({ ...t1, periodoFim: '10:00' }, [f1], new Map()))).toContain('PERIODO_INCOMPLETO')
+    })
+
+    it('período com fim antes do início é inválido', () => {
+      const a = validarAcordo({ ...t1, periodoInicio: '10:00', periodoFim: '08:00' }, [f1], new Map())
+      expect(codigos(a)).toContain('PERIODO_INVALIDO')
+    })
+
+    it('nome do evento ou motivo com mais de 80 caracteres bloqueia', () => {
+      expect(codigos(validarAcordo({ ...t1, nomeEvento: 'x'.repeat(81) }, [f1], new Map()))).toContain('TEXTO_LONGO')
+      expect(codigos(validarAcordo({ ...t3, motivo: 'y'.repeat(81) }, [f1], new Map()))).toContain('TEXTO_LONGO')
+    })
+  })
+
+  describe('casos válidos adicionais', () => {
+    it('T4 válido não gera achados', () => {
+      const c: CamposAcordo = {
+        template: 'T4', dataFolga: '2026-06-12', motivo: 'ponto facultativo', prazoLimite: '2026-11-30',
+        datasAjuste: ['2026-06-01', '2026-06-02', '2026-06-03', '2026-06-04', '2026-06-05', '2026-06-08', '2026-06-09', '2026-06-10'],
+      }
+      expect(validarAcordo(c, [f1], new Map())).toEqual([])
+    })
+
+    it('T5 válido (sábado trabalhado, folga na segunda) não gera achados', () => {
+      const c: CamposAcordo = {
+        template: 'T5', dataEvento: '2026-06-13', nomeEvento: 'Mutirão', minutosOrigem: 240,
+        dataFolga: '2026-06-15', datasAjuste: [],
+      }
+      expect(validarAcordo(c, [f1], new Map())).toEqual([])
+    })
+  })
+
   describe('mês cruzado (banco de horas)', () => {
     const cruza: CamposAcordo = {
       template: 'T3', dataFolga: '2026-06-26', motivo: 'ponto facultativo',
