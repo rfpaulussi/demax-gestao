@@ -2,6 +2,7 @@ import { listarAcordos, buscarPostosParaAcordo, buscarNomesEventoRecentes } from
 import { AcordosClient } from '@/components/acordos/acordos-client'
 import { carregarCalendario } from '@/lib/calendario/mogi'
 import { getUser } from '@/lib/auth/get-user'
+import { iaConfigurada } from '@/lib/acordos/ia/cliente'
 import Link from 'next/link'
 
 export default async function AcordosPage({
@@ -81,7 +82,7 @@ export default async function AcordosPage({
         </div>
       </div>
 
-      <AcordosClient acordos={acordos} postos={postos} calendario={calendario} nomesRecentes={nomesRecentes} mes={mes} ano={ano} anos={anos} />
+      <AcordosClient acordos={acordos} postos={postos} calendario={calendario} nomesRecentes={nomesRecentes} iaDisponivel={iaConfigurada()} mes={mes} ano={ano} anos={anos} />
     </div>
   )
 }

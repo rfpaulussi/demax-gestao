@@ -158,6 +158,13 @@ export async function interpretarPedidoLab(texto: string): Promise<{ ok: true; d
   return interpretar(texto, guard.auth.user.id)
 }
 
+/** Botão "Descrever o pedido" do modal: quem pode criar acordo pode usar. Não grava nada. */
+export async function interpretarPedidoAcordo(texto: string): Promise<{ ok: true; dados: RespostaInterpretacao } | { ok: false; erro: string }> {
+  const guard = await requireRole(['admin', 'coordenador', 'supervisor'])
+  if (!guard.success) return { ok: false, erro: guard.error }
+  return interpretar(texto, guard.auth.user.id)
+}
+
 export async function iaDisponivel(): Promise<boolean> {
   return iaConfigurada()
 }

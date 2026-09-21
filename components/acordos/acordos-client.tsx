@@ -132,12 +132,13 @@ interface Props {
   postos: AcordoPostoItem[]
   calendario: CalendarioLinha[]
   nomesRecentes: string[]
+  iaDisponivel: boolean
   mes: number
   ano: number
   anos: number[]
 }
 
-export function AcordosClient({ acordos, postos, calendario, nomesRecentes, mes, ano, anos }: Props) {
+export function AcordosClient({ acordos, postos, calendario, nomesRecentes, iaDisponivel, mes, ano, anos }: Props) {
   const router = useRouter()
   const [showModal, setShowModal]   = useState(false)
   const [editando, setEditando]     = useState<AcordoCompensacao | null>(null)
@@ -392,6 +393,7 @@ export function AcordosClient({ acordos, postos, calendario, nomesRecentes, mes,
           postos={postos}
           calendario={calendario}
           nomesRecentes={nomesRecentes}
+          iaDisponivel={iaDisponivel}
           onClose={() => setShowModal(false)}
         />
       )}

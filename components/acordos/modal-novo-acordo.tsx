@@ -1,11 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { buscarFuncionariosPorPostos, criarAcordo } from '@/app/(admin)/acordos/actions'
 import type { AcordoCompensacao, AcordoPostoItem, FuncionarioParaAcordo } from '@/app/(admin)/acordos/actions'
 import { montarTextosAcordo } from '@/lib/acordos/montar'
 import { AcordoPdfDoc } from './acordo-pdf'
+import { PedidoIa } from './pedido-ia'
+import type { RespostaInterpretacao } from '@/app/(admin)/acordos/ia-actions'
 import { calendarioParaMapa, type CalendarioLinha } from '@/lib/calendario/mapa'
 import { DIAS_SEMANA, type Achado, type FuncionarioCalc, type TemplateId } from '@/lib/acordos/tipos'
 import { agruparPorJornada, resumoCalculo } from '@/lib/acordos/movimentos'
@@ -63,10 +65,12 @@ interface Props {
   calendario: CalendarioLinha[]
   /** Nomes de evento de acordos recentes (atalhos). */
   nomesRecentes: string[]
+  /** A IA está configurada neste ambiente (mostra o campo "Descrever o pedido"). */
+  iaDisponivel: boolean
   onClose: () => void
 }
 
-export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: Props) {
+export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponivel, onClose }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
 
@@ -88,6 +92,9 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
   const [tentou, setTentou] = useState(false)
   const [prazoRevelado, setPrazoRevelado] = useState(false)
   const [gerandoRascunho, setGerandoRascunho] = useState(false)
+  // Pedido interpretado pela IA: quantidade de dias pedida e funcionários citados (aplicados quando a lista do posto chega)
+  const [quantidadeIA, setQuantidadeIA] = useState<number | null>(null)
+  const selecaoIA = useRef<string[] | null>(null)
 
   const tocar = useCallback((k: string) => {
     setTocou(prev => (prev.has(k) ? prev : new Set(prev).add(k)))
@@ -104,10 +111,46 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
     if (id !== template || !situacaoEscolhida) {
       setTemplate(id)
       setDiasManual(false)
+      setQuantidadeIA(null)
       setF(prev => ({ ...prev, datasAjuste: [] }))
     }
     setSituacaoEscolhida(true)
     tocar('situacao')
+  }
+
+  /** "Recalcular dias": volta à sugestão automática (esquece a quantidade que a IA leu do pedido). */
+  function recalcularDias() {
+    setDiasManual(false)
+    setQuantidadeIA(null)
+  }
+
+  /** Preenche o formulário com o pedido interpretado pela IA. Não salva nada: a pessoa confere e salva. */
+  function aplicarPedidoIA(d: RespostaInterpretacao) {
+    const r = d.resultado
+    if (!r.template) return
+    setTipo('individual')
+    if (r.postoId) {
+      const mesmoPosto = postosSel.length === 1 && postosSel[0] === r.postoId
+      if (mesmoPosto) {
+        if (r.funcionarioIds.length) setSelectedIds(new Set(funcs.filter(x => r.funcionarioIds.includes(x.id)).map(x => x.id)))
+      } else {
+        selecaoIA.current = r.funcionarioIds
+        setPostosSel([r.postoId])
+      }
+      tocar('posto')
+    }
+    setTemplate(r.template)
+    setSituacaoEscolhida(true)
+    setF({ ...FORM_VAZIO, ...r.form })
+    // dias que o pedido cita um a um ficam como estão; só a quantidade ("em 6 dias") deixa o sistema escolher as datas
+    setDiasManual(!!(r.form.datasAjuste && r.form.datasAjuste.length))
+    setQuantidadeIA(r.quantidadeDias)
+    setTituloManual(false)
+    tocar('situacao')
+    for (const k of Object.keys(r.form) as (keyof FormState)[]) {
+      const chave = CHAVE_DO_FORM[k]
+      if (chave) tocar(chave)
+    }
   }
 
   // Carrega funcionários automaticamente ao escolher o(s) posto(s)
@@ -123,7 +166,12 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
     buscarFuncionariosPorPostos(postosSel).then(res => {
       if (!ativo) return
       setFuncs(res)
-      setSelectedIds(new Set(res.filter(x => x.elegivel && (x.status === 'ativo' || x.status === 'ferias')).map(x => x.id)))
+      const citados = selecaoIA.current
+      selecaoIA.current = null
+      const padrao = res.filter(x => x.elegivel && (x.status === 'ativo' || x.status === 'ferias'))
+      // funcionários citados no pedido da IA; sem citação, o posto todo
+      const escolhidos = citados && citados.length ? res.filter(x => citados.includes(x.id)) : padrao
+      setSelectedIds(new Set(escolhidos.map(x => x.id)))
       setLoadingFuncs(false)
     })
     return () => { ativo = false }
@@ -179,8 +227,8 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
 
   // Dias de ajuste sugeridos automaticamente enquanto o usuário não editar a lista à mão
   const sugestaoDias = useMemo(
-    () => sugerirDiasAjuste({ ...campos, datasAjuste: [] }, calc, feriados, hoje),
-    [campos, calc, feriados, hoje],
+    () => sugerirDiasAjuste({ ...campos, datasAjuste: [] }, calc, feriados, hoje, quantidadeIA ?? undefined),
+    [campos, calc, feriados, hoje, quantidadeIA],
   )
   // Sem sugestão por tamanho/limites: explica o motivo em vez de só pedir um dia
   const motivoSemDias = useMemo(
@@ -415,6 +463,8 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
 
         <div className="grid gap-4 rounded-b-2xl bg-slate-50 p-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
           <div className="space-y-4">
+            <PedidoIa disponivel={iaDisponivel} onAplicar={aplicarPedidoIA} />
+
             <section id="passo-topo" className="scroll-mt-4 space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
               <div>
                 <label htmlFor="campo-titulo" className={`${LABEL_CLS} mb-1.5`}>Título do acordo</label>
@@ -478,7 +528,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
                   feriados={feriados}
                   diasManual={diasManual}
                   onDatasManuais={() => setDiasManual(true)}
-                  onRecalcular={() => setDiasManual(false)}
+                  onRecalcular={recalcularDias}
                   erros={erros}
                   conta={conta}
                   dicaDispensa={dicaDispensa}
@@ -528,7 +578,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, onClose }: 
             onCancelar={onClose}
             onSalvar={handleSalvar}
             onRascunho={abrirRascunho}
-            onRecalcularDias={() => setDiasManual(false)}
+            onRecalcularDias={recalcularDias}
             podeRascunho={situacaoEscolhida && !erroReal && textos.length > 0 && textos.every(x => !!x.texto)}
             gerandoRascunho={gerandoRascunho}
           />
