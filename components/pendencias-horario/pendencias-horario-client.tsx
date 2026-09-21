@@ -39,13 +39,17 @@ const DIAS_CURSO_OPCOES = [
 const inputClass =
   'flex h-9 rounded-lg border border-gray-200 bg-transparent px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
 
-function hoje(): string {
-  return new Date().toISOString().slice(0, 10)
+const DATA_INICIO_PADRAO = '2026-09-01'
+
+// Horários vigentes começam em 01/09/2026, salvo admissão posterior a essa data.
+function dataInicioSugerida(dataAdmissao: string | null): string {
+  const admissao = dataAdmissao?.slice(0, 10)
+  return admissao && admissao > DATA_INICIO_PADRAO ? admissao : DATA_INICIO_PADRAO
 }
 
 function FuncionarioRow({ row, onResolvido }: { row: PendenteRow; onResolvido: (id: string) => void }) {
   const [turnoId, setTurnoId] = useState('')
-  const [dataInicio, setDataInicio] = useState(row.dataAdmissao ?? hoje())
+  const [dataInicio, setDataInicio] = useState(dataInicioSugerida(row.dataAdmissao))
   const [diaCurso, setDiaCurso] = useState('')
   const [saving, setSaving] = useState(false)
   const [erro, setErro] = useState<string | null>(null)

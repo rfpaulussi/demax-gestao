@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getUser } from '@/lib/auth/get-user'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { FUNCAO_JOVEM_APRENDIZ } from '@/lib/turnos/escala'
 import { PendenciasHorarioClient, type PendenteRow, type TurnoOpcao } from '@/components/pendencias-horario/pendencias-horario-client'
 
@@ -30,56 +31,54 @@ export default async function PendenciasHorarioPage() {
     postoIds = (postos ?? []).map(p => p.posto_id)
   }
 
-  let qFuncionarios = supabase
-    .from('funcionarios')
-    .select('id, nome, posto_id, data_admissao, funcoes!funcao_id(nome), postos!posto_id(nome)')
-    .eq('status', 'ativo')
-    .order('nome')
-  if (postoIds) qFuncionarios = qFuncionarios.in('posto_id', postoIds.length > 0 ? postoIds : ['__none__'])
+  // Leituras paginadas e filtradas em memória: listas de ids no .in() estouram o limite de
+  // URL do PostgREST (~800 funcionários no admin) e a falha silenciosa fazia todo mundo
+  // aparecer como pendente.
+  const funcionarios = await fetchAllRows<FuncionarioRaw>((from, to) => {
+    let q = supabase
+      .from('funcionarios')
+      .select('id, nome, posto_id, data_admissao, funcoes!funcao_id(nome), postos!posto_id(nome)')
+      .eq('status', 'ativo')
+      .order('nome')
+      .order('id')
+      .range(from, to)
+    if (postoIds) q = q.in('posto_id', postoIds.length > 0 ? postoIds : ['__none__'])
+    return q as unknown as PromiseLike<{ data: FuncionarioRaw[] | null; error: { message: string } | null }>
+  })
 
-  const { data: funcionariosRaw } = await qFuncionarios
-  const funcionarios = (funcionariosRaw ?? []) as unknown as FuncionarioRaw[]
+  const vigentes = await fetchAllRows<{ funcionario_id: string }>((from, to) =>
+    supabase
+      .from('horarios_funcionarios')
+      .select('funcionario_id')
+      .is('data_fim', null)
+      .order('id')
+      .range(from, to),
+  )
 
-  const { data: vigentesRaw } = funcionarios.length
-    ? await supabase
-        .from('horarios_funcionarios')
-        .select('funcionario_id')
-        .in('funcionario_id', funcionarios.map(f => f.id))
-        .is('data_fim', null)
-    : { data: [] }
-
-  const comHorario = new Set((vigentesRaw ?? []).map(v => v.funcionario_id as string))
+  const comHorario = new Set(vigentes.map(v => v.funcionario_id))
   const pendentes = funcionarios.filter(f => !comHorario.has(f.id) && f.posto_id)
 
-  const postoIdsPendentes = Array.from(new Set(pendentes.map(f => f.posto_id as string)))
-
-  const colunasTurno = 'id, posto_id, nome, hora_entrada, hora_saida_seg_qui, hora_saida_sex, hora_inicio_almoco, hora_fim_almoco, tipo_escala'
-
-  const [{ data: turnosRaw }, { data: turnosGlobaisRaw }] = await Promise.all([
-    postoIdsPendentes.length
-      ? supabase
-          .from('turnos_postos')
-          .select(colunasTurno)
-          .in('posto_id', postoIdsPendentes)
-          .eq('ativo', true)
-          .order('hora_entrada')
-      : Promise.resolve({ data: [] }),
-    // Turnos de jovem aprendiz são globais (sem posto): valem para qualquer posto.
+  const turnos = await fetchAllRows<TurnoOpcao & { posto_id: string | null }>((from, to) =>
     supabase
       .from('turnos_postos')
-      .select(colunasTurno)
-      .is('posto_id', null)
-      .eq('tipo_escala', 'jovem_aprendiz')
+      .select('id, posto_id, nome, hora_entrada, hora_saida_seg_qui, hora_saida_sex, hora_inicio_almoco, hora_fim_almoco, tipo_escala')
       .eq('ativo', true)
-      .order('hora_entrada'),
-  ])
+      .order('hora_entrada')
+      .order('id')
+      .range(from, to) as unknown as PromiseLike<{ data: (TurnoOpcao & { posto_id: string | null })[] | null; error: { message: string } | null }>,
+  )
 
   const turnosPorPosto = new Map<string, TurnoOpcao[]>()
-  for (const t of (turnosRaw ?? []) as unknown as (TurnoOpcao & { posto_id: string })[]) {
-    if (!turnosPorPosto.has(t.posto_id)) turnosPorPosto.set(t.posto_id, [])
-    turnosPorPosto.get(t.posto_id)!.push(t)
+  // Turnos de jovem aprendiz são globais (sem posto): valem para qualquer posto.
+  const turnosGlobaisJovem: TurnoOpcao[] = []
+  for (const t of turnos) {
+    if (t.posto_id) {
+      if (!turnosPorPosto.has(t.posto_id)) turnosPorPosto.set(t.posto_id, [])
+      turnosPorPosto.get(t.posto_id)!.push(t)
+    } else if (t.tipo_escala === 'jovem_aprendiz') {
+      turnosGlobaisJovem.push(t)
+    }
   }
-  const turnosGlobaisJovem = (turnosGlobaisRaw ?? []) as unknown as TurnoOpcao[]
 
   function turnosDisponiveis(funcao: string | undefined, postoId: string): TurnoOpcao[] {
     const doPosto = turnosPorPosto.get(postoId) ?? []
@@ -89,17 +88,18 @@ export default async function PendenciasHorarioPage() {
     return doPosto.filter(t => t.tipo_escala !== 'jovem_aprendiz')
   }
 
-  const { data: supervisoresRaw } = postoIdsPendentes.length
-    ? await supabase
-        .from('config_supervisores_postos')
-        .select('posto_id, ativo, perfis!supervisor_id(nome)')
-        .in('posto_id', postoIdsPendentes)
-        .eq('ativo', true)
-    : { data: [] }
-
   type SupervisorRaw = { posto_id: string; perfis: { nome: string } | null }
+  const supervisoresRaw = await fetchAllRows<SupervisorRaw>((from, to) =>
+    supabase
+      .from('config_supervisores_postos')
+      .select('posto_id, ativo, perfis!supervisor_id(nome)')
+      .eq('ativo', true)
+      .order('posto_id')
+      .range(from, to) as unknown as PromiseLike<{ data: SupervisorRaw[] | null; error: { message: string } | null }>,
+  )
+
   const supervisorPorPosto = new Map<string, string>()
-  for (const s of (supervisoresRaw ?? []) as unknown as SupervisorRaw[]) {
+  for (const s of supervisoresRaw) {
     if (s.perfis?.nome) supervisorPorPosto.set(s.posto_id, s.perfis.nome)
   }
 
