@@ -36,7 +36,7 @@ export const FERRAMENTA_LEGADO = {
         type: 'string',
         enum: ['descanso', 'reposicao', 'indefinida'],
         description:
-          '"descanso" se o texto faz quem trabalhou a mais reduzir a jornada ou folgar; "reposicao" se o texto faz os funcionários trabalharem A MAIS (acréscimo) para repor; "indefinida" se não der para saber.',
+          '"descanso" se o texto faz quem trabalhou a mais reduzir a jornada ou folgar; "reposicao" se o texto faz os funcionários trabalharem A MAIS (acréscimo) para repor horas de um dia em que NÃO trabalharam ou saíram mais cedo; "indefinida" se não der para saber. Trabalhar a mais ANTES para folgar depois (banco de horas com dia de folga marcado) NÃO é reposição: use "descanso".',
       },
       trabalhou_a_mais: { type: 'boolean', description: 'true se o texto diz que os funcionários trabalharam num dia ou evento além do horário normal.' },
       data_evento: { ...STR, description: 'Data do dia trabalhado ou da dispensa, AAAA-MM-DD.' },
@@ -76,8 +76,10 @@ export function lerLegado(bruto: unknown): ClassificacaoLegado | null {
 
 /**
  * Acordo que provavelmente saiu com a direção trocada: o texto diz que trabalharam a mais
- * e, em vez de descansar, manda repor com acréscimo. Precisa de revisão do RH.
+ * e, em vez de descansar, manda repor com acréscimo, sem folga nenhuma. Precisa de revisão do RH.
  */
 export function possivelmenteInvertido(c: ClassificacaoLegado): boolean {
-  return c.trabalhou_a_mais && c.direcao_texto === 'reposicao'
+  // Banco de horas legítimo também "repõe com acréscimo", mas o acréscimo vem ANTES de uma folga marcada.
+  // Invertido é trabalhar a mais e, em vez de descansar, ainda ter que trabalhar mais (sem nenhuma folga no texto).
+  return c.trabalhou_a_mais && c.direcao_texto === 'reposicao' && !c.data_folga
 }

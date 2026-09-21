@@ -55,6 +55,7 @@ export function IaLegados() {
   const invertidos = feitos.filter(l => l.dados!.invertido)
   const custo = feitos.reduce((s, l) => s + (l.dados?.uso.custoUsd ?? 0), 0)
   const pendentes = linhas.filter(l => l.estado !== 'feito').length
+  const rodandoAgora = linhas.findIndex(l => l.estado === 'rodando')
 
   return (
     <section className="space-y-3 rounded-2xl border border-gray-200 bg-slate-50 p-5">
@@ -76,7 +77,7 @@ export function IaLegados() {
               disabled={rodando || pendentes === 0}
               className="flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-40"
             >
-              {rodando ? 'Classificando…' : `Classificar ${Math.min(LOTE, pendentes)} acordos`}
+              {rodando ? `Classificando… (${rodandoAgora + 1} de ${linhas.length})` : `Classificar ${Math.min(LOTE, pendentes)} acordos`}
             </button>
           )}
         </div>
@@ -88,7 +89,10 @@ export function IaLegados() {
       {erro && <p className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>}
       {total !== null && linhas.length === 0 && !erro && <p className="text-sm text-slate-600">Nenhum acordo sem classificação.</p>}
       {total !== null && linhas.length > 0 && (
-        <p className="text-xs text-gray-500">Mostrando os {linhas.length} mais recentes de {total} acordos sem classificação.</p>
+        <p className="text-xs text-gray-500">
+          Mostrando os {linhas.length} mais recentes de {total} acordos sem classificação. A IA classifica {LOTE} por vez:
+          {pendentes > 0 ? ` faltam ${pendentes} nesta lista; clique de novo para os próximos ${Math.min(LOTE, pendentes)}.` : ' todos desta lista já foram classificados.'}
+        </p>
       )}
       {feitos.length > 0 && (
         <p className="text-sm font-semibold text-slate-800">
@@ -113,6 +117,8 @@ export function IaLegados() {
                       {l.item.titulo} <span className="font-normal text-gray-400">· {dataBR(l.item.data_documento)} · {l.item.funcionarios} func.</span>
                     </p>
                     {l.estado === 'erro' && <p className="mt-0.5 text-xs text-amber-700">{l.erro}</p>}
+                    {l.estado === 'rodando' && <p className="mt-0.5 text-xs text-blue-600">lendo o texto…</p>}
+                    {l.estado === 'pendente' && !rodando && <p className="mt-0.5 text-xs text-gray-400">aguardando classificação</p>}
                     {c && (
                       <div className="mt-0.5 space-y-0.5 text-xs text-slate-600">
                         <p>

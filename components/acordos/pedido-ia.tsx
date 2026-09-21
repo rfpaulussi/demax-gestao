@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { Mic, Sparkles, Square } from 'lucide-react'
 import { interpretarPedidoAcordo, type RespostaInterpretacao } from '@/app/(admin)/acordos/ia-actions'
 import { SITUACOES } from '@/lib/acordos/situacoes'
 import { LABEL_CLS } from './passo'
+import { useVoz } from './use-voz'
 
 interface Props {
   /** Chave da IA configurada neste ambiente. */
@@ -13,56 +14,24 @@ interface Props {
   onAplicar: (dados: RespostaInterpretacao) => void
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-type ReconhecimentoVoz = any
-
-function criarReconhecimento(): ReconhecimentoVoz | null {
-  if (typeof window === 'undefined') return null
-  const W = window as any
-  const R = W.SpeechRecognition || W.webkitSpeechRecognition
-  return R ? new R() : null
-}
-
 export function PedidoIa({ disponivel, onAplicar }: Props) {
   const [texto, setTexto] = useState('')
   const [resposta, setResposta] = useState('')
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState('')
   const [ultimo, setUltimo] = useState<RespostaInterpretacao | null>(null)
-  const [temVoz, setTemVoz] = useState(false)
-  const [ouvindo, setOuvindo] = useState(false)
-  const voz = useRef<ReconhecimentoVoz | null>(null)
-
-  useEffect(() => {
-    setTemVoz(criarReconhecimento() !== null)
-    return () => voz.current?.stop?.()
-  }, [])
+  const { suporta: temVoz, ouvindo, alternar, parar } = useVoz()
 
   function alternarVoz(destino: 'pedido' | 'resposta') {
-    if (ouvindo) { voz.current?.stop(); return }
-    const r = criarReconhecimento()
-    if (!r) return
-    r.lang = 'pt-BR'
-    r.continuous = true
-    r.interimResults = false
-    r.onresult = (e: any) => {
-      let dito = ''
-      for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) dito += e.results[i][0].transcript
-      dito = dito.trim()
-      if (!dito) return
+    alternar(dito => {
       const junta = (prev: string) => (prev ? `${prev} ${dito}` : dito)
       if (destino === 'pedido') setTexto(junta)
       else setResposta(junta)
-    }
-    r.onend = () => setOuvindo(false)
-    r.onerror = () => setOuvindo(false)
-    voz.current = r
-    setOuvindo(true)
-    r.start()
+    })
   }
 
   async function interpretar(textoFinal: string) {
-    if (ouvindo) voz.current?.stop()
+    if (ouvindo) parar()
     setCarregando(true)
     setErro('')
     const r = await interpretarPedidoAcordo(textoFinal)

@@ -19,6 +19,10 @@ describe('possivelmenteInvertido', () => {
     expect(possivelmenteInvertido({ ...base, trabalhou_a_mais: true, direcao_texto: 'reposicao' })).toBe(true)
   })
 
+  it('banco de horas com folga marcada não é inversão, mesmo com acréscimo', () => {
+    expect(possivelmenteInvertido({ ...base, trabalhou_a_mais: true, direcao_texto: 'reposicao', data_folga: '2026-08-31' })).toBe(false)
+  })
+
   it('trabalhou a mais e descansa: ok; quem não trabalhou e repõe: ok', () => {
     expect(possivelmenteInvertido({ ...base, trabalhou_a_mais: true, direcao_texto: 'descanso' })).toBe(false)
     expect(possivelmenteInvertido({ ...base, trabalhou_a_mais: false, direcao_texto: 'reposicao' })).toBe(false)

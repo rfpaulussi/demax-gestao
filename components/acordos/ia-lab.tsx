@@ -7,6 +7,7 @@ import { SITUACOES } from '@/lib/acordos/situacoes'
 import { agruparAchados, fmtHM } from '@/lib/acordos/resumo'
 import { LABEL_CLS } from './passo'
 import { IaLegados } from './ia-legados'
+import { useVoz } from './use-voz'
 
 interface Props {
   configurada: boolean
@@ -43,6 +44,7 @@ export function IaLab({ configurada, postos }: Props) {
   const [linhas, setLinhas] = useState<LinhaCaso[]>([])
   const [rodandoTodos, setRodandoTodos] = useState(false)
 
+  const { suporta: temVoz, ouvindo, alternar } = useVoz()
   const nomePosto = (id: string | null) => postos.find(p => p.id === id)?.nome ?? null
 
   async function interpretar() {
@@ -109,6 +111,16 @@ export function IaLab({ configurada, postos }: Props) {
           >
             {rodando ? 'Interpretando…' : 'Interpretar (dry-run)'}
           </button>
+          {temVoz && (
+            <button
+              type="button"
+              onClick={() => alternar(dito => setTexto(prev => (prev ? `${prev} ${dito}` : dito)))}
+              aria-pressed={ouvindo}
+              className={`flex h-9 items-center rounded-lg border px-3 text-sm font-semibold ${ouvindo ? 'border-red-300 bg-red-50 text-red-700' : 'border-gray-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+            >
+              {ouvindo ? 'Parar' : 'Falar'}
+            </button>
+          )}
           <span className="text-xs text-gray-400">Nomes de funcionários, CPF e contatos são trocados por códigos antes de ir à IA.</span>
         </div>
         {erro && <p className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>}
