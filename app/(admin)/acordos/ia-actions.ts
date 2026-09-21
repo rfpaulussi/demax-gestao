@@ -68,7 +68,12 @@ async function interpretar(texto: string, userId: string): Promise<{ ok: true; d
     return { ok: false, erro: 'Não foi possível carregar postos e funcionários. Tente novamente.' }
   }
 
-  const anonimo = anonimizarPedido(limpo, pessoas)
+  let anonimo: ReturnType<typeof anonimizarPedido>
+  try {
+    anonimo = anonimizarPedido(limpo, pessoas)
+  } catch {
+    return { ok: false, erro: 'Não foi possível preparar o pedido. Tente reescrever sem caracteres especiais.' }
+  }
   const fuso = 'America/Sao_Paulo'
   const agora = new Date()
   const hoje = agora.toLocaleDateString('sv-SE', { timeZone: fuso })

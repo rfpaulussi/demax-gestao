@@ -24,6 +24,11 @@ describe('anonimizarPedido', () => {
     expect(anonimizarPedido('José Carlos Lima folga', pessoas).texto).toBe('FUNC_1 folga')
   })
 
+  it('três ou mais com o mesmo primeiro nome não quebram (variante ambígua)', () => {
+    const tres = [...pessoas, { id: 'e', nome: 'JOSÉ FERNANDO DIAS' }]
+    expect(anonimizarPedido('José folga; José Fernando Dias também', tres).texto).toBe('José folga; FUNC_1 também')
+  })
+
   it('remove CPF, e-mail e telefone', () => {
     const r = anonimizarPedido('CPF 123.456.789-09, mail x@y.com, fone (11) 91234-5678', pessoas)
     expect(r.texto).not.toMatch(/123\.456|@|91234/)

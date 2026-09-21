@@ -55,7 +55,9 @@ export function anonimizarPedido(texto: string, pessoas: PessoaRef[]): PedidoAno
   const dono = new Map<string, PessoaRef | null>()
   for (const p of pessoas) {
     for (const v of variantes(p, contagemPrimeiro)) {
-      dono.set(v, dono.has(v) && dono.get(v)!.id !== p.id ? null : p)
+      const atual = dono.get(v)
+      // já ambígua (null) continua ambígua; de outra pessoa passa a ser ambígua
+      dono.set(v, dono.has(v) && (atual === null || atual!.id !== p.id) ? null : p)
     }
   }
   const ordenadas = Array.from(dono.entries())

@@ -11,6 +11,7 @@ Regras:
 - Extraia só o que o pedido diz. Se algo não foi dito, use null (ou lista vazia). Nunca invente datas, horários, nomes ou motivos.
 - Datas em AAAA-MM-DD. O pedido pode dizer "dia 14", "sábado passado", "próxima sexta": resolva com a data de hoje que vem junto do pedido. Se a expressão for ambígua, use null e faça uma pergunta.
 - Horários em HH:MM (24h). "meio-dia" = 12:00.
+- "posto": copie o nome da unidade como está no pedido, com todas as palavras (ex.: "almoxarifado casem", não só "almoxarifado").
 - Os nomes de funcionários já vêm trocados por códigos (FUNC_1, FUNC_2…). Use esses códigos, nunca invente outros.
 - Não calcule horas nem diga se o acordo é permitido: isso é feito depois pelo sistema.
 - "perguntas": no máximo 3, curtas, só sobre o que impede de preencher e o pedido não responde. Se o pedido está completo, deixe vazio.
