@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, Calendar, Clock, FileText, MapPin, Users, XCircle } from 'lucide-react'
 import { buscarFuncionariosPorPostos, criarAcordo } from '@/app/(admin)/acordos/actions'
@@ -63,6 +63,9 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
   const [loadingFuncs, setLoadingFuncs] = useState(false)
   const [erro, setErro] = useState('')
   const [diasManual, setDiasManual] = useState(false)
+  const [hoje] = useState(() => new Date().toLocaleDateString('sv-SE'))
+  // Grupos (ids ordenados) já gravados numa tentativa anterior que falhou no meio: não recriar
+  const criadosRef = useRef<Set<string>>(new Set())
 
   const set = useCallback(<K extends keyof FormState>(k: K, v: FormState[K]) => {
     setF(prev => ({ ...prev, [k]: v }))
@@ -127,15 +130,15 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
     return out
   }, [campos, grupos, feriados])
 
-  const texto = useMemo(
-    () => (grupos.length ? gerarObjeto(campos, resumoCalculo(campos, grupos[0])) : null),
+  const textos = useMemo(
+    () => grupos.map(g => gerarObjeto(campos, resumoCalculo(campos, g))),
     [campos, grupos],
   )
 
   // Dias de ajuste sugeridos automaticamente enquanto o usuário não editar a lista à mão
   const sugestaoDias = useMemo(
-    () => sugerirDiasAjuste({ ...campos, datasAjuste: [] }, calc, feriados),
-    [campos, calc, feriados],
+    () => sugerirDiasAjuste({ ...campos, datasAjuste: [] }, calc, feriados, hoje),
+    [campos, calc, feriados, hoje],
   )
   useEffect(() => {
     if (diasManual) return
@@ -158,7 +161,10 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
     setErro('')
     startTransition(async () => {
       const postosObj = postos.filter(p => postosSel.includes(p.id))
+      const chaveDe = (g: FuncionarioCalc[]) => g.map(x => x.id).sort().join(',')
       for (let i = 0; i < grupos.length; i++) {
+        const chave = chaveDe(grupos[i])
+        if (criadosRef.current.has(chave)) continue
         const res = await criarAcordo({
           titulo: grupos.length > 1 ? `${titulo.trim()} — grupo ${i + 1}` : titulo.trim(),
           tipo,
@@ -168,10 +174,15 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
           campos,
         })
         if ('error' in res) {
-          setErro(grupos.length > 1 ? `Grupo ${i + 1}: ${res.error}` : res.error)
+          const criados = grupos.filter(g => criadosRef.current.has(chaveDe(g))).length
+          const aviso = criados > 0
+            ? ` ${criados} de ${grupos.length} grupo(s) já criado(s); ao salvar de novo só os restantes serão criados.`
+            : ''
+          setErro((grupos.length > 1 ? `Grupo ${i + 1}: ${res.error}` : res.error) + aviso)
           router.refresh()
           return
         }
+        criadosRef.current.add(chave)
       }
       router.refresh()
       onClose()
@@ -380,13 +391,22 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
 
           <div>
             <SectionHeader icon={FileText} title="Texto do acordo (gerado)" />
-            <div className="mt-3 rounded-xl bg-slate-900 px-4 py-3">
-              <p className="font-mono text-[11px] leading-relaxed text-slate-300">
-                <span className="text-slate-500">…com a finalidade de que os funcionários </span>
-                {texto?.ok && !temErro(achados)
-                  ? <span className="text-amber-300">{texto.texto}</span>
-                  : <span className="italic text-slate-500">{temErro(achados) ? 'Corrija os itens em vermelho para gerar o texto' : 'preencha os dados acima para gerar o texto'}</span>}
-              </p>
+            <div className="mt-3 space-y-2 rounded-xl bg-slate-900 px-4 py-3">
+              {(textos.length ? textos : [null]).map((texto, i) => (
+                <div key={i}>
+                  {textos.length > 1 && (
+                    <p className="mb-0.5 font-sans text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                      Grupo {i + 1} · {grupos[i].length} func.
+                    </p>
+                  )}
+                  <p className="font-mono text-[11px] leading-relaxed text-slate-300">
+                    <span className="text-slate-500">…com a finalidade de que os funcionários </span>
+                    {texto?.ok && !temErro(achados)
+                      ? <span className="text-amber-300">{texto.texto}</span>
+                      : <span className="italic text-slate-500">{temErro(achados) ? 'Corrija os itens em vermelho para gerar o texto' : 'preencha os dados acima para gerar o texto'}</span>}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -404,7 +424,8 @@ export function ModalNovoAcordo({ postos, calendario, onClose }: Props) {
           </button>
           <button
             onClick={handleSalvar}
-            disabled={pending}
+            disabled={pending || temErro(achados)}
+            title={temErro(achados) ? 'Corrija os itens em vermelho' : undefined}
             className="flex h-9 items-center rounded-lg bg-slate-900 px-6 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-40"
           >
             {pending ? 'Salvando…' : grupos.length > 1 ? `Salvar ${grupos.length} acordos` : 'Salvar Acordo'}

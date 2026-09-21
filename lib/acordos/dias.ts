@@ -56,8 +56,16 @@ export function diasUteisAnteriores(
   return out.reverse()
 }
 
-/** Dias de compensação/acréscimo sugeridos; [] no T5 ou quando faltam dados. */
-export function sugerirDiasAjuste(c: CamposAcordo, funcs: FuncionarioCalc[], feriados: MapaFeriados): string[] {
+/**
+ * Dias de compensação/acréscimo sugeridos; [] no T5 ou quando faltam dados.
+ * No T4, com `hoje` informado, só valem dias >= hoje: se não houver `n` dias úteis até a folga, devolve [].
+ */
+export function sugerirDiasAjuste(
+  c: CamposAcordo,
+  funcs: FuncionarioCalc[],
+  feriados: MapaFeriados,
+  hoje?: string,
+): string[] {
   if (c.template === 'T5') return []
   const base = c.template === 'T1' || c.template === 'T2' ? c.dataEvento : c.dataFolga
   if (!base) return []
@@ -74,5 +82,7 @@ export function sugerirDiasAjuste(c: CamposAcordo, funcs: FuncionarioCalc[], fer
     : Math.min(MAX_ACRESCIMO_DIA_MIN, MAX_JORNADA_DIA_MIN - jornadaMax)
   const n = sugerirQuantidadeDiasComum(totais, maxPorDia)
   if (n === null) return []
-  return c.template === 'T4' ? diasUteisAnteriores(base, n, funcs, feriados) : proximosDiasUteis(base, n, funcs, feriados)
+  if (c.template !== 'T4') return proximosDiasUteis(base, n, funcs, feriados)
+  const dias = diasUteisAnteriores(base, n, funcs, feriados)
+  return hoje && dias.some(d => d < hoje) ? [] : dias
 }

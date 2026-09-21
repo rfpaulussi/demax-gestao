@@ -2634,3 +2634,10 @@ Consistência de nomes conferida: `CamposAcordo`, `FuncionarioCalc`, `ResumoCalc
 - `templates.ts`: `normalizaMotivo` (sem pontuação final, 1ª letra minúscula exceto siglas) aplicado a T2, T3 e T4.
 - `dias.ts`: `sugerirQuantidadeDiasComum`, `diasUteisAnteriores` e `sugerirDiasAjuste` (sugestão automática dos dias de ajuste, exceto T5; T1 até 60 min/dia, T2/T3/T4 até min(2h, 10h − maior jornada)).
 - Pendente (Parte B, UI): `components/acordos/campos-template.tsx` ainda referencia `horaNormal` e deve passar a usar `sugerirDiasAjuste` e os novos códigos de achado.
+
+### Errata pós-revisão da Parte A
+
+- `montarCampos` só repassa os campos que o template usa (evento T1/T2/T5, período T1/T5, dispensa T2, folga T3/T4/T5, motivo T2/T3/T4, `datasAjuste` vazio no T5); a dica de calendário olha só a data visível do template. Chip "Usar como motivo": feriado grava `feriado <nome>`, facultativo grava "ponto facultativo municipal".
+- `sugerirDiasAjuste(c, funcs, feriados, hoje?)`: no T4, com `hoje`, devolve [] se algum dos `n` dias úteis anteriores à folga for anterior a `hoje`. `normalizaMotivo` só minusculiza a 1ª letra de palavras comuns (acordado, decreto, ponto…) e remove "conforme" inicial; nomes próprios e siglas ficam como digitados.
+- Modal: texto gerado por grupo; salvar com retry sem duplicar (grupos já criados guardados em `useRef`, chave = ids ordenados); botão Salvar desabilitado enquanto houver erro.
+- PENDENTE (decisão do RH): `minutosForaDoHorario` conta o intervalo de almoço como "fora do horário" (ex.: período 11:00–14:00 num turno com almoço 12:00–13:12 gera 1h12 a compensar). Não alterado.

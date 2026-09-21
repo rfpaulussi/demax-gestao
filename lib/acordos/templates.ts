@@ -17,12 +17,21 @@ export function contemPlaceholder(texto: string): boolean {
 }
 
 const limpa = (s?: string) => (s ?? '').replace(/\s+/g, ' ').trim().slice(0, 80)
-/** Encaixa o motivo no meio da frase: sem pontuação final e com a 1ª letra minúscula (exceto siglas). */
+const INICIOS_COMUNS = [
+  'acordado', 'acordo', 'ponto', 'decreto', 'feriado', 'emenda',
+  'determinacao', 'autorizacao', 'solicitacao', 'portaria', 'ordem',
+]
+const semAcento = (w: string) => w.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+/**
+ * Encaixa o motivo no meio da frase: sem pontuação final, sem "conforme" inicial e, só quando começa por uma
+ * palavra comum (decreto, ponto, acordado…), com a 1ª letra minúscula. Nomes próprios e siglas ficam como digitados.
+ */
 export function normalizaMotivo(m: string): string {
-  const t = m.replace(/\s+/g, ' ').trim().replace(/[.,;:!]+$/, '').trim()
-  const maiuscula = (ch: string) => ch !== ch.toLowerCase()
-  const minuscula = (ch: string) => ch !== ch.toUpperCase()
-  if (t.length >= 2 && maiuscula(t[0]) && minuscula(t[1])) return t[0].toLowerCase() + t.slice(1)
+  let t = m.replace(/\s+/g, ' ').trim().replace(/[.,;:!]+$/, '').trim()
+  t = t.replace(/^conforme\s+/i, '')
+  const primeira = semAcento(t.split(' ')[0] ?? '')
+  if (t && INICIOS_COMUNS.includes(primeira)) return t[0].toLowerCase() + t.slice(1)
   return t
 }
 

@@ -78,6 +78,15 @@ describe('sugerirDiasAjuste', () => {
     ])
   })
 
+  it('T4 respeita hoje: sem dias úteis suficientes até a folga não sugere nada', () => {
+    const c: CamposAcordo = { template: 'T4', dataFolga: '2026-09-25', motivo: 'x', prazoLimite: '2026-11-30', datasAjuste: [] }
+    expect(sugerirDiasAjuste(c, [a], new Map(), '2026-09-21')).toEqual([])
+    const c2: CamposAcordo = { template: 'T4', dataFolga: '2026-06-12', motivo: 'x', prazoLimite: '2026-11-30', datasAjuste: [] }
+    expect(sugerirDiasAjuste(c2, [a], new Map(), '2026-05-01')).toEqual([
+      '2026-06-02', '2026-06-03', '2026-06-04', '2026-06-05', '2026-06-08', '2026-06-09', '2026-06-10', '2026-06-11',
+    ])
+  })
+
   it('T5 e dados insuficientes não sugerem nada', () => {
     const t5: CamposAcordo = { template: 'T5', dataEvento: '2026-06-13', nomeEvento: 'x', minutosOrigem: 240, dataFolga: '2026-06-15', datasAjuste: [] }
     expect(sugerirDiasAjuste(t5, [a], new Map())).toEqual([])

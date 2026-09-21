@@ -112,8 +112,21 @@ describe('normalizaMotivo', () => {
     expect(normalizaMotivo('  ponto   facultativo  ;: ')).toBe('ponto facultativo')
   })
 
-  it('preserva siglas e palavras de uma letra', () => {
+  it('preserva nomes próprios, siglas e palavras que não estão na lista', () => {
     expect(normalizaMotivo('SMS autorizou')).toBe('SMS autorizou')
     expect(normalizaMotivo('A pedido do prefeito')).toBe('A pedido do prefeito')
+    expect(normalizaMotivo('Corpus Christi')).toBe('Corpus Christi')
+    expect(normalizaMotivo('Dia do Servidor')).toBe('Dia do Servidor')
+  })
+
+  it('minusculiza a 1ª letra só das palavras iniciais conhecidas (ignora acento)', () => {
+    expect(normalizaMotivo('Decreto 123/2026')).toBe('decreto 123/2026')
+    expect(normalizaMotivo('Autorização da Secretária')).toBe('autorização da Secretária')
+    expect(normalizaMotivo('Determinação superior')).toBe('determinação superior')
+  })
+
+  it('remove "conforme" inicial', () => {
+    expect(normalizaMotivo('conforme decreto municipal')).toBe('decreto municipal')
+    expect(normalizaMotivo('Conforme Decreto municipal.')).toBe('decreto municipal')
   })
 })

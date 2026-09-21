@@ -25,19 +25,23 @@ export const FORM_VAZIO: FormState = {
 }
 
 export function montarCampos(template: TemplateId, f: FormState): CamposAcordo {
-  const daDuracao = f.duracao ? hhmmParaMin(f.duracao) : 0
+  const usaEvento = template === 'T1' || template === 'T2' || template === 'T5'
+  const usaPeriodo = template === 'T1' || template === 'T5'
+  const usaFolga = template === 'T3' || template === 'T4' || template === 'T5'
+  const usaMotivo = template === 'T2' || template === 'T3' || template === 'T4'
+  // Só repassa o que o template mostra: campos ocultos preenchidos antes não podem vazar para validação/gravação
   return {
     template,
-    dataEvento: f.dataEvento || undefined,
-    nomeEvento: f.nomeEvento || undefined,
-    periodoInicio: f.periodoInicio || undefined,
-    periodoFim: f.periodoFim || undefined,
+    dataEvento: usaEvento ? f.dataEvento || undefined : undefined,
+    nomeEvento: usaEvento ? f.nomeEvento || undefined : undefined,
+    periodoInicio: usaPeriodo ? f.periodoInicio || undefined : undefined,
+    periodoFim: usaPeriodo ? f.periodoFim || undefined : undefined,
     // T1/T5 com período: o lib calcula por funcionário; aqui vai só a duração digitada
-    minutosOrigem: daDuracao,
-    horaDispensa: f.horaDispensa || undefined,
-    motivo: f.motivo || undefined,
-    dataFolga: f.dataFolga || undefined,
-    datasAjuste: f.datasAjuste,
+    minutosOrigem: usaPeriodo && f.duracao ? hhmmParaMin(f.duracao) : 0,
+    horaDispensa: template === 'T2' ? f.horaDispensa || undefined : undefined,
+    motivo: usaMotivo ? f.motivo || undefined : undefined,
+    dataFolga: usaFolga ? f.dataFolga || undefined : undefined,
+    datasAjuste: template === 'T5' ? [] : f.datasAjuste,
     prazoLimite: f.prazoLimite || undefined,
   }
 }
@@ -113,7 +117,8 @@ export function CamposTemplate({ template: t, f, set, feriados, diasManual, onDa
   const usaMotivo = t === 'T2' || t === 'T3' || t === 'T4'
   const usaAjuste = t !== 'T5'
   const rotuloAjuste = t === 'T1' ? 'Dias de redução da jornada' : 'Dias de acréscimo da jornada'
-  const dica = feriados.get(f.dataFolga || f.dataEvento)
+  const dataDica = t === 'T1' || t === 'T2' ? f.dataEvento : t === 'T5' ? f.dataFolga || f.dataEvento : f.dataFolga
+  const dica = dataDica ? feriados.get(dataDica) : undefined
 
   return (
     <div className="space-y-4">
@@ -161,7 +166,7 @@ export function CamposTemplate({ template: t, f, set, feriados, diasManual, onDa
             <button
               type="button"
               className="font-semibold underline"
-              onClick={() => set('motivo', dica.tipo === 'facultativo' ? 'ponto facultativo municipal' : dica.nome)}
+              onClick={() => set('motivo', dica.tipo === 'facultativo' ? 'ponto facultativo municipal' : `feriado ${dica.nome}`)}
             >
               Usar como motivo
             </button>
