@@ -96,12 +96,13 @@ function horaParaMinutos(hora: string): number {
   return h * 60 + m
 }
 
-// 5x2 — base 07:00, almoço 12:00–13:12 (72min), saída 17:00 (seg-qui) / 16:00 (sex). 44h/semana.
+// 5x2 — base 07:00, almoço 12:00–13:12 (72min), saída 17:00 todos os dias (5 × 8h48 = 44h/semana).
+// Com sexta às 16:00 a semana fecha só 43h.
 const BASE_5X2_ENTRADA_MIN = 7 * 60
 const BASE_5X2_ALMOCO_INICIO_MIN = 12 * 60
 const BASE_5X2_ALMOCO_FIM_MIN = 13 * 60 + 12
 const BASE_5X2_SAIDA_SEGQUI_MIN = 17 * 60
-const BASE_5X2_SAIDA_SEX_MIN = 16 * 60
+const BASE_5X2_SAIDA_SEX_MIN = 17 * 60
 
 // 5x1 — 7h20 de trabalho/dia (44h ÷ 6 dias) + 1h de almoço, com o almoço começando 4h após a entrada.
 const CARGA_DIARIA_5X1_MIN = 7 * 60 + 20
