@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { X } from 'lucide-react'
 import { buscarFuncionariosPorPostos, criarAcordo } from '@/app/(admin)/acordos/actions'
 import type { AcordoCompensacao, AcordoPostoItem, FuncionarioParaAcordo } from '@/app/(admin)/acordos/actions'
 import { montarTextosAcordo } from '@/lib/acordos/montar'
@@ -456,9 +457,20 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overflow-x-hidden bg-black/50 px-4 py-8">
       <div className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl">
-        <div className="rounded-t-2xl bg-slate-900 px-6 py-5">
-          <h2 className="text-base font-bold text-white">Novo Acordo de Compensação</h2>
-          <p className="mt-0.5 text-xs text-slate-400">Responda os passos; o texto é gerado a partir dos campos e o PDF sai após salvar</p>
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 rounded-t-2xl bg-slate-900 px-6 py-5">
+          <div>
+            <h2 className="text-base font-bold text-white">Novo Acordo de Compensação</h2>
+            <p className="mt-0.5 text-xs text-slate-400">Responda os passos; o texto é gerado a partir dos campos e o PDF sai após salvar</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar"
+            title="Fechar"
+            className="-mr-1 -mt-1 shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
         <div className="grid gap-4 rounded-b-2xl bg-slate-50 p-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">

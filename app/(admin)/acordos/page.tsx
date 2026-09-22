@@ -3,6 +3,7 @@ import { AcordosClient } from '@/components/acordos/acordos-client'
 import { carregarCalendario } from '@/lib/calendario/mogi'
 import { getUser } from '@/lib/auth/get-user'
 import { iaConfigurada } from '@/lib/acordos/ia/cliente'
+import { isAdminOrCoord, type Role } from '@/types/roles'
 import Link from 'next/link'
 
 export default async function AcordosPage({
@@ -31,7 +32,7 @@ export default async function AcordosPage({
       <div>
         <h1 className="text-lg font-bold text-gray-900">Acordos de Compensação</h1>
         <p className="text-sm text-gray-400">Termos de compensação de horas — geração e arquivo</p>
-        {auth?.perfil.role === 'admin' && (
+        {isAdminOrCoord(auth?.perfil.role as Role | undefined) && (
           <Link href="/acordos/ia-lab" className="mt-1 inline-block text-xs font-semibold text-slate-500 underline hover:text-slate-800">
             Laboratório da IA (teste)
           </Link>

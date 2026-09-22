@@ -152,9 +152,9 @@ async function interpretar(texto: string, userId: string): Promise<{ ok: true; d
   }
 }
 
-/** Laboratório (dry-run): só admin. Não grava nada; devolve também o texto enviado e o uso de tokens. */
+/** Laboratório (dry-run): admin/coordenador. Não grava nada; devolve também o texto enviado e o uso de tokens. */
 export async function interpretarPedidoLab(texto: string): Promise<{ ok: true; dados: RespostaInterpretacao } | { ok: false; erro: string }> {
-  const guard = await requireRole(['admin'])
+  const guard = await requireRole(['admin', 'coordenador'])
   if (!guard.success) return { ok: false, erro: guard.error }
   return interpretar(texto, guard.auth.user.id)
 }
@@ -179,9 +179,9 @@ export interface AcordoLegadoItem {
   funcionarios: number
 }
 
-/** Acordos ainda sem `template_id` (emitidos antes do novo fluxo). Só admin. */
+/** Acordos ainda sem `template_id` (emitidos antes do novo fluxo). Admin/coordenador. */
 export async function listarAcordosLegados(): Promise<{ ok: true; itens: AcordoLegadoItem[]; total: number } | { ok: false; erro: string }> {
-  const guard = await requireRole(['admin'])
+  const guard = await requireRole(['admin', 'coordenador'])
   if (!guard.success) return { ok: false, erro: guard.error }
   const { data, error, count } = await (createClient() as AnyClient)
     .from('acordos_compensacao')
@@ -206,9 +206,9 @@ export interface ResultadoLegado {
   uso: UsoIA
 }
 
-/** Lê o texto de UM acordo antigo e o classifica. Não grava nada. Só admin. */
+/** Lê o texto de UM acordo antigo e o classifica. Não grava nada. Admin/coordenador. */
 export async function classificarAcordoAntigo(id: string): Promise<{ ok: true; dados: ResultadoLegado } | { ok: false; erro: string }> {
-  const guard = await requireRole(['admin'])
+  const guard = await requireRole(['admin', 'coordenador'])
   if (!guard.success) return { ok: false, erro: guard.error }
   if (!iaConfigurada()) return { ok: false, erro: 'A IA não está configurada neste ambiente (falta ANTHROPIC_API_KEY).' }
   if (!dentroDoLimite(guard.auth.user.id, 200)) return { ok: false, erro: 'Muitos pedidos em pouco tempo. Aguarde alguns minutos.' }
