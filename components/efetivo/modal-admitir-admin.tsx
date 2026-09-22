@@ -1,10 +1,22 @@
 'use client'
 
-import { useState, useTransition, useMemo, useRef } from 'react'
+import { useState, useTransition, useMemo, useRef, useEffect } from 'react'
 import { admitirFuncionarioAdmin } from '@/app/(admin)/efetivo/actions'
+import { listarTurnosDoPosto, listarTurnosJovemAprendiz } from '@/app/(admin)/efetivo/horario/actions'
+import { formatarResumoTurno } from '@/lib/turnos/escala'
 
 type PostoOpt  = { id: string; nome: string; secretaria: string | null }
 type FuncaoOpt = { id: string; nome: string }
+type TurnoOpcao = {
+  id: string
+  nome: string
+  hora_entrada: string
+  hora_saida_seg_qui: string
+  hora_saida_sex: string | null
+  hora_inicio_almoco: string | null
+  hora_fim_almoco: string | null
+  tipo_escala: string
+}
 
 interface Props {
   open: boolean
@@ -25,7 +37,35 @@ export function ModalAdmitirAdmin({ open, onClose, postos, funcoes }: Props) {
   const [pcd,         setPcd]         = useState(false)
   const [pcdTipo,      setPcdTipo]     = useState('')
   const [pcdTipoOutro, setPcdTipoOutro] = useState('')
+  const [postoId, setPostoId] = useState('')
+  const [funcaoId, setFuncaoId] = useState('')
+  const [turnoOpcoes, setTurnoOpcoes] = useState<TurnoOpcao[]>([])
+  const [loadingTurnos, setLoadingTurnos] = useState(false)
+  const [turnoId, setTurnoId] = useState('')
+  const [diaCurso, setDiaCurso] = useState<number | ''>('')
   const formRef = useRef<HTMLFormElement>(null)
+
+  const selectedFuncao = funcoes.find(f => f.id === funcaoId) ?? null
+  const isJA = selectedFuncao?.nome?.toUpperCase().includes('APRENDIZ') ?? false
+
+  useEffect(() => {
+    setTurnoId('')
+    setDiaCurso('')
+    if (isJA) {
+      setLoadingTurnos(true)
+      listarTurnosJovemAprendiz().then(data => {
+        setTurnoOpcoes(data as TurnoOpcao[])
+        setLoadingTurnos(false)
+      })
+      return
+    }
+    if (!postoId) { setTurnoOpcoes([]); return }
+    setLoadingTurnos(true)
+    listarTurnosDoPosto(postoId).then(data => {
+      setTurnoOpcoes(data as TurnoOpcao[])
+      setLoadingTurnos(false)
+    })
+  }, [postoId, isJA])
 
   const postosFiltrados = useMemo(() =>
     postoSearch.trim()
@@ -41,6 +81,7 @@ export function ModalAdmitirAdmin({ open, onClose, postos, funcoes }: Props) {
     if (pending) return
     setErro(null); setOk(false); setPostoSearch(''); setPeriodoExp('45+45')
     setPcd(false); setPcdTipo(''); setPcdTipoOutro('')
+    setPostoId(''); setFuncaoId(''); setTurnoOpcoes([]); setTurnoId(''); setDiaCurso('')
     formRef.current?.reset()
     onClose()
   }
@@ -48,7 +89,17 @@ export function ModalAdmitirAdmin({ open, onClose, postos, funcoes }: Props) {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setErro(null)
+    if (!loadingTurnos && turnoOpcoes.length > 0 && !turnoId) {
+      setErro('Selecione o turno de trabalho')
+      return
+    }
+    if (turnoId && isJA && !diaCurso) {
+      setErro('Selecione o dia de curso')
+      return
+    }
     const fd = new FormData(e.currentTarget)
+    if (turnoId) fd.set('turno_destino_id', turnoId)
+    if (turnoId && isJA && diaCurso) fd.set('dia_curso_destino', String(diaCurso))
     start(async () => {
       const res = await admitirFuncionarioAdmin(fd)
       if (res.error) { setErro(res.error); return }
@@ -69,7 +120,7 @@ export function ModalAdmitirAdmin({ open, onClose, postos, funcoes }: Props) {
             <p className="text-3xl">✓</p>
             <p className="mt-2 text-sm font-medium text-gray-700">Funcionário admitido com sucesso!</p>
             <div className="mt-4 flex justify-center gap-2">
-              <button type="button" onClick={() => { setOk(false); setErro(null); setPeriodoExp('45+45'); setPcd(false); setPcdTipo(''); setPcdTipoOutro(''); formRef.current?.reset() }}
+              <button type="button" onClick={() => { setOk(false); setErro(null); setPeriodoExp('45+45'); setPcd(false); setPcdTipo(''); setPcdTipoOutro(''); setPostoId(''); setFuncaoId(''); setTurnoOpcoes([]); setTurnoId(''); setDiaCurso(''); formRef.current?.reset() }}
                 className="rounded border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50">
                 Admitir outro
               </button>
@@ -103,7 +154,8 @@ export function ModalAdmitirAdmin({ open, onClose, postos, funcoes }: Props) {
               <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">Função &amp; posto</p>
               <div>
                 <label className={labelClass}>Função *</label>
-                <select name="funcao_id" required className={inputClass}>
+                <select name="funcao_id" required className={inputClass} value={funcaoId}
+                  onChange={e => setFuncaoId(e.target.value)}>
                   <option value="">Selecione...</option>
                   {funcoes.map(f => (
                     <option key={f.id} value={f.id}>{f.nome}</option>
@@ -118,7 +170,8 @@ export function ModalAdmitirAdmin({ open, onClose, postos, funcoes }: Props) {
                   onChange={e => setPostoSearch(e.target.value)}
                   className={inputClass + ' mb-1'}
                 />
-                <select name="posto_id" required className={inputClass} size={4} style={{ height: 'auto' }}>
+                <select name="posto_id" required className={inputClass} size={4} style={{ height: 'auto' }}
+                  value={postoId} onChange={e => setPostoId(e.target.value)}>
                   <option value="">Selecione...</option>
                   {postosFiltrados.map(p => (
                     <option key={p.id} value={p.id}>
@@ -127,6 +180,46 @@ export function ModalAdmitirAdmin({ open, onClose, postos, funcoes }: Props) {
                   ))}
                 </select>
               </div>
+
+              {postoId && (
+                <div className="mt-3 space-y-3 rounded border border-blue-200 bg-blue-50 px-4 py-3">
+                  <p className="text-sm font-semibold text-blue-800">Turno de trabalho</p>
+                  {loadingTurnos ? (
+                    <p className="text-xs text-blue-600">Carregando turnos…</p>
+                  ) : turnoOpcoes.length === 0 ? (
+                    <p className="text-xs text-amber-700">
+                      {isJA
+                        ? 'Nenhum turno de jovem aprendiz cadastrado.'
+                        : 'Nenhum turno cadastrado para este posto — o horário ficará pendente de atribuição manual.'}
+                    </p>
+                  ) : (
+                    <>
+                      <div>
+                        <label className={labelClass}>Turno</label>
+                        <select value={turnoId} onChange={e => setTurnoId(e.target.value)} className={inputClass}>
+                          <option value="">Selecione…</option>
+                          {turnoOpcoes.map(t => (
+                            <option key={t.id} value={t.id}>{t.nome} — {formatarResumoTurno(t)}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {isJA && (
+                        <div>
+                          <label className={labelClass}>Dia de curso</label>
+                          <select value={diaCurso} onChange={e => setDiaCurso(e.target.value ? Number(e.target.value) : '')} className={inputClass}>
+                            <option value="">Selecione…</option>
+                            <option value={1}>Segunda</option>
+                            <option value={2}>Terça</option>
+                            <option value={3}>Quarta</option>
+                            <option value={4}>Quinta</option>
+                            <option value={5}>Sexta</option>
+                          </select>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="rounded-lg border border-slate-100 border-t-4 border-t-orange-400 bg-white p-4 shadow-sm">

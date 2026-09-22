@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
+import { aplicarMudancaHorario } from '@/app/(admin)/efetivo/horario/actions'
 
 // ─── execução direta ──────────────────────────────────────────────────────────
 
@@ -736,6 +737,9 @@ export async function admitirFuncionarioAdmin(formData: FormData): Promise<{ err
   const pcd          = formData.get('pcd') === 'on'
   const pcd_tipo      = (formData.get('pcd_tipo') as string)?.trim() || null
   const pcd_tipo_outro = (formData.get('pcd_tipo_outro') as string)?.trim() || null
+  const turno_destino_id  = (formData.get('turno_destino_id') as string | null) || null
+  const diaCursoRaw        = formData.get('dia_curso_destino') as string | null
+  const dia_curso_destino  = diaCursoRaw ? Number(diaCursoRaw) : null
 
   if (!nome || !funcao_id || !posto_id || !data_admissao) {
     return { error: 'Nome, função, posto e data de admissão são obrigatórios' }
@@ -755,9 +759,17 @@ export async function admitirFuncionarioAdmin(formData: FormData): Promise<{ err
   payload.pcd_tipo_outro = (pcd && pcd_tipo === 'Outra') ? pcd_tipo_outro : null
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await supabase.from('funcionarios').insert(payload as any)
+  const { data: novoFunc, error } = await supabase.from('funcionarios').insert(payload as any).select('id').single()
 
   if (error) return { error: error.message }
+
+  if (turno_destino_id && novoFunc) {
+    const auth = await getUser()
+    if (auth) {
+      await aplicarMudancaHorario(novoFunc.id, turno_destino_id, dia_curso_destino, data_admissao, auth.user.id)
+    }
+  }
+
   revalidatePath('/efetivo')
   return {}
 }
