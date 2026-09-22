@@ -1,5 +1,9 @@
-import { listarAcordos, buscarPostosParaAcordo } from './actions'
+import { listarAcordos, buscarPostosParaAcordo, buscarNomesEventoRecentes } from './actions'
 import { AcordosClient } from '@/components/acordos/acordos-client'
+import { carregarCalendario } from '@/lib/calendario/mogi'
+import { getUser } from '@/lib/auth/get-user'
+import { iaConfigurada } from '@/lib/acordos/ia/cliente'
+import Link from 'next/link'
 
 export default async function AcordosPage({
   searchParams,
@@ -10,9 +14,12 @@ export default async function AcordosPage({
   const mes = searchParams.mes ? Number(searchParams.mes) : agora.getMonth() + 1
   const ano = searchParams.ano ? Number(searchParams.ano) : agora.getFullYear()
 
-  const [acordos, postos] = await Promise.all([
+  const auth = await getUser()
+  const [acordos, postos, calendario, nomesRecentes] = await Promise.all([
     listarAcordos({ mes, ano }),
     buscarPostosParaAcordo(),
+    carregarCalendario([agora.getFullYear(), agora.getFullYear() + 1]),
+    buscarNomesEventoRecentes(),
   ])
 
   // Anos disponíveis: de 2024 até este ano + 1
@@ -24,6 +31,11 @@ export default async function AcordosPage({
       <div>
         <h1 className="text-lg font-bold text-gray-900">Acordos de Compensação</h1>
         <p className="text-sm text-gray-400">Termos de compensação de horas — geração e arquivo</p>
+        {auth?.perfil.role === 'admin' && (
+          <Link href="/acordos/ia-lab" className="mt-1 inline-block text-xs font-semibold text-slate-500 underline hover:text-slate-800">
+            Laboratório da IA (teste)
+          </Link>
+        )}
       </div>
 
       {/* Banner instrutivo */}
@@ -50,8 +62,8 @@ export default async function AcordosPage({
           <div className="rounded-xl bg-white border border-amber-100 p-3">
             <p className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-1">② Compensação</p>
             <p className="text-xs text-gray-600">
-              Defina como as horas serão devolvidas — geralmente acrescendo minutos por dia nos dias úteis seguintes.
-              Ex: 2h extras = +1h/dia em 2 dias.
+              Quem trabalhou a mais descansa (redução de jornada ou folga); quem deixou de trabalhar compensa com
+              acréscimo nos dias úteis seguintes. Ex: 2h trabalhadas = −1h/dia em 2 dias.
             </p>
           </div>
           <div className="rounded-xl bg-white border border-amber-100 p-3">
@@ -65,12 +77,12 @@ export default async function AcordosPage({
         <div className="rounded-xl bg-amber-900/10 border border-amber-200 px-4 py-2.5">
           <p className="text-xs font-semibold text-amber-800 mb-0.5">Exemplo de preenchimento:</p>
           <p className="font-mono text-xs text-amber-700">
-            &ldquo;…trabalharem no dia <strong>28/06/2026 (Festa Junina)</strong>, com acréscimo de <strong>01:00h</strong> diária nos dias <strong>30/06 e 01/07</strong>, compensando <strong>02 horas</strong> laboradas no evento.&rdquo;
+            &ldquo;…trabalharem no dia <strong>27/06/2026 (Festa Junina)</strong>, com redução de <strong>01:00h</strong> diária no horário normal nos dias <strong>30/06 e 01/07</strong>, compensando assim <strong>02 hora(s)</strong> laborada(s) no referido evento.&rdquo;
           </p>
         </div>
       </div>
 
-      <AcordosClient acordos={acordos} postos={postos} mes={mes} ano={ano} anos={anos} />
+      <AcordosClient acordos={acordos} postos={postos} calendario={calendario} nomesRecentes={nomesRecentes} iaDisponivel={iaConfigurada()} mes={mes} ano={ano} anos={anos} />
     </div>
   )
 }

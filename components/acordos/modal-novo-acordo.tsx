@@ -1,520 +1,587 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Clock, MapPin, Users, FileText, Calendar, Plus, Trash2 } from 'lucide-react'
+import { buscarFuncionariosPorPostos, criarAcordo } from '@/app/(admin)/acordos/actions'
+import type { AcordoCompensacao, AcordoPostoItem, FuncionarioParaAcordo } from '@/app/(admin)/acordos/actions'
+import { montarTextosAcordo } from '@/lib/acordos/montar'
+import { AcordoPdfDoc } from './acordo-pdf'
+import { PedidoIa } from './pedido-ia'
+import type { RespostaInterpretacao } from '@/app/(admin)/acordos/ia-actions'
+import { calendarioParaMapa, type CalendarioLinha } from '@/lib/calendario/mapa'
+import { DIAS_SEMANA, type Achado, type FuncionarioCalc, type TemplateId } from '@/lib/acordos/tipos'
+import { agruparPorJornada, resumoCalculo } from '@/lib/acordos/movimentos'
+import { gerarObjeto, TEMPLATES } from '@/lib/acordos/templates'
+import { camposFaltando, temErro, validarAcordo } from '@/lib/acordos/validar'
+import { assinaturaSemana, juntarRotulos, saidaDoDia } from '@/lib/acordos/horario-do-turno'
+import { motivoSemSugestao, sugerirDiasAjuste } from '@/lib/acordos/dias'
+import { fmtHoraCurta, hhmmParaMin } from '@/lib/acordos/tempo'
+import { NOMES_EVENTO_SUGERIDOS } from '@/lib/acordos/motivos'
 import {
-  criarAcordo,
-  buscarFuncionariosPorPostos,
-} from '@/app/(admin)/acordos/actions'
-import type { AcordoPostoItem, AcordoFuncionarioItem, TurnoHorario } from '@/app/(admin)/acordos/actions'
+  agruparAchados, combinarNomesEvento, calendarioParaAtalhos, dataMaximaPrazo, fmtDuracao, montarChecklist, precisaPrazo, proximasDatasCalendario,
+  textoConta, tituloSugerido, verboCompensacao,
+  type ItemChecklistId,
+} from '@/lib/acordos/resumo'
+import { CamposTemplate, FORM_VAZIO, montarCampos, type CampoChave, type FormState } from './campos-template'
+import { INPUT_CLS, INPUT_ERRO_CLS, LABEL_CLS, Passo } from './passo'
+import { SituacaoCards } from './situacao-cards'
+import { PassoFuncionarios } from './passo-funcionarios'
+import { PrazoLimite } from './prazo-limite'
+import { ResumoAcordo, type ItemResumo, type StatusResumo, type TextoGrupo, type TurnoResumo } from './resumo-acordo'
 
-const DIAS = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado','Domingo']
-
-const HORARIOS_EXTRA_30 = new Set([5,6,7,8,11,12,13,14,15,16,17,18])
-const HORARIOS: string[] = []
-for (let h = 5; h <= 23; h++) {
-  for (let m = 0; m < 60; m += 12) {
-    if (h === 23 && m > 0) break
-    HORARIOS.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`)
-    if (m === 24 && HORARIOS_EXTRA_30.has(h)) {
-      HORARIOS.push(`${String(h).padStart(2,'0')}:30`)
-    }
-  }
+/** Campo do formulário -> chave "tocada" (para só mostrar erro depois de interagir). */
+const CHAVE_DO_FORM: Partial<Record<keyof FormState, string>> = {
+  dataEvento: 'dataEvento', nomeEvento: 'nomeEvento', periodoInicio: 'horas', periodoFim: 'horas', duracao: 'horas',
+  horaDispensa: 'horaDispensa', motivo: 'motivo', dataFolga: 'dataFolga', folgas: 'dataFolga', duracaoFolga: 'horasFolga', datasAjuste: 'dias', prazoLimite: 'prazo',
 }
 
-function TimeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <select
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-slate-300"
-    >
-      <option value="">--:--</option>
-      {HORARIOS.map(h => <option key={h} value={h}>{h}</option>)}
-    </select>
-  )
+/** Chaves tocadas que "acendem" cada item do checklist. */
+const CHAVES_DO_ITEM: Record<ItemChecklistId, string[]> = {
+  titulo: ['titulo'],
+  situacao: ['situacao'],
+  funcionarios: ['posto', 'funcionarios'],
+  datas: ['dataEvento', 'nomeEvento', 'horas', 'horaDispensa', 'dataFolga', 'horasFolga', 'dias'],
+  motivo: ['motivo'],
+  prazo: ['prazo'],
 }
 
-interface DiaTimes { folga: boolean; e1: string; s1: string; e2: string; s2: string }
-
-const DEFAULT_TIMES: Record<string, DiaTimes> = {
-  'Segunda-feira': { folga: false, e1: '07:00', s1: '12:00', e2: '13:12', s2: '17:00' },
-  'Terça-feira':   { folga: false, e1: '07:00', s1: '12:00', e2: '13:12', s2: '17:00' },
-  'Quarta-feira':  { folga: false, e1: '07:00', s1: '12:00', e2: '13:12', s2: '17:00' },
-  'Quinta-feira':  { folga: false, e1: '07:00', s1: '12:00', e2: '13:12', s2: '17:00' },
-  'Sexta-feira':   { folga: false, e1: '07:00', s1: '12:00', e2: '13:12', s2: '17:00' },
-  'Sábado':        { folga: true,  e1: '',      s1: '',      e2: '',      s2: ''      },
-  'Domingo':       { folga: true,  e1: '',      s1: '',      e2: '',      s2: ''      },
+const ANCORA: Record<ItemChecklistId, string> = {
+  titulo: 'passo-topo',
+  situacao: 'passo-situacao',
+  funcionarios: 'passo-funcionarios',
+  datas: 'passo-dados',
+  motivo: 'passo-motivo',
+  prazo: 'passo-prazo',
 }
 
-function makeDefaultTimes(): Record<string, DiaTimes> {
-  return Object.fromEntries(Object.entries(DEFAULT_TIMES).map(([k, v]) => [k, { ...v }]))
-}
-
-const MODELOS = {
-  extra: `trabalharem no dia [DATA DO EVENTO] ([NOME DO EVENTO]), com acréscimo de [HH:MM] hora diária no horário normal nos dias [DATA COMP. 1], [DATA COMP. 2] e [DATA COMP. 3], compensando assim [X] hora(s) laborada(s) no referido evento.`,
-  dispensa: `trabalharem normalmente até as [HORA NORMAL]h no dia [DATA DO EVENTO] ([NOME DO EVENTO]), sendo dispensados às [HORA DISPENSA]h conforme decreto municipal, compensando as [X] horas não laboradas com acréscimo de [HH:MM]h diária no horário normal nos dias [DATA COMP. 1], [DATA COMP. 2] e [DATA COMP. 3].`,
-}
-
-const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-  ativo:     { label: 'Ativo',     cls: 'bg-green-100 text-green-700' },
-  ferias:    { label: 'Férias',    cls: 'bg-orange-100 text-orange-700' },
-  afastado:  { label: 'Afastado', cls: 'bg-red-100 text-red-700' },
-  atestado:  { label: 'Atestado', cls: 'bg-amber-100 text-amber-700' },
-  faltante:  { label: 'Faltante', cls: 'bg-yellow-100 text-yellow-700' },
-}
-
-function minutosEntre(a: string, b: string): number {
-  if (!a || !b) return 0
-  const [ah, am] = a.split(':').map(Number)
-  const [bh, bm] = b.split(':').map(Number)
-  return Math.max(0, (bh * 60 + bm) - (ah * 60 + am))
-}
-
-function calcTotalSemanal(times: Record<string, DiaTimes>): string {
-  let total = 0
-  for (const dia of DIAS) {
-    const t = times[dia]
-    if (!t || t.folga) continue
-    total += minutosEntre(t.e1, t.s1) + minutosEntre(t.e2, t.s2)
-  }
-  const h = Math.floor(total / 60)
-  const m = total % 60
-  return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2,'0')}min`
-}
-
-function timesToString(t: DiaTimes): string {
-  if (t.folga) return 'FOLGA'
-  const p1 = t.e1 && t.s1 ? `${t.e1} às ${t.s1}` : ''
-  const p2 = t.e2 && t.s2 ? `${t.e2} às ${t.s2}` : ''
-  return [p1, p2].filter(Boolean).join(' / ')
-}
-
-interface TurnoState {
-  id: string
-  label: string
-  times: Record<string, DiaTimes>
-}
-
-let turnoCounter = 1
-function newTurnoId() { return `turno-${turnoCounter++}` }
-
-function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: string }) {
-  return (
-    <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
-      <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-900">
-        <Icon className="h-3.5 w-3.5 text-white" />
-      </div>
-      <span className="text-xs font-bold uppercase tracking-widest text-slate-700">{title}</span>
-    </div>
-  )
-}
+const CODIGOS_PRAZO = ['PRAZO_OBRIGATORIO', 'PRAZO_LONGO', 'PRAZO_ANTES']
+/** Códigos que aparecem junto ao campo (ou no checklist) e não precisam repetir no bloco de erros. */
+const CODIGOS_DIAS = ['ORDEM_DATAS', 'DIVISAO', 'DATAS_REPETIDAS', 'LIMITE_ACRESCIMO']
+const CODIGOS_HORAS = ['PERIODO_INCOMPLETO', 'PERIODO_INVALIDO']
+const CODIGOS_DO_CHECKLIST = ['CAMPO_OBRIGATORIO', 'SEM_FUNCIONARIOS', ...CODIGOS_PRAZO]
 
 interface Props {
   postos: AcordoPostoItem[]
+  calendario: CalendarioLinha[]
+  /** Nomes de evento de acordos recentes (atalhos). */
+  nomesRecentes: string[]
+  /** A IA está configurada neste ambiente (mostra o campo "Descrever o pedido"). */
+  iaDisponivel: boolean
   onClose: () => void
 }
 
-export function ModalNovoAcordo({ postos, onClose }: Props) {
+export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponivel, onClose }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
 
-  const [titulo, setTitulo]         = useState('')
-  const [tipo, setTipo]             = useState<'individual' | 'coletivo'>('individual')
-  const [subtipo, setSubtipo]       = useState<'evento' | 'antecipado' | ''>('')
-  const [postosSel, setPostosSel]   = useState<string[]>([])
-  const [descricao, setDescricao]   = useState('')
-  const [dataDoc, setDataDoc]       = useState(new Date().toISOString().split('T')[0])
-  const [erro, setErro]             = useState('')
-
-  // Funcionários — lista completa + seleção individual + turno assignment
-  const [allFuncs, setAllFuncs]         = useState<AcordoFuncionarioItem[]>([])
-  const [selectedIds, setSelectedIds]   = useState<Set<string>>(new Set())
-  const [funcTurno, setFuncTurno]       = useState<Record<string, string>>({})  // funcId → turnoId
+  const [titulo, setTitulo] = useState('')
+  const [tituloManual, setTituloManual] = useState(false)
+  const [tipo, setTipo] = useState<'individual' | 'coletivo'>('individual')
+  const [postosSel, setPostosSel] = useState<string[]>([])
+  const [dataDoc, setDataDoc] = useState(new Date().toLocaleDateString('sv-SE'))
+  const [template, setTemplate] = useState<TemplateId>('T3')
+  const [situacaoEscolhida, setSituacaoEscolhida] = useState(false)
+  const [f, setF] = useState<FormState>(FORM_VAZIO)
+  const [funcs, setFuncs] = useState<FuncionarioParaAcordo[]>([])
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [loadingFuncs, setLoadingFuncs] = useState(false)
+  const [erroServidor, setErroServidor] = useState('')
+  const [diasManual, setDiasManual] = useState(false)
+  const [hoje] = useState(() => new Date().toLocaleDateString('sv-SE'))
+  const [tocou, setTocou] = useState<Set<string>>(new Set())
+  const [tentou, setTentou] = useState(false)
+  const [prazoRevelado, setPrazoRevelado] = useState(false)
+  const [gerandoRascunho, setGerandoRascunho] = useState(false)
+  // Pedido interpretado pela IA: quantidade de dias pedida e funcionários citados (aplicados quando a lista do posto chega)
+  const [quantidadeIA, setQuantidadeIA] = useState<number | null>(null)
+  const selecaoIA = useRef<string[] | null>(null)
 
-  // Turnos
-  const firstId = 'turno-0'
-  const [turnos, setTurnos] = useState<TurnoState[]>([
-    { id: firstId, label: 'Turno Único', times: makeDefaultTimes() }
-  ])
+  const tocar = useCallback((k: string) => {
+    setTocou(prev => (prev.has(k) ? prev : new Set(prev).add(k)))
+  }, [])
 
-  const multiTurno = turnos.length > 1
+  const set = useCallback(<K extends keyof FormState>(k: K, v: FormState[K]) => {
+    setF(prev => ({ ...prev, [k]: v }))
+    const chave = CHAVE_DO_FORM[k]
+    // limpar um campo (ex.: trocar de aba de período/horas) não conta como "tocar"
+    if (chave && (k === 'datasAjuste' || k === 'folgas' || (typeof v === 'string' && v !== ''))) tocar(chave)
+  }, [tocar])
 
-  // ── Postos ───────────────────────────────────────────────────────────────────
-  function togglePosto(id: string) {
-    setPostosSel(prev =>
-      tipo === 'individual' ? [id] : prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    )
-    setAllFuncs([])
-    setSelectedIds(new Set())
-    setFuncTurno({})
+  function escolherSituacao(id: TemplateId) {
+    if (id !== template || !situacaoEscolhida) {
+      setTemplate(id)
+      setDiasManual(false)
+      setQuantidadeIA(null)
+      setF(prev => ({ ...prev, datasAjuste: [] }))
+    }
+    setSituacaoEscolhida(true)
+    tocar('situacao')
   }
 
-  // ── Funcionários ─────────────────────────────────────────────────────────────
-  async function carregarFuncionarios() {
-    if (!postosSel.length) return
+  /** "Recalcular dias": volta à sugestão automática (esquece a quantidade que a IA leu do pedido). */
+  function recalcularDias() {
+    setDiasManual(false)
+    setQuantidadeIA(null)
+  }
+
+  /** Preenche o formulário com o pedido interpretado pela IA. Não salva nada: a pessoa confere e salva. */
+  function aplicarPedidoIA(d: RespostaInterpretacao) {
+    const r = d.resultado
+    if (!r.template) return
+    setTipo('individual')
+    if (r.postoId) {
+      const mesmoPosto = postosSel.length === 1 && postosSel[0] === r.postoId
+      if (mesmoPosto) {
+        if (r.funcionarioIds.length) setSelectedIds(new Set(funcs.filter(x => r.funcionarioIds.includes(x.id)).map(x => x.id)))
+      } else {
+        selecaoIA.current = r.funcionarioIds
+        setPostosSel([r.postoId])
+      }
+      tocar('posto')
+    }
+    setTemplate(r.template)
+    setSituacaoEscolhida(true)
+    setF({ ...FORM_VAZIO, ...r.form })
+    // dias que o pedido cita um a um ficam como estão; só a quantidade ("em 6 dias") deixa o sistema escolher as datas
+    setDiasManual(!!(r.form.datasAjuste && r.form.datasAjuste.length))
+    setQuantidadeIA(r.quantidadeDias)
+    setTituloManual(false)
+    tocar('situacao')
+    for (const k of Object.keys(r.form) as (keyof FormState)[]) {
+      const chave = CHAVE_DO_FORM[k]
+      if (chave) tocar(chave)
+    }
+  }
+
+  // Carrega funcionários automaticamente ao escolher o(s) posto(s)
+  useEffect(() => {
+    let ativo = true
+    if (postosSel.length === 0) {
+      setFuncs([])
+      setSelectedIds(new Set())
+      setLoadingFuncs(false)
+      return
+    }
     setLoadingFuncs(true)
-    const funcs = await buscarFuncionariosPorPostos(postosSel)
-    setAllFuncs(funcs)
-    // Auto-selecionar ativos e em férias; desmarcar afastados/atestado/faltante
-    const autoSelect = new Set(funcs.filter(f => f.status === 'ativo' || f.status === 'ferias').map(f => f.id))
-    setSelectedIds(autoSelect)
-    // Todos no primeiro turno por padrão
-    const turnoMap: Record<string, string> = {}
-    funcs.forEach(f => { turnoMap[f.id] = firstId })
-    setFuncTurno(turnoMap)
-    setLoadingFuncs(false)
+    buscarFuncionariosPorPostos(postosSel).then(res => {
+      if (!ativo) return
+      setFuncs(res)
+      const citados = selecaoIA.current
+      selecaoIA.current = null
+      const padrao = res.filter(x => x.elegivel && (x.status === 'ativo' || x.status === 'ferias'))
+      // funcionários citados no pedido da IA; sem citação, o posto todo
+      const escolhidos = citados && citados.length ? res.filter(x => citados.includes(x.id)) : padrao
+      setSelectedIds(new Set(escolhidos.map(x => x.id)))
+      setLoadingFuncs(false)
+    })
+    return () => { ativo = false }
+  }, [postosSel])
+
+  function togglePosto(id: string) {
+    tocar('posto')
+    setPostosSel(prev => (tipo === 'individual' ? [id] : prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))
   }
 
   function toggleFunc(id: string) {
+    tocar('funcionarios')
     setSelectedIds(prev => {
       const next = new Set(prev)
-      if (next.has(id)) { next.delete(id) } else { next.add(id) }
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
 
-  function setFuncTurnoId(funcId: string, turnoId: string) {
-    setFuncTurno(prev => ({ ...prev, [funcId]: turnoId }))
+  const selecionados = useMemo(() => funcs.filter(x => selectedIds.has(x.id)), [funcs, selectedIds])
+  const calc: FuncionarioCalc[] = useMemo(
+    () => selecionados.map(x => ({ id: x.id, nome: x.nome, status: x.status, regime: x.regime, semana: x.semana, semTurno: x.sem_turno })),
+    [selecionados],
+  )
+  const feriados = useMemo(() => calendarioParaMapa(calendario), [calendario])
+  const campos = useMemo(() => montarCampos(template, f, selectedIds), [template, f, selectedIds])
+  const grupos = useMemo(() => agruparPorJornada(campos, calc), [campos, calc])
+
+  // Título automático enquanto o usuário não digitar nele
+  const postoNome = postos.find(p => p.id === postosSel[0])?.nome
+  const tituloAuto = situacaoEscolhida ? tituloSugerido(template, campos, postoNome) : ''
+  const tituloAtual = tituloManual ? titulo : tituloAuto
+
+  const nomesEvento = useMemo(() => combinarNomesEvento(nomesRecentes, NOMES_EVENTO_SUGERIDOS), [nomesRecentes])
+  const atalhosCalendario = useMemo(
+    () => proximasDatasCalendario(calendarioParaAtalhos(template, calendario), hoje),
+    [template, calendario, hoje],
+  )
+
+  const achados: Achado[] = useMemo(() => {
+    if (grupos.length === 0) return validarAcordo(campos, [], feriados)
+    const vistos = new Set<string>()
+    const out: Achado[] = []
+    for (const g of grupos) {
+      for (const a of validarAcordo(campos, g, feriados)) {
+        const chave = `${a.codigo}|${a.funcionarioId ?? ''}|${a.mensagem}`
+        if (!vistos.has(chave)) { vistos.add(chave); out.push(a) }
+      }
+    }
+    return out
+  }, [campos, grupos, feriados])
+
+  // Dias de ajuste sugeridos automaticamente enquanto o usuário não editar a lista à mão
+  const sugestaoDias = useMemo(
+    () => sugerirDiasAjuste({ ...campos, datasAjuste: [] }, calc, feriados, hoje, quantidadeIA ?? undefined),
+    [campos, calc, feriados, hoje, quantidadeIA],
+  )
+  // Sem sugestão por tamanho/limites: explica o motivo em vez de só pedir um dia
+  const motivoSemDias = useMemo(
+    () => (situacaoEscolhida ? motivoSemSugestao({ ...campos, datasAjuste: [] }, calc, feriados, hoje) : null),
+    [situacaoEscolhida, campos, calc, feriados, hoje],
+  )
+  useEffect(() => {
+    if (diasManual) return
+    if (sugestaoDias.join('|') !== f.datasAjuste.join('|')) setF(prev => ({ ...prev, datasAjuste: sugestaoDias }))
+  }, [diasManual, sugestaoDias, f.datasAjuste])
+
+  // ── Turnos ────────────────────────────────────────────────────────────────
+  const turnos = useMemo(() => {
+    const m = new Map<string, FuncionarioCalc[]>()
+    for (const x of calc) {
+      const k = assinaturaSemana(x.semana)
+      m.set(k, [...(m.get(k) ?? []), x])
+    }
+    return Array.from(m.values())
+  }, [calc])
+  // Mesmos rótulos do PDF/banco: Turno A, B, C… (ou Turno Único)
+  const rotuloTurno = useCallback(
+    (i: number) => (turnos.length === 1 ? 'Turno Único' : `Turno ${String.fromCharCode(65 + i)}`),
+    [turnos.length],
+  )
+  const turnosDoGrupo = useCallback(
+    (g: FuncionarioCalc[]) => {
+      const ids = new Set(g.map(x => x.id))
+      return turnos.flatMap((fs, i) => (ids.has(fs[0].id) ? [rotuloTurno(i)] : []))
+    },
+    [turnos, rotuloTurno],
+  )
+
+  const turnosResumo: TurnoResumo[] = useMemo(
+    () => turnos.map((fs, i) => {
+      const s = fs[0].semana
+      const diaUtil = DIAS_SEMANA.find(d => !s[d].folga)
+      const g = grupos.find(gr => gr.some(x => x.id === fs[0].id))
+      const r = g && situacaoEscolhida ? resumoCalculo(campos, g) : null
+      return {
+        rotulo: rotuloTurno(i),
+        qtd: fs.length,
+        semana: s,
+        nomes: fs.map(x => x.nome),
+        horario: diaUtil ? `${s[diaUtil].e1}–${saidaDoDia(s[diaUtil])}` : 'sem expediente',
+        aRepor: r && r.horasTotalMin > 0 ? `${fmtDuracao(r.horasTotalMin)} ${verboCompensacao(template)}` : null,
+        cor: i,
+      }
+    }),
+    [turnos, grupos, campos, situacaoEscolhida, template, rotuloTurno],
+  )
+
+  const textos: TextoGrupo[] = useMemo(
+    () => (situacaoEscolhida ? grupos : []).map(g => {
+      const r = gerarObjeto(campos, resumoCalculo(campos, g))
+      return {
+        cabecalho: grupos.length > 1 ? `Grupo ${grupos.indexOf(g) + 1} · ${juntarRotulos(turnosDoGrupo(g))} · ${g.length} func.` : null,
+        // revezamento: o parágrafo abre com os nomes do grupo (igual ao PDF)
+        texto: r.ok ? (campos.folgasPorFuncionario ? `${juntarRotulos(g.map(x => x.nome))} ${r.texto}` : r.texto) : null,
+      }
+    }),
+    [campos, grupos, situacaoEscolhida, turnosDoGrupo],
+  )
+
+  // ── Textos de apoio dos campos ────────────────────────────────────────────
+  const r0 = grupos.length ? resumoCalculo(campos, grupos[0]) : null
+  // "varia por turno" só quando os totais mesmo diferem (no revezamento os grupos podem diferir só na data)
+  const totaisGrupos = grupos.map(g => resumoCalculo(campos, g).horasTotalMin)
+  const variaPorTurno = new Set(totaisGrupos).size > 1
+  const conta = r0
+    ? textoConta(template, campos.datasAjuste.length, r0.minutosPorDia, Math.min(...totaisGrupos), variaPorTurno, Math.max(...totaisGrupos))
+    : null
+  const periodoMin = (template === 'T1' || template === 'T5') && f.periodoInicio && f.periodoFim
+    ? hhmmParaMin(f.periodoFim) - hhmmParaMin(f.periodoInicio)
+    : 0
+  const notaPeriodo = r0 && periodoMin > 0 && r0.horasTotalMin > 0
+    ? !variaPorTurno
+      ? `${campos.datasEvento ? 'No total dos dias' : 'Deste período'}, ${fmtDuracao(r0.horasTotalMin)} ficam fora do horário normal e serão compensados.`
+      : 'O quanto fica fora do horário normal varia por turno (veja o resumo ao lado).'
+    : null
+  const dicaDispensa = template === 'T2' && r0?.horaNormal
+    ? `Saída normal do turno nesse dia: ${fmtHoraCurta(r0.horaNormal)}${grupos.length > 1 ? ' (varia por turno)' : ''}. Só conta o que passar desse horário.`
+    : null
+
+  // ── Checklist, pendências e erros por campo ──────────────────────────────
+  const prazoMostrado = precisaPrazo(template, achados, f.prazoLimite)
+  const checklist = useMemo(
+    () => montarChecklist({
+      situacaoEscolhida, titulo: tituloAtual, postosSel: postosSel.length, funcionarios: selecionados.length, campos, achados,
+      prazoObrigatorio: prazoMostrado,
+    }),
+    [situacaoEscolhida, tituloAtual, postosSel.length, selecionados.length, campos, achados, prazoMostrado],
+  )
+  const pendentes = checklist.filter(i => !i.ok)
+  const nPend = Math.max(pendentes.length, temErro(achados) ? 1 : 0)
+  const okDe = (id: ItemChecklistId) => checklist.find(i => i.id === id)?.ok ?? true
+
+  const achadoPrazo = achados.find(a => CODIGOS_PRAZO.includes(a.codigo))
+  const faltando = useMemo(() => camposFaltando(campos), [campos])
+  const prazoObrigatorioDeFato = template === 'T4' || achados.some(a => a.codigo === 'PRAZO_OBRIGATORIO')
+  // Prazo é o único item que sobrou: já vale mostrar em vermelho
+  const soFaltaPrazo = situacaoEscolhida && okDe('titulo') && okDe('funcionarios') && okDe('datas') && okDe('motivo')
+  const prazoVisivel = tentou || tocou.has('prazo') || !!achadoPrazo || soFaltaPrazo
+  const erroPrazo = !okDe('prazo') && prazoVisivel ? (achadoPrazo?.mensagem ?? 'Informe o prazo limite.') : null
+
+  const itemVisivel = (id: ItemChecklistId) =>
+    tentou || CHAVES_DO_ITEM[id].some(k => tocou.has(k)) || (id === 'prazo' && prazoVisivel)
+  const itensResumo: ItemResumo[] = checklist.map(i => ({
+    id: i.id,
+    label: i.label,
+    estado: i.ok ? 'ok' : itemVisivel(i.id) ? 'erro' : 'neutro',
+  }))
+
+  const erros = useMemo(() => {
+    const out: Partial<Record<CampoChave, string>> = {}
+    if (!situacaoEscolhida) return out
+    const mostra = (k: string) => tentou || tocou.has(k)
+    const msgDe = (codigos: string[]) => achados.find(a => a.nivel === 'erro' && codigos.includes(a.codigo))?.mensagem
+    if (faltando.includes('data do evento') && mostra('dataEvento')) out.dataEvento = 'Informe a data.'
+    if (faltando.includes('nome do evento') && mostra('nomeEvento')) out.nomeEvento = 'Informe o nome do evento.'
+    if (faltando.includes('horas trabalhadas no evento') && mostra('horas')) {
+      out.horas = f.periodoInicio && !f.periodoFim ? 'Informe também o fim do período.'
+        : !f.periodoInicio && f.periodoFim ? 'Informe também o início do período.'
+        : 'Informe o período ou as horas trabalhadas.'
+    }
+    if (faltando.includes('horário de dispensa') && mostra('horaDispensa')) out.horaDispensa = 'Informe o horário de dispensa.'
+    if (faltando.includes('data da folga') && mostra('dataFolga')) out.dataFolga = 'Informe a data.'
+    if (faltando.includes('horas de folga') && mostra('horasFolga')) out.horasFolga = 'Informe quantas horas de folga.'
+    if (faltando.includes('motivo') && mostra('motivo')) out.motivo = 'Escolha ou escreva o motivo.'
+    const faltaDias = faltando.find(x => x.startsWith('dias de '))
+    if (faltaDias && mostra('dias')) out.dias = motivoSemDias ?? 'Informe ao menos um dia. Use "Adicionar outro dia" ou "Recalcular dias".'
+    out.dataFolga = out.dataFolga ?? msgDe(['FOLGA_SEM_DATA'])
+    out.horas = out.horas ?? msgDe(CODIGOS_HORAS)
+    out.dias = out.dias ?? msgDe(CODIGOS_DIAS)
+    return out
+  }, [situacaoEscolhida, tentou, tocou, faltando, achados, f.periodoInicio, f.periodoFim, motivoSemDias])
+
+  const gruposResumo = useMemo(
+    () => (situacaoEscolhida ? agruparAchados(achados.filter(a => !CODIGOS_DO_CHECKLIST.includes(a.codigo))) : []),
+    [achados, situacaoEscolhida],
+  )
+  const nAvisos = gruposResumo.filter(g => g.nivel === 'aviso').length
+
+  // erro de conteúdo (não só campo faltando): bloqueia o texto gerado
+  const erroReal = situacaoEscolhida && achados.some(a => a.nivel === 'erro' && !CODIGOS_DO_CHECKLIST.includes(a.codigo))
+  const interagiu = tocou.size > 0 || tentou
+  const status: StatusResumo = !interagiu ? 'neutro' : nPend > 0 ? 'pendente' : nAvisos > 0 ? 'aviso' : 'pronto'
+  const faltam = tentou && nPend > 0 ? `Faltam ${nPend} ${nPend === 1 ? 'item' : 'itens'}` : null
+
+  function irPara(id: ItemChecklistId) {
+    document.getElementById(ANCORA[id])?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
-  // ── Turnos ───────────────────────────────────────────────────────────────────
-  function addTurno() {
-    const id = newTurnoId()
-    setTurnos(prev => {
-      const updated = prev.map((t, i) => i === 0 && t.label === 'Turno Único' ? { ...t, label: 'Turno A' } : t)
-      return [...updated, { id, label: `Turno ${String.fromCharCode(65 + prev.length)}`, times: makeDefaultTimes() }]
-    })
+  /** PDF com marca d'água montado com o mesmo texto que será gravado; abre em outra aba, sem salvar. */
+  async function abrirRascunho() {
+    const t = montarTextosAcordo(campos, calc)
+    if (!t.ok) { setErroServidor(t.erro); return }
+    setErroServidor('')
+    setGerandoRascunho(true)
+    const aba = window.open('', '_blank') // abre já no clique para o navegador não bloquear
+    try {
+      const { pdf } = await import('@react-pdf/renderer')
+      const acordo: AcordoCompensacao = {
+        id: 'rascunho',
+        titulo: tituloAtual.trim() || 'Rascunho',
+        tipo,
+        subtipo: TEMPLATES[template].subtipo,
+        postos: postos.filter(p => postosSel.includes(p.id)),
+        funcionarios: selecionados.map(x => ({ id: x.id, nome: x.nome, funcao: x.funcao, status: x.status })),
+        horarios: t.horarios,
+        descricao_acordo: t.descricao,
+        data_documento: dataDoc,
+        criado_por: null,
+        criado_por_nome: null,
+        created_at: new Date().toISOString(),
+        entregue_rh: false,
+        entregue_em: null,
+      }
+      const blob = await pdf(<AcordoPdfDoc acordo={acordo} rascunho />).toBlob()
+      const url = URL.createObjectURL(blob)
+      if (aba) aba.location.href = url
+      else window.location.href = url
+    } catch {
+      aba?.close()
+      setErroServidor('Não foi possível gerar o rascunho. Tente novamente.')
+    } finally {
+      setGerandoRascunho(false)
+    }
   }
 
-  function removeTurno(id: string) {
-    setTurnos(prev => {
-      const remaining = prev.filter(t => t.id !== id)
-      if (remaining.length === 1) remaining[0] = { ...remaining[0], label: 'Turno Único' }
-      return remaining
-    })
-    // Reassign employees from removed turno to first remaining
-    setFuncTurno(prev => {
-      const firstRemaining = turnos.find(t => t.id !== id)?.id ?? firstId
-      return Object.fromEntries(
-        Object.entries(prev).map(([fid, tid]) => [fid, tid === id ? firstRemaining : tid])
-      )
-    })
-  }
-
-  function updateTurnoLabel(id: string, label: string) {
-    setTurnos(prev => prev.map(t => t.id === id ? { ...t, label } : t))
-  }
-
-  function updateTime(turnoId: string, dia: string, field: keyof DiaTimes, value: string | boolean) {
-    setTurnos(prev => prev.map(t =>
-      t.id === turnoId ? { ...t, times: { ...t.times, [dia]: { ...t.times[dia], [field]: value } } } : t
-    ))
-  }
-
-  // ── Salvar ───────────────────────────────────────────────────────────────────
   function handleSalvar() {
-    if (!titulo.trim())          { setErro('Informe o título do acordo.'); return }
-    if (!postosSel.length)       { setErro('Selecione ao menos um posto.'); return }
-    if (!allFuncs.length)        { setErro('Carregue os funcionários antes de salvar.'); return }
-    if (selectedIds.size === 0)  { setErro('Selecione ao menos um funcionário.'); return }
-    if (!descricao.trim())       { setErro('Descreva o evento e os termos de compensação.'); return }
-
-    setErro('')
-
-    const selectedFuncs = allFuncs.filter(f => selectedIds.has(f.id))
-
-    const horarios: TurnoHorario[] = turnos.map(t => ({
-      label: t.label,
-      horario: Object.fromEntries(DIAS.map(dia => [dia, timesToString(t.times[dia])])),
-      funcionario_ids: selectedFuncs
-        .filter(f => (funcTurno[f.id] ?? firstId) === t.id)
-        .map(f => f.id),
-    })).filter(t => t.funcionario_ids.length > 0)
-
-    if (!horarios.length) { setErro('Nenhum funcionário foi atribuído a um turno.'); return }
-
+    if (nPend > 0) {
+      setTentou(true)
+      setErroServidor('')
+      const primeiro = pendentes[0]
+      if (primeiro) irPara(primeiro.id)
+      return
+    }
+    setErroServidor('')
     startTransition(async () => {
       const postosObj = postos.filter(p => postosSel.includes(p.id))
       const res = await criarAcordo({
-        titulo: titulo.trim(),
+        titulo: tituloAtual.trim(),
         tipo,
-        subtipo: subtipo || null,
         postos: postosObj,
-        funcionarios: selectedFuncs,
-        horarios,
-        descricao_acordo: descricao.trim(),
+        funcionarioIds: selecionados.map(x => x.id),
         data_documento: dataDoc,
+        campos,
       })
-      if ('error' in res) { setErro(res.error); return }
+      if ('error' in res) {
+        setErroServidor(res.error)
+        return
+      }
       router.refresh()
       onClose()
     })
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 overflow-y-auto overflow-x-hidden py-8 px-4">
-      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+  const erroTitulo = tentou && !tituloAtual.trim()
+  const erroFuncionarios = !loadingFuncs && !okDe('funcionarios') && itemVisivel('funcionarios')
+    ? postosSel.length === 0 ? 'Escolha um posto.' : selecionados.length === 0 ? 'Marque ao menos um funcionário.' : 'Há funcionários não elegíveis selecionados.'
+    : null
+  const numeroPrazo = 4
 
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overflow-x-hidden bg-black/50 px-4 py-8">
+      <div className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl">
         <div className="rounded-t-2xl bg-slate-900 px-6 py-5">
           <h2 className="text-base font-bold text-white">Novo Acordo de Compensação</h2>
-          <p className="mt-0.5 text-xs text-slate-400">O PDF com o texto jurídico completo é gerado após salvar</p>
+          <p className="mt-0.5 text-xs text-slate-400">Responda os passos; o texto é gerado a partir dos campos e o PDF sai após salvar</p>
         </div>
 
-        <div className="space-y-6 px-6 py-6">
+        <div className="grid gap-4 rounded-b-2xl bg-slate-50 p-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          <div className="space-y-4">
+            <PedidoIa disponivel={iaDisponivel} onAplicar={aplicarPedidoIA} />
 
-          {/* Título */}
-          <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-500">Título do Acordo</label>
-            <input
-              value={titulo}
-              onChange={e => setTitulo(e.target.value)}
-              placeholder="ex: Festa Junina — Junho 2026"
-              className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-            />
-          </div>
-
-          {/* Tipo */}
-          <div>
-            <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-500">Abrangência</label>
-            <div className="flex gap-3">
-              {([['individual','Individual','Uma unidade'], ['coletivo','Coletivo','Múltiplas unidades']] as const).map(([val, label, sub]) => (
-                <label key={val} className={`flex flex-1 cursor-pointer items-center gap-3 rounded-xl border-2 px-4 py-3 transition-colors ${
-                  tipo === val ? 'border-slate-900 bg-slate-50' : 'border-gray-200 hover:border-gray-300'
-                }`}>
-                  <input type="radio" checked={tipo === val} onChange={() => { setTipo(val); setPostosSel([]); setAllFuncs([]); setSelectedIds(new Set()); setFuncTurno({}) }} className="accent-slate-900" />
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{label}</p>
-                    <p className="text-xs text-gray-400">{sub}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Subtipo */}
-          <div>
-            <label className="mb-2 block text-xs font-bold uppercase tracking-widest text-slate-500">Tipo de Uso</label>
-            <div className="flex gap-3">
-              {([['', 'Não classificar', ''], ['evento', 'Evento', 'Horas já trabalhadas'], ['antecipado', 'Antecipado', 'Banco de horas']] as const).map(([val, label, sub]) => (
-                <label key={val} className={`flex flex-1 cursor-pointer items-center gap-3 rounded-xl border-2 px-3 py-2.5 transition-colors ${
-                  subtipo === val ? 'border-slate-900 bg-slate-50' : 'border-gray-200 hover:border-gray-300'
-                }`}>
-                  <input type="radio" checked={subtipo === val} onChange={() => setSubtipo(val as 'evento' | 'antecipado' | '')} className="accent-slate-900" />
-                  <div>
-                    <p className="text-xs font-semibold text-gray-900">{label}</p>
-                    {sub && <p className="text-[10px] text-gray-400">{sub}</p>}
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Postos */}
-          <div>
-            <SectionHeader icon={MapPin} title="Posto(s)" />
-            <div className="mt-3 max-h-40 overflow-y-auto rounded-xl border border-gray-200 divide-y divide-gray-50">
-              {postos.filter(p => !p.nome.startsWith('AFASTADO')).map(p => (
-                <label key={p.id} className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50">
-                  <input
-                    type={tipo === 'individual' ? 'radio' : 'checkbox'}
-                    checked={postosSel.includes(p.id)}
-                    onChange={() => togglePosto(p.id)}
-                    className="accent-slate-900 shrink-0"
-                  />
-                  <span className="text-sm text-gray-800">{p.nome}</span>
-                  {p.secretaria && <span className="ml-auto text-xs text-gray-400 shrink-0">{p.secretaria}</span>}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Funcionários */}
-          <div>
-            <SectionHeader icon={Users} title="Funcionários" />
-            <div className="mt-3 space-y-3">
-              <button
-                type="button"
-                disabled={!postosSel.length || loadingFuncs}
-                onClick={carregarFuncionarios}
-                className="flex h-9 items-center gap-2 rounded-lg border-2 border-dashed border-slate-300 px-4 text-sm font-medium text-slate-600 hover:border-slate-500 hover:bg-slate-50 disabled:opacity-40 transition-colors"
-              >
-                <Users className="h-4 w-4" />
-                {loadingFuncs ? 'Carregando…' : postosSel.length ? `Carregar funcionários (${postosSel.length} posto${postosSel.length > 1 ? 's' : ''})` : 'Selecione um posto acima'}
-              </button>
-
-              {allFuncs.length > 0 && (
-                <div className="rounded-xl border border-gray-200 overflow-hidden">
-                  <div className="bg-gray-50 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-gray-400 flex items-center justify-between">
-                    <span>{selectedIds.size} de {allFuncs.length} selecionados</span>
-                    {multiTurno && <span className="text-gray-400">Turno</span>}
-                  </div>
-                  <div className="divide-y divide-gray-50 max-h-56 overflow-y-auto">
-                    {allFuncs.map(f => {
-                      const badge = STATUS_BADGE[f.status]
-                      return (
-                        <label key={f.id} className="flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-slate-50">
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(f.id)}
-                            onChange={() => toggleFunc(f.id)}
-                            className="accent-slate-900 shrink-0"
-                          />
-                          <span className="flex-1 text-sm text-gray-800">{f.nome}</span>
-                          {f.funcao && <span className="text-xs text-gray-400 shrink-0">{f.funcao}</span>}
-                          {badge && (
-                            <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full shrink-0 ${badge.cls}`}>
-                              {badge.label}
-                            </span>
-                          )}
-                          {multiTurno && selectedIds.has(f.id) && (
-                            <select
-                              value={funcTurno[f.id] ?? firstId}
-                              onChange={e => { e.stopPropagation(); setFuncTurnoId(f.id, e.target.value) }}
-                              onClick={e => e.stopPropagation()}
-                              className="ml-1 rounded border border-gray-200 text-xs px-1 py-0.5 shrink-0"
-                            >
-                              {turnos.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                            </select>
-                          )}
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Horários por turno */}
-          <div>
-            <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-900">
-                  <Clock className="h-3.5 w-3.5 text-white" />
-                </div>
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-700">Horário Semanal</span>
+            <section id="passo-topo" className="scroll-mt-4 space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              <div>
+                <label htmlFor="campo-titulo" className={`${LABEL_CLS} mb-1.5`}>Título do acordo</label>
+                <input
+                  id="campo-titulo"
+                  value={tituloAtual}
+                  onChange={e => { setTitulo(e.target.value); setTituloManual(true); tocar('titulo') }}
+                  placeholder="ex: Emenda 05/06 — Junho 2026"
+                  className={erroTitulo ? INPUT_ERRO_CLS : INPUT_CLS}
+                />
+                {erroTitulo && <p className="mt-1 text-xs font-medium text-red-600">Informe o título do acordo.</p>}
+                {!erroTitulo && !tituloManual && tituloAuto && <p className="mt-1 text-xs text-gray-400">Sugerido automaticamente. Pode editar.</p>}
+                {tituloManual && tituloAuto && tituloAuto !== titulo && (
+                  <button type="button" onClick={() => setTituloManual(false)} className="mt-1 text-xs font-medium text-slate-500 underline hover:text-slate-800">
+                    usar sugestão: {tituloAuto}
+                  </button>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={addTurno}
-                className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors"
-              >
-                <Plus className="h-3.5 w-3.5" /> Adicionar turno
-              </button>
-            </div>
-
-            <div className="mt-3 space-y-4">
-              {turnos.map((turno, ti) => (
-                <div key={turno.id} className="rounded-xl border border-gray-200 overflow-hidden">
-                  {/* Turno header */}
-                  <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 border-b border-gray-200">
-                    {multiTurno ? (
-                      <input
-                        value={turno.label}
-                        onChange={e => updateTurnoLabel(turno.id, e.target.value)}
-                        className="flex-1 bg-transparent text-xs font-bold uppercase tracking-widest text-slate-600 focus:outline-none"
-                      />
-                    ) : (
-                      <span className="flex-1 text-xs font-bold uppercase tracking-widest text-slate-600">{turno.label}</span>
-                    )}
-                    <span className="text-xs text-gray-400">{calcTotalSemanal(turno.times)} {calcTotalSemanal(turno.times) === '44h' ? '✓' : '≠ 44h'}</span>
-                    {multiTurno && ti > 0 && (
-                      <button type="button" onClick={() => removeTurno(turno.id)} className="text-gray-400 hover:text-red-500">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Schedule rows */}
-                  {DIAS.map((dia, i) => {
-                    const t = turno.times[dia]
-                    const isLast = i === DIAS.length - 1
-                    return (
-                      <div key={dia} className={`flex items-center gap-2 px-4 py-2.5 min-w-0 ${!isLast ? 'border-b border-gray-100' : ''} ${t.folga ? 'bg-gray-50' : ''}`}>
-                        <span className="w-24 shrink-0 text-xs font-semibold text-slate-600">{dia}</span>
-                        {t.folga ? (
-                          <span className="flex-1 text-xs font-bold uppercase tracking-wider text-gray-400">Folga</span>
-                        ) : (
-                          <div className="flex min-w-0 flex-1 overflow-x-auto items-center gap-1.5 text-xs text-gray-600 pb-0.5">
-                            <TimeSelect value={t.e1} onChange={v => updateTime(turno.id, dia, 'e1', v)} />
-                            <span className="text-gray-400 shrink-0">–</span>
-                            <TimeSelect value={t.s1} onChange={v => updateTime(turno.id, dia, 's1', v)} />
-                            <span className="mx-1 text-gray-300 shrink-0">/</span>
-                            <TimeSelect value={t.e2} onChange={v => updateTime(turno.id, dia, 'e2', v)} />
-                            <span className="text-gray-400 shrink-0">–</span>
-                            <TimeSelect value={t.s2} onChange={v => updateTime(turno.id, dia, 's2', v)} />
-                          </div>
-                        )}
-                        <label className="flex shrink-0 cursor-pointer items-center gap-1.5">
-                          <input type="checkbox" checked={t.folga} onChange={e => updateTime(turno.id, dia, 'folga', e.target.checked)} className="accent-slate-900" />
-                          <span className="text-xs text-gray-500">Folga</span>
-                        </label>
+              <div>
+                <label className={`${LABEL_CLS} mb-1.5`}>Abrangência</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([['individual', 'Individual', 'Uma unidade'], ['coletivo', 'Coletivo', 'Múltiplas unidades']] as const).map(([val, nome, sub]) => (
+                    <label key={val} className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 px-3 py-2 ${tipo === val ? 'border-slate-900 bg-slate-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <input type="radio" checked={tipo === val} onChange={() => { setTipo(val); setPostosSel([]) }} className="accent-slate-900" />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{nome}</p>
+                        <p className="text-xs text-gray-400">{sub}</p>
                       </div>
-                    )
-                  })}
+                    </label>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Evento e compensação */}
-          <div>
-            <SectionHeader icon={FileText} title="Evento e Compensação" />
-            <div className="mt-3 rounded-xl bg-slate-900 px-4 py-3">
-              <p className="font-mono text-[11px] leading-relaxed text-slate-300">
-                <span className="text-slate-500">…com a finalidade de que os funcionários </span>
-                <span className="text-amber-400 italic">[seu texto aqui]</span>
-              </p>
-              <div className="mt-2 flex gap-2 flex-wrap">
-                <button type="button" onClick={() => setDescricao(MODELOS.extra)}
-                  className="rounded-md bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-200 hover:bg-slate-600 transition-colors">
-                  ✦ Evento trabalhado
-                </button>
-                <button type="button" onClick={() => setDescricao(MODELOS.dispensa)}
-                  className="rounded-md bg-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-200 hover:bg-slate-600 transition-colors">
-                  ✦ Dispensa antecipada
-                </button>
               </div>
-            </div>
-            <textarea
-              value={descricao}
-              onChange={e => setDescricao(e.target.value)}
-              rows={4}
-              placeholder="Clique em 'Usar modelo' acima ou escreva diretamente…"
-              className="mt-2 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-            />
+            </section>
+
+            <Passo id="passo-situacao" numero={1} titulo="O que aconteceu?" feito={situacaoEscolhida} erro={tentou && !situacaoEscolhida}>
+              <SituacaoCards selecionado={situacaoEscolhida ? template : null} onSelect={escolherSituacao} />
+              {tentou && !situacaoEscolhida && <p className="text-xs font-medium text-red-600">Escolha a situação que melhor descreve o caso.</p>}
+            </Passo>
+
+            <Passo id="passo-funcionarios" numero={2} titulo="Onde e quem?" feito={okDe('funcionarios')} erro={!!erroFuncionarios}>
+              <PassoFuncionarios
+                postos={postos}
+                tipo={tipo}
+                postosSel={postosSel}
+                onTogglePosto={togglePosto}
+                funcs={funcs}
+                selectedIds={selectedIds}
+                onToggleFunc={toggleFunc}
+                onSetSelecionados={ids => { tocar('funcionarios'); setSelectedIds(ids) }}
+                loading={loadingFuncs}
+                erro={erroFuncionarios}
+              />
+            </Passo>
+
+            <Passo id="passo-dados" numero={3} titulo="Dados do acordo" feito={situacaoEscolhida && okDe('datas') && okDe('motivo')}>
+              {situacaoEscolhida ? (
+                <CamposTemplate
+                  template={template}
+                  f={f}
+                  set={set}
+                  feriados={feriados}
+                  diasManual={diasManual}
+                  onDatasManuais={() => setDiasManual(true)}
+                  onRecalcular={recalcularDias}
+                  erros={erros}
+                  conta={conta}
+                  dicaDispensa={dicaDispensa}
+                  notaPeriodo={notaPeriodo}
+                  nomesEvento={nomesEvento}
+                  funcionarios={selecionados.map(x => ({ id: x.id, nome: x.nome }))}
+                  atalhosCalendario={atalhosCalendario}
+                />
+              ) : (
+                <p className="text-sm text-gray-400">Escolha a situação no passo 1 para ver os campos.</p>
+              )}
+            </Passo>
+
+            {situacaoEscolhida && (prazoMostrado || prazoRevelado) && (
+              <PrazoLimite
+                numero={numeroPrazo}
+                obrigatorio={prazoObrigatorioDeFato}
+                valor={f.prazoLimite}
+                onChange={v => set('prazoLimite', v)}
+                erro={erroPrazo}
+                max={dataMaximaPrazo(campos)}
+              />
+            )}
+            {situacaoEscolhida && !prazoMostrado && !prazoRevelado && (
+              <button type="button" onClick={() => setPrazoRevelado(true)} className="text-xs font-medium text-slate-500 underline hover:text-slate-800">
+                Definir prazo limite (opcional)
+              </button>
+            )}
           </div>
 
-          {/* Data do documento */}
-          <div>
-            <SectionHeader icon={Calendar} title="Data do Documento" />
-            <input
-              type="date"
-              value={dataDoc}
-              onChange={e => setDataDoc(e.target.value)}
-              className="mt-3 w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-            />
-          </div>
-
-          {erro && (
-            <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600">{erro}</div>
-          )}
-        </div>
-
-        <div className="flex justify-end gap-2 rounded-b-2xl border-t border-gray-100 bg-gray-50 px-6 py-4">
-          <button onClick={onClose} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-600 hover:bg-gray-100">
-            Cancelar
-          </button>
-          <button
-            onClick={handleSalvar}
-            disabled={pending}
-            className="flex h-9 items-center rounded-lg bg-slate-900 px-6 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-40"
-          >
-            {pending ? 'Salvando…' : 'Salvar Acordo'}
-          </button>
+          <ResumoAcordo
+            status={status}
+            nPendencias={nPend}
+            nAvisos={nAvisos}
+            checklist={itensResumo}
+            onIrPara={irPara}
+            turnos={turnosResumo}
+            gruposDeCompensacao={situacaoEscolhida ? grupos.length : 0}
+            achados={gruposResumo}
+            textos={textos}
+            temErro={erroReal}
+            dataDoc={dataDoc}
+            onDataDoc={setDataDoc}
+            faltam={faltam}
+            erroServidor={erroServidor}
+            pending={pending}
+            onCancelar={onClose}
+            onSalvar={handleSalvar}
+            onRascunho={abrirRascunho}
+            onRecalcularDias={recalcularDias}
+            podeRascunho={situacaoEscolhida && !erroReal && textos.length > 0 && textos.every(x => !!x.texto)}
+            gerandoRascunho={gerandoRascunho}
+          />
         </div>
       </div>
     </div>

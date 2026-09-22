@@ -2,6 +2,7 @@
 
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import type { AcordoCompensacao } from '@/app/(admin)/acordos/actions'
+import { juntarRotulos } from '@/lib/acordos/horario-do-turno'
 
 const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
 
@@ -29,22 +30,41 @@ const s = StyleSheet.create({
   cityDate:     { marginTop: 20, marginBottom: 6 },
   empresa:      { fontFamily: 'Helvetica-Bold', marginBottom: 20 },
   empLine:      { borderBottomWidth: 0.5, borderColor: '#000', marginTop: 20, width: 200, alignSelf: 'center' },
+  marcaDagua:   { position: 'absolute', top: 340, left: 10, width: '100%', textAlign: 'center', fontFamily: 'Helvetica-Bold', fontSize: 110, color: '#cbd5e1', opacity: 0.6, transform: 'rotate(-35deg)' },
+  avisoRascunho:{ position: 'absolute', top: 16, left: 0, width: '100%', textAlign: 'center', fontFamily: 'Helvetica-Bold', fontSize: 8, color: '#b91c1c' },
   empLineLabel: { fontSize: 8, color: '#555', textAlign: 'center', width: 200, alignSelf: 'center' },
 })
 
 const DIAS = ['Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado','Domingo']
 
-interface Props { acordo: AcordoCompensacao }
+interface Props {
+  acordo: AcordoCompensacao
+  /** Rascunho para conferência: marca d'água em todas as páginas; não vale como documento. */
+  rascunho?: boolean
+}
 
-export function AcordoPdfDoc({ acordo }: Props) {
+export function AcordoPdfDoc({ acordo, rascunho = false }: Props) {
   const multiTurno = acordo.horarios.length > 1
 
   // Lookup funcId → funcionario
   const funcMap = new Map(acordo.funcionarios.map(f => [f.id, f]))
 
+  // Um parágrafo de compensação por texto distinto (turnos com o mesmo texto compartilham o parágrafo).
+  // Acordos antigos, sem `objeto` nos turnos, ou com um texto só, mantêm o parágrafo único.
+  const paragrafos: { texto: string; turnos: string[] }[] = []
+  for (const t of acordo.horarios) {
+    if (!t.objeto) continue
+    const existente = paragrafos.find(p => p.texto === t.objeto)
+    if (existente) existente.turnos.push(t.label)
+    else paragrafos.push({ texto: t.objeto, turnos: [t.label] })
+  }
+  const paragrafoPorTurno = acordo.horarios.length > 0 && acordo.horarios.every(t => !!t.objeto) && paragrafos.length > 1
+
   return (
     <Document>
       <Page size="A4" style={s.page}>
+        {rascunho && <Text fixed style={s.marcaDagua}>RASCUNHO</Text>}
+        {rascunho && <Text fixed style={s.avisoRascunho}>RASCUNHO PARA CONFERÊNCIA — NÃO ASSINAR</Text>}
         <Text style={s.title}>ACORDO DE COMPENSAÇÃO DE HORAS</Text>
 
         {/* Intro */}
@@ -81,10 +101,25 @@ export function AcordoPdfDoc({ acordo }: Props) {
         ))}
 
         {/* Texto livre */}
-        <Text style={s.para}>
-          {'     '}As partes celebram o presente acordo de compensação de horas, com a finalidade
-          de que os funcionários{' '}{acordo.descricao_acordo}
-        </Text>
+        {paragrafoPorTurno ? (
+          <>
+            <Text style={s.para}>
+              {'     '}As partes celebram o presente acordo de compensação de horas, com a finalidade
+              de que os funcionários, conforme o horário do turno a que pertencem:
+            </Text>
+            {paragrafos.map(p => (
+              <Text key={p.turnos.join('|')} style={s.para}>
+                {'     '}<Text style={s.bold}>{juntarRotulos(p.turnos)}: </Text>
+                os funcionários {p.texto}
+              </Text>
+            ))}
+          </>
+        ) : (
+          <Text style={s.para}>
+            {'     '}As partes celebram o presente acordo de compensação de horas, com a finalidade
+            de que os funcionários{' '}{acordo.descricao_acordo}
+          </Text>
+        )}
 
         {/* Cláusulas padrão */}
         <Text style={s.para}>
