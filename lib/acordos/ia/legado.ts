@@ -75,11 +75,11 @@ export function lerLegado(bruto: unknown): ClassificacaoLegado | null {
 }
 
 /**
- * Acordo que provavelmente saiu com a direção trocada: o texto diz que trabalharam a mais
- * e, em vez de descansar, manda repor com acréscimo, sem folga nenhuma. Precisa de revisão do RH.
+ * Acordo que provavelmente saiu com a direção trocada (o bug conhecido do "T1 antigo"): a situação é
+ * T1 (sai mais cedo) ou T5 (ganha folga) — nas duas, quem trabalhou a mais deveria DESCANSAR — mas o
+ * texto manda REPOR com acréscimo. T2/T3/T4 usam acréscimo por definição (não é inversão nelas).
+ * Precisa de revisão do RH.
  */
 export function possivelmenteInvertido(c: ClassificacaoLegado): boolean {
-  // Banco de horas legítimo também "repõe com acréscimo", mas o acréscimo vem ANTES de uma folga marcada.
-  // Invertido é trabalhar a mais e, em vez de descansar, ainda ter que trabalhar mais (sem nenhuma folga no texto).
-  return c.trabalhou_a_mais && c.direcao_texto === 'reposicao' && !c.data_folga
+  return (c.situacao === 'T1' || c.situacao === 'T5') && c.direcao_texto === 'reposicao'
 }

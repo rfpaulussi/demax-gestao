@@ -15,16 +15,27 @@ describe('possivelmenteInvertido', () => {
     situacao: 'T1', direcao_texto: 'indefinida', trabalhou_a_mais: false, data_evento: null, data_folga: null, tem_campos_em_branco: false, resumo: '',
   }
 
-  it('trabalhou a mais e o texto manda repor: sinaliza', () => {
-    expect(possivelmenteInvertido({ ...base, trabalhou_a_mais: true, direcao_texto: 'reposicao' })).toBe(true)
+  it('T1 ou T5 com direção "reposição": é o bug conhecido do T1 antigo, sinaliza', () => {
+    expect(possivelmenteInvertido({ ...base, situacao: 'T1', direcao_texto: 'reposicao' })).toBe(true)
+    expect(possivelmenteInvertido({ ...base, situacao: 'T5', direcao_texto: 'reposicao' })).toBe(true)
   })
 
-  it('banco de horas com folga marcada não é inversão, mesmo com acréscimo', () => {
-    expect(possivelmenteInvertido({ ...base, trabalhou_a_mais: true, direcao_texto: 'reposicao', data_folga: '2026-08-31' })).toBe(false)
+  it('T2/T3/T4 usam acréscimo por definição: "reposição" neles nunca é inversão', () => {
+    for (const situacao of ['T2', 'T3', 'T4'] as const) {
+      expect(possivelmenteInvertido({ ...base, situacao, trabalhou_a_mais: true, direcao_texto: 'reposicao' })).toBe(false)
+    }
   })
 
-  it('trabalhou a mais e descansa: ok; quem não trabalhou e repõe: ok', () => {
-    expect(possivelmenteInvertido({ ...base, trabalhou_a_mais: true, direcao_texto: 'descanso' })).toBe(false)
-    expect(possivelmenteInvertido({ ...base, trabalhou_a_mais: false, direcao_texto: 'reposicao' })).toBe(false)
+  it('banco de horas com folga marcada (T4) não é inversão, mesmo com acréscimo', () => {
+    expect(possivelmenteInvertido({ ...base, situacao: 'T4', trabalhou_a_mais: true, direcao_texto: 'reposicao', data_folga: '2026-08-31' })).toBe(false)
+  })
+
+  it('T1/T5 que já descansam (direção correta) não são sinalizados', () => {
+    expect(possivelmenteInvertido({ ...base, situacao: 'T1', direcao_texto: 'descanso' })).toBe(false)
+    expect(possivelmenteInvertido({ ...base, situacao: 'T5', direcao_texto: 'descanso' })).toBe(false)
+  })
+
+  it('sem situação identificada, não sinaliza (falta de dado, não inversão)', () => {
+    expect(possivelmenteInvertido({ ...base, situacao: null, direcao_texto: 'reposicao' })).toBe(false)
   })
 })

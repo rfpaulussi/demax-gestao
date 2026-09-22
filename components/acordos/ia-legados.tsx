@@ -128,7 +128,7 @@ export function IaLegados() {
                         {c.resumo && <p className="text-gray-500">{c.resumo}</p>}
                         {l.dados?.invertido && (
                           <p className="font-semibold text-red-700">
-                            ⚠ Possivelmente invertido: o texto diz que trabalharam a mais, mas manda repor com acréscimo. Revisar.
+                            ⚠ Possivelmente invertido: nesta situação quem trabalhou a mais deveria descansar, mas o texto manda repor com acréscimo (bug do T1 antigo). Revisar.
                           </p>
                         )}
                         {c.tem_campos_em_branco && <p className="font-semibold text-amber-700">⚠ O texto ainda tem campos em branco entre colchetes.</p>}
