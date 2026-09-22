@@ -8,11 +8,18 @@ describe('lerLegado', () => {
     expect(lerLegado(null)).toBeNull()
     expect(lerLegado({ situacao: 'T9', direcao_texto: 'sei-la' })).toMatchObject({ situacao: null, direcao_texto: 'indefinida', trabalhou_a_mais: false })
   })
+
+  it('confiança vem "alta" por padrão e só vira "baixa" quando explícito', () => {
+    expect(lerLegado({ situacao: null })!.confianca).toBe('alta')
+    expect(lerLegado({ situacao: null, confianca: 'baixa' })!.confianca).toBe('baixa')
+    expect(lerLegado({ situacao: null, confianca: 'sei-la' })!.confianca).toBe('alta')
+  })
 })
 
 describe('possivelmenteInvertido', () => {
   const base: ClassificacaoLegado = {
-    situacao: 'T1', direcao_texto: 'indefinida', trabalhou_a_mais: false, data_evento: null, data_folga: null, tem_campos_em_branco: false, resumo: '',
+    situacao: 'T1', direcao_texto: 'indefinida', trabalhou_a_mais: false, data_evento: null, data_folga: null,
+    tem_campos_em_branco: false, confianca: 'alta', resumo: '',
   }
 
   it('trabalhou a mais e a situação é T1 ou T5 com direção "reposição": é o bug conhecido do T1 antigo, sinaliza', () => {

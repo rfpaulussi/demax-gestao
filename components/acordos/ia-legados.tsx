@@ -132,6 +132,7 @@ export function IaLegados() {
                           </p>
                         )}
                         {c.tem_campos_em_branco && <p className="font-semibold text-amber-700">⚠ O texto ainda tem campos em branco entre colchetes.</p>}
+                        {c.confianca === 'baixa' && <p className="font-semibold text-amber-700">⚠ Confiança baixa: texto ambíguo ou incompleto, conferir com atenção.</p>}
                       </div>
                     )}
                   </div>

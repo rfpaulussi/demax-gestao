@@ -7,6 +7,7 @@ import { SITUACOES } from '@/lib/acordos/situacoes'
 import { agruparAchados, fmtHM } from '@/lib/acordos/resumo'
 import { LABEL_CLS } from './passo'
 import { IaLegados } from './ia-legados'
+import { IaLegadosTeste } from './ia-legados-teste'
 import { useVoz } from './use-voz'
 
 interface Props {
@@ -285,6 +286,8 @@ export function IaLab({ configurada, postos }: Props) {
       </section>
 
       <IaLegados />
+
+      <IaLegadosTeste />
     </div>
   )
 }
