@@ -19,6 +19,9 @@ export async function solicitarAdmissao(fd: FormData): Promise<ActionResult> {
   const posto_id           = fd.get('posto_id') as string
   const data_admissao      = fd.get('data_admissao') as string
   const periodo_experiencia = fd.get('periodo_experiencia') as string
+  const turno_destino_id   = (fd.get('turno_destino_id') as string | null) || null
+  const diaCursoRaw        = fd.get('dia_curso_destino') as string | null
+  const dia_curso_destino  = diaCursoRaw ? Number(diaCursoRaw) : null
 
   if (!nome)          return { success: false, error: 'Nome obrigatório' }
   if (!registro)      return { success: false, error: 'Registro (PIS/NIT) obrigatório' }
@@ -52,6 +55,8 @@ export async function solicitarAdmissao(fd: FormData): Promise<ActionResult> {
       secretaria:           postoTyped?.secretaria ?? null,
       data_admissao,
       periodo_experiencia,
+      turno_destino_id,
+      dia_curso_destino,
     },
   })
 

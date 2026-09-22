@@ -396,6 +396,17 @@ export async function aprovarSolicitacao(
         solicitacao_id: id,
       })
 
+      const turnoAdmissaoId = (dadosDepois.turno_destino_id as string | undefined) ?? null
+      if (turnoAdmissaoId) {
+        await aplicarMudancaHorario(
+          novoFunc.id,
+          turnoAdmissaoId,
+          (dadosDepois.dia_curso_destino as number | undefined) ?? null,
+          dadosDepois.data_admissao as string,
+          guard.userId,
+        )
+      }
+
       await supabase
         .from('solicitacoes')
         .update({

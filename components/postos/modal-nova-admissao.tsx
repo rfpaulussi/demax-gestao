@@ -3,9 +3,21 @@
 import { useState, useTransition, useMemo, useEffect, useRef } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { solicitarAdmissao } from '@/app/(admin)/postos/actions'
+import { listarTurnosDoPosto, listarTurnosJovemAprendiz } from '@/app/(admin)/efetivo/horario/actions'
+import { formatarResumoTurno } from '@/lib/turnos/escala'
 
 type PostoOpt = { id: string; nome: string; secretaria: string | null }
 type FuncaoOpt = { id: string; nome: string; postoFiltro: 'apenas_sms' | 'todos' | 'sem_sms' }
+type TurnoOpcao = {
+  id: string
+  nome: string
+  hora_entrada: string
+  hora_saida_seg_qui: string
+  hora_saida_sex: string | null
+  hora_inicio_almoco: string | null
+  hora_fim_almoco: string | null
+  tipo_escala: string
+}
 
 interface Props {
   open: boolean
@@ -29,6 +41,11 @@ export function ModalNovaAdmissao({ open, onClose, onSuccess, postos, funcoes }:
   const [postoId, setPostoId]       = useState('')
   const [periodoExp, setPeriodoExp] = useState('45+45')
   const postoRef                    = useRef<HTMLSelectElement>(null)
+
+  const [turnoOpcoes, setTurnoOpcoes]         = useState<TurnoOpcao[]>([])
+  const [loadingTurnos, setLoadingTurnos]     = useState(false)
+  const [turnoId, setTurnoId]                 = useState('')
+  const [diaCurso, setDiaCurso]               = useState<number | ''>('')
 
   const selectedFuncao = funcoes.find(f => f.id === funcaoId) ?? null
   const isJA = selectedFuncao?.nome?.toUpperCase().includes('APRENDIZ') ?? false
@@ -57,6 +74,26 @@ export function ModalNovaAdmissao({ open, onClose, onSuccess, postos, funcoes }:
     }
   }, [postosFiltrados, postoId])
 
+  // Carrega os turnos cadastrados para o posto (ou os globais de jovem aprendiz)
+  useEffect(() => {
+    setTurnoId('')
+    setDiaCurso('')
+    if (isJA) {
+      setLoadingTurnos(true)
+      listarTurnosJovemAprendiz().then(data => {
+        setTurnoOpcoes(data as TurnoOpcao[])
+        setLoadingTurnos(false)
+      })
+      return
+    }
+    if (!postoId) { setTurnoOpcoes([]); return }
+    setLoadingTurnos(true)
+    listarTurnosDoPosto(postoId).then(data => {
+      setTurnoOpcoes(data as TurnoOpcao[])
+      setLoadingTurnos(false)
+    })
+  }, [postoId, isJA])
+
   function handleClose() {
     if (pending) return
     setErro(null)
@@ -66,16 +103,29 @@ export function ModalNovaAdmissao({ open, onClose, onSuccess, postos, funcoes }:
     setFuncaoId('')
     setPostoId('')
     setPeriodoExp('45+45')
+    setTurnoOpcoes([])
+    setTurnoId('')
+    setDiaCurso('')
     onClose()
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setErro(null)
+    if (!loadingTurnos && turnoOpcoes.length > 0 && !turnoId) {
+      setErro('Selecione o turno de trabalho')
+      return
+    }
+    if (turnoId && isJA && !diaCurso) {
+      setErro('Selecione o dia de curso')
+      return
+    }
     const fd = new FormData(e.currentTarget)
     fd.set('nome', nome.toUpperCase())
     fd.set('registro', registro.trim())
     fd.set('periodo_experiencia', periodoExp) // garante valor mesmo com select disabled
+    if (turnoId) fd.set('turno_destino_id', turnoId)
+    if (turnoId && isJA && diaCurso) fd.set('dia_curso_destino', String(diaCurso))
     start(async () => {
       const result = await solicitarAdmissao(fd)
       if (!result.success) { setErro(result.error); return }
@@ -173,6 +223,49 @@ export function ModalNovaAdmissao({ open, onClose, onSuccess, postos, funcoes }:
                   ))}
                 </select>
               </div>
+
+              {postoId && (
+                <div className="space-y-3 rounded border border-blue-200 bg-blue-50 px-4 py-3">
+                  <p className="text-sm font-semibold text-blue-800">Turno de trabalho</p>
+                  {loadingTurnos ? (
+                    <p className="text-xs text-blue-600">Carregando turnos…</p>
+                  ) : turnoOpcoes.length === 0 ? (
+                    <p className="text-xs text-amber-700">
+                      {isJA
+                        ? 'Nenhum turno de jovem aprendiz cadastrado.'
+                        : 'Nenhum turno cadastrado para este posto — o horário ficará pendente de atribuição manual após a aprovação.'}
+                    </p>
+                  ) : (
+                    <>
+                      <div>
+                        <label className={labelClass}>Turno</label>
+                        <select name="turno_select" required value={turnoId}
+                          onChange={e => setTurnoId(e.target.value)} className={inputClass}>
+                          <option value="">Selecione…</option>
+                          {turnoOpcoes.map(t => (
+                            <option key={t.id} value={t.id}>{t.nome} — {formatarResumoTurno(t)}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {isJA && (
+                        <div>
+                          <label className={labelClass}>Dia de curso</label>
+                          <select name="dia_curso_select" required value={diaCurso}
+                            onChange={e => setDiaCurso(e.target.value ? Number(e.target.value) : '')}
+                            className={inputClass}>
+                            <option value="">Selecione…</option>
+                            <option value={1}>Segunda</option>
+                            <option value={2}>Terça</option>
+                            <option value={3}>Quarta</option>
+                            <option value={4}>Quinta</option>
+                            <option value={5}>Sexta</option>
+                          </select>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label className={labelClass}>Data de admissão *</label>
