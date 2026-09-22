@@ -85,12 +85,12 @@ export function calcularScoreRisco(eventos: EventosScoreRisco): ScoreRisco {
     const grau = a.grau ?? 'verbal'
     advertenciasPorGrau.set(grau, (advertenciasPorGrau.get(grau) ?? 0) + 1)
   }
-  for (const [grau, qtd] of advertenciasPorGrau) {
+  advertenciasPorGrau.forEach((qtd, grau) => {
     const peso = PESO_GRAU_ADVERTENCIA[grau] ?? PESO_GRAU_PADRAO
     const pts = arredondar(qtd * peso)
     score += pts
     breakdown.push(`${qtd} advertência(s) grau ${grau} (${pts}pt)`)
-  }
+  })
 
   const totalDiasAtestado = eventos.atestados.reduce((sum, a) => sum + diasEntre(a.data_inicio, a.data_fim), 0)
   if (totalDiasAtestado > 0) {
