@@ -15,9 +15,13 @@ describe('possivelmenteInvertido', () => {
     situacao: 'T1', direcao_texto: 'indefinida', trabalhou_a_mais: false, data_evento: null, data_folga: null, tem_campos_em_branco: false, resumo: '',
   }
 
-  it('T1 ou T5 com direção "reposição": é o bug conhecido do T1 antigo, sinaliza', () => {
-    expect(possivelmenteInvertido({ ...base, situacao: 'T1', direcao_texto: 'reposicao' })).toBe(true)
-    expect(possivelmenteInvertido({ ...base, situacao: 'T5', direcao_texto: 'reposicao' })).toBe(true)
+  it('trabalhou a mais e a situação é T1 ou T5 com direção "reposição": é o bug conhecido do T1 antigo, sinaliza', () => {
+    expect(possivelmenteInvertido({ ...base, situacao: 'T1', trabalhou_a_mais: true, direcao_texto: 'reposicao' })).toBe(true)
+    expect(possivelmenteInvertido({ ...base, situacao: 'T5', trabalhou_a_mais: true, direcao_texto: 'reposicao' })).toBe(true)
+  })
+
+  it('sem trabalhou_a_mais, o texto já descreve quem não trabalhou repondo: direção certa, não sinaliza', () => {
+    expect(possivelmenteInvertido({ ...base, situacao: 'T5', trabalhou_a_mais: false, direcao_texto: 'reposicao' })).toBe(false)
   })
 
   it('T2/T3/T4 usam acréscimo por definição: "reposição" neles nunca é inversão', () => {

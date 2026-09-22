@@ -75,11 +75,13 @@ export function lerLegado(bruto: unknown): ClassificacaoLegado | null {
 }
 
 /**
- * Acordo que provavelmente saiu com a direção trocada (o bug conhecido do "T1 antigo"): a situação é
- * T1 (sai mais cedo) ou T5 (ganha folga) — nas duas, quem trabalhou a mais deveria DESCANSAR — mas o
- * texto manda REPOR com acréscimo. T2/T3/T4 usam acréscimo por definição (não é inversão nelas).
- * Precisa de revisão do RH.
+ * Acordo que provavelmente saiu com a direção trocada (o bug conhecido do "T1 antigo"): o texto diz
+ * que TRABALHARAM A MAIS e a situação é T1 (sai mais cedo) ou T5 (ganha folga) — nas duas, quem
+ * trabalhou a mais deveria DESCANSAR — mas o texto manda REPOR com acréscimo. T2/T3/T4 usam acréscimo
+ * por definição (não é inversão nelas). Sem `trabalhou_a_mais`, o texto já descreve o caso oposto
+ * (não trabalhou, repõe), que é a direção certa mesmo com a situação rotulada errado. Precisa de
+ * revisão do RH.
  */
 export function possivelmenteInvertido(c: ClassificacaoLegado): boolean {
-  return (c.situacao === 'T1' || c.situacao === 'T5') && c.direcao_texto === 'reposicao'
+  return c.trabalhou_a_mais && (c.situacao === 'T1' || c.situacao === 'T5') && c.direcao_texto === 'reposicao'
 }
