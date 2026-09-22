@@ -307,6 +307,7 @@ export type TimelineItem = {
   detalhe: string
   gravidade?: 'baixa' | 'media' | 'alta' | 'critica' | null
   status?: string | null
+  supervisor_nome?: string | null
 }
 
 export type DossieFuncionario = {
@@ -334,6 +335,7 @@ type RawOcorrenciaDossie = {
   data_ocorrencia: string | null
   gravidade: string | null
   status: string | null
+  supervisor_id: string | null
 }
 
 export async function getDossieFuncionario(funcionarioId: string): Promise<DossieFuncionario | null> {
@@ -378,12 +380,20 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
       .select('id, data_falta, tipo, dias, observacao')
       .eq('funcionario_id', funcionarioId),
     (supabase as unknown as AnyClient).from('ocorrencias')
-      .select('id, titulo, descricao, data_ocorrencia, gravidade, status')
+      .select('id, titulo, descricao, data_ocorrencia, gravidade, status, supervisor_id')
       .eq('funcionario_id', funcionarioId)
       .eq('tipo', 'ocorrencia'),
   ])
 
   const ocorrencias = (ocorrenciasRaw ?? []) as RawOcorrenciaDossie[]
+
+  const supervisorIds = Array.from(new Set(ocorrencias.map(o => o.supervisor_id).filter((s): s is string => Boolean(s))))
+  const supervisorNomesMap = new Map<string, string>()
+  if (supervisorIds.length > 0) {
+    const { data: perfisSupervisores } = await supabase.from('perfis').select('id, nome').in('id', supervisorIds)
+    for (const p of perfisSupervisores ?? []) if (p.nome) supervisorNomesMap.set(p.id, p.nome)
+  }
+
   const timeline: TimelineItem[] = []
 
   for (const a of advertencias ?? []) {
@@ -425,6 +435,7 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
       detalhe: o.descricao ?? '—',
       gravidade: (o.gravidade ?? 'baixa') as TimelineItem['gravidade'],
       status: o.status ?? 'aberta',
+      supervisor_nome: o.supervisor_id ? (supervisorNomesMap.get(o.supervisor_id) ?? null) : null,
     })
   }
 

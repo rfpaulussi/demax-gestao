@@ -180,6 +180,11 @@ export function ModalDossie({
                         <div>
                           <p className="text-sm font-medium text-gray-900">{item.titulo}</p>
                           <p className="text-xs text-gray-500">{item.detalhe}</p>
+                          {item.tipo === 'ocorrencia' && item.supervisor_nome && (
+                            <p className="mt-0.5 text-xs font-semibold uppercase tracking-widest text-gray-400">
+                              Registrado por {item.supervisor_nome}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
