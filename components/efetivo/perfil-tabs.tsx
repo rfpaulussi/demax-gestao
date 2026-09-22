@@ -33,6 +33,7 @@ export type MovimentacaoItem = {
 export type AdvertenciaItem = {
   id: string
   tipo: string | null
+  grau: string | null
   descricao: string | null
   data_ocorrencia: string | null
   status: 'pendente' | 'gerada' | 'entregue' | null

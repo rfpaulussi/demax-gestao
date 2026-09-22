@@ -10,6 +10,8 @@ import { PerfilTabs } from '@/components/efetivo/perfil-tabs'
 import type { MovimentacaoItem, AdvertenciaItem, SolicitacaoItem } from '@/components/efetivo/perfil-tabs'
 import type { HorarioVigenteShape, HistoricoHorarioShape } from '@/components/efetivo/tab-horario'
 import type { FuncionarioParaPDF } from '@/components/efetivo/movimentacao-pdf'
+import { calcularScoreRisco, dataCorteScoreRisco } from '@/lib/risk-score'
+import { BadgeRisco } from '@/components/efetivo/badge-risco'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -81,7 +83,7 @@ export default async function PerfilFuncionarioPage({
       .order('created_at', { ascending: false }),
     supabase
       .from('advertencias')
-      .select('id, tipo, descricao, data_ocorrencia, status')
+      .select('id, tipo, grau, descricao, data_ocorrencia, status')
       .eq('funcionario_id', id)
       .order('created_at', { ascending: false }),
     supabase
@@ -131,6 +133,23 @@ export default async function PerfilFuncionarioPage({
     postoId
       ? supabase.from('config_escalas_postos').select('regime').eq('posto_id', postoId).maybeSingle()
       : Promise.resolve({ data: null }),
+  ])
+
+  const cutoffRisco = dataCorteScoreRisco()
+  const [
+    { data: faltasRiscoRaw },
+    { data: atestadosRiscoRaw },
+  ] = await Promise.all([
+    supabase
+      .from('faltas')
+      .select('data_falta, tipo')
+      .eq('funcionario_id', id)
+      .gte('data_falta', cutoffRisco),
+    supabase
+      .from('atestados')
+      .select('data_inicio, data_fim')
+      .eq('funcionario_id', id)
+      .gte('data_inicio', cutoffRisco),
   ])
 
   // Resolve nomes de postos e funções a partir dos UUIDs nas movimentações
@@ -186,6 +205,16 @@ export default async function PerfilFuncionarioPage({
   const movimentacoes = (movRaw ?? []) as unknown as MovimentacaoItem[]
   const advertencias  = (advRaw ?? []) as unknown as AdvertenciaItem[]
   const solicitacoes  = (solRaw ?? []) as unknown as SolicitacaoItem[]
+
+  const advertenciasJanela = advertencias.filter(a => (a.data_ocorrencia ?? '') >= cutoffRisco)
+  const movimentacoesJanela = movimentacoes.filter(m => (m.created_at ?? '').slice(0, 10) >= cutoffRisco)
+
+  const scoreRisco = calcularScoreRisco({
+    faltas: (faltasRiscoRaw ?? []) as { data_falta: string; tipo: string }[],
+    atestados: (atestadosRiscoRaw ?? []) as { data_inicio: string; data_fim: string | null }[],
+    advertencias: advertenciasJanela.map(a => ({ data_ocorrencia: a.data_ocorrencia ?? '', grau: a.grau ?? a.tipo })),
+    movimentacoes: movimentacoesJanela.map(m => ({ created_at: m.created_at, tipo: m.tipo })),
+  })
 
   const supervisorNome =
     (supervisorResult.data as unknown as { perfis?: { nome: string | null } } | null)
@@ -273,13 +302,14 @@ export default async function PerfilFuncionarioPage({
       <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900">{f.nome}</h1>
               {statusBadge && (
                 <span className={cn('inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset', statusBadge.className)}>
                   {statusBadge.label}
                 </span>
               )}
+              <BadgeRisco score={scoreRisco.score} nivel={scoreRisco.nivel} breakdown={scoreRisco.breakdown} />
             </div>
             <p className="mt-1 text-sm text-gray-500">CPF: {maskCPF(f.cpf)}</p>
           </div>
