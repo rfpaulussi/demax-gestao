@@ -14,6 +14,8 @@ import { ModalEditarFuncionario } from './modal-editar-funcionario'
 import { ModalProrrogarAfastamento } from './modal-prorrogar-afastamento'
 import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dialog'
 import { BadgePcd } from './badge-pcd'
+import type { NivelRisco } from '@/lib/risk-score'
+import { BadgeRisco } from './badge-risco'
 
 export type FuncionarioRow = {
   id: string
@@ -43,6 +45,9 @@ export type FuncionarioRow = {
   turno_atual_nome?:   string | null
   turno_atual_regime?: string | null
   turno_atual_resumo?: string | null
+  score_risco?: number
+  nivel_risco?: NivelRisco
+  breakdown_risco?: string[]
 }
 
 const ORIGEM_SUBTEXT: Record<string, string> = {
@@ -98,6 +103,7 @@ const COLS: { label: string; sortKey?: string }[] = [
   { label: 'Secretaria', sortKey: 'secretaria' },
   { label: 'Supervisor'                         },
   { label: 'Status',     sortKey: 'status'     },
+  { label: 'Risco',      sortKey: 'risco'      },
   { label: 'Retorno Previsto'                   },
   { label: 'Ações'                              },
 ]
@@ -258,6 +264,13 @@ export function FuncionariosTable({
                             )}
                           </div>
                         ) : '—'}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <BadgeRisco
+                          score={f.score_risco ?? 0}
+                          nivel={f.nivel_risco ?? 'ok'}
+                          breakdown={f.breakdown_risco ?? []}
+                        />
                       </td>
                       <td className="px-5 py-3.5">
                         {retornoPrevisto ? (

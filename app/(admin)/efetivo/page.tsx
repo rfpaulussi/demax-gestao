@@ -8,6 +8,7 @@ import { encerrarCoberturasVencidas } from '@/app/(admin)/coberturas/actions'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { resolverTipoEscala, formatarResumoTurno } from '@/lib/turnos/escala'
 import { FUNCOES_FORA_DO_EFETIVO } from '@/lib/constants'
+import { calcularScoreRisco, dataCorteScoreRisco } from '@/lib/risk-score'
 
 // ─── counter card ─────────────────────────────────────────────────────────────
 
@@ -226,10 +227,52 @@ export default async function EfetivoPage() {
     if (c.funcionario_ausente_id) coberturaAusentes[c.funcionario_ausente_id] = true
   }
 
-  // Enrich ALL funcionarios with supervisor_nome + supervisor_id + origem_ocupacional_cat + turno_atual
+  // Eventos dos últimos 90 dias para o score de risco — mesmo padrão de
+  // faltasRaw/coberturasHoje acima: busca sem filtro de funcionario_id
+  // (evita URL enorme com ~1500 UUIDs) e agrupa em Maps.
+  const cutoffRisco = dataCorteScoreRisco()
+  const [
+    { data: faltasRiscoRaw },
+    { data: atestadosRiscoRaw },
+    { data: advertenciasRiscoRaw },
+    { data: movimentacoesRiscoRaw },
+  ] = await Promise.all([
+    (supabase as unknown as AnyQ).from('faltas').select('funcionario_id, data_falta, tipo').gte('data_falta', cutoffRisco),
+    (supabase as unknown as AnyQ).from('atestados').select('funcionario_id, data_inicio, data_fim').gte('data_inicio', cutoffRisco),
+    (supabase as unknown as AnyQ).from('advertencias').select('funcionario_id, data_ocorrencia, grau, tipo').gte('data_ocorrencia', cutoffRisco),
+    (supabase as unknown as AnyQ).from('movimentacoes').select('funcionario_id, tipo, created_at').gte('created_at', cutoffRisco),
+  ])
+
+  type FaltaRisco = { funcionario_id: string; data_falta: string; tipo: string }
+  type AtestadoRisco = { funcionario_id: string; data_inicio: string; data_fim: string | null }
+  type AdvertenciaRisco = { funcionario_id: string; data_ocorrencia: string; grau: string | null; tipo: string | null }
+  type MovimentacaoRisco = { funcionario_id: string; tipo: string; created_at: string | null }
+
+  function agrupar<T extends { funcionario_id: string }>(rows: T[] | null): Map<string, T[]> {
+    const map = new Map<string, T[]>()
+    for (const row of rows ?? []) {
+      const list = map.get(row.funcionario_id)
+      if (list) list.push(row)
+      else map.set(row.funcionario_id, [row])
+    }
+    return map
+  }
+
+  const faltasRiscoMap        = agrupar<FaltaRisco>(faltasRiscoRaw)
+  const atestadosRiscoMap     = agrupar<AtestadoRisco>(atestadosRiscoRaw)
+  const advertenciasRiscoMap  = agrupar<AdvertenciaRisco>(advertenciasRiscoRaw)
+  const movimentacoesRiscoMap = agrupar<MovimentacaoRisco>(movimentacoesRiscoRaw)
+
+  // Enrich ALL funcionarios with supervisor_nome + supervisor_id + origem_ocupacional_cat + turno_atual + score_risco
   const funcionarios = rawFuncs.map(f => {
     const sup = f.posto_id ? postoSupervisorMap.get(f.posto_id) : undefined
     const horario = horarioMap.get(f.id)
+    const scoreRisco = calcularScoreRisco({
+      faltas: faltasRiscoMap.get(f.id) ?? [],
+      atestados: atestadosRiscoMap.get(f.id) ?? [],
+      advertencias: (advertenciasRiscoMap.get(f.id) ?? []).map(a => ({ data_ocorrencia: a.data_ocorrencia, grau: a.grau ?? a.tipo })),
+      movimentacoes: movimentacoesRiscoMap.get(f.id) ?? [],
+    })
     return {
       ...f,
       supervisor_nome:        sup?.nomeCompleto ?? null,
@@ -239,6 +282,9 @@ export default async function EfetivoPage() {
       turno_atual_regime:     horario?.regime ?? null,
       turno_atual_resumo:     horario?.resumo ?? null,
       data_fim_prevista_afastamento: f.status === 'afastado' ? (afastamentoPrevistoMap.get(f.id) ?? null) : null,
+      score_risco:  scoreRisco.score,
+      nivel_risco:  scoreRisco.nivel,
+      breakdown_risco: scoreRisco.breakdown,
     }
   })
 

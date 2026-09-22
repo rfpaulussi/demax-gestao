@@ -107,6 +107,10 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
   const sorted = useMemo(() => {
     const list = [...filtered]
     list.sort((a, b) => {
+      if (sortCol === 'risco') {
+        const cmp = (a.score_risco ?? 0) - (b.score_risco ?? 0)
+        return sortDir === 'asc' ? cmp : -cmp
+      }
       let av = '', bv = ''
       if (sortCol === 'nome')       { av = a.nome ?? '';                bv = b.nome ?? ''                }
       if (sortCol === 'funcao')     { av = a.funcoes?.nome ?? '';       bv = b.funcoes?.nome ?? ''       }
