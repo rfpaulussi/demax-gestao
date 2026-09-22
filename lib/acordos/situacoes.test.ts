@@ -10,18 +10,14 @@ describe('SITUACOES', () => {
     expect(Object.keys(SITUACOES).sort()).toEqual([...ids].sort())
   })
 
-  it('todas têm título, exemplo, tag e cor', () => {
+  it('todas têm título, exemplo, tag e regra', () => {
     for (const id of ids) {
       const s = SITUACOES[id]
       expect(s.titulo.length).toBeGreaterThan(10)
       expect(s.exemplo.length).toBeGreaterThan(10)
       expect(s.tag).toContain('→')
-      expect(['blue', 'amber', 'orange', 'indigo', 'green']).toContain(s.cor)
+      expect(s.regra.length).toBeGreaterThan(0)
     }
-  })
-
-  it('cada template tem uma cor diferente', () => {
-    expect(new Set(ids.map(id => SITUACOES[id].cor)).size).toBe(ids.length)
   })
 
   it('o grupo "trabalharam a mais" oferece T5 (folga) e T1 (horas), ambos com rótulo de opção', () => {

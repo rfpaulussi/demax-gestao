@@ -24,7 +24,7 @@ import {
   type ItemChecklistId,
 } from '@/lib/acordos/resumo'
 import { CamposTemplate, FORM_VAZIO, montarCampos, type CampoChave, type FormState } from './campos-template'
-import { INPUT_CLS, INPUT_ERRO_CLS, LABEL_CLS, Passo } from './passo'
+import { INPUT_CLS, INPUT_ERRO_CLS, LABEL_CLS, Passo, PassoResumo } from './passo'
 import { SituacaoCards } from './situacao-cards'
 import { PassoFuncionarios } from './passo-funcionarios'
 import { PrazoLimite } from './prazo-limite'
@@ -53,6 +53,13 @@ const ANCORA: Record<ItemChecklistId, string> = {
   datas: 'passo-dados',
   motivo: 'passo-motivo',
   prazo: 'passo-prazo',
+}
+
+/** Os 3 passos que colapsam para um resumo de uma linha assim que ficam completos. */
+type PassoId = 'situacao' | 'funcionarios' | 'dados'
+/** A qual passo do acordeão cada item do checklist pertence (os demais — título, prazo — não colapsam). */
+const PASSO_DO_ITEM: Partial<Record<ItemChecklistId, PassoId>> = {
+  situacao: 'situacao', funcionarios: 'funcionarios', datas: 'dados', motivo: 'dados',
 }
 
 const CODIGOS_PRAZO = ['PRAZO_OBRIGATORIO', 'PRAZO_LONGO', 'PRAZO_ANTES']
@@ -379,7 +386,19 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
   const status: StatusResumo = !interagiu ? 'neutro' : nPend > 0 ? 'pendente' : nAvisos > 0 ? 'aviso' : 'pronto'
   const faltam = tentou && nPend > 0 ? `Faltam ${nPend} ${nPend === 1 ? 'item' : 'itens'}` : null
 
+  // ── Acordeão: um passo completo colapsa para um resumo de uma linha; clicar "Editar" reabre. ──
+  const [abertoManual, setAbertoManual] = useState<Partial<Record<PassoId, boolean>>>({})
+  const completoPasso: Record<PassoId, boolean> = {
+    situacao: situacaoEscolhida,
+    funcionarios: okDe('funcionarios'),
+    dados: situacaoEscolhida && okDe('datas') && okDe('motivo'),
+  }
+  const abertoPasso = (id: PassoId) => abertoManual[id] ?? !completoPasso[id]
+  const alternarPasso = (id: PassoId) => setAbertoManual(prev => ({ ...prev, [id]: !abertoPasso(id) }))
+
   function irPara(id: ItemChecklistId) {
+    const passo = PASSO_DO_ITEM[id]
+    if (passo) setAbertoManual(prev => ({ ...prev, [passo]: true }))
     document.getElementById(ANCORA[id])?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
@@ -454,6 +473,16 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
     : null
   const numeroPrazo = 4
 
+  // Resumos de uma linha para os passos colapsados
+  const resumoSituacao = TEMPLATES[template].titulo
+  const nomesPostosSel = postos.filter(p => postosSel.includes(p.id)).map(p => p.nome)
+  const resumoFuncionarios = nomesPostosSel.length === 1
+    ? `${nomesPostosSel[0]} · ${selecionados.length} func.`
+    : nomesPostosSel.length > 1
+      ? `${nomesPostosSel.length} postos · ${selecionados.length} func.`
+      : `${selecionados.length} func.`
+  const resumoDados = conta ?? 'Dados preenchidos'
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overflow-x-hidden bg-black/50 px-4 py-8">
       <div className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl">
@@ -511,26 +540,35 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
               </div>
             </section>
 
-            <Passo id="passo-situacao" numero={1} titulo="O que aconteceu?" feito={situacaoEscolhida} erro={tentou && !situacaoEscolhida}>
-              <SituacaoCards selecionado={situacaoEscolhida ? template : null} onSelect={escolherSituacao} />
-              {tentou && !situacaoEscolhida && <p className="text-xs font-medium text-red-600">Escolha a situação que melhor descreve o caso.</p>}
-            </Passo>
+            {abertoPasso('situacao') ? (
+              <Passo id="passo-situacao" numero={1} titulo="O que aconteceu?" feito={situacaoEscolhida} erro={tentou && !situacaoEscolhida}>
+                <SituacaoCards selecionado={situacaoEscolhida ? template : null} onSelect={escolherSituacao} />
+                {tentou && !situacaoEscolhida && <p className="text-xs font-medium text-red-600">Escolha a situação que melhor descreve o caso.</p>}
+              </Passo>
+            ) : (
+              <PassoResumo id="passo-situacao" numero={1} titulo="O que aconteceu?" resumo={resumoSituacao} onEditar={() => alternarPasso('situacao')} />
+            )}
 
-            <Passo id="passo-funcionarios" numero={2} titulo="Onde e quem?" feito={okDe('funcionarios')} erro={!!erroFuncionarios}>
-              <PassoFuncionarios
-                postos={postos}
-                tipo={tipo}
-                postosSel={postosSel}
-                onTogglePosto={togglePosto}
-                funcs={funcs}
-                selectedIds={selectedIds}
-                onToggleFunc={toggleFunc}
-                onSetSelecionados={ids => { tocar('funcionarios'); setSelectedIds(ids) }}
-                loading={loadingFuncs}
-                erro={erroFuncionarios}
-              />
-            </Passo>
+            {abertoPasso('funcionarios') ? (
+              <Passo id="passo-funcionarios" numero={2} titulo="Onde e quem?" feito={okDe('funcionarios')} erro={!!erroFuncionarios}>
+                <PassoFuncionarios
+                  postos={postos}
+                  tipo={tipo}
+                  postosSel={postosSel}
+                  onTogglePosto={togglePosto}
+                  funcs={funcs}
+                  selectedIds={selectedIds}
+                  onToggleFunc={toggleFunc}
+                  onSetSelecionados={ids => { tocar('funcionarios'); setSelectedIds(ids) }}
+                  loading={loadingFuncs}
+                  erro={erroFuncionarios}
+                />
+              </Passo>
+            ) : (
+              <PassoResumo id="passo-funcionarios" numero={2} titulo="Onde e quem?" resumo={resumoFuncionarios} onEditar={() => alternarPasso('funcionarios')} />
+            )}
 
+            {abertoPasso('dados') ? (
             <Passo id="passo-dados" numero={3} titulo="Dados do acordo" feito={situacaoEscolhida && okDe('datas') && okDe('motivo')}>
               {situacaoEscolhida ? (
                 <CamposTemplate
@@ -553,6 +591,9 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
                 <p className="text-sm text-gray-400">Escolha a situação no passo 1 para ver os campos.</p>
               )}
             </Passo>
+            ) : (
+              <PassoResumo id="passo-dados" numero={3} titulo="Dados do acordo" resumo={resumoDados} onEditar={() => alternarPasso('dados')} />
+            )}
 
             {situacaoEscolhida && (prazoMostrado || prazoRevelado) && (
               <PrazoLimite

@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react'
+import { Check, ChevronDown } from 'lucide-react'
 
 export const INPUT_CLS =
   'w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300'
@@ -33,6 +33,29 @@ export function Passo({ id, numero, titulo, feito, erro, children }: PassoProps)
       </header>
       <div className="mt-3 space-y-4">{children}</div>
     </section>
+  )
+}
+
+/** Linha compacta para um passo já preenchido: título + resumo de uma linha, clicável para reabrir. */
+export function PassoResumo({ id, numero, titulo, resumo, onEditar }: { id?: string; numero: number; titulo: React.ReactNode; resumo: string; onEditar: () => void }) {
+  return (
+    <button
+      type="button"
+      id={id}
+      onClick={onEditar}
+      className="flex w-full scroll-mt-4 items-center gap-2.5 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-left shadow-sm hover:border-gray-300 hover:bg-slate-50/60"
+    >
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-600 text-white">
+        <Check className="h-3.5 w-3.5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-slate-900"><span className="sr-only">Passo {numero}: </span>{titulo}</span>
+        <span className="block truncate text-xs text-gray-500">{resumo}</span>
+      </span>
+      <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-slate-500">
+        Editar <ChevronDown className="h-3.5 w-3.5" />
+      </span>
+    </button>
   )
 }
 

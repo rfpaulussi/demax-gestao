@@ -57,9 +57,11 @@ export function PedidoIa({ disponivel, onAplicar }: Props) {
   const avisos = res?.avisos ?? []
 
   return (
-    <section id="passo-ia" className="space-y-3 rounded-xl border border-violet-200 bg-violet-50/40 p-4 shadow-sm">
+    <section id="passo-ia" className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
       <div className="flex items-center gap-2">
-        <Sparkles className="h-4 w-4 text-violet-600" />
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
+          <Sparkles className="h-3.5 w-3.5" />
+        </span>
         <h3 className={LABEL_CLS}>Descrever o pedido (opcional)</h3>
       </div>
       <p className="text-xs text-slate-500">
@@ -72,14 +74,14 @@ export function PedidoIa({ disponivel, onAplicar }: Props) {
         rows={3}
         maxLength={2000}
         placeholder="ex: Liberamos o pessoal do Casarão às 12h no dia 14/09 por causa da chuva. Repõem em 6 dias."
-        className="w-full rounded-lg border border-gray-200 bg-white p-3 text-sm text-slate-800 outline-none focus:border-violet-400"
+        className="w-full rounded-lg border border-gray-200 bg-slate-50 p-3 text-sm text-slate-800 outline-none focus:border-slate-400 focus:bg-white"
       />
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => interpretar(texto)}
           disabled={carregando || texto.trim().length < 8}
-          className="flex h-9 items-center gap-1.5 rounded-lg bg-violet-700 px-4 text-sm font-bold text-white hover:bg-violet-600 disabled:opacity-40"
+          className="flex h-9 items-center gap-1.5 rounded-lg bg-indigo-600 px-4 text-sm font-bold text-white hover:bg-indigo-500 disabled:opacity-40"
         >
           <Sparkles className="h-3.5 w-3.5" /> {carregando ? 'Lendo o pedido…' : 'Preencher o formulário'}
         </button>
