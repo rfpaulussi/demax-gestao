@@ -291,17 +291,31 @@ export function CamposTemplate({
     </div>
   )
 
-  const blocoDias = (dica: string) => (
+  /** Por que ainda não há nada nesta seção: falta a data-base (evento/folga) lá em cima. Só aparece antes de qualquer erro/interação. */
+  const semDataBase = (): boolean => {
+    if (t === 'T1' || t === 'T2') return !f.dataEvento
+    if (t === 'T3' || t === 'T4') return f.revezamento ? funcionarios.some(x => !f.folgas[x.id]) : !f.dataFolga
+    return false
+  }
+  const rotuloDataFolga = f.revezamento ? 'a data da folga de cada funcionário' : 'a data da folga'
+
+  const blocoDias = (dica: string, rotuloBase: string) => (
     <div>
       <p className="mb-2 text-xs text-gray-500">{dica}</p>
-      <DiasChips
-        datas={f.datasAjuste}
-        onChange={d => { onDatasManuais(); set('datasAjuste', d) }}
-        diasManual={diasManual}
-        onRecalcular={onRecalcular}
-        conta={conta}
-        erro={erros.dias}
-      />
+      {f.datasAjuste.length === 0 && !erros.dias && semDataBase() ? (
+        <p className="rounded-lg border border-gray-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          Preencha {rotuloBase} no passo acima para o sistema sugerir os dias e calcular quantas horas por dia.
+        </p>
+      ) : (
+        <DiasChips
+          datas={f.datasAjuste}
+          onChange={d => { onDatasManuais(); set('datasAjuste', d) }}
+          diasManual={diasManual}
+          onRecalcular={onRecalcular}
+          conta={conta}
+          erro={erros.dias}
+        />
+      )}
     </div>
   )
 
@@ -319,7 +333,7 @@ export function CamposTemplate({
             {periodoOuHoras()}
           </SubPasso>
           <SubPasso letra={proxima()} titulo="Dias em que vão sair mais cedo">
-            {blocoDias('Os dias de descanso são sugeridos automaticamente (dias úteis depois do evento). Clique num dia para tirá-lo.')}
+            {blocoDias('Os dias de descanso são sugeridos automaticamente (dias úteis depois do evento). Clique num dia para tirá-lo.', 'a data do evento')}
           </SubPasso>
         </>
       )}
@@ -342,7 +356,7 @@ export function CamposTemplate({
           </SubPasso>
           <SubPasso letra={proxima()} titulo="Motivo">{blocoMotivo(true)}</SubPasso>
           <SubPasso letra={proxima()} titulo="Dias de reposição">
-            {blocoDias('Dias em que vão trabalhar um pouco a mais para repor as horas. Sugeridos automaticamente.')}
+            {blocoDias('Dias em que vão trabalhar um pouco a mais para repor as horas. Sugeridos automaticamente.', 'o dia em que foram liberados')}
           </SubPasso>
         </>
       )}
@@ -354,7 +368,7 @@ export function CamposTemplate({
           </SubPasso>
           <SubPasso letra={proxima()} titulo="Motivo">{blocoMotivo(false)}</SubPasso>
           <SubPasso letra={proxima()} titulo="Dias de reposição">
-            {blocoDias('Dias em que vão trabalhar um pouco a mais para repor o dia. Sugeridos automaticamente.')}
+            {blocoDias('Dias em que vão trabalhar um pouco a mais para repor o dia. Sugeridos automaticamente.', rotuloDataFolga)}
           </SubPasso>
         </>
       )}
@@ -370,7 +384,10 @@ export function CamposTemplate({
             </div>
           </SubPasso>
           <SubPasso letra={proxima()} titulo="Dias em que vão trabalhar a mais">
-            {blocoDias('Dias úteis antes da folga, sugeridos automaticamente. Clique num dia para tirá-lo.')}
+            {blocoDias(
+              'Dias úteis antes da folga, sugeridos automaticamente. As horas de cada dia são calculadas sozinhas, a partir da jornada do dia da folga — não precisa digitar. Clique num dia para tirá-lo.',
+              rotuloDataFolga,
+            )}
           </SubPasso>
         </>
       )}
