@@ -1,4 +1,4 @@
-import { AlertTriangle, CircleAlert, CircleCheck, Circle, XCircle } from 'lucide-react'
+import { AlertTriangle, CircleAlert, CircleCheck, Circle, RotateCcw, XCircle } from 'lucide-react'
 import { DIAS_SEMANA, type SemanaTurno } from '@/lib/acordos/tipos'
 import { semanaParaTexto, totalSemanalMin } from '@/lib/acordos/horario-do-turno'
 import { minParaHHMM } from '@/lib/acordos/tempo'
@@ -58,6 +58,8 @@ interface Props {
   pending: boolean
   onCancelar: () => void
   onSalvar: () => void
+  /** Zera o formulário inteiro (volta ao estado de "recém-aberto"), pedindo confirmação. */
+  onZerar: () => void
   /** Abre o PDF com marca d'água, sem salvar. */
   onRascunho: () => void
   podeRascunho: boolean
@@ -240,20 +242,30 @@ export function ResumoAcordo(p: Props) {
       {p.faltam && <div className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{p.faltam}</div>}
       {p.erroServidor && <div className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{p.erroServidor}</div>}
 
-      <div className="flex justify-end gap-2">
-        <button type="button" onClick={p.onCancelar} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-600 hover:bg-gray-100">
-          Cancelar
-        </button>
+      <div className="flex items-center justify-between gap-2">
         <button
           type="button"
-          onClick={p.onSalvar}
-          disabled={p.pending}
-          aria-disabled={!pronto}
-          title={pronto ? undefined : 'Ainda há itens a preencher'}
-          className={`flex h-9 items-center rounded-lg px-6 text-sm font-bold text-white disabled:opacity-40 ${pronto ? 'bg-slate-900 hover:bg-slate-700' : 'bg-slate-400 hover:bg-slate-500'}`}
+          onClick={p.onZerar}
+          className="flex h-9 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+          title="Apaga tudo o que foi preenchido e recomeça"
         >
-          {p.pending ? 'Salvando…' : 'Salvar Acordo'}
+          <RotateCcw className="h-3.5 w-3.5" /> Zerar
         </button>
+        <div className="flex gap-2">
+          <button type="button" onClick={p.onCancelar} className="flex h-9 items-center rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-600 hover:bg-gray-100">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={p.onSalvar}
+            disabled={p.pending}
+            aria-disabled={!pronto}
+            title={pronto ? undefined : 'Ainda há itens a preencher'}
+            className={`flex h-9 items-center rounded-lg px-6 text-sm font-bold text-white disabled:opacity-40 ${pronto ? 'bg-slate-900 hover:bg-slate-700' : 'bg-slate-400 hover:bg-slate-500'}`}
+          >
+            {p.pending ? 'Salvando…' : 'Salvar Acordo'}
+          </button>
+        </div>
       </div>
     </aside>
   )

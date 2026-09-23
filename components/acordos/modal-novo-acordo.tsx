@@ -103,6 +103,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
   // Pedido interpretado pela IA: quantidade de dias pedida e funcionários citados (aplicados quando a lista do posto chega)
   const [quantidadeIA, setQuantidadeIA] = useState<number | null>(null)
   const selecaoIA = useRef<string[] | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const tocar = useCallback((k: string) => {
     setTocou(prev => (prev.has(k) ? prev : new Set(prev).add(k)))
@@ -402,6 +403,31 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
     document.getElementById(ANCORA[id])?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
+  /** "Zerar": volta o formulário inteiro ao estado de recém-aberto. Pede confirmação; não fecha o modal. */
+  function resetarFormulario() {
+    if (!window.confirm('Zerar o formulário? Tudo o que foi preenchido será perdido.')) return
+    setTitulo('')
+    setTituloManual(false)
+    setTipo('individual')
+    setPostosSel([])
+    setDataDoc(new Date().toLocaleDateString('sv-SE'))
+    setTemplate('T3')
+    setSituacaoEscolhida(false)
+    setF(FORM_VAZIO)
+    setFuncs([])
+    setSelectedIds(new Set())
+    setLoadingFuncs(false)
+    setErroServidor('')
+    setDiasManual(false)
+    setTocou(new Set())
+    setTentou(false)
+    setPrazoRevelado(false)
+    setQuantidadeIA(null)
+    selecaoIA.current = null
+    setAbertoManual({})
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   /** PDF com marca d'água montado com o mesmo texto que será gravado; abre em outra aba, sem salvar. */
   async function abrirRascunho() {
     const t = montarTextosAcordo(campos, calc)
@@ -484,7 +510,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
   const resumoDados = conta ?? 'Dados preenchidos'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overflow-x-hidden bg-black/50 px-4 py-8">
+    <div ref={scrollRef} className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overflow-x-hidden bg-black/50 px-4 py-8">
       <div className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl">
         <div className="sticky top-0 z-10 flex items-start justify-between gap-3 rounded-t-2xl bg-slate-900 px-6 py-5">
           <div>
@@ -632,6 +658,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
             onSalvar={handleSalvar}
             onRascunho={abrirRascunho}
             onRecalcularDias={recalcularDias}
+            onZerar={resetarFormulario}
             podeRascunho={situacaoEscolhida && !erroReal && textos.length > 0 && textos.every(x => !!x.texto)}
             gerandoRascunho={gerandoRascunho}
           />
