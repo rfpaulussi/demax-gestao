@@ -104,7 +104,7 @@ const COLS: { label: string; sortKey?: string }[] = [
   { label: 'Supervisor'                         },
   { label: 'Status',     sortKey: 'status'     },
   { label: 'Risco',      sortKey: 'risco'      },
-  { label: 'Retorno Previsto'                   },
+  { label: 'Retorno Previsto', sortKey: 'retorno' },
   { label: 'Ações'                              },
 ]
 

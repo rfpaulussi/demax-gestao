@@ -49,7 +49,24 @@ export type SolicitacaoItem = {
   perfis: { nome: string | null } | null
 }
 
-type Tab = 'movimentacoes' | 'afastamentos' | 'advertencias' | 'solicitacoes' | 'horario'
+export type FaltaItem = {
+  id: string
+  data_falta: string
+  data_fim: string | null
+  tipo: string
+  dias: number | null
+  justificativa: string | null
+}
+
+export type AtestadoItem = {
+  id: string
+  data_inicio: string
+  data_fim: string
+  motivo: string | null
+  cid: string | null
+}
+
+type Tab = 'movimentacoes' | 'afastamentos' | 'advertencias' | 'faltas' | 'solicitacoes' | 'horario'
 
 const TIPO_LABELS: Record<string, string> = {
   desligamento:       'Desligamento',
@@ -80,6 +97,31 @@ const STATUS_ADV: Record<NonNullable<AdvertenciaItem['status']>, { label: string
   pendente: { label: 'Pendente', className: 'bg-yellow-50 text-yellow-700 ring-yellow-200' },
   gerada:   { label: 'Gerada',   className: 'bg-blue-50 text-blue-700 ring-blue-200'       },
   entregue: { label: 'Entregue', className: 'bg-green-50 text-green-700 ring-green-200'    },
+}
+
+const GRAU_ADV: Record<string, { label: string; className: string }> = {
+  verbal:    { label: 'Verbal',    className: 'bg-blue-50 text-blue-700 ring-blue-200'   },
+  escrita:   { label: 'Escrita',   className: 'bg-amber-50 text-amber-700 ring-amber-200' },
+  suspensao: { label: 'Suspensão', className: 'bg-red-50 text-red-700 ring-red-200'       },
+}
+const GRAU_ADV_PADRAO = { className: 'bg-gray-100 text-gray-600 ring-gray-200' }
+
+const TIPO_FALTA: Record<string, { label: string; className: string }> = {
+  sem_atestado:        { label: 'Sem Justificativa', className: 'bg-red-50 text-red-700 ring-red-200'       },
+  sem_justificativa:   { label: 'Sem Justificativa', className: 'bg-red-50 text-red-700 ring-red-200'       },
+  falta_injustificada: { label: 'Sem Justificativa', className: 'bg-red-50 text-red-700 ring-red-200'       },
+  com_atestado:        { label: 'Com Atestado',      className: 'bg-green-50 text-green-700 ring-green-200' },
+  falta_justificada:   { label: 'Justificada',       className: 'bg-green-50 text-green-700 ring-green-200' },
+  declaracao:          { label: 'Declaração',        className: 'bg-blue-50 text-blue-700 ring-blue-200'    },
+  suspensao:           { label: 'Suspensão',         className: 'bg-purple-50 text-purple-700 ring-purple-200' },
+}
+const TIPO_FALTA_PADRAO = { className: 'bg-gray-100 text-gray-600 ring-gray-200' }
+
+function diasEntreDatas(inicio: string, fim: string | null): number {
+  if (!fim) return 1
+  const d1 = new Date(inicio)
+  const d2 = new Date(fim)
+  return Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000) + 1)
 }
 
 // ─── sub-views ────────────────────────────────────────────────────────────────
@@ -261,22 +303,75 @@ function TabMovimentacoes({
 
 function TabAfastamentos({
   items,
+  atestados,
   funcionario,
   postoNomeMap,
   funcaoNomeMap = {},
   turnoNomeMap = {},
 }: {
   items: MovimentacaoItem[]
+  atestados: AtestadoItem[]
   funcionario: FuncionarioParaPDF
   postoNomeMap: Record<string, string>
   funcaoNomeMap?: Record<string, string>
   turnoNomeMap?: Record<string, string>
 }) {
   const afastamentos = items.filter(m => m.tipo === 'afastamento' || m.tipo === 'atestado')
-  if (afastamentos.length === 0) {
+
+  if (afastamentos.length === 0 && atestados.length === 0) {
     return <p className="py-8 text-center text-sm text-gray-400">Nenhum afastamento registrado.</p>
   }
-  return <TabMovimentacoes items={afastamentos} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />
+
+  return (
+    <div className="space-y-6">
+      {atestados.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gray-400">Atestados médicos</p>
+          <div className="overflow-x-auto rounded-lg border border-gray-100">
+            <table className="w-full text-sm">
+              <thead className="border-b border-gray-100 bg-slate-50">
+                <tr>
+                  {['Início', 'Fim', 'Dias', 'CID', 'Motivo'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {atestados.map(a => {
+                  const dias = diasEntreDatas(a.data_inicio, a.data_fim)
+                  return (
+                    <tr key={a.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-gray-500">{fmt(a.data_inicio)}</td>
+                      <td className="px-4 py-3 text-gray-500">{fmt(a.data_fim)}</td>
+                      <td className="px-4 py-3">
+                        <span className={cn(
+                          'inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset',
+                          dias >= 15 ? 'bg-red-50 text-red-700 ring-red-200' : 'bg-amber-50 text-amber-700 ring-amber-200',
+                        )}>
+                          {dias}d
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">{a.cid ?? '—'}</td>
+                      <td className="max-w-52 truncate px-4 py-3 text-gray-500">{a.motivo ?? '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {afastamentos.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-gray-400">Histórico de status</p>
+          <TabMovimentacoes items={afastamentos} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />
+        </div>
+      )}
+    </div>
+  )
 }
 
 function TabAdvertencias({ items }: { items: AdvertenciaItem[] }) {
@@ -288,7 +383,7 @@ function TabAdvertencias({ items }: { items: AdvertenciaItem[] }) {
       <table className="w-full text-sm">
         <thead className="border-b border-gray-100 bg-slate-50">
           <tr>
-            {['Data', 'Tipo', 'Descrição', 'Status'].map(h => (
+            {['Data', 'Grau', 'Descrição', 'Status'].map(h => (
               <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">
                 {h}
               </th>
@@ -298,12 +393,18 @@ function TabAdvertencias({ items }: { items: AdvertenciaItem[] }) {
         <tbody className="divide-y divide-gray-50">
           {items.map(a => {
             const badge = a.status ? STATUS_ADV[a.status] : null
+            const grauKey = a.grau ?? a.tipo ?? ''
+            const grauBadge = GRAU_ADV[grauKey] ?? { ...GRAU_ADV_PADRAO, label: grauKey || '—' }
             return (
               <tr key={a.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 text-gray-500">
                   {a.data_ocorrencia ? fmt(a.data_ocorrencia) : '—'}
                 </td>
-                <td className="px-4 py-3 font-medium text-gray-900">{a.tipo ?? '—'}</td>
+                <td className="px-4 py-3">
+                  <span className={cn('inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset', grauBadge.className)}>
+                    {grauBadge.label}
+                  </span>
+                </td>
                 <td className="max-w-52 truncate px-4 py-3 text-gray-500">{a.descricao ?? '—'}</td>
                 <td className="px-4 py-3">
                   {badge && (
@@ -312,6 +413,45 @@ function TabAdvertencias({ items }: { items: AdvertenciaItem[] }) {
                     </span>
                   )}
                 </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function TabFaltas({ items }: { items: FaltaItem[] }) {
+  if (items.length === 0) {
+    return <p className="py-8 text-center text-sm text-gray-400">Nenhuma falta registrada.</p>
+  }
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="border-b border-gray-100 bg-slate-50">
+          <tr>
+            {['Data', 'Data Fim', 'Tipo', 'Dias', 'Justificativa'].map(h => (
+              <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-50">
+          {items.map(f => {
+            const badge = TIPO_FALTA[f.tipo] ?? { ...TIPO_FALTA_PADRAO, label: f.tipo }
+            return (
+              <tr key={f.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3 text-gray-500">{fmt(f.data_falta)}</td>
+                <td className="px-4 py-3 text-gray-500">{f.data_fim ? fmt(f.data_fim) : '—'}</td>
+                <td className="px-4 py-3">
+                  <span className={cn('inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset', badge.className)}>
+                    {badge.label}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-gray-500">{f.dias ?? 1}</td>
+                <td className="max-w-52 truncate px-4 py-3 text-gray-500">{f.justificativa ?? '—'}</td>
               </tr>
             )
           })}
@@ -363,6 +503,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'movimentacoes', label: 'Movimentações' },
   { key: 'afastamentos',  label: 'Afastamentos'  },
   { key: 'advertencias',  label: 'Advertências'  },
+  { key: 'faltas',        label: 'Faltas'        },
   { key: 'solicitacoes',  label: 'Solicitações'  },
 ]
 
@@ -370,6 +511,8 @@ export function PerfilTabs({
   movimentacoes,
   advertencias,
   solicitacoes,
+  faltas = [],
+  atestados = [],
   funcionario,
   postoNomeMap = {},
   funcaoNomeMap = {},
@@ -383,6 +526,8 @@ export function PerfilTabs({
   movimentacoes: MovimentacaoItem[]
   advertencias: AdvertenciaItem[]
   solicitacoes: SolicitacaoItem[]
+  faltas?: FaltaItem[]
+  atestados?: AtestadoItem[]
   funcionario: FuncionarioParaPDF
   postoNomeMap?: Record<string, string>
   funcaoNomeMap?: Record<string, string>
@@ -417,8 +562,9 @@ export function PerfilTabs({
       <div className="pt-4">
         {tab === 'horario'       && <TabHorario horarioVigente={horarioVigente} historicoHorario={historicoHorario} regimePosto={regimePosto} postoId={postoId} funcionarioId={funcionario.id} role={role} funcaoNome={funcionario.funcao} />}
         {tab === 'movimentacoes' && <TabMovimentacoes items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />}
-        {tab === 'afastamentos'  && <TabAfastamentos  items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />}
+        {tab === 'afastamentos'  && <TabAfastamentos  items={movimentacoes} atestados={atestados} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />}
         {tab === 'advertencias'  && <TabAdvertencias  items={advertencias}  />}
+        {tab === 'faltas'        && <TabFaltas        items={faltas}        />}
         {tab === 'solicitacoes'  && <TabSolicitacoes  items={solicitacoes}  />}
       </div>
     </div>

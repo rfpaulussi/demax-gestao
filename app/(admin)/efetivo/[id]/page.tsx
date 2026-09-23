@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { calcularStatusExperiencia } from '@/lib/experiencia'
 import { BannerExperiencia } from '@/components/efetivo/banner-experiencia'
 import { PerfilTabs } from '@/components/efetivo/perfil-tabs'
-import type { MovimentacaoItem, AdvertenciaItem, SolicitacaoItem } from '@/components/efetivo/perfil-tabs'
+import type { MovimentacaoItem, AdvertenciaItem, SolicitacaoItem, FaltaItem, AtestadoItem } from '@/components/efetivo/perfil-tabs'
 import type { HorarioVigenteShape, HistoricoHorarioShape } from '@/components/efetivo/tab-horario'
 import type { FuncionarioParaPDF } from '@/components/efetivo/movimentacao-pdf'
 import { calcularScoreRisco, dataCorteScoreRisco } from '@/lib/risk-score'
@@ -67,6 +67,8 @@ export default async function PerfilFuncionarioPage({
     { data: movRaw },
     { data: advRaw },
     { data: solRaw },
+    { data: faltasRaw },
+    { data: atestadosRaw },
     supervisorResult,
     { data: horarioVigenteRaw },
     { data: historicoRaw },
@@ -91,6 +93,16 @@ export default async function PerfilFuncionarioPage({
       .select('id, tipo, status, motivo, created_at, observacao_admin, perfis!supervisor_id(nome)')
       .eq('funcionario_id', id)
       .order('created_at', { ascending: false }),
+    supabase
+      .from('faltas')
+      .select('id, data_falta, data_fim, tipo, dias, justificativa')
+      .eq('funcionario_id', id)
+      .order('data_falta', { ascending: false }),
+    supabase
+      .from('atestados')
+      .select('id, data_inicio, data_fim, motivo, cid')
+      .eq('funcionario_id', id)
+      .order('data_inicio', { ascending: false }),
     postoId
       ? supabase
           .from('config_supervisores_postos')
@@ -136,21 +148,6 @@ export default async function PerfilFuncionarioPage({
   ])
 
   const cutoffRisco = dataCorteScoreRisco()
-  const [
-    { data: faltasRiscoRaw },
-    { data: atestadosRiscoRaw },
-  ] = await Promise.all([
-    supabase
-      .from('faltas')
-      .select('data_falta, tipo')
-      .eq('funcionario_id', id)
-      .gte('data_falta', cutoffRisco),
-    supabase
-      .from('atestados')
-      .select('data_inicio, data_fim')
-      .eq('funcionario_id', id)
-      .gte('data_inicio', cutoffRisco),
-  ])
 
   // Resolve nomes de postos e funções a partir dos UUIDs nas movimentações
   function isUUID(v: unknown): v is string {
@@ -205,13 +202,17 @@ export default async function PerfilFuncionarioPage({
   const movimentacoes = (movRaw ?? []) as unknown as MovimentacaoItem[]
   const advertencias  = (advRaw ?? []) as unknown as AdvertenciaItem[]
   const solicitacoes  = (solRaw ?? []) as unknown as SolicitacaoItem[]
+  const faltas        = (faltasRaw ?? []) as unknown as FaltaItem[]
+  const atestados     = (atestadosRaw ?? []) as unknown as AtestadoItem[]
 
-  const advertenciasJanela = advertencias.filter(a => (a.data_ocorrencia ?? '') >= cutoffRisco)
+  const advertenciasJanela  = advertencias.filter(a => (a.data_ocorrencia ?? '') >= cutoffRisco)
   const movimentacoesJanela = movimentacoes.filter(m => (m.created_at ?? '').slice(0, 10) >= cutoffRisco)
+  const faltasJanela        = faltas.filter(f => f.data_falta >= cutoffRisco)
+  const atestadosJanela     = atestados.filter(a => a.data_inicio >= cutoffRisco)
 
   const scoreRisco = calcularScoreRisco({
-    faltas: (faltasRiscoRaw ?? []) as { data_falta: string; tipo: string }[],
-    atestados: (atestadosRiscoRaw ?? []) as { data_inicio: string; data_fim: string | null }[],
+    faltas: faltasJanela.map(f => ({ data_falta: f.data_falta, tipo: f.tipo })),
+    atestados: atestadosJanela.map(a => ({ data_inicio: a.data_inicio, data_fim: a.data_fim })),
     advertencias: advertenciasJanela.map(a => ({ data_ocorrencia: a.data_ocorrencia ?? '', grau: a.grau ?? a.tipo })),
     movimentacoes: movimentacoesJanela.map(m => ({ created_at: m.created_at, tipo: m.tipo })),
   })
@@ -411,6 +412,8 @@ export default async function PerfilFuncionarioPage({
           movimentacoes={movimentacoes}
           advertencias={advertencias}
           solicitacoes={solicitacoes}
+          faltas={faltas}
+          atestados={atestados}
           postoNomeMap={postoNomeMap}
           funcaoNomeMap={funcaoNomeMap}
           turnoNomeMap={turnoNomeMap}

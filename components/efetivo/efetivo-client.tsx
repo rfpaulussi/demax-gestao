@@ -112,6 +112,15 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
         const cmp = (a.score_risco ?? 0) - (b.score_risco ?? 0)
         return sortDir === 'asc' ? cmp : -cmp
       }
+      if (sortCol === 'retorno') {
+        const av = a.data_fim_prevista_afastamento ?? ''
+        const bv = b.data_fim_prevista_afastamento ?? ''
+        if (!av && !bv) return 0
+        if (!av) return 1
+        if (!bv) return -1
+        const cmp = av.localeCompare(bv)
+        return sortDir === 'asc' ? cmp : -cmp
+      }
       let av = '', bv = ''
       if (sortCol === 'nome')       { av = a.nome ?? '';                bv = b.nome ?? ''                }
       if (sortCol === 'funcao')     { av = a.funcoes?.nome ?? '';       bv = b.funcoes?.nome ?? ''       }
