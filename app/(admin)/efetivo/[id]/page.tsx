@@ -309,7 +309,9 @@ export default async function PerfilFuncionarioPage({
                   {statusBadge.label}
                 </span>
               )}
-              <BadgeRisco score={scoreRisco.score} nivel={scoreRisco.nivel} breakdown={scoreRisco.breakdown} />
+              {f.status !== 'desligado' && (
+                <BadgeRisco score={scoreRisco.score} nivel={scoreRisco.nivel} breakdown={scoreRisco.breakdown} />
+              )}
             </div>
             <p className="mt-1 text-sm text-gray-500">CPF: {maskCPF(f.cpf)}</p>
           </div>

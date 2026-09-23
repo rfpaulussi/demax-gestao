@@ -266,11 +266,13 @@ export function FuncionariosTable({
                         ) : '—'}
                       </td>
                       <td className="px-5 py-3.5">
-                        <BadgeRisco
-                          score={f.score_risco ?? 0}
-                          nivel={f.nivel_risco ?? 'ok'}
-                          breakdown={f.breakdown_risco ?? []}
-                        />
+                        {f.status !== 'desligado' && (
+                          <BadgeRisco
+                            score={f.score_risco ?? 0}
+                            nivel={f.nivel_risco ?? 'ok'}
+                            breakdown={f.breakdown_risco ?? []}
+                          />
+                        )}
                       </td>
                       <td className="px-5 py-3.5">
                         {retornoPrevisto ? (
