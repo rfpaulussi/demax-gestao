@@ -12,12 +12,19 @@ const STATUS_LABELS: Record<string, string> = {
   rescisao_indireta: 'Rescisão Indireta',
 }
 
+const NIVEL_RISCO_LABELS: Record<string, string> = {
+  critico: '🔴 Crítico',
+  atencao: '🟡 Atenção',
+  ok:      '🟢 Ok',
+}
+
 export type FiltrosValues = {
   busca: string
   status: string
   secretaria: string
   supervisor: string
   posto: string
+  nivelRisco: string
 }
 
 export type FiltrosCounts = {
@@ -26,6 +33,7 @@ export type FiltrosCounts = {
   supervisorCounts: Record<string, number>
   semSupervisorCount: number
   postoCounts: Record<string, number>
+  nivelRiscoCounts: Record<string, number>
 }
 
 export function FiltrosEfetivo({
@@ -111,6 +119,19 @@ export function FiltrosEfetivo({
         {Object.entries(STATUS_LABELS).map(([val, label]) => (
           <option key={val} value={val}>
             {label} ({counts.statusCounts[val] ?? 0})
+          </option>
+        ))}
+      </select>
+
+      <select
+        value={values.nivelRisco}
+        onChange={e => onChange('nivelRisco', e.target.value)}
+        className={inputClass}
+      >
+        <option value="">Todos os níveis de risco</option>
+        {Object.entries(NIVEL_RISCO_LABELS).map(([val, label]) => (
+          <option key={val} value={val}>
+            {label} ({counts.nivelRiscoCounts[val] ?? 0})
           </option>
         ))}
       </select>

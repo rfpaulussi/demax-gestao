@@ -62,10 +62,10 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
   const searchParams = useSearchParams()
   const buscaInicial = searchParams.get('busca') ?? ''
   const [values, setValues] = useState<FiltrosValues>({
-    busca: buscaInicial, status: '', secretaria: '', supervisor: '', posto: '',
+    busca: buscaInicial, status: '', secretaria: '', supervisor: '', posto: '', nivelRisco: '',
   })
-  const [sortCol, setSortCol] = useState<string>('nome')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [sortCol, setSortCol] = useState<string>('risco')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [admitirOpen, setAdmitirOpen] = useState(false)
 
   function toggleSort(col: string) {
@@ -101,6 +101,7 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
       list = list.filter(f => f.supervisor_id === values.supervisor)
     }
     if (values.posto) list = list.filter(f => (f.postos?.nome ?? '').toLowerCase().includes(values.posto.toLowerCase()))
+    if (values.nivelRisco) list = list.filter(f => f.status !== 'desligado' && f.nivel_risco === values.nivelRisco)
     return list
   }, [funcionarios, values])
 
@@ -128,6 +129,7 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
     const secretariaCounts: Record<string, number> = {}
     const supervisorCounts: Record<string, number> = {}
     const postoCounts: Record<string, number> = {}
+    const nivelRiscoCounts: Record<string, number> = {}
     let semSupervisorCount = 0
     for (const f of funcionarios) {
       if (f.status) statusCounts[f.status] = (statusCounts[f.status] ?? 0) + 1
@@ -139,8 +141,11 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
       } else {
         semSupervisorCount++
       }
+      if (f.status !== 'desligado' && f.nivel_risco) {
+        nivelRiscoCounts[f.nivel_risco] = (nivelRiscoCounts[f.nivel_risco] ?? 0) + 1
+      }
     }
-    return { statusCounts, secretariaCounts, supervisorCounts, semSupervisorCount, postoCounts }
+    return { statusCounts, secretariaCounts, supervisorCounts, semSupervisorCount, postoCounts, nivelRiscoCounts }
   }, [funcionarios])
 
   function handleChange(key: keyof FiltrosValues, value: string) {

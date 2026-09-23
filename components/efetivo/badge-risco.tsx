@@ -27,7 +27,7 @@ export function BadgeRisco({
         style.className,
       )}
     >
-      {style.emoji} Risco: {score}pt
+      {style.emoji} Risco: {Math.round(score)}pt
     </span>
   )
 }
