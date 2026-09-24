@@ -338,6 +338,15 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
   const achadoPrazo = achados.find(a => CODIGOS_PRAZO.includes(a.codigo))
   const faltando = useMemo(() => camposFaltando(campos), [campos])
   const prazoObrigatorioDeFato = template === 'T4' || achados.some(a => a.codigo === 'PRAZO_OBRIGATORIO')
+  // Prazo obrigatório nasce sugerido: a última data do acordo (reposição ou folga). Some se o usuário mexer no campo.
+  const prazoSugerido = useMemo(() => {
+    const datas = [...f.datasAjuste, f.dataFolga, ...Object.values(f.folgas)].filter(Boolean)
+    return datas.length ? datas.sort().at(-1)! : ''
+  }, [f.datasAjuste, f.dataFolga, f.folgas])
+  useEffect(() => {
+    if (!prazoObrigatorioDeFato || tocou.has('prazo') || !prazoSugerido || f.prazoLimite === prazoSugerido) return
+    setF(prev => ({ ...prev, prazoLimite: prazoSugerido }))
+  }, [prazoObrigatorioDeFato, tocou, prazoSugerido, f.prazoLimite])
   // Prazo é o único item que sobrou: já vale mostrar em vermelho
   const soFaltaPrazo = situacaoEscolhida && okDe('titulo') && okDe('funcionarios') && okDe('datas') && okDe('motivo')
   const prazoVisivel = tentou || tocou.has('prazo') || !!achadoPrazo || soFaltaPrazo
