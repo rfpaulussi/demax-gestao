@@ -200,6 +200,22 @@ export default async function PerfilFuncionarioPage({
   ])
 
   const movimentacoes = (movRaw ?? []) as unknown as MovimentacaoItem[]
+  // Protocolos de entrega ao RH (a tabela pode ainda não existir: erro => vazio)
+  const protocolos: Record<string, { em: string }> = {}
+  try {
+    const { data: protRaw, error: protErr } = await supabase
+      .from('termos_protocolo')
+      .select('chave_termo, protocolado_em')
+      .eq('funcionario_id', id)
+    if (!protErr) {
+      for (const p of (protRaw ?? []) as { chave_termo: string; protocolado_em: string }[]) {
+        protocolos[p.chave_termo] = { em: p.protocolado_em }
+      }
+    }
+  } catch {
+    // sem protocolos
+  }
+
   const advertencias  = (advRaw ?? []) as unknown as AdvertenciaItem[]
   const solicitacoes  = (solRaw ?? []) as unknown as SolicitacaoItem[]
   const faltas        = (faltasRaw ?? []) as unknown as FaltaItem[]
@@ -417,6 +433,7 @@ export default async function PerfilFuncionarioPage({
           postoNomeMap={postoNomeMap}
           funcaoNomeMap={funcaoNomeMap}
           turnoNomeMap={turnoNomeMap}
+          protocolos={protocolos}
           horarioVigente={horarioVigente}
           historicoHorario={historicoHorario}
           regimePosto={regimePosto}

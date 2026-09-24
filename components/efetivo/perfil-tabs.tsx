@@ -4,8 +4,11 @@ import { useState } from 'react'
 import { FileDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { TipoSolicitacao, StatusSolicitacao } from '@/types'
-import { downloadMovimentacaoPDF } from './movimentacao-pdf'
+import { downloadTermoPDF } from './movimentacao-pdf'
 import type { FuncionarioParaPDF } from './movimentacao-pdf'
+import { carregarTermoDaMovimentacao } from '@/lib/termos/carregar-termo'
+import { COR_TIPO } from '@/lib/termos/montar-termo'
+import type { TermoTipo } from '@/lib/termos/tipos'
 import { getDadosMovColaborador } from '@/lib/movimentacao-colaborador'
 import { downloadMovColaboradorPDF } from './movimentacao-colaborador-pdf'
 import { TabHorario } from './tab-horario'
@@ -207,18 +210,28 @@ function MovDetail({
   return null
 }
 
+function corDoTipo(tipo: string) {
+  return COR_TIPO[tipo as TermoTipo] ?? COR_TIPO.outro
+}
+
+function chaveTermo(m: MovimentacaoItem): string {
+  return m.solicitacao_id ? `sol:${m.solicitacao_id}` : `mov:${m.id}`
+}
+
 function TabMovimentacoes({
   items,
   funcionario,
   postoNomeMap,
   funcaoNomeMap = {},
   turnoNomeMap = {},
+  protocolos = {},
 }: {
   items: MovimentacaoItem[]
   funcionario: FuncionarioParaPDF
   postoNomeMap: Record<string, string>
   funcaoNomeMap?: Record<string, string>
   turnoNomeMap?: Record<string, string>
+  protocolos?: Record<string, { em: string }>
 }) {
   const [baixando, setBaixando] = useState<string | null>(null)
 
@@ -229,7 +242,10 @@ function TabMovimentacoes({
   async function handleDownload(mov: MovimentacaoItem) {
     setBaixando(mov.id)
     try {
-      if (mov.tipo === 'mudanca_funcao') {
+      const grupoTemTransferencia =
+        !!mov.solicitacao_id &&
+        items.some(i => i.solicitacao_id === mov.solicitacao_id && i.tipo === 'transferencia')
+      if (mov.tipo === 'mudanca_funcao' && !grupoTemTransferencia) {
         const dados = await getDadosMovColaborador(
           funcionario.id,
           mov.valor_antes,
@@ -239,7 +255,8 @@ function TabMovimentacoes({
         )
         if (dados) await downloadMovColaboradorPDF(dados, mov.tipo)
       } else {
-        await downloadMovimentacaoPDF(mov, funcionario, postoNomeMap, funcaoNomeMap, turnoNomeMap)
+        const termo = await carregarTermoDaMovimentacao(mov.id)
+        if (termo) await downloadTermoPDF(termo)
       }
     } finally {
       setBaixando(null)
@@ -279,9 +296,26 @@ function TabMovimentacoes({
                 {m.created_at ? fmt(m.created_at) : '—'}
                 {m.perfis?.nome && <span> · {m.perfis.nome}</span>}
               </p>
-              <p className="mt-0.5 text-sm font-semibold capitalize text-gray-900">
-                {m.tipo.replace(/_/g, ' ')}
-              </p>
+              <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                <p className="text-sm font-semibold capitalize text-gray-900">
+                  {m.tipo.replace(/_/g, ' ')}
+                </p>
+                <span
+                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                  style={{ color: corDoTipo(m.tipo).hex, backgroundColor: corDoTipo(m.tipo).fundo }}
+                >
+                  {TIPO_LABELS[m.tipo] ?? m.tipo.replace(/_/g, ' ')}
+                </span>
+                {protocolos[chaveTermo(m)] ? (
+                  <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700 ring-1 ring-green-200">
+                    Protocolado em {fmt(protocolos[chaveTermo(m)].em).split(' ')[0]}
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-amber-200">
+                    Pendente RH
+                  </span>
+                )}
+              </div>
               <MovDetail m={m} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />
             </div>
             <button
@@ -517,6 +551,7 @@ export function PerfilTabs({
   postoNomeMap = {},
   funcaoNomeMap = {},
   turnoNomeMap = {},
+  protocolos = {},
   horarioVigente = null,
   historicoHorario = [],
   regimePosto = null,
@@ -532,6 +567,7 @@ export function PerfilTabs({
   postoNomeMap?: Record<string, string>
   funcaoNomeMap?: Record<string, string>
   turnoNomeMap?: Record<string, string>
+  protocolos?: Record<string, { em: string }>
   horarioVigente?: HorarioVigenteShape
   historicoHorario?: HistoricoHorarioShape
   regimePosto?: string | null
@@ -561,7 +597,7 @@ export function PerfilTabs({
 
       <div className="pt-4">
         {tab === 'horario'       && <TabHorario horarioVigente={horarioVigente} historicoHorario={historicoHorario} regimePosto={regimePosto} postoId={postoId} funcionarioId={funcionario.id} role={role} funcaoNome={funcionario.funcao} />}
-        {tab === 'movimentacoes' && <TabMovimentacoes items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />}
+        {tab === 'movimentacoes' && <TabMovimentacoes items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} protocolos={protocolos} />}
         {tab === 'afastamentos'  && <TabAfastamentos  items={movimentacoes} atestados={atestados} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />}
         {tab === 'advertencias'  && <TabAdvertencias  items={advertencias}  />}
         {tab === 'faltas'        && <TabFaltas        items={faltas}        />}
