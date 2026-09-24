@@ -1,4 +1,5 @@
 import { buscarDashFaltas, buscarFaltas, buscarFuncionariosParaFalta } from './actions'
+import { FaixaFaltasConfirmarServer } from '@/components/faltas/faixa-faltas-confirmar-server'
 import { FaltasClient } from '@/components/faltas/faltas-client'
 
 const MESES = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
@@ -32,6 +33,7 @@ export default async function FaltasPage({
 
   return (
     <div className="space-y-6">
+      <FaixaFaltasConfirmarServer />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold text-gray-900">Faltas &amp; Atestados</h1>

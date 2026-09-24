@@ -310,6 +310,52 @@ async function alertarFaltasParaConfirmar(supabase: ReturnType<typeof createAdmi
   return { supervisoresNotificados }
 }
 
+// Cobrança ao RH: faltas injustificadas que o supervisor ainda não confirmou 5+ dias depois.
+async function alertarRhFaltasNaoConfirmadas(supabase: ReturnType<typeof createAdminClient>, hoje: string) {
+  const d = new Date(`${hoje}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() - 5)
+  const limite = d.toISOString().slice(0, 10)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('faltas')
+    .select('funcionario_id, data_falta, data_fim, funcionarios!funcionario_id(nome)')
+    .eq('tipo', 'sem_justificativa')
+    .is('confirmada_em', null)
+    .lte('data_falta', limite)
+  if (error) return { notificado: false, total: 0 }
+
+  const nomes = Array.from(new Set(
+    ((data ?? []) as { data_falta: string; data_fim: string | null; funcionarios: { nome: string } | null }[])
+      .filter(f => (f.data_fim ?? f.data_falta) <= limite)
+      .map(f => f.funcionarios?.nome ?? '—'),
+  ))
+  if (nomes.length === 0) return { notificado: false, total: 0 }
+
+  const { data: existing } = await supabase
+    .from('log_supervisor_acoes')
+    .select('id')
+    .eq('tipo', 'alerta_falta_nao_confirmada')
+    .gte('created_at', `${hoje}T00:00:00`)
+    .lte('created_at', `${hoje}T23:59:59`)
+    .maybeSingle()
+
+  const payload = {
+    supervisor_nome: 'Sistema',
+    tipo: 'alerta_falta_nao_confirmada',
+    acao: 'alerta',
+    funcionario_nome: `${nomes.length} funcionário${nomes.length > 1 ? 's' : ''} com falta sem confirmação`,
+    detalhes: JSON.stringify({ nomes, total: nomes.length, data: hoje }),
+    lido: false,
+  }
+  if (existing) {
+    await supabase.from('log_supervisor_acoes').update(payload).eq('id', existing.id)
+  } else {
+    await supabase.from('log_supervisor_acoes').insert(payload)
+  }
+  return { notificado: true, total: nomes.length }
+}
+
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -324,6 +370,7 @@ export async function GET(req: NextRequest) {
   const alertaRetornoInss = await alertarRetornosInssVencidos(supabase, hoje)
   const alertaRetornoInssSupervisores = await alertarRetornosInssVencidosSupervisores(supabase, hoje)
   const alertaFaltasConfirmar = await alertarFaltasParaConfirmar(supabase, hoje)
+  const alertaRhFaltas = await alertarRhFaltasNaoConfirmadas(supabase, hoje)
   const retornosAtestado = await processarRetornosAtestado()
   const coberturasEncerradas = await encerrarCoberturasVencidas()
 
@@ -346,7 +393,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, data: hoje, ferias, alertaFerias, alertaRetornoInss, alertaRetornoInssSupervisores, alertaFaltasConfirmar, retornosAtestado, coberturasEncerradas, kpis: {
+  return NextResponse.json({ ok: true, data: hoje, ferias, alertaFerias, alertaRetornoInss, alertaRetornoInssSupervisores, alertaFaltasConfirmar, alertaRhFaltas, retornosAtestado, coberturasEncerradas, kpis: {
     ativos: kpis.ativos,
     afastados: kpis.afastados,
     em_ferias: kpis.em_ferias,

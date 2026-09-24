@@ -417,3 +417,98 @@ export async function criarFalta(fd: FormData): Promise<void> {
   const result = await registrarFalta(fd)
   if (!result.success) throw new Error(result.error)
 }
+
+export interface FaltaParaConfirmar {
+  id: string
+  funcionario_id: string
+  nome: string
+  posto_id: string | null
+  data_falta: string
+  data_fim: string | null
+  dias: number
+}
+
+// Faltas injustificadas cujo último dia foi há 3+ dias e que o supervisor ainda não confirmou.
+// Supervisor vê só os seus postos; admin/coordenador veem todas (cobrança do RH).
+export async function buscarFaltasParaConfirmar(): Promise<FaltaParaConfirmar[]> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role === 'viewer') return []
+
+  const admin = createAdminClient()
+  const dia = (delta: number) => {
+    const d = new Date()
+    d.setDate(d.getDate() + delta)
+    return d.toISOString().slice(0, 10)
+  }
+
+  let funcIds: string[] | null = null
+  if (auth.perfil.role === 'supervisor') {
+    const { data: cfg } = await admin
+      .from('config_supervisores_postos').select('posto_id')
+      .eq('supervisor_id', auth.user.id).eq('ativo', true)
+    const postoIds = (cfg ?? []).map(c => c.posto_id)
+    if (postoIds.length === 0) return []
+    const { data: funcs } = await admin.from('funcionarios').select('id').in('posto_id', postoIds)
+    funcIds = (funcs ?? []).map(f => f.id)
+    if (funcIds.length === 0) return []
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let q = (admin as any)
+    .from('faltas')
+    .select('id, funcionario_id, data_falta, data_fim, dias, funcionarios!funcionario_id(nome, posto_id)')
+    .eq('tipo', 'sem_justificativa')
+    .is('confirmada_em', null)
+    .lte('data_falta', dia(-3))
+    .gte('data_falta', dia(-60))
+    .order('data_falta')
+  if (funcIds) q = q.in('funcionario_id', funcIds)
+
+  const { data, error } = await q
+  if (error) return [] // coluna confirmada_em ainda não migrada: não quebra a página
+
+  const limite = dia(-3)
+  return ((data ?? []) as {
+    id: string; funcionario_id: string; data_falta: string; data_fim: string | null; dias: number | null
+    funcionarios: { nome: string; posto_id: string | null } | null
+  }[])
+    .filter(f => (f.data_fim ?? f.data_falta) <= limite)
+    .map(f => ({
+      id: f.id,
+      funcionario_id: f.funcionario_id,
+      nome: f.funcionarios?.nome ?? '—',
+      posto_id: f.funcionarios?.posto_id ?? null,
+      data_falta: f.data_falta,
+      data_fim: f.data_fim,
+      dias: f.dias ?? 1,
+    }))
+}
+
+export async function confirmarFalta(id: string): Promise<{ error?: string }> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role === 'viewer') return { error: 'Acesso negado' }
+
+  const admin = createAdminClient()
+  const { data: falta } = await admin
+    .from('faltas').select('funcionario_id, funcionarios!funcionario_id(nome, posto_id)').eq('id', id).single()
+  if (!falta) return { error: 'Falta não encontrada' }
+  const func = (falta as unknown as { funcionarios: { nome: string; posto_id: string | null } | null }).funcionarios
+
+  if (auth.perfil.role === 'supervisor') {
+    const { data: cfg } = await admin
+      .from('config_supervisores_postos').select('posto_id')
+      .eq('supervisor_id', auth.user.id).eq('posto_id', func?.posto_id ?? '').eq('ativo', true).maybeSingle()
+    if (!cfg) return { error: 'Acesso negado — funcionário fora do seu posto' }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (admin as any)
+    .from('faltas')
+    .update({ confirmada_em: new Date().toISOString(), confirmada_por: auth.user.id })
+    .eq('id', id)
+  if (error) return { error: error.message }
+
+  revalidatePath('/faltas')
+  revalidatePath('/dashboard')
+  return {}
+}
