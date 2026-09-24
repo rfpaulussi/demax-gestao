@@ -57,6 +57,9 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
   // semana; diferente do 5x2, onde sexta com saída própria é automático (temSaidaSex)
   const [sextaDistinta, setSextaDistinta]           = useState(false)
   const [horaEntradaSex, setHoraEntradaSex]         = useState('')
+  const [sextaTemPausa, setSextaTemPausa]           = useState(false)
+  const [horaInicioAlmocoSex, setHoraInicioAlmocoSex] = useState('')
+  const [horaFimAlmocoSex, setHoraFimAlmocoSex]       = useState('')
   // sábado com horário próprio (regime 5x1/6x1) — independente de almoço/saída-sex
   const [sabadoDistinto, setSabadoDistinto]         = useState(false)
   const [horaEntradaSabado, setHoraEntradaSabado]   = useState('')
@@ -103,6 +106,9 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     setGrupoCatalogo(null)
     setSextaDistinta(false)
     setHoraEntradaSex('')
+    setSextaTemPausa(false)
+    setHoraInicioAlmocoSex('')
+    setHoraFimAlmocoSex('')
     setSabadoDistinto(false)
     setHoraEntradaSabado('')
     setSabadoTemAlmoco(false)
@@ -130,9 +136,13 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     setAlmocoTocado(true)
     setSaidaTocado(true)
     setPersonalizando(false)
-    const temSexta = resolverTipoEscalaPosto(t.tipo_escala) === '5x1' && (!!t.hora_entrada_sex || !!t.hora_saida_sex)
+    const pausaSexta = !!t.hora_inicio_almoco_sex && !!t.hora_fim_almoco_sex
+    const temSexta = resolverTipoEscalaPosto(t.tipo_escala) === '5x1' && (!!t.hora_entrada_sex || !!t.hora_saida_sex || pausaSexta)
     setSextaDistinta(temSexta)
     setHoraEntradaSex(t.hora_entrada_sex?.slice(0, 5) ?? '')
+    setSextaTemPausa(pausaSexta)
+    setHoraInicioAlmocoSex(t.hora_inicio_almoco_sex?.slice(0, 5) ?? '')
+    setHoraFimAlmocoSex(t.hora_fim_almoco_sex?.slice(0, 5) ?? '')
     const temSabado = !!t.hora_entrada_sabado && !!t.hora_saida_sabado
     setSabadoDistinto(temSabado)
     setHoraEntradaSabado(t.hora_entrada_sabado?.slice(0, 5) ?? '')
@@ -174,6 +184,9 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     setGrupoCatalogo(null)
     setSextaDistinta(false)
     setHoraEntradaSex('')
+    setSextaTemPausa(false)
+    setHoraInicioAlmocoSex('')
+    setHoraFimAlmocoSex('')
     setSabadoDistinto(false)
     setHoraEntradaSabado('')
     setSabadoTemAlmoco(false)
@@ -191,8 +204,13 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     const usaSextaDistinta = tipoEscalaForm === '5x1' && sextaDistinta
     const temSaidaSex = tipoEscalaForm === '5x2' || usaSextaDistinta
     const usaSabadoDistinto = tipoEscalaForm === '5x1' && sabadoDistinto
-    if (usaSextaDistinta && !horaEntradaSex && !horaSaidaSex) {
-      setErro('Informe entrada e/ou saída de sexta, ou desmarque "sexta com horário diferente".')
+    if (usaSextaDistinta && !horaEntradaSex && !horaSaidaSex && !sextaTemPausa) {
+      setErro('Informe entrada, saída e/ou pausa de sexta, ou desmarque "sexta com horário diferente".')
+      setSaving(false)
+      return
+    }
+    if (usaSextaDistinta && sextaTemPausa && (!horaInicioAlmocoSex || !horaFimAlmocoSex)) {
+      setErro('Informe início e fim da pausa de sexta, ou desmarque "sexta tem pausa própria".')
       setSaving(false)
       return
     }
@@ -210,6 +228,8 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
       hora_saida_sex: temSaidaSex ? horaSaidaSex : null,
       tipo_escala: tipoEscalaForm,
       hora_entrada_sex: usaSextaDistinta ? (horaEntradaSex || null) : null,
+      hora_inicio_almoco_sex: usaSextaDistinta && sextaTemPausa ? horaInicioAlmocoSex : null,
+      hora_fim_almoco_sex: usaSextaDistinta && sextaTemPausa ? horaFimAlmocoSex : null,
       hora_entrada_sabado: usaSabadoDistinto ? horaEntradaSabado : null,
       hora_inicio_almoco_sabado: usaSabadoDistinto && sabadoTemAlmoco ? horaInicioAlmocoSabado : null,
       hora_fim_almoco_sabado: usaSabadoDistinto && sabadoTemAlmoco ? horaFimAlmocoSabado : null,
@@ -551,7 +571,10 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
                     <input type="checkbox" checked={sextaDistinta}
                       onChange={e => {
                         setSextaDistinta(e.target.checked)
-                        if (!e.target.checked) { setHoraEntradaSex(''); setSaidaTocado(true); setHoraSaidaSex('') }
+                        if (!e.target.checked) {
+                          setHoraEntradaSex(''); setSaidaTocado(true); setHoraSaidaSex('')
+                          setSextaTemPausa(false); setHoraInicioAlmocoSex(''); setHoraFimAlmocoSex('')
+                        }
                       }}
                       className="h-3.5 w-3.5" />
                     Sexta com horário diferente do dia de semana
@@ -574,6 +597,37 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
                           className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
                         <p className="mt-1 text-[11px] text-gray-400">Em branco = mesma do dia de semana ({horaSaidaSegQui || '—'})</p>
                       </div>
+                    </div>
+                  )}
+                  {sextaDistinta && (
+                    <div className="space-y-3">
+                      <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+                        <input type="checkbox" checked={sextaTemPausa}
+                          onChange={e => {
+                            setSextaTemPausa(e.target.checked)
+                            if (!e.target.checked) { setHoraInicioAlmocoSex(''); setHoraFimAlmocoSex('') }
+                          }}
+                          className="h-3.5 w-3.5" />
+                        Sexta tem pausa (almoço/janta) própria
+                      </label>
+                      {sextaTemPausa ? (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Início pausa sexta</label>
+                            <input type="time" value={horaInicioAlmocoSex}
+                              onChange={e => setHoraInicioAlmocoSex(e.target.value)}
+                              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Fim pausa sexta</label>
+                            <input type="time" value={horaFimAlmocoSex}
+                              onChange={e => setHoraFimAlmocoSex(e.target.value)}
+                              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-gray-400">Sem pausa própria: a sexta usa o almoço de segunda a quinta, desde que caiba dentro do horário de sexta.</p>
+                      )}
                     </div>
                   )}
                 </div>

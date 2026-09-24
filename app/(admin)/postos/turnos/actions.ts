@@ -16,6 +16,9 @@ export interface TurnoData {
   // Sexta com entrada própria (regime 5x1/6x1) — diferente de hora_saida_sex (saída
   // própria, usado pelo 5x2). Omitido/null quando a sexta usa a mesma entrada do dia de semana.
   hora_entrada_sex?: string | null
+  // Pausa própria da sexta (regime 5x1/6x1) — omitido/null quando a sexta segue o almoço do dia de semana.
+  hora_inicio_almoco_sex?: string | null
+  hora_fim_almoco_sex?: string | null
   // Sábado com horário próprio (regime 5x1/6x1) — omitido/null quando o sábado segue
   // o mesmo horário do dia de semana.
   hora_entrada_sabado?: string | null
@@ -67,6 +70,8 @@ export async function criarTurno(postoId: string, dados: TurnoData) {
     hora_saida_seg_qui: dados.hora_saida_seg_qui,
     hora_saida_sex: dados.hora_saida_sex,
     hora_entrada_sex: dados.hora_entrada_sex ?? null,
+    hora_inicio_almoco_sex: dados.hora_inicio_almoco_sex ?? null,
+    hora_fim_almoco_sex: dados.hora_fim_almoco_sex ?? null,
     hora_entrada_sabado: dados.hora_entrada_sabado ?? null,
     hora_inicio_almoco_sabado: dados.hora_inicio_almoco_sabado ?? null,
     hora_fim_almoco_sabado: dados.hora_fim_almoco_sabado ?? null,
@@ -97,6 +102,8 @@ export async function editarTurno(id: string, dados: TurnoData) {
       hora_saida_seg_qui: dados.hora_saida_seg_qui,
       hora_saida_sex: dados.hora_saida_sex,
       hora_entrada_sex: dados.hora_entrada_sex ?? null,
+      hora_inicio_almoco_sex: dados.hora_inicio_almoco_sex ?? null,
+      hora_fim_almoco_sex: dados.hora_fim_almoco_sex ?? null,
       hora_entrada_sabado: dados.hora_entrada_sabado ?? null,
       hora_inicio_almoco_sabado: dados.hora_inicio_almoco_sabado ?? null,
       hora_fim_almoco_sabado: dados.hora_fim_almoco_sabado ?? null,

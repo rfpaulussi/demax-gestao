@@ -2206,8 +2206,10 @@ export type Database = {
           hora_entrada_sex: string | null
           hora_fim_almoco: string | null
           hora_fim_almoco_sabado: string | null
+          hora_fim_almoco_sex: string | null
           hora_inicio_almoco: string | null
           hora_inicio_almoco_sabado: string | null
+          hora_inicio_almoco_sex: string | null
           hora_saida_sabado: string | null
           hora_saida_seg_qui: string
           hora_saida_sex: string | null
@@ -2224,8 +2226,10 @@ export type Database = {
           hora_entrada_sex?: string | null
           hora_fim_almoco?: string | null
           hora_fim_almoco_sabado?: string | null
+          hora_fim_almoco_sex?: string | null
           hora_inicio_almoco?: string | null
           hora_inicio_almoco_sabado?: string | null
+          hora_inicio_almoco_sex?: string | null
           hora_saida_sabado?: string | null
           hora_saida_seg_qui: string
           hora_saida_sex?: string | null
@@ -2242,8 +2246,10 @@ export type Database = {
           hora_entrada_sex?: string | null
           hora_fim_almoco?: string | null
           hora_fim_almoco_sabado?: string | null
+          hora_fim_almoco_sex?: string | null
           hora_inicio_almoco?: string | null
           hora_inicio_almoco_sabado?: string | null
+          hora_inicio_almoco_sex?: string | null
           hora_saida_sabado?: string | null
           hora_saida_seg_qui?: string
           hora_saida_sex?: string | null
