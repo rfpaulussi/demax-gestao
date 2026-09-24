@@ -261,7 +261,7 @@ describe('tituloSugerido', () => {
   })
 
   it('T3: folga com data e posto', () => {
-    expect(tituloSugerido('T3', base({ dataFolga: '2026-06-05' }), 'EMEF Centro')).toBe('Folga 05/06 — EMEF Centro')
+    expect(tituloSugerido('T3', base({ dataFolga: '2026-06-05' }), 'EMEF Centro')).toBe('Emenda 05/06 — EMEF Centro')
   })
 
   it('T4: banco de horas com a data da folga', () => {
@@ -277,8 +277,8 @@ describe('tituloSugerido', () => {
     expect(tituloSugerido('T1', base({ template: 'T1', dataEvento: '2026-09-14' }))).toBe('Evento (14/09)')
     expect(tituloSugerido('T2', base({ template: 'T2', dataEvento: '2026-09-14' }))).toBe('Dispensa 14/09')
     expect(tituloSugerido('T2', base({ template: 'T2', nomeEvento: 'Chuva' }))).toBe('Dispensa — Chuva')
-    expect(tituloSugerido('T3', base({ dataFolga: '2026-06-05' }))).toBe('Folga 05/06')
-    expect(tituloSugerido('T3', base(), 'EMEF Centro')).toBe('Folga — EMEF Centro')
+    expect(tituloSugerido('T3', base({ dataFolga: '2026-06-05' }))).toBe('Emenda 05/06')
+    expect(tituloSugerido('T3', base(), 'EMEF Centro')).toBe('Emenda — EMEF Centro')
     expect(tituloSugerido('T5', base({ template: 'T5', nomeEvento: 'Mutirão' }))).toBe('Descanso trabalhado: Mutirão')
     expect(tituloSugerido('T5', base({ template: 'T5', dataEvento: '2026-06-20' }))).toBe('Descanso trabalhado (20/06)')
   })
@@ -286,7 +286,7 @@ describe('tituloSugerido', () => {
   it('sem nenhuma informação devolve o título genérico da situação', () => {
     expect(tituloSugerido('T1', base({ template: 'T1' }))).toBe('Evento trabalhado')
     expect(tituloSugerido('T2', base({ template: 'T2' }))).toBe('Dispensa antecipada')
-    expect(tituloSugerido('T3', base(), '   ')).toBe('Dia de folga (emenda)')
+    expect(tituloSugerido('T3', base(), '   ')).toBe('Emenda de dia')
     expect(tituloSugerido('T4', base({ template: 'T4' }))).toBe('Banco de horas')
     expect(tituloSugerido('T5', base({ template: 'T5' }))).toBe('Dia de descanso trabalhado')
   })

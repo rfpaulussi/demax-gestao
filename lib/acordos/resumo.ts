@@ -223,7 +223,7 @@ function cabeNoLimite(monta: (variavel: string) => string, variavel: string): st
 const TITULO_BASE: Record<TemplateId, string> = {
   T1: 'Evento trabalhado',
   T2: 'Dispensa antecipada',
-  T3: 'Dia de folga (emenda)',
+  T3: 'Emenda de dia',
   T4: 'Banco de horas',
   T5: 'Dia de descanso trabalhado',
 }
@@ -250,7 +250,7 @@ function tituloComDados(template: TemplateId, c: CamposAcordo, postoNome?: strin
     case 'T3': {
       const d = ddmm(c.dataFolga)
       if (!posto && !d) return ''
-      return cabeNoLimite(v => `Folga${d ? ` ${d}` : ''}${v ? ` — ${v}` : ''}`, posto)
+      return cabeNoLimite(v => `Emenda${d ? ` ${d}` : ''}${v ? ` — ${v}` : ''}`, posto)
     }
     case 'T4': {
       const d = ddmm(c.dataFolga)
