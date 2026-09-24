@@ -59,6 +59,40 @@ describe('montarSemana', () => {
     expect(jornadaDiaMin(s['Segunda-feira'])).toBe(360)
   })
 
+  describe('regime 6x1 com pausa própria de sexta (CRESCER CENTRO)', () => {
+    const tarde: TurnoRow = {
+      tipo_escala: '5x1', hora_entrada: '13:00', hora_saida_seg_qui: '22:00', hora_saida_sex: '17:00',
+      hora_inicio_almoco: '18:00', hora_fim_almoco: '19:00', hora_entrada_sex: '09:00',
+      hora_entrada_sabado: '12:00', hora_saida_sabado: '17:00',
+    }
+
+    it('com pausa de sexta cadastrada fecha 44h (32h + 7h + 5h)', () => {
+      const s = montarSemana({ ...tarde, hora_inicio_almoco_sex: '12:00', hora_fim_almoco_sex: '13:00' })
+      expect(jornadaDiaMin(s['Segunda-feira'])).toBe(480)
+      expect(jornadaDiaMin(s['Sexta-feira'])).toBe(420)
+      expect(jornadaDiaMin(s['Sábado'])).toBe(300)
+      expect(totalSemanalMin(s)).toBe(2640)
+      expect(semanaParaTexto(s)['Sexta-feira']).toBe('09:00 às 12:00 / 13:00 às 17:00')
+    })
+
+    it('janta de segunda a quinta que cai depois da saída de sexta não desconta nada na sexta', () => {
+      const s = montarSemana(tarde)
+      expect(jornadaDiaMin(s['Sexta-feira'])).toBe(480)
+      expect(totalSemanalMin(s)).toBe(2700)
+      expect(semanaParaTexto(s)['Sexta-feira']).toBe('09:00 às 17:00')
+    })
+
+    it('sexta sem pausa própria continua herdando o almoço quando ele cabe na jornada', () => {
+      const s = montarSemana({
+        tipo_escala: '5x1', hora_entrada: '07:00', hora_saida_seg_qui: '16:00', hora_saida_sex: '15:00',
+        hora_inicio_almoco: '12:00', hora_fim_almoco: '13:00',
+        hora_entrada_sabado: '07:00', hora_saida_sabado: '12:00',
+      })
+      expect(jornadaDiaMin(s['Sexta-feira'])).toBe(420)
+      expect(totalSemanalMin(s)).toBe(2640)
+    })
+  })
+
   it('TURNO_PADRAO fecha 44h e assinatura é estável', () => {
     expect(totalSemanalMin(montarSemana(TURNO_PADRAO))).toBe(2640)
     expect(assinaturaSemana(montarSemana(TURNO_PADRAO))).toBe(assinaturaSemana(montarSemana({ ...TURNO_PADRAO })))

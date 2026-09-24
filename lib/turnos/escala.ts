@@ -67,6 +67,10 @@ export interface TurnoHorarios {
   // Sexta com ENTRADA diferente do dia de semana (regime 5x1/6x1 — diferente de
   // hora_saida_sex, que já cobre sexta com SAÍDA diferente, usado pelo 5x2).
   hora_entrada_sex?: string | null
+  // Pausa (almoço/janta) própria da sexta — null quando a sexta segue o almoço de segunda a quinta
+  // (que só vale na sexta se couber dentro da jornada dela; ver montarSemana).
+  hora_inicio_almoco_sex?: string | null
+  hora_fim_almoco_sex?: string | null
   // Sábado com horário próprio (regime 5x1/6x1) — null quando o sábado segue o mesmo
   // horário do dia de semana, que é o caso de todo turno criado antes desses campos existirem.
   hora_entrada_sabado?: string | null
@@ -80,9 +84,14 @@ export function temSabadoDistinto(t: Pick<TurnoHorarios, 'hora_entrada_sabado' |
   return !!t.hora_entrada_sabado && !!t.hora_saida_sabado
 }
 
-/** Turno tem sexta com entrada e/ou saída diferente do dia de semana. */
-export function temSextaDistinta(t: Pick<TurnoHorarios, 'hora_entrada_sex' | 'hora_saida_sex'>): boolean {
-  return !!t.hora_entrada_sex || t.hora_saida_sex !== null
+/** Turno tem sexta com pausa (almoço/janta) própria, diferente da de segunda a quinta. */
+export function temAlmocoSextaProprio(t: Pick<TurnoHorarios, 'hora_inicio_almoco_sex' | 'hora_fim_almoco_sex'>): boolean {
+  return !!t.hora_inicio_almoco_sex && !!t.hora_fim_almoco_sex
+}
+
+/** Turno tem sexta com entrada, saída e/ou pausa diferente do dia de semana. */
+export function temSextaDistinta(t: Pick<TurnoHorarios, 'hora_entrada_sex' | 'hora_saida_sex' | 'hora_inicio_almoco_sex' | 'hora_fim_almoco_sex'>): boolean {
+  return !!t.hora_entrada_sex || t.hora_saida_sex !== null || temAlmocoSextaProprio(t)
 }
 
 function minutosParaHora(min: number): string {
@@ -199,9 +208,10 @@ export function formatarResumoTurno(t: TurnoHorarios): string {
   }
 
   const sextaDistinta = temSextaDistinta(t)
+  const sextaAlmoco = temAlmocoSextaProprio(t)
   const temAlmoco = t.hora_inicio_almoco !== null && t.hora_fim_almoco !== null
   const sufixoSexta = sextaDistinta
-    ? ` · Sex ${fmtHora(t.hora_entrada_sex ?? t.hora_entrada)}–${fmtHora(t.hora_saida_sex ?? t.hora_saida_seg_qui)}`
+    ? ` · Sex ${fmtHora(t.hora_entrada_sex ?? t.hora_entrada)}–${fmtHora(t.hora_saida_sex ?? t.hora_saida_seg_qui)}${sextaAlmoco ? ` (almoço ${fmtHora(t.hora_inicio_almoco_sex)}–${fmtHora(t.hora_fim_almoco_sex)})` : ''}`
     : ''
 
   const sabadoDistinto = temSabadoDistinto(t)

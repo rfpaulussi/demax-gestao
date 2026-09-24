@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import { Clock, CalendarDays, ChevronDown, ChevronUp, X, Plus, AlertCircle, Trash2, GraduationCap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { listarTurnosDoPosto, listarTurnosJovemAprendiz, alterarTurno, deletarHorarioFuncionario } from '@/app/(admin)/efetivo/horario/actions'
-import { resolverTipoEscala, ESCALA_LABEL, ESCALA_BADGE_CLASS, formatarResumoTurno, duracaoAlmocoMin, temSabadoDistinto, temSextaDistinta, FUNCAO_JOVEM_APRENDIZ } from '@/lib/turnos/escala'
+import { resolverTipoEscala, ESCALA_LABEL, ESCALA_BADGE_CLASS, formatarResumoTurno, duracaoAlmocoMin, temSabadoDistinto, temSextaDistinta, temAlmocoSextaProprio, FUNCAO_JOVEM_APRENDIZ } from '@/lib/turnos/escala'
 import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dialog'
 
 // ─── tipos de entrada ─────────────────────────────────────────────────────────
@@ -26,6 +26,8 @@ export type HorarioVigenteShape = {
     hora_fim_almoco: string | null
     ativo: boolean
     hora_entrada_sex?: string | null
+    hora_inicio_almoco_sex?: string | null
+    hora_fim_almoco_sex?: string | null
     hora_entrada_sabado?: string | null
     hora_inicio_almoco_sabado?: string | null
     hora_fim_almoco_sabado?: string | null
@@ -46,6 +48,8 @@ export type HistoricoHorarioShape = {
     hora_inicio_almoco: string | null
     hora_fim_almoco: string | null
     hora_entrada_sex?: string | null
+    hora_inicio_almoco_sex?: string | null
+    hora_fim_almoco_sex?: string | null
     hora_entrada_sabado?: string | null
     hora_inicio_almoco_sabado?: string | null
     hora_fim_almoco_sabado?: string | null
@@ -484,13 +488,24 @@ export function TabHorario({
             {/* sexta com horário próprio (5x1/6x1) — entrada e/ou saída diferentes do dia de semana.
                 5x2 já mostra a saída de sexta no grid acima (temSaidaSex), não duplicar aqui. */}
             {horarioVigente.turno.tipo_escala !== '5x2' && temSextaDistinta(horarioVigente.turno) && (
-              <div className="grid grid-cols-2 gap-2 px-5 pb-3 sm:grid-cols-2">
+              <div className={cn('grid grid-cols-2 gap-2 px-5 pb-3', temAlmocoSextaProprio(horarioVigente.turno) ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
                 <div className="rounded-lg bg-green-50/60 px-3 py-2.5 ring-1 ring-green-100">
                   <p className="text-xs font-semibold uppercase tracking-widest text-green-600">Entrada sexta</p>
                   <p className="mt-0.5 text-xl font-bold text-green-800">
                     {fmtH(horarioVigente.turno.hora_entrada_sex ?? horarioVigente.turno.hora_entrada)}
                   </p>
                 </div>
+                {temAlmocoSextaProprio(horarioVigente.turno) && (
+                  <div className="rounded-lg bg-amber-50/60 px-3 py-2.5 ring-1 ring-amber-100">
+                    <p className="text-xs font-semibold uppercase tracking-widest text-amber-600">Pausa sexta</p>
+                    <p className="mt-0.5 text-sm font-bold text-amber-800">
+                      {fmtH(horarioVigente.turno.hora_inicio_almoco_sex)} – {fmtH(horarioVigente.turno.hora_fim_almoco_sex)}
+                    </p>
+                    <p className="text-xs text-amber-500">
+                      {duracaoAlmocoMin(horarioVigente.turno.hora_inicio_almoco_sex ?? null, horarioVigente.turno.hora_fim_almoco_sex ?? null)} min
+                    </p>
+                  </div>
+                )}
                 <div className="rounded-lg bg-blue-50/60 px-3 py-2.5 ring-1 ring-blue-100">
                   <p className="text-xs font-semibold uppercase tracking-widest text-blue-600">Saída sexta</p>
                   <p className="mt-0.5 text-xl font-bold text-blue-800">

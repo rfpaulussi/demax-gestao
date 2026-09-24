@@ -10,6 +10,8 @@ export interface TurnoRow {
   hora_inicio_almoco: string | null
   hora_fim_almoco: string | null
   hora_entrada_sex?: string | null
+  hora_inicio_almoco_sex?: string | null
+  hora_fim_almoco_sex?: string | null
   hora_entrada_sabado?: string | null
   hora_inicio_almoco_sabado?: string | null
   hora_fim_almoco_sabado?: string | null
@@ -38,11 +40,20 @@ export function montarSemana(t: TurnoRow): SemanaTurno {
   const almI = hh(t.hora_inicio_almoco)
   const almF = hh(t.hora_fim_almoco)
   const segQui = dia(hh(t.hora_entrada), almI, almF, hh(t.hora_saida_seg_qui))
-  const sex = dia(
-    hh(t.hora_entrada_sex) || hh(t.hora_entrada),
-    almI, almF,
-    hh(t.hora_saida_sex) || hh(t.hora_saida_seg_qui),
-  )
+  const entSex = hh(t.hora_entrada_sex) || hh(t.hora_entrada)
+  const saiSex = hh(t.hora_saida_sex) || hh(t.hora_saida_seg_qui)
+  // Pausa da sexta: a própria, se cadastrada; senão a de segunda a quinta, mas só quando cabe dentro
+  // da jornada de sexta (ex.: janta 18:00-19:00 não desconta nada de uma sexta que acaba às 17:00).
+  let almSexI = almI
+  let almSexF = almF
+  if (t.hora_inicio_almoco_sex && t.hora_fim_almoco_sex) {
+    almSexI = hh(t.hora_inicio_almoco_sex)
+    almSexF = hh(t.hora_fim_almoco_sex)
+  } else if (almI && almF && !(almI >= entSex && almF <= saiSex)) {
+    almSexI = ''
+    almSexF = ''
+  }
+  const sex = dia(entSex, almSexI, almSexF, saiSex)
   const sabadoDistinto = !!t.hora_entrada_sabado && !!t.hora_saida_sabado
   let sab: DiaTurno
   if (sabadoDistinto) {
