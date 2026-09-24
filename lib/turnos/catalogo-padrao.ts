@@ -118,6 +118,7 @@ export const CATALOGO_JOVEM_APRENDIZ: TurnoCatalogoItem[] = [
 export const CATALOGO_12X36: TurnoCatalogoItem[] = [
   { nome: 'Turno 8h (a)', hora_entrada: '08:00', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '20:00', hora_saida_sex: null },
   { nome: 'Turno 6h (a)', hora_entrada: '06:00', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '18:00', hora_saida_sex: null },
+  { nome: 'Turno 5h 30m (a)', hora_entrada: '05:30', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '17:30', hora_saida_sex: null },
 ]
 
 /** Catálogo de turnos-padrão por regime. */
