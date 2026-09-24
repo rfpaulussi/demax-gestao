@@ -25,7 +25,8 @@ export function calcularStatusExperiencia(
   const admissao = new Date(dataAdmissao + 'T00:00:00')
 
   const dataFimFase1 = new Date(admissao)
-  dataFimFase1.setDate(dataFimFase1.getDate() + dias)
+  // dia da admissão é o dia 1 do prazo (último dia = admissão + dias - 1)
+  dataFimFase1.setDate(dataFimFase1.getDate() + dias - 1)
 
   const dataFimFase2 = new Date(dataFimFase1)
   dataFimFase2.setDate(dataFimFase2.getDate() + dias)

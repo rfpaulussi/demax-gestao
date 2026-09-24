@@ -56,7 +56,7 @@ export function ModalEditarFuncionario({ funcionario, postos, funcoes, open, onC
       const admissao = new Date(dataAdmissao + 'T00:00:00')
 
       const fim1 = new Date(admissao)
-      fim1.setDate(fim1.getDate() + dias)
+      fim1.setDate(fim1.getDate() + dias - 1) // dia da admissão é o dia 1
       setDataFimFase1(fim1.toISOString().split('T')[0])
 
       const fim2 = new Date(fim1)
