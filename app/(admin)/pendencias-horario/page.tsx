@@ -61,7 +61,7 @@ export default async function PendenciasHorarioPage() {
   const turnos = await fetchAllRows<TurnoOpcao & { posto_id: string | null }>((from, to) =>
     supabase
       .from('turnos_postos')
-      .select('id, posto_id, nome, hora_entrada, hora_saida_seg_qui, hora_saida_sex, hora_inicio_almoco, hora_fim_almoco, tipo_escala')
+      .select('id, posto_id, nome, hora_entrada, hora_saida_seg_qui, hora_saida_sex, hora_inicio_almoco, hora_fim_almoco, tipo_escala, hora_entrada_sex, hora_inicio_almoco_sex, hora_fim_almoco_sex, hora_entrada_sabado, hora_inicio_almoco_sabado, hora_fim_almoco_sabado, hora_saida_sabado')
       .eq('ativo', true)
       .order('hora_entrada')
       .order('id')

@@ -191,12 +191,19 @@ export default async function EfetivoPage() {
       hora_saida_sex: string | null
       hora_inicio_almoco: string | null
       hora_fim_almoco: string | null
+      hora_entrada_sex: string | null
+      hora_inicio_almoco_sex: string | null
+      hora_fim_almoco_sex: string | null
+      hora_entrada_sabado: string | null
+      hora_inicio_almoco_sabado: string | null
+      hora_fim_almoco_sabado: string | null
+      hora_saida_sabado: string | null
     } | null
   }
   const horariosVigentes = await fetchAllRows<HorarioVigenteRow>((from, to) =>
     supabase
       .from('horarios_funcionarios')
-      .select('funcionario_id, turnos_postos!turno_id(nome, tipo_escala, hora_entrada, hora_saida_seg_qui, hora_saida_sex, hora_inicio_almoco, hora_fim_almoco)')
+      .select('funcionario_id, turnos_postos!turno_id(nome, tipo_escala, hora_entrada, hora_saida_seg_qui, hora_saida_sex, hora_inicio_almoco, hora_fim_almoco, hora_entrada_sex, hora_inicio_almoco_sex, hora_fim_almoco_sex, hora_entrada_sabado, hora_inicio_almoco_sabado, hora_fim_almoco_sabado, hora_saida_sabado)')
       .is('data_fim', null)
       .order('data_inicio', { ascending: false })
       .range(from, to) as unknown as PromiseLike<{ data: HorarioVigenteRow[] | null; error: { message: string } | null }>,

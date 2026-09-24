@@ -11,7 +11,7 @@ export async function listarTurnosDoPosto(postoId: string) {
   const supabase = createClient()
   const { data, error } = await supabase
     .from('turnos_postos')
-    .select('id, nome, hora_entrada, hora_saida_seg_qui, hora_saida_sex, hora_inicio_almoco, hora_fim_almoco, tipo_escala')
+    .select('id, nome, hora_entrada, hora_saida_seg_qui, hora_saida_sex, hora_inicio_almoco, hora_fim_almoco, tipo_escala, hora_entrada_sex, hora_inicio_almoco_sex, hora_fim_almoco_sex, hora_entrada_sabado, hora_inicio_almoco_sabado, hora_fim_almoco_sabado, hora_saida_sabado')
     .eq('posto_id', postoId)
     .eq('ativo', true)
     .order('hora_entrada')
