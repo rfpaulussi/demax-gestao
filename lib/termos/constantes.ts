@@ -1,7 +1,7 @@
 /** Constantes client-safe do termo de movimentação (sem imports de servidor). */
 
 /** Termos criados antes desta data são 'legado': fora da contagem/badge e da cobrança de protocolo. */
-export const DATA_CORTE_TERMOS = '2026-09-24'
+export const DATA_CORTE_TERMOS = '2026-09-22'
 export const DIAS_ATRASO = 3
 export const JANELA_DIAS = 90
 

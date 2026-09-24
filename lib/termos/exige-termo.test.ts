@@ -74,8 +74,8 @@ describe('consolidarTurnos', () => {
 describe('statusDoTermo', () => {
   const agora = new Date('2026-10-10T12:00:00Z').getTime()
   it('antes do corte é legado, mesmo protocolado', () => {
-    expect(statusDoTermo('2026-09-23T10:00:00Z', null, agora)).toBe('legado')
-    expect(statusDoTermo('2026-09-23T10:00:00Z', '2026-09-25T10:00:00Z', agora)).toBe('legado')
+    expect(statusDoTermo('2026-09-21T10:00:00Z', null, agora)).toBe('legado')
+    expect(statusDoTermo('2026-09-21T10:00:00Z', '2026-09-25T10:00:00Z', agora)).toBe('legado')
   })
   it('a partir do corte: protocolado, atrasado, pendente', () => {
     expect(statusDoTermo('2026-09-24T10:00:00Z', '2026-09-25T10:00:00Z', agora)).toBe('protocolado')
