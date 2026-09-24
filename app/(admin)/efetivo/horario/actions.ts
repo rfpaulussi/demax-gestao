@@ -107,15 +107,17 @@ export async function executarAlteracaoTurno(
   })
   if (error) return { success: false, error: error.message }
 
-  // Registrar movimentação
-  await supabase.from('movimentacoes').insert({
-    funcionario_id: funcionarioId,
-    tipo: 'mudanca_horario',
-    campo_alterado: 'turno_id',
-    valor_antes: vigente?.turno_id ?? null,
-    valor_depois: turnoId,
-    executado_por: criadoPor,
-  })
+  // Registrar movimentação — só quando o turno realmente mudou (mesmo id = sem alteração de horário)
+  if ((vigente?.turno_id ?? null) !== turnoId) {
+    await supabase.from('movimentacoes').insert({
+      funcionario_id: funcionarioId,
+      tipo: 'mudanca_horario',
+      campo_alterado: 'turno_id',
+      valor_antes: vigente?.turno_id ?? null,
+      valor_depois: turnoId,
+      executado_por: criadoPor,
+    })
+  }
 
   revalidatePath(`/efetivo/${funcionarioId}`)
   return { success: true }
