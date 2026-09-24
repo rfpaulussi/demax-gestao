@@ -58,6 +58,32 @@ export async function getSobreposicoesAtestado(
   }))
 }
 
+export type FaltaConflitante = {
+  id: string
+  data_falta: string
+  data_fim: string | null
+  dias: number | null
+}
+
+// Faltas injustificadas do funcionário que caem dentro do período do atestado.
+// Faltas já justificadas/declaração/suspensão não entram: não geram dupla penalização.
+export async function getFaltasConflitantes(
+  funcionarioId: string,
+  dataInicio: string,
+  dataFim: string,
+): Promise<FaltaConflitante[]> {
+  if (!funcionarioId || !dataInicio || !dataFim) return []
+  const auth = await getUser()
+  if (!auth) return []
+  const { data } = await createAdminClient()
+    .from('faltas')
+    .select('id, data_falta, data_fim, dias')
+    .eq('funcionario_id', funcionarioId)
+    .in('tipo', ['sem_justificativa', 'sem_atestado'])
+    .lte('data_falta', dataFim)
+  return ((data ?? []) as FaltaConflitante[]).filter(f => (f.data_fim ?? f.data_falta) >= dataInicio)
+}
+
 export async function updateAtestado(
   id: string,
   formData: FormData,

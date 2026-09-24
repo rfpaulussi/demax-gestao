@@ -61,6 +61,10 @@ export function ModalRegistrarFalta({ open, onClose, funcionariosOpt }: Props) {
     start(async () => {
       const result = await registrarFalta(fd)
       if (!result.success) {
+        if (result.error === 'ATESTADO_NO_DIA') {
+          setErro('Este funcionário tem atestado cobrindo este período. Não é possível lançar falta injustificada — verifique as datas.')
+          return
+        }
         const isDuplicate =
           result.error === 'DUPLICATE' ||
           result.error?.includes('duplicate key') ||

@@ -92,6 +92,24 @@ export async function registrarAtestado(formData: FormData) {
     }
   }
 
+  // Faltas injustificadas já lançadas dentro do período do atestado: exige decisão explícita
+  // (evita o funcionário ser penalizado duas vezes pelo mesmo dia).
+  const faltasAcao = formData.get('faltas_acao') as string | null
+  const adminFaltas = createAdminClient()
+  const { data: faltasConf } = await adminFaltas
+    .from('faltas')
+    .select('id, data_falta, data_fim')
+    .eq('funcionario_id', funcionarioId)
+    .in('tipo', ['sem_justificativa', 'sem_atestado'])
+    .lte('data_falta', dataFim)
+  const conflitantes = (faltasConf ?? []).filter(f => (f.data_fim ?? f.data_falta) >= dataInicio)
+  if (conflitantes.length > 0 && faltasAcao !== 'remover' && faltasAcao !== 'manter') {
+    throw new Error('Existem faltas lançadas neste período. Escolha remover ou manter as faltas antes de salvar.')
+  }
+  if (faltasAcao === 'manter' && auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador') {
+    throw new Error('Apenas admin/coordenador podem manter faltas em período de atestado.')
+  }
+
   const { error: errAtestado } = await supabase.from('atestados').insert({
     funcionario_id: funcionarioId,
     posto_id: postoId,
@@ -104,6 +122,23 @@ export async function registrarAtestado(formData: FormData) {
     registrado_por: auth.user.id,
   })
   if (errAtestado) throw new Error(errAtestado.message)
+
+  if (faltasAcao === 'remover' && conflitantes.length > 0) {
+    // Só remove faltas totalmente cobertas pelo atestado; parciais ficam para revisão manual.
+    const cobertas = conflitantes.filter(f => f.data_falta >= dataInicio && (f.data_fim ?? f.data_falta) <= dataFim)
+    if (cobertas.length > 0) {
+      const { error: errDel } = await adminFaltas.from('faltas').delete().in('id', cobertas.map(f => f.id))
+      if (errDel) throw new Error(`Atestado salvo, mas não foi possível remover as faltas: ${errDel.message}`)
+      await supabase.from('movimentacoes').insert(cobertas.map(f => ({
+        funcionario_id: funcionarioId,
+        tipo: 'exclusao_falta',
+        campo_alterado: 'falta',
+        valor_antes: `${f.data_falta}${f.data_fim && f.data_fim !== f.data_falta ? ` → ${f.data_fim}` : ''} (substituída por atestado ${dataInicio} → ${dataFim})`,
+        valor_depois: null,
+        executado_por: auth.user.id,
+      })))
+    }
+  }
 
   // Só altera status se o atestado ainda está vigente (data_fim >= hoje).
   // Se o funcionário já está 'afastado' (ex.: INSS), não rebaixar para 'atestado' —

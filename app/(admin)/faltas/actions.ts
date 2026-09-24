@@ -283,6 +283,20 @@ export async function registrarFalta(fd: FormData) {
 
   if (existing) return { success: false, error: 'DUPLICATE' }
 
+  // Dia já coberto por atestado: lançar falta penalizaria o funcionário duas vezes.
+  // Só faltas injustificadas conflitam; justificada/declaração/suspensão passam.
+  if (tipo === 'sem_justificativa' || tipo === ('sem_atestado' as FaltaTipo)) {
+    const { data: atestadoNoDia } = await createAdminClient()
+      .from('atestados')
+      .select('id')
+      .eq('funcionario_id', funcionario_id)
+      .lte('data_inicio', data_fim && data_fim > data_inicio ? data_fim : data_inicio)
+      .gte('data_fim', data_inicio)
+      .limit(1)
+      .maybeSingle()
+    if (atestadoNoDia) return { success: false, error: 'ATESTADO_NO_DIA' }
+  }
+
   const adminSupabase = createAdminClient()
   const { error } = await adminSupabase.from('faltas').insert({
     funcionario_id,

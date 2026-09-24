@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { registrarAtestado } from '@/app/(admin)/efetivo/actions'
-import { getSobreposicoesAtestado, type SobreposicaoAtestado } from '@/app/(admin)/atestados/actions'
+import { getSobreposicoesAtestado, getFaltasConflitantes, type SobreposicaoAtestado, type FaltaConflitante } from '@/app/(admin)/atestados/actions'
 import type { FuncionarioRow } from './funcionarios-table'
+
+const fmt = (d: string) => d.split('-').reverse().join('/')
 
 type CidOpt = { codigo: string; descricao: string }
 
@@ -36,12 +38,17 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
   const [dias, setDias]           = useState('')
   const [dataFim, setDataFim]     = useState('')
   const [sobreposicoes, setSobreposicoes] = useState<SobreposicaoAtestado[]>([])
+  const [faltasConf, setFaltasConf] = useState<FaltaConflitante[]>([])
+  const [faltasAcao, setFaltasAcao] = useState<'' | 'remover' | 'manter'>('')
   const cidRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!dataInicio || !dataFim) { setSobreposicoes([]); return }
+    if (!dataInicio || !dataFim) { setSobreposicoes([]); setFaltasConf([]); return }
     let cancelado = false
     const timer = setTimeout(() => {
+      getFaltasConflitantes(funcionario.id, dataInicio, dataFim).then(res => {
+        if (!cancelado) { setFaltasConf(res); setFaltasAcao('') }
+      })
       getSobreposicoesAtestado(funcionario.id, dataInicio, dataFim).then(res => {
         if (!cancelado) setSobreposicoes(res)
       })
@@ -93,6 +100,8 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
     setDias('')
     setDataFim('')
     setSobreposicoes([])
+    setFaltasConf([])
+    setFaltasAcao('')
     setErro(null)
   }
 
@@ -105,6 +114,11 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
     data.set('data_inicio', dataInicio)
     data.set('data_fim', dataFim || (form.querySelector<HTMLInputElement>('[name=data_fim_manual]')?.value ?? ''))
     data.set('sem_cid', semCid ? 'true' : 'false')
+    if (faltasConf.length > 0 && !faltasAcao) {
+      setErro('Existem faltas lançadas neste período. Escolha o que fazer com elas antes de salvar.')
+      return
+    }
+    if (faltasAcao) data.set('faltas_acao', faltasAcao)
     setPending(true)
     setErro(null)
     try {
@@ -196,6 +210,28 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+
+            {faltasConf.length > 0 && (
+              <div className="rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800">
+                <p className="font-semibold">⚠ Já existem faltas injustificadas neste período:</p>
+                <ul className="mt-1 space-y-0.5">
+                  {faltasConf.map(f => (
+                    <li key={f.id}>
+                      {fmt(f.data_falta)}{f.data_fim && f.data_fim !== f.data_falta ? ` – ${fmt(f.data_fim)}` : ''}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2">Com o atestado, esses dias contariam em dobro. O que fazer?</p>
+                <label className="mt-1 flex cursor-pointer items-center gap-1.5">
+                  <input type="radio" name="faltas_acao_ui" checked={faltasAcao === 'remover'} onChange={() => setFaltasAcao('remover')} />
+                  Remover as faltas (o atestado passa a cobrir esses dias)
+                </label>
+                <label className="flex cursor-pointer items-center gap-1.5">
+                  <input type="radio" name="faltas_acao_ui" checked={faltasAcao === 'manter'} onChange={() => setFaltasAcao('manter')} />
+                  Manter as faltas (somente admin/coordenador)
+                </label>
               </div>
             )}
 
