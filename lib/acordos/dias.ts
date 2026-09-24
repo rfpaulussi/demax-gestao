@@ -119,6 +119,9 @@ export function motivoSemSugestao(
   if (Math.ceil(maior / maxPorDia) > 31) {
     return `São ${Math.floor(maior / 60)}h${String(maior % 60).padStart(2, '0')} a compensar e o limite é ${maxPorDia} min por dia (mais de 31 dias). Reduza as horas ou escolha os dias manualmente.`
   }
-  if (c.template === 'T4') return 'Não há dias úteis suficientes entre hoje e a folga. Escolha uma folga mais adiante ou os dias manualmente.'
+  if (c.template === 'T4') {
+    const h = `${Math.floor(maior / 60)}h${String(maior % 60).padStart(2, '0')}`
+    return `Para folgar nesse dia é preciso trabalhar ${h} a mais antes dele (no máximo ${maxPorDia} min por dia), mas não há dias úteis suficientes entre hoje e a folga. Escolha uma folga mais adiante ou adicione os dias manualmente.`
+  }
   return 'Não há uma quantidade de dias que divida certo para todos os turnos. Escolha os dias manualmente.'
 }

@@ -607,6 +607,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
                   onRecalcular={recalcularDias}
                   erros={erros}
                   conta={conta}
+                  semSugestao={motivoSemDias}
                   dicaDispensa={dicaDispensa}
                   notaPeriodo={notaPeriodo}
                   nomesEvento={nomesEvento}

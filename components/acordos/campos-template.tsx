@@ -58,6 +58,8 @@ interface Props {
   erros: Partial<Record<CampoChave, string>>
   /** "8 dias × 66 min = 8h48 a repor" */
   conta: string | null
+  /** Por que o sistema não conseguiu sugerir dias (mostrado já na seção, sem esperar erro). */
+  semSugestao?: string | null
   /** T2: dica sobre a saída normal do turno naquele dia. */
   dicaDispensa?: string | null
   /** T1/T5: quanto do período fica fora do horário normal. */
@@ -71,7 +73,7 @@ interface Props {
 }
 
 export function CamposTemplate({
-  template: t, f, set, feriados, diasManual, onDatasManuais, onRecalcular, erros, conta, dicaDispensa, notaPeriodo, nomesEvento, atalhosCalendario, funcionarios,
+  template: t, f, set, feriados, diasManual, onDatasManuais, onRecalcular, erros, conta, semSugestao, dicaDispensa, notaPeriodo, nomesEvento, atalhosCalendario, funcionarios,
 }: Props) {
   const [modo, setModo] = useState<'periodo' | 'horas'>(f.duracao && !f.periodoInicio ? 'horas' : 'periodo')
   const cls = (k: CampoChave) => (erros[k] ? INPUT_ERRO_CLS : INPUT_CLS)
@@ -307,6 +309,10 @@ export function CamposTemplate({
           Preencha {rotuloBase} no passo acima para o sistema sugerir os dias e calcular quantas horas por dia.
         </p>
       ) : (
+        <>
+        {f.datasAjuste.length === 0 && semSugestao && !erros.dias && (
+          <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">{semSugestao}</p>
+        )}
         <DiasChips
           datas={f.datasAjuste}
           onChange={d => { onDatasManuais(); set('datasAjuste', d) }}
@@ -315,6 +321,7 @@ export function CamposTemplate({
           conta={conta}
           erro={erros.dias}
         />
+        </>
       )}
     </div>
   )
