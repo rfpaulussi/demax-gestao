@@ -21,6 +21,8 @@ export function ModalRegistrarFalta({ open, onClose, funcionariosOpt }: Props) {
   const [selectedFunc, setSelectedFunc] = useState<FuncOpt | null>(null)
   const [dataInicio, setDataInicio]     = useState('')
   const [dataFim, setDataFim]           = useState('')
+  const [tipo, setTipo]                 = useState('')
+  const [confirmaFalta, setConfirmaFalta] = useState(false)
   const [erro, setErro]                 = useState<string | null>(null)
   const [pending, start]                = useTransition()
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -48,7 +50,7 @@ export function ModalRegistrarFalta({ open, onClose, funcionariosOpt }: Props) {
 
   function handleClose() {
     setBusca(''); setDropdownOpen(false); setSelectedFunc(null)
-    setDataInicio(''); setDataFim(''); setErro(null)
+    setDataInicio(''); setDataFim(''); setErro(null); setTipo(''); setConfirmaFalta(false)
     onClose()
   }
 
@@ -172,13 +174,39 @@ export function ModalRegistrarFalta({ open, onClose, funcionariosOpt }: Props) {
             {/* Tipo */}
             <div>
               <label className={labelCls}>Tipo *</label>
-              <select name="tipo" required className={inputCls}>
+              <select
+                name="tipo"
+                required
+                value={tipo}
+                onChange={e => { setTipo(e.target.value); setConfirmaFalta(false) }}
+                className={inputCls}
+              >
                 <option value="">Selecione...</option>
                 {FALTA_TIPOS_MANUAIS.map(v => (
                   <option key={v} value={v}>{FALTA_TIPO_LABELS[v]}</option>
                 ))}
               </select>
             </div>
+
+            {tipo === 'sem_justificativa' && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 text-xs text-amber-900">
+                <p className="font-semibold">Antes de lançar a falta, confirme:</p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                  <li>Você tentou contato com o funcionário ou com a família?</li>
+                  <li>Pode haver atestado, declaração ou outro motivo a caminho? Se houver, o funcionário seria penalizado em dobro.</li>
+                  <li>Na dúvida, aguarde ou lance como <strong>Declaração</strong> ou <strong>Justificada</strong> e corrija depois.</li>
+                </ul>
+                <label className="mt-2 flex cursor-pointer items-start gap-2 font-medium">
+                  <input
+                    type="checkbox"
+                    checked={confirmaFalta}
+                    onChange={e => setConfirmaFalta(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  Confirmo que o funcionário faltou sem nenhuma justificativa até o momento.
+                </label>
+              </div>
+            )}
 
             {/* Observação */}
             <div>
@@ -206,7 +234,7 @@ export function ModalRegistrarFalta({ open, onClose, funcionariosOpt }: Props) {
               </button>
               <button
                 type="submit"
-                disabled={pending || !selectedFunc}
+                disabled={pending || !selectedFunc || (tipo === 'sem_justificativa' && !confirmaFalta)}
                 className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
               >
                 {pending ? 'Salvando...' : 'Registrar'}
