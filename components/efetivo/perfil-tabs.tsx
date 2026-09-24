@@ -8,6 +8,7 @@ import { downloadTermoPDF } from './movimentacao-pdf'
 import type { FuncionarioParaPDF } from './movimentacao-pdf'
 import { carregarTermoDaMovimentacao } from '@/lib/termos/carregar-termo'
 import { COR_TIPO } from '@/lib/termos/montar-termo'
+import { DATA_CORTE_TERMOS } from '@/lib/termos/constantes'
 import type { TermoTipo } from '@/lib/termos/tipos'
 import { getDadosMovColaborador } from '@/lib/movimentacao-colaborador'
 import { downloadMovColaboradorPDF } from './movimentacao-colaborador-pdf'
@@ -225,6 +226,7 @@ function TabMovimentacoes({
   funcaoNomeMap = {},
   turnoNomeMap = {},
   protocolos = {},
+  termosExigidos = [],
 }: {
   items: MovimentacaoItem[]
   funcionario: FuncionarioParaPDF
@@ -232,7 +234,10 @@ function TabMovimentacoes({
   funcaoNomeMap?: Record<string, string>
   turnoNomeMap?: Record<string, string>
   protocolos?: Record<string, { em: string }>
+  termosExigidos?: string[]
 }) {
+  const exigidos = new Set(termosExigidos)
+  const exige = (m: MovimentacaoItem) => exigidos.has(chaveTermo(m))
   const [baixando, setBaixando] = useState<string | null>(null)
 
   if (items.length === 0) {
@@ -263,11 +268,13 @@ function TabMovimentacoes({
     }
   }
 
-  const ultimaMov = items[0]
+  // Último termo = a movimentação mais recente que exige termo pela regra
+  const ultimaMov = items.find(exige) ?? null
 
   return (
     <div className="space-y-4">
-      {/* Acesso rápido — última movimentação */}
+      {/* Acesso rápido — última movimentação que exige termo */}
+      {ultimaMov && (
       <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-amber-700">Último Termo</p>
@@ -285,6 +292,7 @@ function TabMovimentacoes({
           {baixando === ultimaMov.id ? '...' : 'Imprimir Termo'}
         </button>
       </div>
+      )}
 
       <ol className="relative ml-3 border-l border-gray-200">
       {items.map(m => (
@@ -306,11 +314,11 @@ function TabMovimentacoes({
                 >
                   {TIPO_LABELS[m.tipo] ?? m.tipo.replace(/_/g, ' ')}
                 </span>
-                {protocolos[chaveTermo(m)] ? (
+                {!exige(m) ? null : protocolos[chaveTermo(m)] ? (
                   <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700 ring-1 ring-green-200">
                     Protocolado em {fmt(protocolos[chaveTermo(m)].em).split(' ')[0]}
                   </span>
-                ) : (
+                ) : (m.created_at ?? '').slice(0, 10) < DATA_CORTE_TERMOS ? null : (
                   <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-amber-200">
                     Pendente RH
                   </span>
@@ -318,6 +326,7 @@ function TabMovimentacoes({
               </div>
               <MovDetail m={m} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />
             </div>
+            {exige(m) && (
             <button
               onClick={() => handleDownload(m)}
               disabled={baixando === m.id}
@@ -327,6 +336,7 @@ function TabMovimentacoes({
               <FileDown className="h-3 w-3" />
               {baixando === m.id ? '...' : 'PDF'}
             </button>
+            )}
           </div>
         </li>
       ))}
@@ -552,6 +562,7 @@ export function PerfilTabs({
   funcaoNomeMap = {},
   turnoNomeMap = {},
   protocolos = {},
+  termosExigidos = [],
   horarioVigente = null,
   historicoHorario = [],
   regimePosto = null,
@@ -568,6 +579,7 @@ export function PerfilTabs({
   funcaoNomeMap?: Record<string, string>
   turnoNomeMap?: Record<string, string>
   protocolos?: Record<string, { em: string }>
+  termosExigidos?: string[]
   horarioVigente?: HorarioVigenteShape
   historicoHorario?: HistoricoHorarioShape
   regimePosto?: string | null
@@ -597,7 +609,7 @@ export function PerfilTabs({
 
       <div className="pt-4">
         {tab === 'horario'       && <TabHorario horarioVigente={horarioVigente} historicoHorario={historicoHorario} regimePosto={regimePosto} postoId={postoId} funcionarioId={funcionario.id} role={role} funcaoNome={funcionario.funcao} />}
-        {tab === 'movimentacoes' && <TabMovimentacoes items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} protocolos={protocolos} />}
+        {tab === 'movimentacoes' && <TabMovimentacoes items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} protocolos={protocolos} termosExigidos={termosExigidos} />}
         {tab === 'afastamentos'  && <TabAfastamentos  items={movimentacoes} atestados={atestados} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />}
         {tab === 'advertencias'  && <TabAdvertencias  items={advertencias}  />}
         {tab === 'faltas'        && <TabFaltas        items={faltas}        />}

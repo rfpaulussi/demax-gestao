@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { exigeTermo, horarioMudou, supervisorMudou, consolidarTurnos } from './exige-termo'
+import { chavesQueExigemTermo } from './exigencia-movs'
 import { statusDoTermo } from './constantes'
 import type { HorarioTermo } from './tipos'
 
@@ -80,5 +81,22 @@ describe('statusDoTermo', () => {
     expect(statusDoTermo('2026-09-24T10:00:00Z', '2026-09-25T10:00:00Z', agora)).toBe('protocolado')
     expect(statusDoTermo('2026-10-01T10:00:00Z', null, agora)).toBe('atrasado')
     expect(statusDoTermo('2026-10-09T10:00:00Z', null, agora)).toBe('pendente')
+  })
+})
+
+describe('chavesQueExigemTermo', () => {
+  const t = (id: string, entrada: string) => ({
+    id, nome: id, tipo_escala: '5x2', hora_entrada: entrada, hora_saida_seg_qui: '16:00',
+    hora_entrada_sex: null, hora_saida_sex: null, hora_inicio_almoco: null, hora_fim_almoco: null,
+    hora_entrada_sabado: null, hora_saida_sabado: null,
+  })
+  const turnos = new Map([['a', t('a', '07:00')], ['b', t('b', '07:00')], ['c', t('c', '08:00')]])
+  it('mesmo conteúdo com ids diferentes não exige; conteúdo diferente exige', () => {
+    const r = chavesQueExigemTermo([
+      { id: 'm1', tipo: 'mudanca_horario', valor_antes: 'a', valor_depois: 'b', created_at: '2026-09-25', solicitacao_id: null },
+      { id: 'm2', tipo: 'mudanca_horario', valor_antes: 'a', valor_depois: 'c', created_at: '2026-09-25', solicitacao_id: null },
+      { id: 'm3', tipo: 'mudanca_funcao', valor_antes: null, valor_depois: null, created_at: '2026-09-25', solicitacao_id: null },
+    ], turnos)
+    expect(Array.from(r)).toEqual(['mov:m2'])
   })
 })

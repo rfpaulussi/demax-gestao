@@ -9,6 +9,8 @@ import { BannerExperiencia } from '@/components/efetivo/banner-experiencia'
 import { PerfilTabs } from '@/components/efetivo/perfil-tabs'
 import type { MovimentacaoItem, AdvertenciaItem, SolicitacaoItem, FaltaItem, AtestadoItem } from '@/components/efetivo/perfil-tabs'
 import type { HorarioVigenteShape, HistoricoHorarioShape } from '@/components/efetivo/tab-horario'
+import { chavesQueExigemTermo, idsDeTurnos } from '@/lib/termos/exigencia-movs'
+import { TURNO_COLUNAS, type TurnoRow } from '@/lib/termos/montar-termo'
 import type { FuncionarioParaPDF } from '@/components/efetivo/movimentacao-pdf'
 import { calcularScoreRisco, dataCorteScoreRisco } from '@/lib/risk-score'
 import { BadgeRisco } from '@/components/efetivo/badge-risco'
@@ -200,6 +202,14 @@ export default async function PerfilFuncionarioPage({
   ])
 
   const movimentacoes = (movRaw ?? []) as unknown as MovimentacaoItem[]
+  // Quais grupos de movimentação exigem termo para o RH (mesma regra da lista /movimentacoes e do PDF)
+  const idsTurnosMov = idsDeTurnos(movimentacoes)
+  const turnosMov = new Map<string, TurnoRow>()
+  if (idsTurnosMov.length > 0) {
+    const { data: turnosRaw } = await supabase.from('turnos_postos').select(TURNO_COLUNAS).in('id', idsTurnosMov)
+    for (const t of (turnosRaw ?? []) as unknown as TurnoRow[]) turnosMov.set(t.id, t)
+  }
+  const termosExigidos = Array.from(chavesQueExigemTermo(movimentacoes, turnosMov))
   // Protocolos de entrega ao RH (a tabela pode ainda não existir: erro => vazio)
   const protocolos: Record<string, { em: string }> = {}
   try {
@@ -434,6 +444,7 @@ export default async function PerfilFuncionarioPage({
           funcaoNomeMap={funcaoNomeMap}
           turnoNomeMap={turnoNomeMap}
           protocolos={protocolos}
+          termosExigidos={termosExigidos}
           horarioVigente={horarioVigente}
           historicoHorario={historicoHorario}
           regimePosto={regimePosto}
