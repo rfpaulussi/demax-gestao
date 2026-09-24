@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { FaixaFaltasConfirmarServer } from '@/components/faltas/faixa-faltas-confirmar-server'
 import { AlertTriangle, CheckCircle2, Timer } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getUser } from '@/lib/auth/get-user'
@@ -433,7 +434,12 @@ export default async function DashboardPage({
     await processarRetornosAtestado()
     const dados = await buscarDadosSupervisor(authEarly.user.id, 14)
     const nomeUsuario = authEarly.perfil.nome ?? ''
-    return <SupervisorDashboard dados={dados} nomeUsuario={nomeUsuario} />
+    return (
+      <div className="space-y-4">
+        <FaixaFaltasConfirmarServer />
+        <SupervisorDashboard dados={dados} nomeUsuario={nomeUsuario} />
+      </div>
+    )
   }
 
   const supabase = createClient()
