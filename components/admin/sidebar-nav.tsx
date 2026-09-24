@@ -33,6 +33,7 @@ import {
   SearchCheck,
   FileSearch,
   CalendarClock,
+  FileCheck2,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
 import { NAV_GROUPS } from './nav-config'
@@ -45,6 +46,7 @@ const ICONS: Record<string, React.ElementType> = {
   '/efetivo':       Users,
   '/postos':        Building2,
   '/aprovacoes':    ClipboardCheck,
+  '/movimentacoes': FileCheck2,
   '/coberturas':    Repeat2,
   '/ferias':        Palmtree,
   '/advertencias':  ShieldAlert,
@@ -77,11 +79,13 @@ function NavLinks({
   role,
   pendingCount,
   alertCount,
+  termosPendentes,
   onNavigate,
 }: {
   role: Role | null
   pendingCount: number
   alertCount: number
+  termosPendentes: number
   onNavigate?: () => void
 }) {
   const pathname = usePathname()
@@ -101,7 +105,8 @@ function NavLinks({
               {group.label}
             </p>
             <div className="flex flex-col gap-0.5">
-              {visibleItems.map(({ href, label, badge, alertBadge }) => {
+              {visibleItems.map(({ href, label, badge, alertBadge, termosBadge }) => {
+                const termosVal = termosBadge && termosPendentes > 0 ? termosPendentes : 0
                 const Icon = ICONS[href]
                 const active = pathname === href || pathname.startsWith(href + '/')
                 const badgeVal = badge && pendingCount > 0 ? pendingCount : 0
@@ -129,6 +134,11 @@ function NavLinks({
                     {alertVal > 0 && (
                       <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-white" title={`${alertVal} função(ões) sem encargos`}>
                         {alertVal > 99 ? '99+' : alertVal}
+                      </span>
+                    )}
+                    {termosVal > 0 && (
+                      <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-white" title={`${termosVal} termo(s) pendente(s) de protocolo`}>
+                        {termosVal > 99 ? '99+' : termosVal}
                       </span>
                     )}
                   </Link>
@@ -159,10 +169,12 @@ export function SidebarNav({
   role,
   pendingCount = 0,
   alertCount = 0,
+  termosPendentes = 0,
 }: {
   role: Role | null
   pendingCount?: number
   alertCount?: number
+  termosPendentes?: number
 }) {
   const [open, setOpen] = useState(false)
 
@@ -182,14 +194,14 @@ export function SidebarNav({
         <SheetContent side="left" className="pt-0 !bg-[#071510]">
           <SheetClose />
           <SidebarHeader />
-          <NavLinks role={role} pendingCount={pendingCount} alertCount={alertCount} onNavigate={() => setOpen(false)} />
+          <NavLinks role={role} pendingCount={pendingCount} alertCount={alertCount} termosPendentes={termosPendentes} onNavigate={() => setOpen(false)} />
         </SheetContent>
       </Sheet>
 
       {/* Desktop: fixed sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col md:flex" style={{ background: '#071510', borderRight: '1px solid #0d2318' }}>
         <SidebarHeader />
-        <NavLinks role={role} pendingCount={pendingCount} alertCount={alertCount} />
+        <NavLinks role={role} pendingCount={pendingCount} alertCount={alertCount} termosPendentes={termosPendentes} />
       </aside>
     </>
   )
