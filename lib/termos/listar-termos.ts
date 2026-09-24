@@ -1,15 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
-import { tipoDoTermo } from './montar-termo'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { tipoDoTermo, paraHorario, TURNO_COLUNAS, type TurnoRow } from './montar-termo'
+import { consolidarTurnos, exigeTermo } from './exige-termo'
+import { DATA_CORTE_TERMOS, DIAS_ATRASO, JANELA_DIAS, statusDoTermo, type StatusTermo } from './constantes'
 import type { TermoTipo } from './tipos'
 
-export const TIPOS_COM_TERMO = [
-  'transferencia', 'mudanca_funcao', 'promocao', 'mudanca_horario',
-  'desligamento', 'afastamento', 'retorno_afastamento', 'alteracao_salario',
-] as const
+export { DATA_CORTE_TERMOS, DIAS_ATRASO, JANELA_DIAS }
 
-export const DIAS_ATRASO = 3
-export const JANELA_DIAS = 90
+/** Só alteração de horário/escala e troca de supervisor (via transferência) geram termo para o RH. */
+export const TIPOS_COM_TERMO = ['transferencia', 'mudanca_horario'] as const
 
 export type TermoResumo = {
   chave: string
@@ -23,11 +23,14 @@ export type TermoResumo = {
   supervisorNome: string | null
   protocoladoEm: string | null
   protocoladoPorNome: string | null
+  status: StatusTermo
 }
 
 type MovRow = {
   id: string
   tipo: string
+  valor_antes: string | null
+  valor_depois: string | null
   created_at: string | null
   funcionario_id: string
   solicitacao_id: string | null
@@ -55,7 +58,7 @@ export async function listarTermos(dias = JANELA_DIAS): Promise<TermoResumo[]> {
     movs = await fetchAllRows<MovRow>((from, to) =>
       supabase
         .from('movimentacoes')
-        .select('id, tipo, created_at, funcionario_id, solicitacao_id, funcionarios!funcionario_id(nome, postos!posto_id(nome))')
+        .select('id, tipo, valor_antes, valor_depois, created_at, funcionario_id, solicitacao_id, funcionarios!funcionario_id(nome, postos!posto_id(nome))')
         .in('tipo', TIPOS_COM_TERMO as unknown as string[])
         .gte('created_at', desde)
         .order('created_at', { ascending: false })
@@ -76,14 +79,23 @@ export async function listarTermos(dias = JANELA_DIAS): Promise<TermoResumo[]> {
 
   // Supervisor solicitante
   const solIds = Array.from(new Set(movs.map(m => m.solicitacao_id).filter((x): x is string => !!x)))
-  const supPorSol = new Map<string, { id: string | null; nome: string | null }>()
+  type SupSol = { id: string | null; nome: string | null; origem: string | null; destino: string | null }
+  const supPorSol = new Map<string, SupSol>()
   for (let i = 0; i < solIds.length; i += 150) {
     const { data } = await supabase
       .from('solicitacoes')
-      .select('id, supervisor_id, sol:perfis!supervisor_id(nome)')
+      .select('id, supervisor_id, dados_depois, sol:perfis!supervisor_id(nome)')
       .in('id', solIds.slice(i, i + 150))
-    for (const s of (data ?? []) as unknown as { id: string; supervisor_id: string | null; sol: { nome: string | null } | null }[]) {
-      supPorSol.set(s.id, { id: s.supervisor_id, nome: s.sol?.nome ?? null })
+    for (const s of (data ?? []) as unknown as {
+      id: string; supervisor_id: string | null; dados_depois: Record<string, unknown> | null; sol: { nome: string | null } | null
+    }[]) {
+      const snap = (s.dados_depois?.termo_snapshot ?? {}) as { supervisor_origem_nome?: string | null; supervisor_destino_nome?: string | null }
+      supPorSol.set(s.id, {
+        id: s.supervisor_id,
+        nome: s.sol?.nome ?? null,
+        origem: snap.supervisor_origem_nome ?? null,
+        destino: snap.supervisor_destino_nome ?? s.sol?.nome ?? null,
+      })
     }
   }
 
@@ -98,13 +110,41 @@ export async function listarTermos(dias = JANELA_DIAS): Promise<TermoResumo[]> {
     /* tabela ausente */
   }
 
+  // Turnos (conteúdo) dos movimentos de horário — em lote
+  const turnoIds = new Set<string>()
+  for (const m of movs) {
+    if (m.tipo !== 'mudanca_horario') continue
+    if (m.valor_antes) turnoIds.add(m.valor_antes)
+    if (m.valor_depois) turnoIds.add(m.valor_depois)
+  }
+  const turnos = new Map<string, TurnoRow>()
+  const idsT = Array.from(turnoIds)
+  if (idsT.length > 0) {
+    const admin = createAdminClient()
+    for (let i = 0; i < idsT.length; i += 150) {
+      const { data } = await admin.from('turnos_postos').select(TURNO_COLUNAS).in('id', idsT.slice(i, i + 150))
+      for (const t of (data ?? []) as TurnoRow[]) turnos.set(t.id, t)
+    }
+  }
+
   const out: TermoResumo[] = []
   grupos.forEach((rows, chave) => {
+    rows.sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''))
     const first = rows[0]
     const tipos = Array.from(new Set(rows.map(r => r.tipo)))
     const sup = first.solicitacao_id ? supPorSol.get(first.solicitacao_id) : undefined
     const prot = protMap.get(chave)
     const datas = rows.map(r => r.created_at ?? '').filter(Boolean).sort()
+    const ids = consolidarTurnos(rows.filter(r => r.tipo === 'mudanca_horario'))
+    const horario = ids
+      ? {
+          antes: paraHorario(ids.antesId ? turnos.get(ids.antesId) : undefined),
+          depois: paraHorario(ids.depoisId ? turnos.get(ids.depoisId) : undefined),
+        }
+      : null
+    // MESMA regra usada por carregarTermo (PDF) e pelo perfil
+    if (!exigeTermo({ tipos, horario, supervisorOrigem: sup?.origem ?? null, supervisorDestino: sup?.destino ?? null })) return
+    const dataMov = datas[0] ?? new Date().toISOString()
     out.push({
       chave,
       funcionarioId: first.funcionario_id,
@@ -112,11 +152,12 @@ export async function listarTermos(dias = JANELA_DIAS): Promise<TermoResumo[]> {
       postoNome: first.funcionarios?.postos?.nome ?? null,
       tipo: tipoDoTermo(tipos),
       tipos,
-      dataMov: datas[0] ?? new Date().toISOString(),
+      dataMov,
       supervisorId: sup?.id ?? null,
       supervisorNome: sup?.nome ?? null,
       protocoladoEm: prot?.protocolado_em ?? null,
       protocoladoPorNome: prot ? prot.perfis?.nome ?? null : null,
+      status: statusDoTermo(dataMov, prot?.protocolado_em ?? null),
     })
   })
   return out.sort((a, b) => b.dataMov.localeCompare(a.dataMov))
@@ -125,7 +166,7 @@ export async function listarTermos(dias = JANELA_DIAS): Promise<TermoResumo[]> {
 export async function contarTermosPendentes(): Promise<number> {
   try {
     const termos = await listarTermos(JANELA_DIAS)
-    return termos.filter(t => !t.protocoladoEm).length
+    return termos.filter(t => t.status === 'pendente' || t.status === 'atrasado').length
   } catch {
     return 0
   }

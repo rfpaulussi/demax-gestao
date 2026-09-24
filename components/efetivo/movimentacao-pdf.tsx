@@ -40,7 +40,7 @@ const s = StyleSheet.create({
   cOrig:        { width: '40%', padding: 4, backgroundColor: '#f1f5f9', color: '#64748b' },
   cDest:        { width: '40%', padding: 4, backgroundColor: '#ecfdf5', color: '#0f172a' },
   thText:       { fontSize: 7.5, fontFamily: 'Helvetica-Bold', letterSpacing: 1 },
-  semAlt:       { fontSize: 6.5, color: '#94a3b8', marginTop: 1 },
+  semAltLinha:  { fontSize: 7.5, color: '#64748b', marginTop: 4 },
   cards:        { flexDirection: 'row' },
   card:         { flex: 1, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f8fafc', padding: 5, marginRight: 5 },
   cardLast:     { flex: 1, borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#f8fafc', padding: 5 },
@@ -98,10 +98,15 @@ function TermoDocument({ termo }: { termo: TermoData }) {
   const c = termo.colaborador
   const efet = fmt(termo.efetivacao)
   const emitido = fmtDataHora(termo.emitidoEm)
+  // Termo manual: supervisor = atual do posto; termo de solicitação: solicitante real
+  const supAssina = termo.manual ? termo.supervisorDestino : termo.solicitadoPor
   const mostrarDestino =
+    !termo.manual &&
     termo.tipo === 'transferencia' &&
     !!termo.supervisorDestino &&
     termo.supervisorDestino !== termo.solicitadoPor
+  const mudaram = termo.diffs.filter(d => d.mudou)
+  const semAlteracao = termo.diffs.filter(d => !d.mudou).map(d => d.rotulo.toLowerCase())
 
   return (
     <Document>
@@ -143,28 +148,19 @@ function TermoDocument({ termo }: { termo: TermoData }) {
             <View style={[s.cOrig, { color: '#475569' }]}><Text style={[s.thText, { color: '#475569' }]}>ORIGEM</Text></View>
             <View style={s.cDest}><Text style={[s.thText, { color: '#047857' }]}>DESTINO</Text></View>
           </View>
-          {termo.diffs.map((d, i) => (
+          {mudaram.map((d, i) => (
             <View
               key={i}
-              style={[
-                s.tRow,
-                d.mudou ? { backgroundColor: '#fffbeb', borderLeftWidth: 3, borderLeftColor: cor.hex } : {},
-              ]}
+              style={[s.tRow, { backgroundColor: '#fffbeb', borderLeftWidth: 3, borderLeftColor: cor.hex }]}
             >
               <View style={s.cItem}><Text>{d.rotulo}</Text></View>
               <View style={s.cOrig}><Linhas texto={d.antes} /></View>
-              <View style={s.cDest}>
-                {d.mudou ? (
-                  <Linhas texto={d.depois} style={{ fontFamily: 'Helvetica-Bold' }} />
-                ) : (
-                  <>
-                    <Linhas texto={d.depois} style={{ color: '#6b7280' }} />
-                    <Text style={s.semAlt}>sem alteração</Text>
-                  </>
-                )}
-              </View>
+              <View style={s.cDest}><Linhas texto={d.depois} style={{ fontFamily: 'Helvetica-Bold' }} /></View>
             </View>
           ))}
+          {semAlteracao.length > 0 && (
+            <Text style={s.semAltLinha}>Sem alteração: {semAlteracao.join(', ')}</Text>
+          )}
         </View>
 
         {/* III. Efetivação e trâmite */}
@@ -175,16 +171,26 @@ function TermoDocument({ termo }: { termo: TermoData }) {
               <Text style={s.cardLabel}>EFETIVAÇÃO</Text>
               <Text style={s.cardValue}>{efet}</Text>
             </View>
-            <View style={s.card}>
-              <Text style={s.cardLabel}>SOLICITADO POR</Text>
-              <Text style={s.cardValue}>{termo.solicitadoPor ?? '—'}</Text>
-              <Text style={s.cardSub}>{fmtDataHora(termo.solicitadoEm)}</Text>
-            </View>
-            <View style={s.card}>
-              <Text style={s.cardLabel}>APROVADO POR</Text>
-              <Text style={s.cardValue}>{termo.aprovadoPor ?? '—'}</Text>
-              <Text style={s.cardSub}>{fmtDataHora(termo.aprovadoEm)}</Text>
-            </View>
+            {termo.manual ? (
+              <View style={s.card}>
+                <Text style={s.cardLabel}>REGISTRADO POR</Text>
+                <Text style={s.cardValue}>{termo.registradoPor ?? '—'}</Text>
+                <Text style={s.cardSub}>{fmtDataHora(termo.registradoEm)}</Text>
+              </View>
+            ) : (
+              <>
+                <View style={s.card}>
+                  <Text style={s.cardLabel}>SOLICITADO POR</Text>
+                  <Text style={s.cardValue}>{termo.solicitadoPor ?? '—'}</Text>
+                  <Text style={s.cardSub}>{fmtDataHora(termo.solicitadoEm)}</Text>
+                </View>
+                <View style={s.card}>
+                  <Text style={s.cardLabel}>APROVADO POR</Text>
+                  <Text style={s.cardValue}>{termo.aprovadoPor ?? '—'}</Text>
+                  <Text style={s.cardSub}>{fmtDataHora(termo.aprovadoEm)}</Text>
+                </View>
+              </>
+            )}
             <View style={s.cardLast}>
               <Text style={s.cardLabel}>EMITIDO EM</Text>
               <Text style={s.cardValue}>{emitido}</Text>
@@ -223,8 +229,8 @@ function TermoDocument({ termo }: { termo: TermoData }) {
               <Text style={s.sigRole}>Colaborador(a)</Text>
             </View>
             <View style={mostrarDestino ? s.sigBox : s.sigBoxLast}>
-              <Text style={s.sigName}>{termo.solicitadoPor ?? '—'}</Text>
-              <Text style={s.sigRole}>Supervisor(a) solicitante</Text>
+              <Text style={s.sigName}>{supAssina ?? '—'}</Text>
+              <Text style={s.sigRole}>{termo.manual ? 'Supervisor(a) do posto' : 'Supervisor(a) solicitante'}</Text>
             </View>
             {mostrarDestino && (
               <View style={s.sigBoxLast}>
@@ -236,8 +242,17 @@ function TermoDocument({ termo }: { termo: TermoData }) {
 
           <View style={s.aprovado}>
             <Text style={s.aprovadoText}>
-              <Text style={{ fontFamily: 'Helvetica-Bold' }}>APROVADO POR: </Text>
-              {termo.aprovadoPor ?? '—'} — Coordenação/Administração · {fmtDataHora(termo.aprovadoEm)}
+              {termo.manual ? (
+                <>
+                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>REGISTRADO POR: </Text>
+                  {termo.registradoPor ?? '—'} · {fmtDataHora(termo.registradoEm)}
+                </>
+              ) : (
+                <>
+                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>APROVADO POR: </Text>
+                  {termo.aprovadoPor ?? '—'} — Coordenação/Administração · {fmtDataHora(termo.aprovadoEm)}
+                </>
+              )}
             </Text>
           </View>
 

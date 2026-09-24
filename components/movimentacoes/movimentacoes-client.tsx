@@ -4,28 +4,19 @@ import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { COR_TIPO } from '@/lib/termos/montar-termo'
 import type { TermoResumo } from '@/lib/termos/listar-termos'
+import { DATA_CORTE_TERMOS } from '@/lib/termos/constantes'
 import { downloadTermoPDF } from '@/components/efetivo/movimentacao-pdf'
 import { desfazerProtocolo, obterTermo, protocolarTermo, protocolarTermos } from '@/app/(admin)/movimentacoes/actions'
 
-// Constantes duplicadas de lib/termos/listar-termos (arquivo server-only por importar supabase/server)
-const DIAS_ATRASO = 3
-
 const TIPO_LABEL: Record<string, string> = {
   transferencia: 'Transferência',
-  mudanca_funcao: 'Mudança de função',
-  promocao: 'Promoção',
-  mudanca_horario: 'Mudança de horário',
-  desligamento: 'Desligamento',
-  afastamento: 'Afastamento',
-  retorno_afastamento: 'Retorno de afastamento',
-  alteracao_salario: 'Alteração salarial',
-  outro: 'Outro',
+  mudanca_horario: 'Alteração de horário',
 }
 
 const fmtData = (iso: string) => new Date(iso).toLocaleDateString('pt-BR')
 const dias = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
 
-type Status = 'todos' | 'pendente' | 'atrasado' | 'protocolado'
+type Status = 'todos' | 'pendente' | 'atrasado' | 'protocolado' | 'legado'
 
 function Card({ label, valor, cor }: { label: string; valor: number; cor: string }) {
   return (
@@ -60,12 +51,12 @@ export function MovimentacoesClient({
   )
 
   const resumo = useMemo(() => {
-    const pend = termos.filter(t => !t.protocoladoEm)
+    const vigentes = termos.filter(t => t.status !== 'legado')
     const mes = new Date().toISOString().slice(0, 7)
     return {
-      pendentes: pend.length,
-      atrasados: pend.filter(t => dias(t.dataMov) > DIAS_ATRASO).length,
-      protocMes: termos.filter(t => t.protocoladoEm?.slice(0, 7) === mes).length,
+      pendentes: vigentes.filter(t => t.status === 'pendente' || t.status === 'atrasado').length,
+      atrasados: vigentes.filter(t => t.status === 'atrasado').length,
+      protocMes: vigentes.filter(t => t.protocoladoEm?.slice(0, 7) === mes).length,
     }
   }, [termos])
 
@@ -74,10 +65,11 @@ export function MovimentacoesClient({
       if (dias(t.dataMov) > Number(periodo)) return false
       if (tipo && t.tipo !== tipo) return false
       if (supervisor && t.supervisorNome !== supervisor) return false
-      const atrasado = !t.protocoladoEm && dias(t.dataMov) > DIAS_ATRASO
-      if (status === 'pendente' && t.protocoladoEm) return false
-      if (status === 'atrasado' && !atrasado) return false
-      if (status === 'protocolado' && !t.protocoladoEm) return false
+      if (status === 'legado') return t.status === 'legado'
+      if (t.status === 'legado') return false // legado só aparece no filtro próprio
+      if (status === 'pendente') return t.status === 'pendente' || t.status === 'atrasado'
+      if (status === 'atrasado') return t.status === 'atrasado'
+      if (status === 'protocolado') return t.status === 'protocolado'
       return true
     })
   }, [termos, periodo, tipo, supervisor, status])
@@ -154,7 +146,8 @@ export function MovimentacoesClient({
             <option value="pendente">Pendentes</option>
             <option value="atrasado">Atrasados</option>
             <option value="protocolado">Protocolados</option>
-            <option value="todos">Todos</option>
+            <option value="todos">Todos (exceto legado)</option>
+            <option value="legado">Legado (antes de {fmtData(DATA_CORTE_TERMOS + 'T12:00:00')})</option>
           </select>
         </div>
         <div>
@@ -227,7 +220,7 @@ export function MovimentacoesClient({
               </tr>
             )}
             {filtrados.map(t => {
-              const atrasado = !t.protocoladoEm && dias(t.dataMov) > DIAS_ATRASO
+              const atrasado = t.status === 'atrasado'
               const cor = COR_TIPO[t.tipo]
               return (
                 <tr
@@ -252,7 +245,11 @@ export function MovimentacoesClient({
                   <td className="px-3 py-2 whitespace-nowrap text-slate-600">{fmtData(t.dataMov)}</td>
                   {mostrarSupervisor && <td className="px-3 py-2 text-slate-600">{t.supervisorNome ?? '—'}</td>}
                   <td className="px-3 py-2">
-                    {t.protocoladoEm ? (
+                    {t.status === 'legado' ? (
+                      <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-200">
+                        Legado{t.protocoladoEm ? ' · protocolado' : ''}
+                      </span>
+                    ) : t.protocoladoEm ? (
                       <span className="inline-block rounded-full bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700 ring-1 ring-green-200">
                         Protocolado {fmtData(t.protocoladoEm)}{t.protocoladoPorNome ? ` por ${t.protocoladoPorNome}` : ''}
                       </span>

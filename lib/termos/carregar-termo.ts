@@ -3,7 +3,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
-import { montarDiffs, tipoDoTermo, tituloDoTermo } from './montar-termo'
+import { montarDiffs, tipoDoTermo, tituloDoTermo, paraHorario, TURNO_COLUNAS, type TurnoRow } from './montar-termo'
+import { consolidarTurnos, exigeTermo } from './exige-termo'
 import type { HorarioTermo, TermoData } from './tipos'
 
 type NomeRel = { nome: string | null } | null
@@ -41,20 +42,6 @@ type FuncRow = {
   postos: { nome: string | null; secretaria: string | null } | null
 }
 
-type TurnoRow = {
-  id: string
-  nome: string
-  tipo_escala: string
-  hora_entrada: string
-  hora_saida_seg_qui: string
-  hora_entrada_sex: string | null
-  hora_saida_sex: string | null
-  hora_inicio_almoco: string | null
-  hora_fim_almoco: string | null
-  hora_entrada_sabado: string | null
-  hora_saida_sabado: string | null
-}
-
 type Snapshot = {
   supervisor_origem_nome?: string | null
   supervisor_destino_nome?: string | null
@@ -62,22 +49,6 @@ type Snapshot = {
   posto_destino_id?: string | null
   data_efetivacao?: string | null
 }
-
-const paraHorario = (t: TurnoRow | undefined): HorarioTermo | null =>
-  t
-    ? {
-        nome: t.nome,
-        escala: t.tipo_escala,
-        entrada: t.hora_entrada,
-        saidaSegQui: t.hora_saida_seg_qui,
-        entradaSex: t.hora_entrada_sex,
-        saidaSex: t.hora_saida_sex,
-        almocoInicio: t.hora_inicio_almoco,
-        almocoFim: t.hora_fim_almoco,
-        entradaSab: t.hora_entrada_sabado,
-        saidaSab: t.hora_saida_sabado,
-      }
-    : null
 
 export async function carregarTermoDaMovimentacao(movId: string): Promise<TermoData | null> {
   const auth = await getUser()
@@ -163,30 +134,42 @@ export async function carregarTermo(chave: string): Promise<TermoData | null> {
     funcaoDepois = funcaoMov.valor_depois ? nomes.get(funcaoMov.valor_depois) ?? null : null
   }
 
-  // 6. Horário
-  const horMov = movs.find(m => m.tipo === 'mudanca_horario')
+  // 6. Horário (consolida todos os movimentos de turno do grupo)
+  const horMovs = movs.filter(m => m.tipo === 'mudanca_horario')
+  const turnosIds = consolidarTurnos(horMovs)
   let horario: { antes: HorarioTermo | null; depois: HorarioTermo | null } | undefined
-  if (horMov) {
-    const ids = [horMov.valor_antes, horMov.valor_depois].filter((x): x is string => !!x)
+  if (turnosIds) {
+    const ids = [turnosIds.antesId, turnosIds.depoisId].filter((x): x is string => !!x)
     const { data } =
       ids.length > 0
-        ? await admin
-            .from('turnos_postos')
-            .select(
-              'id, nome, tipo_escala, hora_entrada, hora_saida_seg_qui, hora_entrada_sex, hora_saida_sex, hora_inicio_almoco, hora_fim_almoco, hora_entrada_sabado, hora_saida_sabado',
-            )
-            .in('id', ids)
+        ? await admin.from('turnos_postos').select(TURNO_COLUNAS).in('id', ids)
         : { data: [] }
     const turnos = new Map(((data ?? []) as TurnoRow[]).map(t => [t.id, t]))
     horario = {
-      antes: paraHorario(horMov.valor_antes ? turnos.get(horMov.valor_antes) : undefined),
-      depois: paraHorario(horMov.valor_depois ? turnos.get(horMov.valor_depois) : undefined),
+      antes: paraHorario(turnosIds.antesId ? turnos.get(turnosIds.antesId) : undefined),
+      depois: paraHorario(turnosIds.depoisId ? turnos.get(turnosIds.depoisId) : undefined),
     }
   }
 
   // 7. Supervisores
+  const manual = !sol
   const supervisorOrigem = snap.supervisor_origem_nome ?? null
-  const supervisorDestino = snap.supervisor_destino_nome ?? sol?.sol?.nome ?? null
+  let supervisorDestino = snap.supervisor_destino_nome ?? sol?.sol?.nome ?? null
+  if (manual) {
+    // Termo manual: supervisor ATUAL do posto (config_supervisores_postos)
+    const postoAtual = func.posto_id ?? postoDestinoId
+    if (postoAtual) {
+      const { data } = await admin
+        .from('config_supervisores_postos')
+        .select('perfis!supervisor_id(nome)')
+        .eq('posto_id', postoAtual)
+      const nomes = ((data ?? []) as unknown as { perfis: NomeRel }[])
+        .map(r => r.perfis?.nome)
+        .filter((n): n is string => !!n)
+        .sort()
+      if (nomes.length > 0) supervisorDestino = nomes.join(' / ')
+    }
+  }
 
   // 8. Diffs, título, código
   const tipos = Array.from(new Set([...(sol ? [sol.tipo] : []), ...movs.map(m => m.tipo)]))
@@ -194,10 +177,12 @@ export async function carregarTermo(chave: string): Promise<TermoData | null> {
   const diffs = montarDiffs({
     posto: { antes: postoOrigem?.nome ?? null, depois: postoDestino?.nome ?? null },
     secretaria: { antes: postoOrigem?.secretaria ?? null, depois: postoDestino?.secretaria ?? null },
-    supervisor: { antes: supervisorOrigem, depois: supervisorDestino },
+    // origem desconhecida (manual/legado): não afirma troca de supervisor
+    supervisor: supervisorOrigem ? { antes: supervisorOrigem, depois: supervisorDestino } : undefined,
     funcao: { antes: funcaoAntes, depois: funcaoDepois },
     horario,
   })
+  const exige = exigeTermo({ tipos: tiposMov, horario, supervisorOrigem, supervisorDestino })
   const idBase = sol ? refId : movs[0].id
   const tiposTermo = sol ? tipos : tiposMov
 
@@ -221,11 +206,15 @@ export async function carregarTermo(chave: string): Promise<TermoData | null> {
     efetivacao,
     solicitadoPor: sol ? sol.sol?.nome ?? null : null,
     solicitadoEm: sol?.created_at ?? null,
-    aprovadoPor: sol ? sol.apr?.nome ?? null : movs[0].perfis?.nome ?? null,
-    aprovadoEm: sol ? sol.aprovado_em : movs[0].created_at,
+    aprovadoPor: sol ? sol.apr?.nome ?? null : null,
+    aprovadoEm: sol ? sol.aprovado_em : null,
     motivo: sol?.motivo ?? null,
     supervisorOrigem,
     supervisorDestino,
     emitidoEm: new Date().toISOString(),
+    manual,
+    registradoPor: manual ? movs[0].perfis?.nome ?? null : null,
+    registradoEm: manual ? movs[0].created_at : null,
+    exigeTermo: exige,
   }
 }

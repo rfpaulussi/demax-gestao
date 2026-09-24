@@ -42,4 +42,8 @@ export type TermoData = {
   supervisorOrigem: string | null
   supervisorDestino: string | null
   emitidoEm: string             // ISO datetime
+  manual: boolean               // termo sem solicitação (lançamento direto)
+  registradoPor: string | null  // manual: quem lançou
+  registradoEm: string | null   // manual: data/hora do lançamento
+  exigeTermo: boolean
 }

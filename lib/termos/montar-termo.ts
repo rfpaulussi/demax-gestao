@@ -1,5 +1,38 @@
 import type { HorarioTermo, TermoLinhaDiff, TermoTipo } from './tipos'
 
+export type TurnoRow = {
+  id: string
+  nome: string
+  tipo_escala: string
+  hora_entrada: string
+  hora_saida_seg_qui: string
+  hora_entrada_sex: string | null
+  hora_saida_sex: string | null
+  hora_inicio_almoco: string | null
+  hora_fim_almoco: string | null
+  hora_entrada_sabado: string | null
+  hora_saida_sabado: string | null
+}
+
+export const TURNO_COLUNAS =
+  'id, nome, tipo_escala, hora_entrada, hora_saida_seg_qui, hora_entrada_sex, hora_saida_sex, hora_inicio_almoco, hora_fim_almoco, hora_entrada_sabado, hora_saida_sabado'
+
+export const paraHorario = (t: TurnoRow | undefined): HorarioTermo | null =>
+  t
+    ? {
+        nome: t.nome,
+        escala: t.tipo_escala,
+        entrada: t.hora_entrada,
+        saidaSegQui: t.hora_saida_seg_qui,
+        entradaSex: t.hora_entrada_sex,
+        saidaSex: t.hora_saida_sex,
+        almocoInicio: t.hora_inicio_almoco,
+        almocoFim: t.hora_fim_almoco,
+        entradaSab: t.hora_entrada_sabado,
+        saidaSab: t.hora_saida_sabado,
+      }
+    : null
+
 const hm = (v: string | null) => (v ? v.slice(0, 5) : null)
 
 export function formatarHorario(t: HorarioTermo | null): string[] {
