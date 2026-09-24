@@ -8,6 +8,7 @@ import { downloadTermoPDF } from './movimentacao-pdf'
 import type { FuncionarioParaPDF } from './movimentacao-pdf'
 import { carregarTermoDaMovimentacao } from '@/lib/termos/carregar-termo'
 import { COR_TIPO } from '@/lib/termos/montar-termo'
+import { chaveConsolidada } from '@/lib/termos/consolidar-dia'
 import { DATA_CORTE_TERMOS } from '@/lib/termos/constantes'
 import type { TermoTipo } from '@/lib/termos/tipos'
 import { getDadosMovColaborador } from '@/lib/movimentacao-colaborador'
@@ -25,6 +26,7 @@ export type MovimentacaoItem = {
   valor_depois: string | null
   created_at: string | null
   solicitacao_id: string | null
+  funcionario_id: string
   perfis: { nome: string | null } | null
   solicitacoes: {
     dados_antes: Record<string, unknown> | null
@@ -215,9 +217,7 @@ function corDoTipo(tipo: string) {
   return COR_TIPO[tipo as TermoTipo] ?? COR_TIPO.outro
 }
 
-function chaveTermo(m: MovimentacaoItem): string {
-  return m.solicitacao_id ? `sol:${m.solicitacao_id}` : `mov:${m.id}`
-}
+const chaveTermo = (m: MovimentacaoItem): string => chaveConsolidada(m)
 
 function TabMovimentacoes({
   items,
@@ -238,6 +238,16 @@ function TabMovimentacoes({
 }) {
   const exigidos = new Set(termosExigidos)
   const exige = (m: MovimentacaoItem) => exigidos.has(chaveTermo(m))
+  // Termo consolidado do dia: botão/selo só na mov mais recente do dia (items vem em ordem decrescente)
+  const idPrincipalDoDia = new Map<string, string>()
+  for (const i of items) {
+    const k = chaveTermo(i)
+    if (k.startsWith('dia:') && !idPrincipalDoDia.has(k)) idPrincipalDoDia.set(k, i.id)
+  }
+  const consolidadoNoDia = (m: MovimentacaoItem) => {
+    const k = chaveTermo(m)
+    return k.startsWith('dia:') && idPrincipalDoDia.get(k) !== m.id
+  }
   const [baixando, setBaixando] = useState<string | null>(null)
 
   if (items.length === 0) {
@@ -314,7 +324,11 @@ function TabMovimentacoes({
                 >
                   {TIPO_LABELS[m.tipo] ?? m.tipo.replace(/_/g, ' ')}
                 </span>
-                {!exige(m) ? null : protocolos[chaveTermo(m)] ? (
+                {!exige(m) ? null : consolidadoNoDia(m) ? (
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 ring-1 ring-slate-200">
+                    Consolidado no termo do dia
+                  </span>
+                ) : protocolos[chaveTermo(m)] ? (
                   <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700 ring-1 ring-green-200">
                     Protocolado em {fmt(protocolos[chaveTermo(m)].em).split(' ')[0]}
                   </span>
@@ -326,7 +340,7 @@ function TabMovimentacoes({
               </div>
               <MovDetail m={m} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />
             </div>
-            {exige(m) && (
+            {exige(m) && !consolidadoNoDia(m) && (
             <button
               onClick={() => handleDownload(m)}
               disabled={baixando === m.id}

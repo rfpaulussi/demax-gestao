@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { tipoDoTermo, paraHorario, TURNO_COLUNAS, type TurnoRow } from './montar-termo'
 import { consolidarTurnos, exigeTermo } from './exige-termo'
 import { DATA_CORTE_TERMOS, DIAS_ATRASO, JANELA_DIAS, statusDoTermo, type StatusTermo } from './constantes'
+import { chaveConsolidada, protocoloDoGrupo } from './consolidar-dia'
+import { supervisoresAtuaisPorPosto } from './supervisor-posto'
 import type { TermoTipo } from './tipos'
 
 export { DATA_CORTE_TERMOS, DIAS_ATRASO, JANELA_DIAS }
@@ -34,7 +36,7 @@ type MovRow = {
   created_at: string | null
   funcionario_id: string
   solicitacao_id: string | null
-  funcionarios: { nome: string; postos: { nome: string | null } | null } | null
+  funcionarios: { nome: string; posto_id: string | null; postos: { nome: string | null } | null } | null
 }
 
 type ProtRow = {
@@ -58,7 +60,7 @@ export async function listarTermos(dias = JANELA_DIAS): Promise<TermoResumo[]> {
     movs = await fetchAllRows<MovRow>((from, to) =>
       supabase
         .from('movimentacoes')
-        .select('id, tipo, valor_antes, valor_depois, created_at, funcionario_id, solicitacao_id, funcionarios!funcionario_id(nome, postos!posto_id(nome))')
+        .select('id, tipo, valor_antes, valor_depois, created_at, funcionario_id, solicitacao_id, funcionarios!funcionario_id(nome, posto_id, postos!posto_id(nome))')
         .in('tipo', TIPOS_COM_TERMO as unknown as string[])
         .gte('created_at', desde)
         .order('created_at', { ascending: false })
@@ -71,7 +73,7 @@ export async function listarTermos(dias = JANELA_DIAS): Promise<TermoResumo[]> {
 
   const grupos = new Map<string, MovRow[]>()
   for (const m of movs) {
-    const k = m.solicitacao_id ? `sol:${m.solicitacao_id}` : `mov:${m.id}`
+    const k = chaveConsolidada(m)
     const g = grupos.get(k)
     if (g) g.push(m)
     else grupos.set(k, [m])
@@ -127,13 +129,19 @@ export async function listarTermos(dias = JANELA_DIAS): Promise<TermoResumo[]> {
     }
   }
 
+  // Supervisor ATUAL do posto (termo manual), em lote
+  const postoIdsManuais = movs.filter(m => !m.solicitacao_id).map(m => m.funcionarios?.posto_id ?? '')
+  const supAtual = await supervisoresAtuaisPorPosto(createAdminClient(), postoIdsManuais)
+
   const out: TermoResumo[] = []
   grupos.forEach((rows, chave) => {
     rows.sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''))
     const first = rows[0]
     const tipos = Array.from(new Set(rows.map(r => r.tipo)))
     const sup = first.solicitacao_id ? supPorSol.get(first.solicitacao_id) : undefined
-    const prot = protMap.get(chave)
+    const protRec: Record<string, ProtRow> = {}
+    protMap.forEach((v, k) => { protRec[k] = v })
+    const prot = protocoloDoGrupo(chave, rows.map(r => r.id), protRec)
     const datas = rows.map(r => r.created_at ?? '').filter(Boolean).sort()
     const ids = consolidarTurnos(rows.filter(r => r.tipo === 'mudanca_horario'))
     const horario = ids
@@ -154,7 +162,7 @@ export async function listarTermos(dias = JANELA_DIAS): Promise<TermoResumo[]> {
       tipos,
       dataMov,
       supervisorId: sup?.id ?? null,
-      supervisorNome: sup?.nome ?? null,
+      supervisorNome: sup?.nome ?? (first.solicitacao_id ? null : supAtual.get(first.funcionarios?.posto_id ?? '') ?? null),
       protocoladoEm: prot?.protocolado_em ?? null,
       protocoladoPorNome: prot ? prot.perfis?.nome ?? null : null,
       status: statusDoTermo(dataMov, prot?.protocolado_em ?? null),

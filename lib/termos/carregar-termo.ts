@@ -5,6 +5,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import { montarDiffs, tipoDoTermo, tituloDoTermo, paraHorario, TURNO_COLUNAS, type TurnoRow } from './montar-termo'
 import { consolidarTurnos, exigeTermo } from './exige-termo'
+import { chaveConsolidada, chaveDiaParse, diaLocal } from './consolidar-dia'
+import { supervisoresAtuaisPorPosto } from './supervisor-posto'
 import type { HorarioTermo, TermoData } from './tipos'
 
 type NomeRel = { nome: string | null } | null
@@ -54,9 +56,13 @@ export async function carregarTermoDaMovimentacao(movId: string): Promise<TermoD
   const auth = await getUser()
   if (!auth) return null
   const supabase = createClient()
-  const { data } = await supabase.from('movimentacoes').select('id, solicitacao_id').eq('id', movId).maybeSingle()
+  const { data } = await supabase
+    .from('movimentacoes')
+    .select('id, tipo, funcionario_id, solicitacao_id, created_at')
+    .eq('id', movId)
+    .maybeSingle()
   if (!data) return null
-  return carregarTermo(data.solicitacao_id ? `sol:${data.solicitacao_id}` : `mov:${data.id}`)
+  return carregarTermo(chaveConsolidada(data))
 }
 
 export async function carregarTermo(chave: string): Promise<TermoData | null> {
@@ -64,7 +70,8 @@ export async function carregarTermo(chave: string): Promise<TermoData | null> {
   if (!auth) return null
 
   const [prefixo, refId] = chave.split(':')
-  if (!refId || (prefixo !== 'sol' && prefixo !== 'mov')) return null
+  const diaInfo = prefixo === 'dia' ? chaveDiaParse(chave) : null
+  if (!refId || (prefixo !== 'sol' && prefixo !== 'mov' && !diaInfo)) return null
 
   const supabase = createClient()
   const admin = createAdminClient()
@@ -73,8 +80,23 @@ export async function carregarTermo(chave: string): Promise<TermoData | null> {
   const baseSel =
     'id, tipo, campo_alterado, valor_antes, valor_depois, created_at, funcionario_id, solicitacao_id, perfis!executado_por(nome)'
   const q = supabase.from('movimentacoes').select(baseSel)
-  const { data: movsRaw } = await (prefixo === 'sol' ? q.eq('solicitacao_id', refId) : q.eq('id', refId))
-  const movs = ((movsRaw ?? []) as unknown as MovRow[]).sort((a, b) =>
+  let movsBase: MovRow[]
+  if (diaInfo) {
+    // Termo consolidado do dia: mudanças manuais de horário do funcionário no dia local (America/Sao_Paulo)
+    const ini = new Date(new Date(diaInfo.dia + 'T12:00:00Z').getTime() - 36 * 3_600_000).toISOString()
+    const fim = new Date(new Date(diaInfo.dia + 'T12:00:00Z').getTime() + 36 * 3_600_000).toISOString()
+    const { data } = await q
+      .eq('funcionario_id', diaInfo.funcionarioId)
+      .eq('tipo', 'mudanca_horario')
+      .is('solicitacao_id', null)
+      .gte('created_at', ini)
+      .lte('created_at', fim)
+    movsBase = ((data ?? []) as unknown as MovRow[]).filter(m => !!m.created_at && diaLocal(m.created_at) === diaInfo.dia)
+  } else {
+    const { data } = await (prefixo === 'sol' ? q.eq('solicitacao_id', refId) : q.eq('id', refId))
+    movsBase = (data ?? []) as unknown as MovRow[]
+  }
+  const movs = movsBase.sort((a, b) =>
     (a.created_at ?? '').localeCompare(b.created_at ?? ''),
   )
   if (movs.length === 0) return null
@@ -159,15 +181,8 @@ export async function carregarTermo(chave: string): Promise<TermoData | null> {
     // Termo manual: supervisor ATUAL do posto (config_supervisores_postos)
     const postoAtual = func.posto_id ?? postoDestinoId
     if (postoAtual) {
-      const { data } = await admin
-        .from('config_supervisores_postos')
-        .select('perfis!supervisor_id(nome)')
-        .eq('posto_id', postoAtual)
-      const nomes = ((data ?? []) as unknown as { perfis: NomeRel }[])
-        .map(r => r.perfis?.nome)
-        .filter((n): n is string => !!n)
-        .sort()
-      if (nomes.length > 0) supervisorDestino = nomes.join(' / ')
+      const nomes = (await supervisoresAtuaisPorPosto(admin, [postoAtual])).get(postoAtual)
+      if (nomes) supervisorDestino = nomes
     }
   }
 
@@ -187,7 +202,9 @@ export async function carregarTermo(chave: string): Promise<TermoData | null> {
   const tiposTermo = sol ? tipos : tiposMov
 
   // 9. Efetivação
-  const efetivacao = snap.data_efetivacao ?? (movs[0].created_at ? movs[0].created_at.slice(0, 10) : null)
+  const efetivacao =
+    snap.data_efetivacao ?? (diaInfo ? diaInfo.dia : movs[0].created_at ? diaLocal(movs[0].created_at) : null)
+  const ultimoMov = movs[movs.length - 1]
 
   return {
     chave,
@@ -213,8 +230,8 @@ export async function carregarTermo(chave: string): Promise<TermoData | null> {
     supervisorDestino,
     emitidoEm: new Date().toISOString(),
     manual,
-    registradoPor: manual ? movs[0].perfis?.nome ?? null : null,
-    registradoEm: manual ? movs[0].created_at : null,
+    registradoPor: manual ? ultimoMov.perfis?.nome ?? null : null,
+    registradoEm: manual ? ultimoMov.created_at : null,
     exigeTermo: exige,
   }
 }

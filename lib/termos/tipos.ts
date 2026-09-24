@@ -23,7 +23,7 @@ export type TermoTipo =
   | 'desligamento' | 'afastamento' | 'retorno_afastamento' | 'alteracao_salario' | 'outro'
 
 export type TermoData = {
-  chave: string                 // 'sol:<id>' ou 'mov:<id>'
+  chave: string                 // 'sol:<id>', 'mov:<id>' ou 'dia:<funcionario>:<AAAA-MM-DD>'
   codigo: string                // MOV-XXXXXXXX
   tipo: TermoTipo
   titulo: string                // ex.: TERMO DE TRANSFERÊNCIA DE COLABORADOR

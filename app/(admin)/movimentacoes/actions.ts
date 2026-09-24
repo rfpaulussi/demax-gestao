@@ -5,15 +5,21 @@ import { getUser } from '@/lib/auth/get-user'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { carregarTermo } from '@/lib/termos/carregar-termo'
+import { chaveDiaParse, diaLocal } from '@/lib/termos/consolidar-dia'
 import type { TermoData } from '@/lib/termos/tipos'
 
 type Res = { success: boolean; error?: string }
 
-const CHAVE_RE = /^(sol|mov):[0-9a-f-]{36}$/i
+const CHAVE_RE = /^((sol|mov):[0-9a-f-]{36}|dia:[0-9a-f-]{36}:\d{4}-\d{2}-\d{2})$/i
 
 async function funcionarioDaChave(chave: string): Promise<string | null> {
   // Client com RLS: se o usuário não enxerga a movimentação, retorna null.
   const supabase = createClient()
+  const dia = chaveDiaParse(chave)
+  if (dia) {
+    const { data } = await supabase.from('movimentacoes').select('funcionario_id').eq('funcionario_id', dia.funcionarioId).eq('tipo', 'mudanca_horario').limit(1)
+    return data?.[0]?.funcionario_id ?? null
+  }
   const [prefixo, id] = chave.split(':')
   const q = supabase.from('movimentacoes').select('funcionario_id')
   const { data } = await (prefixo === 'sol' ? q.eq('solicitacao_id', id) : q.eq('id', id)).limit(1)
@@ -90,7 +96,19 @@ export async function desfazerProtocolo(chave: string): Promise<Res> {
   }
   if (!CHAVE_RE.test(chave)) return { success: false, error: 'Termo inválido.' }
   const admin = createAdminClient()
-  const { error } = await admin.from('termos_protocolo').delete().eq('chave_termo', chave)
+  const chaves = [chave]
+  // Termo do dia: remove também protocolos legados 'mov:<id>' das mudanças do grupo (compatibilidade)
+  const dia = chaveDiaParse(chave)
+  if (dia) {
+    const { data } = await admin
+      .from('movimentacoes')
+      .select('id, created_at')
+      .eq('funcionario_id', dia.funcionarioId)
+      .eq('tipo', 'mudanca_horario')
+      .is('solicitacao_id', null)
+    for (const m of data ?? []) if (m.created_at && diaLocal(m.created_at) === dia.dia) chaves.push('mov:' + m.id)
+  }
+  const { error } = await admin.from('termos_protocolo').delete().in('chave_termo', chaves)
   if (error) return { success: false, error: error.message }
   revalidatePath('/movimentacoes')
   revalidatePath('/efetivo')

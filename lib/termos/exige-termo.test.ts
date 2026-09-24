@@ -93,10 +93,10 @@ describe('chavesQueExigemTermo', () => {
   const turnos = new Map([['a', t('a', '07:00')], ['b', t('b', '07:00')], ['c', t('c', '08:00')]])
   it('mesmo conteúdo com ids diferentes não exige; conteúdo diferente exige', () => {
     const r = chavesQueExigemTermo([
-      { id: 'm1', tipo: 'mudanca_horario', valor_antes: 'a', valor_depois: 'b', created_at: '2026-09-25', solicitacao_id: null },
-      { id: 'm2', tipo: 'mudanca_horario', valor_antes: 'a', valor_depois: 'c', created_at: '2026-09-25', solicitacao_id: null },
-      { id: 'm3', tipo: 'mudanca_funcao', valor_antes: null, valor_depois: null, created_at: '2026-09-25', solicitacao_id: null },
+      { id: 'm1', funcionario_id: 'F1', tipo: 'mudanca_horario', valor_antes: 'a', valor_depois: 'b', created_at: '2026-09-25T15:00:00Z', solicitacao_id: null },
+      { id: 'm2', funcionario_id: 'F2', tipo: 'mudanca_horario', valor_antes: 'a', valor_depois: 'c', created_at: '2026-09-25T15:00:00Z', solicitacao_id: null },
+      { id: 'm3', funcionario_id: 'F1', tipo: 'mudanca_funcao', valor_antes: null, valor_depois: null, created_at: '2026-09-25', solicitacao_id: null },
     ], turnos)
-    expect(Array.from(r)).toEqual(['mov:m2'])
+    expect(Array.from(r)).toEqual(['dia:F2:2026-09-25'])
   })
 })

@@ -9,6 +9,7 @@ import { BannerExperiencia } from '@/components/efetivo/banner-experiencia'
 import { PerfilTabs } from '@/components/efetivo/perfil-tabs'
 import type { MovimentacaoItem, AdvertenciaItem, SolicitacaoItem, FaltaItem, AtestadoItem } from '@/components/efetivo/perfil-tabs'
 import type { HorarioVigenteShape, HistoricoHorarioShape } from '@/components/efetivo/tab-horario'
+import { chaveConsolidada, protocoloDoGrupo } from '@/lib/termos/consolidar-dia'
 import { chavesQueExigemTermo, idsDeTurnos } from '@/lib/termos/exigencia-movs'
 import { TURNO_COLUNAS, type TurnoRow } from '@/lib/termos/montar-termo'
 import type { FuncionarioParaPDF } from '@/components/efetivo/movimentacao-pdf'
@@ -79,7 +80,7 @@ export default async function PerfilFuncionarioPage({
     supabase
       .from('movimentacoes')
       .select(`
-        id, tipo, campo_alterado, valor_antes, valor_depois, created_at, solicitacao_id,
+        id, tipo, campo_alterado, valor_antes, valor_depois, created_at, solicitacao_id, funcionario_id,
         perfis!executado_por(nome),
         solicitacoes!solicitacao_id(dados_antes, dados_depois, motivo, perfis!supervisor_id(nome))
       `)
@@ -224,6 +225,20 @@ export default async function PerfilFuncionarioPage({
     }
   } catch {
     // sem protocolos
+  }
+
+  // Compatibilidade: termo consolidado do dia vale como protocolado se qualquer mov do grupo tem protocolo 'mov:<id>' antigo
+  {
+    const idsPorChave = new Map<string, string[]>()
+    for (const m of movimentacoes) {
+      const k = chaveConsolidada(m)
+      if (!k.startsWith('dia:')) continue
+      idsPorChave.set(k, [...(idsPorChave.get(k) ?? []), m.id])
+    }
+    idsPorChave.forEach((ids, k) => {
+      const p = protocoloDoGrupo(k, ids, protocolos)
+      if (p) protocolos[k] = p
+    })
   }
 
   const advertencias  = (advRaw ?? []) as unknown as AdvertenciaItem[]

@@ -1,8 +1,10 @@
 import { consolidarTurnos, exigeTermo } from './exige-termo'
+import { chaveConsolidada } from './consolidar-dia'
 import { paraHorario, type TurnoRow } from './montar-termo'
 
 export type MovParaExigencia = {
   id: string
+  funcionario_id: string
   tipo: string
   valor_antes: string | null
   valor_depois: string | null
@@ -14,8 +16,7 @@ export type MovParaExigencia = {
   } | null
 }
 
-export const chaveDaMov = (m: { id: string; solicitacao_id: string | null }) =>
-  m.solicitacao_id ? `sol:${m.solicitacao_id}` : `mov:${m.id}`
+export const chaveDaMov = chaveConsolidada
 
 /** Ids de turnos citados pelas movimentações de horário (para carga em lote). */
 export function idsDeTurnos(movs: MovParaExigencia[]): string[] {
@@ -28,7 +29,7 @@ export function idsDeTurnos(movs: MovParaExigencia[]): string[] {
   return Array.from(s)
 }
 
-/** Chaves de termo (sol:/mov:) dos grupos que exigem termo — mesma regra da lista e do PDF. */
+/** Chaves de termo (sol:/dia:/mov:) dos grupos que exigem termo — mesma regra da lista e do PDF. */
 export function chavesQueExigemTermo(movs: MovParaExigencia[], turnos: Map<string, TurnoRow>): Set<string> {
   const grupos = new Map<string, MovParaExigencia[]>()
   for (const m of movs) {
