@@ -90,6 +90,7 @@ export const CATALOGO_5X2: TurnoCatalogoItem[] = [
   { nome: 'Turno 7h 30m (n)', hora_entrada: '07:30', hora_inicio_almoco: '10:00', hora_fim_almoco: '11:12', hora_saida_seg_qui: '17:30', hora_saida_sex: '17:30' },
   { nome: 'Turno 6h 40m (a)', hora_entrada: '06:40', hora_inicio_almoco: '12:00', hora_fim_almoco: '13:00', hora_saida_seg_qui: '16:28', hora_saida_sex: '16:28' },
   { nome: 'Turno 8h (k)',     hora_entrada: '08:00', hora_inicio_almoco: '12:00', hora_fim_almoco: '13:00', hora_saida_seg_qui: '17:48', hora_saida_sex: '17:48' },
+  { nome: 'Turno 9h (b)',     hora_entrada: '09:00', hora_inicio_almoco: '14:00', hora_fim_almoco: '15:12', hora_saida_seg_qui: '19:00', hora_saida_sex: '19:00' },
 ]
 
 export const CATALOGO_5X1: TurnoCatalogoItem[] = [
