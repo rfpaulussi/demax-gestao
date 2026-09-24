@@ -9,6 +9,19 @@ import type { Json } from '@/types/database'
 import { aplicarMudancaHorario } from '@/app/(admin)/efetivo/horario/actions'
 import { FUNCAO_JOVEM_APRENDIZ, precisaNovoTurno } from '@/lib/turnos/escala'
 
+async function nomeSupervisorDoPosto(postoId: string | null): Promise<string | null> {
+  if (!postoId) return null
+  const adm = createAdminClient()
+  const { data } = await adm
+    .from('config_supervisores_postos')
+    .select('perfis!supervisor_id(nome)')
+    .eq('posto_id', postoId)
+    .eq('ativo', true)
+    .limit(1)
+    .maybeSingle()
+  return (data as unknown as { perfis: { nome: string | null } | null } | null)?.perfis?.nome ?? null
+}
+
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
 
 type ActionResult = { success: true; redirect_url?: string } | { success: false; error: string }
@@ -155,6 +168,24 @@ export async function aprovarSolicitacao(
   // em efetivo/actions.ts — registrarAtestado/registrarFerias/marcarRetornoFaltante).
   const adminSupabase = createAdminClient()
 
+  const postoOrigemId = func?.posto_id ?? null
+  const postoDestSnapId = sol.tipo === 'transferencia'
+    ? (dadosDepois.posto_destino_id as string | undefined) ?? null
+    : sol.tipo === 'retorno_afastamento'
+      ? (dadosDepois.posto_retorno_id as string | undefined) ?? postoOrigemId
+      : postoOrigemId
+  const [supOrigem, supDestino] = await Promise.all([
+    nomeSupervisorDoPosto(postoOrigemId),
+    nomeSupervisorDoPosto(postoDestSnapId),
+  ])
+  dadosDepois.termo_snapshot = {
+    supervisor_origem_nome: supOrigem,
+    supervisor_destino_nome: supDestino,
+    posto_origem_id: postoOrigemId,
+    posto_destino_id: postoDestSnapId,
+    data_efetivacao: hojeISO,
+  }
+
   switch (sol.tipo as TipoSolicitacao) {
     case 'desligamento': {
       const dataDesligamento = dadosDepois.data_desligamento as string | undefined
@@ -202,6 +233,7 @@ export async function aprovarSolicitacao(
           (dadosDepois.dia_curso_destino as number | undefined) ?? null,
           hojeISO,
           guard.userId,
+          id,
         )
       }
       break
@@ -226,6 +258,7 @@ export async function aprovarSolicitacao(
           (dadosDepois.dia_curso_destino as number | undefined) ?? null,
           hojeISO,
           guard.userId,
+          id,
         )
       }
       break
@@ -299,6 +332,7 @@ export async function aprovarSolicitacao(
           (dadosDepois.dia_curso_destino as number | undefined) ?? null,
           hojeISO,
           guard.userId,
+          id,
         )
       }
       break
@@ -318,6 +352,7 @@ export async function aprovarSolicitacao(
         (dadosDepois.dia_curso_destino as number | undefined) ?? null,
         hojeISO,
         guard.userId,
+        id,
       )
 
       await supabase
@@ -327,6 +362,7 @@ export async function aprovarSolicitacao(
           aprovado_por:     guard.userId,
           aprovado_em:      new Date().toISOString(),
           observacao_admin: observacao ?? null,
+          dados_depois:     dadosDepois as unknown as Json,
         })
         .eq('id', id)
 
@@ -404,6 +440,7 @@ export async function aprovarSolicitacao(
           (dadosDepois.dia_curso_destino as number | undefined) ?? null,
           dadosDepois.data_admissao as string,
           guard.userId,
+          id,
         )
       }
 

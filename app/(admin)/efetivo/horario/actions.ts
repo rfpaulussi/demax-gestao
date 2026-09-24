@@ -242,6 +242,7 @@ export async function aplicarMudancaHorario(
   diaCurso: number | null,
   dataEfetivacao: string,
   criadoPor: string,
+  solicitacaoId?: string | null,
 ): Promise<void> {
   // Defesa em profundidade: como o arquivo é 'use server', esta função é uma Server Action
   // invocável diretamente por um cliente. O único chamador hoje (aprovarSolicitacao) já
@@ -288,6 +289,7 @@ export async function aplicarMudancaHorario(
         valor_antes: vigente?.turno_id ?? null,
         valor_depois: turnoDestinoId,
         executado_por: criadoPor,
+        solicitacao_id: solicitacaoId ?? null,
       })
     }
   }
