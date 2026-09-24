@@ -2099,6 +2099,36 @@ export type Database = {
           },
         ]
       }
+      termos_protocolo: {
+        Row: {
+          chave_termo: string
+          created_at: string | null
+          funcionario_id: string
+          id: string
+          observacao: string | null
+          protocolado_em: string
+          protocolado_por: string
+        }
+        Insert: {
+          chave_termo: string
+          created_at?: string | null
+          funcionario_id: string
+          id?: string
+          observacao?: string | null
+          protocolado_em?: string
+          protocolado_por: string
+        }
+        Update: {
+          chave_termo?: string
+          created_at?: string | null
+          funcionario_id?: string
+          id?: string
+          observacao?: string | null
+          protocolado_em?: string
+          protocolado_por?: string
+        }
+        Relationships: []
+      }
       transferencias: {
         Row: {
           created_at: string | null
