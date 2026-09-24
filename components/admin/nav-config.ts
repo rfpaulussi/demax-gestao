@@ -6,6 +6,7 @@ export type NavItem = {
   label: string
   badge?: boolean
   alertBadge?: boolean
+  termosBadge?: boolean
   // Quando presente, define exatamente quem vê o item, ignorando o adminOnly do grupo.
   // Ausente = herda o comportamento padrão do grupo (adminOnly).
   allowedRoles?: readonly Role[]
@@ -25,6 +26,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/efetivo',       label: 'Efetivo'       },
       { href: '/postos',        label: 'Postos'        },
       { href: '/aprovacoes',    label: 'Aprovações',   badge: true },
+      { href: '/movimentacoes', label: 'Movimentações', termosBadge: true },
       { href: '/coberturas',    label: 'Cobertura Temp.' },
       { href: '/ferias',        label: 'Férias'        },
       { href: '/advertencias',  label: 'Advertências'  },

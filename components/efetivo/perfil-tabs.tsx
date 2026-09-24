@@ -4,8 +4,13 @@ import { useState } from 'react'
 import { FileDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { TipoSolicitacao, StatusSolicitacao } from '@/types'
-import { downloadMovimentacaoPDF } from './movimentacao-pdf'
+import { downloadTermoPDF } from './movimentacao-pdf'
 import type { FuncionarioParaPDF } from './movimentacao-pdf'
+import { carregarTermoDaMovimentacao } from '@/lib/termos/carregar-termo'
+import { COR_TIPO } from '@/lib/termos/montar-termo'
+import { chaveConsolidada } from '@/lib/termos/consolidar-dia'
+import { DATA_CORTE_TERMOS } from '@/lib/termos/constantes'
+import type { TermoTipo } from '@/lib/termos/tipos'
 import { getDadosMovColaborador } from '@/lib/movimentacao-colaborador'
 import { downloadMovColaboradorPDF } from './movimentacao-colaborador-pdf'
 import { TabHorario } from './tab-horario'
@@ -21,6 +26,7 @@ export type MovimentacaoItem = {
   valor_depois: string | null
   created_at: string | null
   solicitacao_id: string | null
+  funcionario_id: string
   perfis: { nome: string | null } | null
   solicitacoes: {
     dados_antes: Record<string, unknown> | null
@@ -207,19 +213,41 @@ function MovDetail({
   return null
 }
 
+function corDoTipo(tipo: string) {
+  return COR_TIPO[tipo as TermoTipo] ?? COR_TIPO.outro
+}
+
+const chaveTermo = (m: MovimentacaoItem): string => chaveConsolidada(m)
+
 function TabMovimentacoes({
   items,
   funcionario,
   postoNomeMap,
   funcaoNomeMap = {},
   turnoNomeMap = {},
+  protocolos = {},
+  termosExigidos = [],
 }: {
   items: MovimentacaoItem[]
   funcionario: FuncionarioParaPDF
   postoNomeMap: Record<string, string>
   funcaoNomeMap?: Record<string, string>
   turnoNomeMap?: Record<string, string>
+  protocolos?: Record<string, { em: string }>
+  termosExigidos?: string[]
 }) {
+  const exigidos = new Set(termosExigidos)
+  const exige = (m: MovimentacaoItem) => exigidos.has(chaveTermo(m))
+  // Termo consolidado do dia: botão/selo só na mov mais recente do dia (items vem em ordem decrescente)
+  const idPrincipalDoDia = new Map<string, string>()
+  for (const i of items) {
+    const k = chaveTermo(i)
+    if (k.startsWith('dia:') && !idPrincipalDoDia.has(k)) idPrincipalDoDia.set(k, i.id)
+  }
+  const consolidadoNoDia = (m: MovimentacaoItem) => {
+    const k = chaveTermo(m)
+    return k.startsWith('dia:') && idPrincipalDoDia.get(k) !== m.id
+  }
   const [baixando, setBaixando] = useState<string | null>(null)
 
   if (items.length === 0) {
@@ -229,7 +257,10 @@ function TabMovimentacoes({
   async function handleDownload(mov: MovimentacaoItem) {
     setBaixando(mov.id)
     try {
-      if (mov.tipo === 'mudanca_funcao') {
+      const grupoTemTransferencia =
+        !!mov.solicitacao_id &&
+        items.some(i => i.solicitacao_id === mov.solicitacao_id && i.tipo === 'transferencia')
+      if (mov.tipo === 'mudanca_funcao' && !grupoTemTransferencia) {
         const dados = await getDadosMovColaborador(
           funcionario.id,
           mov.valor_antes,
@@ -239,18 +270,21 @@ function TabMovimentacoes({
         )
         if (dados) await downloadMovColaboradorPDF(dados, mov.tipo)
       } else {
-        await downloadMovimentacaoPDF(mov, funcionario, postoNomeMap, funcaoNomeMap, turnoNomeMap)
+        const termo = await carregarTermoDaMovimentacao(mov.id)
+        if (termo) await downloadTermoPDF(termo)
       }
     } finally {
       setBaixando(null)
     }
   }
 
-  const ultimaMov = items[0]
+  // Último termo = a movimentação mais recente que exige termo pela regra
+  const ultimaMov = items.find(exige) ?? null
 
   return (
     <div className="space-y-4">
-      {/* Acesso rápido — última movimentação */}
+      {/* Acesso rápido — última movimentação que exige termo */}
+      {ultimaMov && (
       <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-amber-700">Último Termo</p>
@@ -268,6 +302,7 @@ function TabMovimentacoes({
           {baixando === ultimaMov.id ? '...' : 'Imprimir Termo'}
         </button>
       </div>
+      )}
 
       <ol className="relative ml-3 border-l border-gray-200">
       {items.map(m => (
@@ -279,11 +314,33 @@ function TabMovimentacoes({
                 {m.created_at ? fmt(m.created_at) : '—'}
                 {m.perfis?.nome && <span> · {m.perfis.nome}</span>}
               </p>
-              <p className="mt-0.5 text-sm font-semibold capitalize text-gray-900">
-                {m.tipo.replace(/_/g, ' ')}
-              </p>
+              <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                <p className="text-sm font-semibold capitalize text-gray-900">
+                  {m.tipo.replace(/_/g, ' ')}
+                </p>
+                <span
+                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                  style={{ color: corDoTipo(m.tipo).hex, backgroundColor: corDoTipo(m.tipo).fundo }}
+                >
+                  {TIPO_LABELS[m.tipo] ?? m.tipo.replace(/_/g, ' ')}
+                </span>
+                {!exige(m) ? null : consolidadoNoDia(m) ? (
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 ring-1 ring-slate-200">
+                    Consolidado no termo do dia
+                  </span>
+                ) : protocolos[chaveTermo(m)] ? (
+                  <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700 ring-1 ring-green-200">
+                    Protocolado em {fmt(protocolos[chaveTermo(m)].em).split(' ')[0]}
+                  </span>
+                ) : (m.created_at ?? '').slice(0, 10) < DATA_CORTE_TERMOS ? null : (
+                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-amber-200">
+                    Pendente RH
+                  </span>
+                )}
+              </div>
               <MovDetail m={m} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />
             </div>
+            {exige(m) && !consolidadoNoDia(m) && (
             <button
               onClick={() => handleDownload(m)}
               disabled={baixando === m.id}
@@ -293,6 +350,7 @@ function TabMovimentacoes({
               <FileDown className="h-3 w-3" />
               {baixando === m.id ? '...' : 'PDF'}
             </button>
+            )}
           </div>
         </li>
       ))}
@@ -517,6 +575,8 @@ export function PerfilTabs({
   postoNomeMap = {},
   funcaoNomeMap = {},
   turnoNomeMap = {},
+  protocolos = {},
+  termosExigidos = [],
   horarioVigente = null,
   historicoHorario = [],
   regimePosto = null,
@@ -532,6 +592,8 @@ export function PerfilTabs({
   postoNomeMap?: Record<string, string>
   funcaoNomeMap?: Record<string, string>
   turnoNomeMap?: Record<string, string>
+  protocolos?: Record<string, { em: string }>
+  termosExigidos?: string[]
   horarioVigente?: HorarioVigenteShape
   historicoHorario?: HistoricoHorarioShape
   regimePosto?: string | null
@@ -561,7 +623,7 @@ export function PerfilTabs({
 
       <div className="pt-4">
         {tab === 'horario'       && <TabHorario horarioVigente={horarioVigente} historicoHorario={historicoHorario} regimePosto={regimePosto} postoId={postoId} funcionarioId={funcionario.id} role={role} funcaoNome={funcionario.funcao} />}
-        {tab === 'movimentacoes' && <TabMovimentacoes items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />}
+        {tab === 'movimentacoes' && <TabMovimentacoes items={movimentacoes} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} protocolos={protocolos} termosExigidos={termosExigidos} />}
         {tab === 'afastamentos'  && <TabAfastamentos  items={movimentacoes} atestados={atestados} funcionario={funcionario} postoNomeMap={postoNomeMap} funcaoNomeMap={funcaoNomeMap} turnoNomeMap={turnoNomeMap} />}
         {tab === 'advertencias'  && <TabAdvertencias  items={advertencias}  />}
         {tab === 'faltas'        && <TabFaltas        items={faltas}        />}

@@ -9,6 +9,7 @@ import { NotificacoesBell } from '@/components/admin/notificacoes-bell'
 import type { LogAcao } from '@/components/admin/notificacoes-bell'
 import { SupervisorBell } from '@/components/admin/supervisor-bell'
 import type { SolicitacaoNotif, AlertaSupervisor } from '@/components/admin/supervisor-bell'
+import { contarTermosPendentes } from '@/lib/termos/listar-termos'
 import { ROLE_LABELS } from '@/types'
 import type { Role } from '@/types'
 
@@ -47,7 +48,8 @@ export default async function AdminLayout({
     { unread: notifUnread, logs: notifLogs },
     { unread: supNotifUnread, notifs: supNotifs },
     { unread: supAlertasUnread, alertas: supAlertas },
-  ] = await Promise.all([
+    termosPendentes,
+  ] =await Promise.all([
     supabaseLayout
       .from('solicitacoes')
       .select('*', { count: 'exact', head: true })
@@ -131,11 +133,14 @@ export default async function AdminLayout({
         alertas: (alertasData ?? []) as AlertaSupervisor[],
       }
     })(),
+
+    // Termos de movimentação pendentes de protocolo no RH (escopo via RLS)
+    perfil.role === 'viewer' ? Promise.resolve(0) : contarTermosPendentes(),
   ])
 
   return (
     <div className={`${inter.className} min-h-screen bg-gray-50`}>
-      <SidebarNav role={perfil.role as Role | null} pendingCount={pendingCount ?? 0} alertCount={alertCount} />
+      <SidebarNav role={perfil.role as Role | null} pendingCount={pendingCount ?? 0} alertCount={alertCount} termosPendentes={termosPendentes} />
 
       {/* Content area — offset by sidebar width on desktop */}
       <div className="flex min-h-screen flex-col md:pl-64">

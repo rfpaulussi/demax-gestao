@@ -9,6 +9,9 @@ import { BannerExperiencia } from '@/components/efetivo/banner-experiencia'
 import { PerfilTabs } from '@/components/efetivo/perfil-tabs'
 import type { MovimentacaoItem, AdvertenciaItem, SolicitacaoItem, FaltaItem, AtestadoItem } from '@/components/efetivo/perfil-tabs'
 import type { HorarioVigenteShape, HistoricoHorarioShape } from '@/components/efetivo/tab-horario'
+import { chaveConsolidada, protocoloDoGrupo } from '@/lib/termos/consolidar-dia'
+import { chavesQueExigemTermo, idsDeTurnos } from '@/lib/termos/exigencia-movs'
+import { TURNO_COLUNAS, type TurnoRow } from '@/lib/termos/montar-termo'
 import type { FuncionarioParaPDF } from '@/components/efetivo/movimentacao-pdf'
 import { calcularScoreRisco, dataCorteScoreRisco } from '@/lib/risk-score'
 import { BadgeRisco } from '@/components/efetivo/badge-risco'
@@ -77,7 +80,7 @@ export default async function PerfilFuncionarioPage({
     supabase
       .from('movimentacoes')
       .select(`
-        id, tipo, campo_alterado, valor_antes, valor_depois, created_at, solicitacao_id,
+        id, tipo, campo_alterado, valor_antes, valor_depois, created_at, solicitacao_id, funcionario_id,
         perfis!executado_por(nome),
         solicitacoes!solicitacao_id(dados_antes, dados_depois, motivo, perfis!supervisor_id(nome))
       `)
@@ -200,6 +203,44 @@ export default async function PerfilFuncionarioPage({
   ])
 
   const movimentacoes = (movRaw ?? []) as unknown as MovimentacaoItem[]
+  // Quais grupos de movimentação exigem termo para o RH (mesma regra da lista /movimentacoes e do PDF)
+  const idsTurnosMov = idsDeTurnos(movimentacoes)
+  const turnosMov = new Map<string, TurnoRow>()
+  if (idsTurnosMov.length > 0) {
+    const { data: turnosRaw } = await supabase.from('turnos_postos').select(TURNO_COLUNAS).in('id', idsTurnosMov)
+    for (const t of (turnosRaw ?? []) as unknown as TurnoRow[]) turnosMov.set(t.id, t)
+  }
+  const termosExigidos = Array.from(chavesQueExigemTermo(movimentacoes, turnosMov))
+  // Protocolos de entrega ao RH (a tabela pode ainda não existir: erro => vazio)
+  const protocolos: Record<string, { em: string }> = {}
+  try {
+    const { data: protRaw, error: protErr } = await supabase
+      .from('termos_protocolo')
+      .select('chave_termo, protocolado_em')
+      .eq('funcionario_id', id)
+    if (!protErr) {
+      for (const p of (protRaw ?? []) as { chave_termo: string; protocolado_em: string }[]) {
+        protocolos[p.chave_termo] = { em: p.protocolado_em }
+      }
+    }
+  } catch {
+    // sem protocolos
+  }
+
+  // Compatibilidade: termo consolidado do dia vale como protocolado se qualquer mov do grupo tem protocolo 'mov:<id>' antigo
+  {
+    const idsPorChave = new Map<string, string[]>()
+    for (const m of movimentacoes) {
+      const k = chaveConsolidada(m)
+      if (!k.startsWith('dia:')) continue
+      idsPorChave.set(k, [...(idsPorChave.get(k) ?? []), m.id])
+    }
+    idsPorChave.forEach((ids, k) => {
+      const p = protocoloDoGrupo(k, ids, protocolos)
+      if (p) protocolos[k] = p
+    })
+  }
+
   const advertencias  = (advRaw ?? []) as unknown as AdvertenciaItem[]
   const solicitacoes  = (solRaw ?? []) as unknown as SolicitacaoItem[]
   const faltas        = (faltasRaw ?? []) as unknown as FaltaItem[]
@@ -417,6 +458,8 @@ export default async function PerfilFuncionarioPage({
           postoNomeMap={postoNomeMap}
           funcaoNomeMap={funcaoNomeMap}
           turnoNomeMap={turnoNomeMap}
+          protocolos={protocolos}
+          termosExigidos={termosExigidos}
           horarioVigente={horarioVigente}
           historicoHorario={historicoHorario}
           regimePosto={regimePosto}
