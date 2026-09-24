@@ -221,6 +221,95 @@ async function alertarRetornosInssVencidosSupervisores(supabase: ReturnType<type
   return { supervisoresNotificados }
 }
 
+// Faltas injustificadas cujo último dia foi há 3 a 5 dias: janela em que o atestado
+// costuma chegar. Avisa o supervisor do posto para confirmar antes que vire desconto.
+async function alertarFaltasParaConfirmar(supabase: ReturnType<typeof createAdminClient>, hoje: string) {
+  const dia = (delta: number) => {
+    const d = new Date(`${hoje}T12:00:00Z`)
+    d.setUTCDate(d.getUTCDate() + delta)
+    return d.toISOString().slice(0, 10)
+  }
+  const limiteAntigo = dia(-5)
+  const limiteRecente = dia(-3)
+
+  type FaltaRow = {
+    funcionario_id: string
+    data_falta: string
+    data_fim: string | null
+    funcionarios: { nome: string; posto_id: string | null } | null
+  }
+  const { data } = await supabase
+    .from('faltas')
+    .select('funcionario_id, data_falta, data_fim, funcionarios!inner(nome, posto_id)')
+    .eq('tipo', 'sem_justificativa')
+    .lte('data_falta', limiteRecente)
+  const faltas = ((data ?? []) as unknown as FaltaRow[])
+    .filter(f => {
+      const ultimo = f.data_fim ?? f.data_falta
+      return ultimo >= limiteAntigo && ultimo <= limiteRecente
+    })
+  if (faltas.length === 0) return { supervisoresNotificados: 0 }
+
+  const postoIds = Array.from(new Set(
+    faltas.map(f => f.funcionarios?.posto_id).filter((id): id is string => !!id),
+  ))
+  if (postoIds.length === 0) return { supervisoresNotificados: 0 }
+
+  const { data: cspData } = await supabase
+    .from('config_supervisores_postos')
+    .select('posto_id, supervisor_id')
+    .in('posto_id', postoIds)
+    .eq('ativo', true)
+
+  const supervisoresPorPosto = new Map<string, string[]>()
+  for (const c of (cspData ?? []) as { posto_id: string; supervisor_id: string }[]) {
+    const lista = supervisoresPorPosto.get(c.posto_id) ?? []
+    lista.push(c.supervisor_id)
+    supervisoresPorPosto.set(c.posto_id, lista)
+  }
+
+  const nomesPorSupervisor = new Map<string, Set<string>>()
+  for (const f of faltas) {
+    const postoId = f.funcionarios?.posto_id
+    if (!postoId) continue
+    for (const supervisorId of (supervisoresPorPosto.get(postoId) ?? [])) {
+      const set = nomesPorSupervisor.get(supervisorId) ?? new Set<string>()
+      set.add(f.funcionarios?.nome ?? '—')
+      nomesPorSupervisor.set(supervisorId, set)
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabaseAny = supabase as any
+  let supervisoresNotificados = 0
+  for (const [supervisorId, setNomes] of Array.from(nomesPorSupervisor.entries())) {
+    const nomes = Array.from(setNomes)
+    const { data: existing } = await supabaseAny
+      .from('alertas_supervisor')
+      .select('id')
+      .eq('supervisor_id', supervisorId)
+      .eq('tipo', 'falta_confirmar_atestado')
+      .gte('created_at', `${hoje}T00:00:00`)
+      .lte('created_at', `${hoje}T23:59:59`)
+      .maybeSingle()
+
+    const payload = {
+      supervisor_id: supervisorId,
+      tipo: 'falta_confirmar_atestado',
+      titulo: `Confirme ${nomes.length} falta${nomes.length > 1 ? 's' : ''} sem justificativa: já chegou atestado?`,
+      detalhes: JSON.stringify({ nomes, total: nomes.length }),
+      lido: false,
+    }
+    if (existing) {
+      await supabaseAny.from('alertas_supervisor').update(payload).eq('id', existing.id)
+    } else {
+      await supabaseAny.from('alertas_supervisor').insert(payload)
+    }
+    supervisoresNotificados++
+  }
+  return { supervisoresNotificados }
+}
+
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -234,6 +323,7 @@ export async function GET(req: NextRequest) {
   const alertaFerias = await alertarFeriasVencendo(supabase, hoje)
   const alertaRetornoInss = await alertarRetornosInssVencidos(supabase, hoje)
   const alertaRetornoInssSupervisores = await alertarRetornosInssVencidosSupervisores(supabase, hoje)
+  const alertaFaltasConfirmar = await alertarFaltasParaConfirmar(supabase, hoje)
   const retornosAtestado = await processarRetornosAtestado()
   const coberturasEncerradas = await encerrarCoberturasVencidas()
 
@@ -256,7 +346,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, data: hoje, ferias, alertaFerias, alertaRetornoInss, alertaRetornoInssSupervisores, retornosAtestado, coberturasEncerradas, kpis: {
+  return NextResponse.json({ ok: true, data: hoje, ferias, alertaFerias, alertaRetornoInss, alertaRetornoInssSupervisores, alertaFaltasConfirmar, retornosAtestado, coberturasEncerradas, kpis: {
     ativos: kpis.ativos,
     afastados: kpis.afastados,
     em_ferias: kpis.em_ferias,

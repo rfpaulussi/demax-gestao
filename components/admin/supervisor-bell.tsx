@@ -25,7 +25,7 @@ export type AlertaSupervisor = {
 }
 
 function renderAlerta(a: AlertaSupervisor): ReactNode {
-  if (a.tipo === 'retorno_inss_vencido') {
+  if (a.tipo === 'retorno_inss_vencido' || a.tipo === 'falta_confirmar_atestado') {
     let nomes: string[] = []
     try {
       const d = JSON.parse(a.detalhes ?? '{}')
@@ -33,7 +33,7 @@ function renderAlerta(a: AlertaSupervisor): ReactNode {
     } catch { /* ignore */ }
     return (
       <p className="text-xs text-gray-700 leading-snug">
-        <span className="font-semibold text-red-700">{a.titulo}</span>
+        <span className={cn('font-semibold', a.tipo === 'falta_confirmar_atestado' ? 'text-amber-700' : 'text-red-700')}>{a.titulo}</span>
         {nomes.length > 0 && <span className="text-gray-400"> ({nomes.slice(0, 3).join(', ')}{nomes.length > 3 ? '...' : ''})</span>}
       </p>
     )
