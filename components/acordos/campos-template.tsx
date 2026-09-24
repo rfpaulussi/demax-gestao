@@ -206,7 +206,7 @@ export function CamposTemplate({
   /** Folga de todos no mesmo dia, ou revezamento com uma data por funcionário. */
   const blocoFolga = (rotulo: string, ajuda: string) => (
     <div className="space-y-3">
-      <SeletorModoFolga revezamento={f.revezamento} onModo={trocarModoFolga} />
+      <SeletorModoFolga revezamento={f.revezamento} onModo={trocarModoFolga} reposicao={t === 'T3'} />
       {f.revezamento ? (
         <FolgasRevezamento
           funcionarios={funcionarios}
@@ -299,7 +299,9 @@ export function CamposTemplate({
     if (t === 'T3' || t === 'T4') return f.revezamento ? funcionarios.some(x => !f.folgas[x.id]) : !f.dataFolga
     return false
   }
-  const rotuloDataFolga = f.revezamento ? 'a data da folga de cada funcionário' : 'a data da folga'
+  const rotuloDataFolga = t === 'T3'
+    ? (f.revezamento ? 'o dia não trabalhado de cada funcionário' : 'o dia não trabalhado')
+    : f.revezamento ? 'a data da folga de cada funcionário' : 'a data da folga'
 
   const blocoDias = (dica: string, rotuloBase: string) => (
     <div>
@@ -370,7 +372,7 @@ export function CamposTemplate({
 
       {t === 'T3' && (
         <>
-          <SubPasso letra={proxima()} titulo="Dia da folga">
+          <SubPasso letra={proxima()} titulo="Dia não trabalhado">
             {blocoFolga('Qual dia não trabalharam?', 'ex: sexta-feira, 05/06/2026')}
           </SubPasso>
           <SubPasso letra={proxima()} titulo="Motivo">{blocoMotivo(false)}</SubPasso>

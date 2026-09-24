@@ -22,7 +22,7 @@ export function camposFaltando(c: CamposAcordo): string[] {
   }
   if (t === 'T2' && !c.horaDispensa) faltas.push('horário de dispensa')
   if (t === 'T3' || t === 'T4' || t === 'T5') {
-    if (!c.dataFolga) faltas.push('data da folga')
+    if (!c.dataFolga) faltas.push(t === 'T3' ? 'dia não trabalhado' : 'data da folga')
   }
   if (t === 'T4' && c.minutosFolga !== undefined && !(c.minutosFolga > 0)) faltas.push('horas de folga')
   if ((t === 'T3' || t === 'T4') && !(c.motivo ?? '').trim()) faltas.push('motivo')
@@ -63,7 +63,7 @@ export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriado
 
   if (usaFolga && c.folgasPorFuncionario) {
     for (const f of funcs) {
-      if (!c.folgasPorFuncionario[f.id]) add('erro', 'FOLGA_SEM_DATA', `${f.nome}: informe a data da folga dele.`, f.id)
+      if (!c.folgasPorFuncionario[f.id]) add('erro', 'FOLGA_SEM_DATA', `${f.nome}: informe a data ${t === 'T3' ? 'do dia não trabalhado' : 'da folga'} dele.`, f.id)
     }
   }
   // datas de folga dos funcionários avaliados (todos, ou só o grupo, conforme quem chama)

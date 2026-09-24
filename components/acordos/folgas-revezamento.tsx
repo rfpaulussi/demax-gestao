@@ -8,6 +8,8 @@ export interface FuncionarioFolga { id: string; nome: string }
 interface ModoProps {
   revezamento: boolean
   onModo: (revezamento: boolean) => void
+  /** true: o dia é uma dispensa a repor depois (T3), não uma folga. */
+  reposicao?: boolean
 }
 
 interface Props {
@@ -25,10 +27,12 @@ const modoCls = (ativo: boolean) =>
   `flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition ${ativo ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`
 
 /** Escolha entre "todos folgam no mesmo dia" e "revezamento" (uma data de folga por funcionário). */
-export function SeletorModoFolga({ revezamento, onModo }: ModoProps) {
+export function SeletorModoFolga({ revezamento, onModo, reposicao }: ModoProps) {
   return (
     <div>
-      <p className="mb-1.5 text-xs font-bold uppercase tracking-widest text-slate-500">Quem folga em cada dia?</p>
+      <p className="mb-1.5 text-xs font-bold uppercase tracking-widest text-slate-500">
+        {reposicao ? 'Quem fica sem trabalhar em cada dia?' : 'Quem folga em cada dia?'}
+      </p>
       <div role="tablist" className="flex gap-1 rounded-lg border border-gray-200 bg-white p-1">
         <button type="button" role="tab" aria-selected={!revezamento} onClick={() => onModo(false)} className={modoCls(!revezamento)}>
           Todos no mesmo dia
@@ -39,8 +43,12 @@ export function SeletorModoFolga({ revezamento, onModo }: ModoProps) {
       </div>
       <p className="mt-1 text-xs text-gray-400">
         {revezamento
-          ? 'Cada funcionário folga em uma data diferente e o posto continua coberto pelos demais.'
-          : 'Todos folgam na mesma data; o posto fica sem esses funcionários nesse dia.'}
+          ? reposicao
+            ? 'Cada funcionário fica sem trabalhar em uma data diferente e o posto continua coberto pelos demais.'
+            : 'Cada funcionário folga em uma data diferente e o posto continua coberto pelos demais.'
+          : reposicao
+            ? 'Todos ficam sem trabalhar na mesma data; o posto fica sem esses funcionários nesse dia.'
+            : 'Todos folgam na mesma data; o posto fica sem esses funcionários nesse dia.'}
       </p>
     </div>
   )
