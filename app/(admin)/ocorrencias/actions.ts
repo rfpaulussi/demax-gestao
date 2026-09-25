@@ -348,7 +348,6 @@ type RawOcorrenciaDossie = {
   gravidade: string | null
   status: string | null
   supervisor_id: string | null
-  com_rh_desde: string | null
 }
 
 export async function getDossieFuncionario(funcionarioId: string): Promise<DossieFuncionario | null> {
@@ -393,7 +392,7 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
       .select('id, data_falta, tipo, dias, observacao')
       .eq('funcionario_id', funcionarioId),
     (supabase as unknown as AnyClient).from('ocorrencias')
-      .select('id, titulo, descricao, data_ocorrencia, gravidade, status, supervisor_id, com_rh_desde')
+      .select('id, titulo, descricao, data_ocorrencia, gravidade, status, supervisor_id')
       .eq('funcionario_id', funcionarioId)
       .eq('tipo', 'ocorrencia'),
   ])
@@ -413,6 +412,19 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
     for (const c of (cs ?? []) as { ocorrencia_id: string; tipo: string }[]) {
       if (auth.perfil.role === 'supervisor' && c.tipo === 'nota_interna') continue
       contagemComentarios.set(c.ocorrencia_id, (contagemComentarios.get(c.ocorrencia_id) ?? 0) + 1)
+    }
+  }
+
+  // "Com o RH": consulta separada e tolerante. Se a coluna ainda não existir (migração pendente),
+  // o erro é ignorado e o dossiê continua funcionando normalmente, só sem o selo.
+  const comRhMap = new Map<string, string>()
+  if (ehGestao && ocorrencias.length > 0) {
+    const { data: rh } = await (createAdminClient() as unknown as AnyClient)
+      .from('ocorrencias')
+      .select('id, com_rh_desde')
+      .in('id', ocorrencias.map(o => o.id))
+    for (const r of (rh ?? []) as { id: string; com_rh_desde: string | null }[]) {
+      if (r.com_rh_desde) comRhMap.set(r.id, r.com_rh_desde)
     }
   }
 
@@ -466,7 +478,7 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
       status: o.status ?? 'aberta',
       comentarios: contagemComentarios.get(o.id) ?? 0,
       supervisor_nome: o.supervisor_id ? (supervisorNomesMap.get(o.supervisor_id) ?? null) : null,
-      com_rh_desde: ehGestao ? (o.com_rh_desde ?? null) : null,
+      com_rh_desde: ehGestao ? (comRhMap.get(o.id) ?? null) : null,
     })
   }
 
@@ -515,7 +527,7 @@ async function carregarOcorrenciaDevolutiva(
 ): Promise<OcorrenciaDevolutiva | null> {
   const { data } = await (createAdminClient() as unknown as AnyClient)
     .from('ocorrencias')
-    .select('id, tipo, status, com_rh_desde, posto_id, supervisor_id, funcionario_id, funcionarios!funcionario_id(nome, posto_id)')
+    .select('id, tipo, status, posto_id, supervisor_id, funcionario_id, funcionarios!funcionario_id(nome, posto_id)')
     .eq('id', ocorrenciaId)
     .single()
   if (!data || data.tipo !== 'ocorrencia' || !data.funcionario_id) return null
@@ -533,7 +545,7 @@ async function carregarOcorrenciaDevolutiva(
   return {
     id: data.id,
     status: data.status ?? 'aberta',
-    com_rh_desde: data.com_rh_desde ?? null,
+    com_rh_desde: null, // preenchido só pelas actions do RH, via lerComRH (coluna nova, tolerante)
     posto_id: data.posto_id,
     supervisor_id: data.supervisor_id,
     funcionario_id: data.funcionario_id,
@@ -704,7 +716,6 @@ export async function updateStatusOcorrencia(formData: FormData): Promise<Action
       status,
       atualizado_por: auth.user.id,
       atualizado_em: new Date().toISOString(),
-      ...(status === 'encerrada' ? { com_rh_desde: null, com_rh_por: null } : {}),
     })
     .eq('id', id)
     .in('status', ['aberta', 'em_analise'])
@@ -712,6 +723,12 @@ export async function updateStatusOcorrencia(formData: FormData): Promise<Action
   if (error) return { success: false, error: error.message }
   if (!atualizadas || atualizadas.length === 0) {
     return { success: false, error: 'Esta ocorrência já foi encerrada' }
+  }
+
+  // Encerrada não fica "Com o RH". Atualização à parte e tolerante: se a coluna ainda não existir
+  // (migração pendente) o erro é ignorado e o encerramento segue normal.
+  if (status === 'encerrada') {
+    await adminSupabase.from('ocorrencias').update({ com_rh_desde: null, com_rh_por: null }).eq('id', id)
   }
 
   // Parecer depois de garantir a transição. Se a gravação falhar, desfaz o status
@@ -751,6 +768,16 @@ async function exigirGestao(): Promise<AuthUser | null> {
   const auth = await getUser()
   if (!auth || (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador')) return null
   return auth
+}
+
+// Lê "desde quando está com o RH". Coluna nova: se ainda não existir (migração pendente) devolve null.
+async function lerComRH(ocorrenciaId: string): Promise<string | null> {
+  const { data } = await (createAdminClient() as unknown as AnyClient)
+    .from('ocorrencias')
+    .select('com_rh_desde')
+    .eq('id', ocorrenciaId)
+    .single()
+  return (data?.com_rh_desde as string | null | undefined) ?? null
 }
 
 const ROTULO_GRAVIDADE: Record<string, string> = {
@@ -839,7 +866,7 @@ export async function getRascunhoRH(ocorrenciaId: string): Promise<RascunhoRH> {
   if (oc.status === 'encerrada' || oc.status === 'resolvido') {
     return { success: false, error: 'Esta ocorrência já foi encerrada' }
   }
-  if (oc.com_rh_desde) return { success: false, error: 'Esta ocorrência já está com o RH' }
+  if (await lerComRH(ocorrenciaId)) return { success: false, error: 'Esta ocorrência já está com o RH' }
 
   const dados = await montarDadosRascunhoRH(oc, auth.perfil.nome ?? 'Coordenação')
   if (!dados) return { success: false, error: 'Não foi possível montar o rascunho' }
@@ -860,7 +887,7 @@ export async function encaminharAoRH(
   const destinatarios = validarEmails(dados.para)
   if (!destinatarios.ok) return { success: false, error: destinatarios.error }
 
-  const assunto = dados.assunto.trim()
+  const assunto = dados.assunto.replace(/[\r\n]+/g, ' ').trim()
   const corpo = dados.corpo.trim()
   if (!assunto || assunto.length > 200) return { success: false, error: 'Assunto inválido (até 200 caracteres)' }
   if (!corpo) return { success: false, error: 'Escreva a mensagem' }
@@ -871,9 +898,22 @@ export async function encaminharAoRH(
   if (oc.status === 'encerrada' || oc.status === 'resolvido') {
     return { success: false, error: 'Esta ocorrência já foi encerrada' }
   }
-  if (oc.com_rh_desde) return { success: false, error: 'Esta ocorrência já está com o RH' }
+  const admin = createAdminClient() as unknown as AnyClient
 
-  // Envia primeiro: se o e-mail falhar, nada muda no sistema e o coordenador vê o erro.
+  // Reserva ANTES de enviar: a atualização condicional só passa para um clique. Assim duas
+  // requisições ao mesmo tempo (duplo clique) não mandam dois e-mails ao RH.
+  const desde = new Date().toISOString()
+  const { data: reservadas, error: erroReserva } = await admin
+    .from('ocorrencias')
+    .update({ com_rh_desde: desde, com_rh_por: auth.user.id })
+    .eq('id', ocorrenciaId)
+    .is('com_rh_desde', null)
+    .select('id')
+  if (erroReserva) return { success: false, error: 'Não foi possível iniciar o encaminhamento. Tente de novo.' }
+  if (!reservadas || reservadas.length === 0) {
+    return { success: false, error: 'Esta ocorrência já está com o RH' }
+  }
+
   const enviado = await enviarEmail({
     to: destinatarios.emails,
     subject: assunto,
@@ -881,29 +921,22 @@ export async function encaminharAoRH(
     replyTo: auth.user.email ?? undefined,
   })
   if (!enviado) {
-    return { success: false, error: 'Não foi possível enviar o e-mail. Confira a configuração do Resend e tente de novo.' }
-  }
-
-  const admin = createAdminClient() as unknown as AnyClient
-  const { data: marcadas, error } = await admin
-    .from('ocorrencias')
-    .update({ com_rh_desde: new Date().toISOString(), com_rh_por: auth.user.id })
-    .eq('id', ocorrenciaId)
-    .is('com_rh_desde', null)
-    .select('id')
-  if (error || !marcadas || marcadas.length === 0) {
+    // E-mail não saiu: desfaz a reserva pra ocorrência não ficar marcada sem ter sido enviada.
+    await admin.from('ocorrencias').update({ com_rh_desde: null, com_rh_por: null }).eq('id', ocorrenciaId)
     return {
       success: false,
-      error: 'O e-mail foi enviado, mas não foi possível marcar a ocorrência como "Com o RH". Não envie de novo.',
+      error: 'Não foi possível enviar o e-mail. Confira o destinatário e a configuração do Resend, e tente de novo.',
     }
   }
 
-  await admin.from('ocorrencia_comentarios').insert({
+  const { error: erroNota } = await admin.from('ocorrencia_comentarios').insert({
     ocorrencia_id: ocorrenciaId,
     autor_id: auth.user.id,
     tipo: 'nota_interna',
     texto: `Encaminhado ao RH (para: ${destinatarios.emails.join(', ')})\nAssunto: ${assunto}\n\n${corpo}`,
   })
+  // O e-mail já saiu e a ocorrência está marcada; a nota é só o registro do que foi enviado.
+  if (erroNota) console.error('[encaminhar-rh] falha ao gravar a nota do encaminhamento:', erroNota.message)
 
   revalidatePath('/ocorrencias')
   return { success: true }
@@ -918,24 +951,32 @@ export async function registrarRetornoRH(ocorrenciaId: string, texto: string): P
 
   const oc = await carregarOcorrenciaDevolutiva(ocorrenciaId, auth)
   if (!oc) return { success: false, error: 'Sem permissão' }
-  if (!oc.com_rh_desde) return { success: false, error: 'Esta ocorrência não está com o RH' }
+  const desdeAntes = await lerComRH(ocorrenciaId)
+  if (!desdeAntes) return { success: false, error: 'Esta ocorrência não está com o RH' }
 
   const admin = createAdminClient() as unknown as AnyClient
 
-  // Nota primeiro: se a gravação falhar, o "Com o RH" continua e o retorno não se perde.
+  // Limpa ANTES de gravar a nota, de forma condicional: um retorno só passa uma vez (sem nota duplicada).
+  const { data: limpas, error: erroLimpa } = await admin
+    .from('ocorrencias')
+    .update({ com_rh_desde: null, com_rh_por: null })
+    .eq('id', ocorrenciaId)
+    .not('com_rh_desde', 'is', null)
+    .select('id')
+  if (erroLimpa) return { success: false, error: erroLimpa.message }
+  if (!limpas || limpas.length === 0) return { success: false, error: 'Esta ocorrência não está com o RH' }
+
   const { error: erroNota } = await admin.from('ocorrencia_comentarios').insert({
     ocorrencia_id: ocorrenciaId,
     autor_id: auth.user.id,
     tipo: 'nota_interna',
     texto: `Retorno do RH:\n${validado.texto}`,
   })
-  if (erroNota) return { success: false, error: erroNota.message }
-
-  const { error } = await admin
-    .from('ocorrencias')
-    .update({ com_rh_desde: null, com_rh_por: null })
-    .eq('id', ocorrenciaId)
-  if (error) return { success: false, error: error.message }
+  if (erroNota) {
+    // Nota não gravou: devolve o "Com o RH" pro retorno não se perder e o coordenador tentar de novo.
+    await admin.from('ocorrencias').update({ com_rh_desde: desdeAntes, com_rh_por: auth.user.id }).eq('id', ocorrenciaId)
+    return { success: false, error: erroNota.message }
+  }
 
   revalidatePath('/ocorrencias')
   return { success: true }
