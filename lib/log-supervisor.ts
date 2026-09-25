@@ -2,8 +2,8 @@
 
 import { createAdminClient } from './supabase/admin'
 
-export type TipoModulo = 'atestado' | 'advertencia' | 'falta' | 'cobertura'
-export type TipoOp     = 'criou' | 'editou' | 'excluiu'
+export type TipoModulo = 'atestado' | 'advertencia' | 'falta' | 'cobertura' | 'ocorrencia'
+export type TipoOp     = 'criou' | 'editou' | 'excluiu' | 'respondeu'
 
 export async function logSupervisorAcao(params: {
   supervisorId: string

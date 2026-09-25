@@ -43,6 +43,21 @@ export async function buscarEmailsAdmins(): Promise<string[]> {
   return []
 }
 
+// Busca o e-mail (Supabase Auth) de cada perfil informado
+export async function buscarEmailsPorPerfil(ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return []
+  try {
+    const admin = createAdminClient()
+    const resultados = await Promise.all(ids.map((id) => admin.auth.admin.getUserById(id)))
+    return resultados
+      .map((r) => r.data.user?.email)
+      .filter((e): e is string => Boolean(e))
+  } catch (e) {
+    console.error('[email] buscarEmailsPorPerfil:', e)
+    return []
+  }
+}
+
 export async function enviarEmail(opts: {
   to: string[]
   subject: string
