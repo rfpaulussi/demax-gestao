@@ -5,6 +5,9 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { validarTexto } from '@/lib/ocorrencias/devolutiva'
+import { notificarDevolutiva } from '@/lib/ocorrencias/notificar-devolutiva'
+import type { AuthUser } from '@/lib/auth/get-user'
 import { FALTA_TIPO_LABELS, type FaltaTipo } from '@/components/faltas/faltas-config'
 
 type ActionResult = { success: true } | { success: false; error: string }
@@ -307,6 +310,7 @@ export type TimelineItem = {
   detalhe: string
   gravidade?: 'baixa' | 'media' | 'alta' | 'critica' | null
   status?: string | null
+  comentarios?: number
   supervisor_nome?: string | null
 }
 
@@ -387,6 +391,18 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
 
   const ocorrencias = (ocorrenciasRaw ?? []) as RawOcorrenciaDossie[]
 
+  // contagem de mensagens por ocorrência (viewer não vê a conversa, então não recebe contagem)
+  const contagemComentarios = new Map<string, number>()
+  if (ocorrencias.length > 0 && auth.perfil.role !== 'viewer') {
+    const { data: cs } = await (createAdminClient() as unknown as AnyClient)
+      .from('ocorrencia_comentarios')
+      .select('ocorrencia_id')
+      .in('ocorrencia_id', ocorrencias.map(o => o.id))
+    for (const c of (cs ?? []) as { ocorrencia_id: string }[]) {
+      contagemComentarios.set(c.ocorrencia_id, (contagemComentarios.get(c.ocorrencia_id) ?? 0) + 1)
+    }
+  }
+
   const supervisorIds = Array.from(new Set(ocorrencias.map(o => o.supervisor_id).filter((s): s is string => Boolean(s))))
   const supervisorNomesMap = new Map<string, string>()
   if (supervisorIds.length > 0) {
@@ -435,6 +451,7 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
       detalhe: o.descricao ?? '—',
       gravidade: (o.gravidade ?? 'baixa') as TimelineItem['gravidade'],
       status: o.status ?? 'aberta',
+      comentarios: contagemComentarios.get(o.id) ?? 0,
       supervisor_nome: o.supervisor_id ? (supervisorNomesMap.get(o.supervisor_id) ?? null) : null,
     })
   }
@@ -462,6 +479,123 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
     },
     timeline,
   }
+}
+
+// ─── devolutiva (conversa RH <-> supervisor) ──────────────────────────────────
+
+type OcorrenciaDevolutiva = {
+  id: string
+  posto_id: string | null
+  supervisor_id: string | null
+  funcionario_id: string
+  funcionario_nome: string
+}
+
+// Carrega a ocorrência com o admin client e barra supervisor fora do posto dele.
+// Devolve null se não existe, não é do tipo 'ocorrencia', não tem funcionário ou o usuário não tem acesso.
+async function carregarOcorrenciaDevolutiva(
+  ocorrenciaId: string,
+  auth: AuthUser,
+): Promise<OcorrenciaDevolutiva | null> {
+  const { data } = await (createAdminClient() as unknown as AnyClient)
+    .from('ocorrencias')
+    .select('id, tipo, posto_id, supervisor_id, funcionario_id, funcionarios!funcionario_id(nome)')
+    .eq('id', ocorrenciaId)
+    .single()
+  if (!data || data.tipo !== 'ocorrencia' || !data.funcionario_id) return null
+
+  if (auth.perfil.role === 'supervisor') {
+    const postoIds = await getPostoIdsSupervisor(createClient(), auth.user.id)
+    if (!data.posto_id || !postoIds.includes(data.posto_id)) return null
+  }
+
+  const func = Array.isArray(data.funcionarios) ? data.funcionarios[0] : data.funcionarios
+  return {
+    id: data.id,
+    posto_id: data.posto_id,
+    supervisor_id: data.supervisor_id,
+    funcionario_id: data.funcionario_id,
+    funcionario_nome: func?.nome ?? 'funcionário',
+  }
+}
+
+export type ComentarioRow = {
+  id: string
+  texto: string
+  tipo: 'mensagem' | 'parecer'
+  created_at: string
+  autor_nome: string
+  autor_role: string
+}
+
+type RawComentario = {
+  id: string
+  texto: string
+  tipo: 'mensagem' | 'parecer'
+  created_at: string
+  perfis: { nome: string | null; role: string | null } | { nome: string | null; role: string | null }[] | null
+}
+
+export async function getComentarios(ocorrenciaId: string): Promise<ComentarioRow[]> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role === 'viewer') return []
+
+  const oc = await carregarOcorrenciaDevolutiva(ocorrenciaId, auth)
+  if (!oc) return []
+
+  // admin client: o RLS de perfis não deixa o supervisor ler o nome do autor do RH.
+  // O escopo do supervisor já foi checado em carregarOcorrenciaDevolutiva.
+  const { data } = await (createAdminClient() as unknown as AnyClient)
+    .from('ocorrencia_comentarios')
+    .select('id, texto, tipo, created_at, perfis!autor_id(nome, role)')
+    .eq('ocorrencia_id', ocorrenciaId)
+    .order('created_at', { ascending: true })
+
+  return ((data ?? []) as RawComentario[]).map(c => {
+    const perfil = Array.isArray(c.perfis) ? c.perfis[0] : c.perfis
+    return {
+      id: c.id,
+      texto: c.texto,
+      tipo: c.tipo,
+      created_at: c.created_at,
+      autor_nome: perfil?.nome ?? 'Usuário',
+      autor_role: perfil?.role ?? '',
+    }
+  })
+}
+
+export async function comentarOcorrencia(ocorrenciaId: string, texto: string): Promise<ActionResult> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role === 'viewer') return { success: false, error: 'Sem permissão' }
+
+  const validado = validarTexto(texto)
+  if (!validado.ok) return { success: false, error: validado.error }
+
+  const oc = await carregarOcorrenciaDevolutiva(ocorrenciaId, auth)
+  if (!oc) return { success: false, error: 'Sem permissão' }
+
+  const { error } = await (createAdminClient() as unknown as AnyClient)
+    .from('ocorrencia_comentarios')
+    .insert({
+      ocorrencia_id: ocorrenciaId,
+      autor_id: auth.user.id,
+      texto: validado.texto,
+      tipo: 'mensagem',
+    })
+  if (error) return { success: false, error: error.message }
+
+  await notificarDevolutiva({
+    funcionarioId: oc.funcionario_id,
+    funcionarioNome: oc.funcionario_nome,
+    postoId: oc.posto_id,
+    supervisorDaOcorrencia: oc.supervisor_id,
+    autorId: auth.user.id,
+    autorRole: auth.perfil.role ?? '',
+    parecer: false,
+  })
+
+  revalidatePath('/ocorrencias')
+  return { success: true }
 }
 
 export async function createOcorrencia(formData: FormData): Promise<ActionResult> {
@@ -509,30 +643,51 @@ export async function updateStatusOcorrencia(formData: FormData): Promise<Action
   const auth = await getUser()
   if (!auth || auth.perfil.role === 'viewer') return { success: false, error: 'Sem permissão' }
 
-  const supabase = createClient()
-  const adminSupabase = createAdminClient()
+  const id         = formData.get('id') as string
+  const status     = formData.get('status') as string
+  const parecerRaw = (formData.get('parecer') as string | null) ?? ''
 
-  const id     = formData.get('id') as string
-  const status = formData.get('status') as string
-
-  if (auth.perfil.role === 'supervisor') {
-    const { data: ocorrencia } = await (adminSupabase as unknown as AnyClient)
-      .from('ocorrencias')
-      .select('posto_id')
-      .eq('id', id)
-      .single()
-    const postoIds = await getPostoIdsSupervisor(supabase, auth.user.id)
-    if (!ocorrencia?.posto_id || !postoIds.includes(ocorrencia.posto_id)) {
-      return { success: false, error: 'Sem permissão' }
-    }
+  // Encerrar exige parecer. Ele vira uma mensagem (tipo 'parecer') na conversa.
+  let parecer: string | null = null
+  if (status === 'encerrada') {
+    const validado = validarTexto(parecerRaw)
+    if (!validado.ok) return { success: false, error: 'Escreva o parecer para encerrar a ocorrência' }
+    parecer = validado.texto
   }
 
-  const { error } = await (adminSupabase as unknown as AnyClient)
+  const oc = await carregarOcorrenciaDevolutiva(id, auth)
+  if (!oc) return { success: false, error: 'Sem permissão' }
+
+  const adminSupabase = createAdminClient() as unknown as AnyClient
+
+  // Parecer primeiro: se a gravação falhar o status não muda e o usuário pode tentar de novo.
+  if (parecer) {
+    const { error: erroParecer } = await adminSupabase.from('ocorrencia_comentarios').insert({
+      ocorrencia_id: id,
+      autor_id: auth.user.id,
+      texto: parecer,
+      tipo: 'parecer',
+    })
+    if (erroParecer) return { success: false, error: erroParecer.message }
+  }
+
+  const { error } = await adminSupabase
     .from('ocorrencias')
     .update({ status, atualizado_por: auth.user.id, atualizado_em: new Date().toISOString() })
     .eq('id', id)
-
   if (error) return { success: false, error: error.message }
+
+  if (parecer) {
+    await notificarDevolutiva({
+      funcionarioId: oc.funcionario_id,
+      funcionarioNome: oc.funcionario_nome,
+      postoId: oc.posto_id,
+      supervisorDaOcorrencia: oc.supervisor_id,
+      autorId: auth.user.id,
+      autorRole: auth.perfil.role ?? '',
+      parecer: true,
+    })
+  }
 
   revalidatePath('/ocorrencias')
   return { success: true }
