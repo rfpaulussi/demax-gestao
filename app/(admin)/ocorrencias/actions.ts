@@ -8,6 +8,13 @@ import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { validarTexto } from '@/lib/ocorrencias/devolutiva'
 import { notificarDevolutiva } from '@/lib/ocorrencias/notificar-devolutiva'
 import type { AuthUser } from '@/lib/auth/get-user'
+import { enviarEmail } from '@/lib/email'
+import {
+  corpoParaHtml,
+  montarRascunhoRH,
+  validarEmails,
+  type DadosRascunhoRH,
+} from '@/lib/ocorrencias/encaminhar-rh'
 import { FALTA_TIPO_LABELS, type FaltaTipo } from '@/components/faltas/faltas-config'
 
 type ActionResult = { success: true } | { success: false; error: string }
@@ -312,6 +319,7 @@ export type TimelineItem = {
   status?: string | null
   comentarios?: number
   supervisor_nome?: string | null
+  com_rh_desde?: string | null
 }
 
 export type DossieFuncionario = {
@@ -340,6 +348,7 @@ type RawOcorrenciaDossie = {
   gravidade: string | null
   status: string | null
   supervisor_id: string | null
+  com_rh_desde: string | null
 }
 
 export async function getDossieFuncionario(funcionarioId: string): Promise<DossieFuncionario | null> {
@@ -384,21 +393,25 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
       .select('id, data_falta, tipo, dias, observacao')
       .eq('funcionario_id', funcionarioId),
     (supabase as unknown as AnyClient).from('ocorrencias')
-      .select('id, titulo, descricao, data_ocorrencia, gravidade, status, supervisor_id')
+      .select('id, titulo, descricao, data_ocorrencia, gravidade, status, supervisor_id, com_rh_desde')
       .eq('funcionario_id', funcionarioId)
       .eq('tipo', 'ocorrencia'),
   ])
 
   const ocorrencias = (ocorrenciasRaw ?? []) as RawOcorrenciaDossie[]
 
-  // contagem de mensagens por ocorrência (viewer não vê a conversa, então não recebe contagem)
+  const ehGestao = auth.perfil.role === 'admin' || auth.perfil.role === 'coordenador'
+
+  // contagem de mensagens por ocorrência (viewer não vê a conversa, então não recebe contagem).
+  // Nota interna é só da gestão: para supervisor ela nem entra na contagem.
   const contagemComentarios = new Map<string, number>()
   if (ocorrencias.length > 0 && auth.perfil.role !== 'viewer') {
     const { data: cs } = await (createAdminClient() as unknown as AnyClient)
       .from('ocorrencia_comentarios')
-      .select('ocorrencia_id')
+      .select('ocorrencia_id, tipo')
       .in('ocorrencia_id', ocorrencias.map(o => o.id))
-    for (const c of (cs ?? []) as { ocorrencia_id: string }[]) {
+    for (const c of (cs ?? []) as { ocorrencia_id: string; tipo: string }[]) {
+      if (auth.perfil.role === 'supervisor' && c.tipo === 'nota_interna') continue
       contagemComentarios.set(c.ocorrencia_id, (contagemComentarios.get(c.ocorrencia_id) ?? 0) + 1)
     }
   }
@@ -453,6 +466,7 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
       status: o.status ?? 'aberta',
       comentarios: contagemComentarios.get(o.id) ?? 0,
       supervisor_nome: o.supervisor_id ? (supervisorNomesMap.get(o.supervisor_id) ?? null) : null,
+      com_rh_desde: ehGestao ? (o.com_rh_desde ?? null) : null,
     })
   }
 
@@ -486,6 +500,7 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
 type OcorrenciaDevolutiva = {
   id: string
   status: string
+  com_rh_desde: string | null
   posto_id: string | null
   supervisor_id: string | null
   funcionario_id: string
@@ -500,7 +515,7 @@ async function carregarOcorrenciaDevolutiva(
 ): Promise<OcorrenciaDevolutiva | null> {
   const { data } = await (createAdminClient() as unknown as AnyClient)
     .from('ocorrencias')
-    .select('id, tipo, status, posto_id, supervisor_id, funcionario_id, funcionarios!funcionario_id(nome, posto_id)')
+    .select('id, tipo, status, com_rh_desde, posto_id, supervisor_id, funcionario_id, funcionarios!funcionario_id(nome, posto_id)')
     .eq('id', ocorrenciaId)
     .single()
   if (!data || data.tipo !== 'ocorrencia' || !data.funcionario_id) return null
@@ -518,6 +533,7 @@ async function carregarOcorrenciaDevolutiva(
   return {
     id: data.id,
     status: data.status ?? 'aberta',
+    com_rh_desde: data.com_rh_desde ?? null,
     posto_id: data.posto_id,
     supervisor_id: data.supervisor_id,
     funcionario_id: data.funcionario_id,
@@ -528,7 +544,7 @@ async function carregarOcorrenciaDevolutiva(
 export type ComentarioRow = {
   id: string
   texto: string
-  tipo: 'mensagem' | 'parecer'
+  tipo: 'mensagem' | 'parecer' | 'nota_interna'
   created_at: string
   autor_nome: string
   autor_role: string
@@ -537,7 +553,7 @@ export type ComentarioRow = {
 type RawComentario = {
   id: string
   texto: string
-  tipo: 'mensagem' | 'parecer'
+  tipo: 'mensagem' | 'parecer' | 'nota_interna'
   created_at: string
   perfis: { nome: string | null; role: string | null } | { nome: string | null; role: string | null }[] | null
 }
@@ -551,11 +567,14 @@ export async function getComentarios(ocorrenciaId: string): Promise<ComentarioRo
 
   // admin client: o RLS de perfis não deixa o supervisor ler o nome do autor do RH.
   // O escopo do supervisor já foi checado em carregarOcorrenciaDevolutiva.
-  const { data } = await (createAdminClient() as unknown as AnyClient)
+  let consulta = (createAdminClient() as unknown as AnyClient)
     .from('ocorrencia_comentarios')
     .select('id, texto, tipo, created_at, perfis!autor_id(nome, role)')
     .eq('ocorrencia_id', ocorrenciaId)
     .order('created_at', { ascending: true })
+  // nota interna é só da gestão: o supervisor nunca a recebe
+  if (auth.perfil.role === 'supervisor') consulta = consulta.neq('tipo', 'nota_interna')
+  const { data } = await consulta
 
   return ((data ?? []) as RawComentario[]).map(c => {
     const perfil = Array.isArray(c.perfis) ? c.perfis[0] : c.perfis
@@ -681,7 +700,12 @@ export async function updateStatusOcorrencia(formData: FormData): Promise<Action
   // afetadas: assim dois cliques ao mesmo tempo não passam os dois, e não sai parecer duplicado.
   const { data: atualizadas, error } = await adminSupabase
     .from('ocorrencias')
-    .update({ status, atualizado_por: auth.user.id, atualizado_em: new Date().toISOString() })
+    .update({
+      status,
+      atualizado_por: auth.user.id,
+      atualizado_em: new Date().toISOString(),
+      ...(status === 'encerrada' ? { com_rh_desde: null, com_rh_por: null } : {}),
+    })
     .eq('id', id)
     .in('status', ['aberta', 'em_analise'])
     .select('id')
@@ -716,6 +740,202 @@ export async function updateStatusOcorrencia(formData: FormData): Promise<Action
       parecer: true,
     })
   }
+
+  revalidatePath('/ocorrencias')
+  return { success: true }
+}
+
+// ─── encaminhar ao RH (só admin e coordenador) ─────────────────────────────────
+
+async function exigirGestao(): Promise<AuthUser | null> {
+  const auth = await getUser()
+  if (!auth || (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador')) return null
+  return auth
+}
+
+const ROTULO_GRAVIDADE: Record<string, string> = {
+  baixa: 'Baixa', media: 'Média', alta: 'Alta', critica: 'Crítica',
+}
+
+// Colunas listadas UMA A UMA de propósito: nunca cpf, salário, pcd, cid_codigo nem motivo de atestado.
+async function montarDadosRascunhoRH(
+  oc: OcorrenciaDevolutiva,
+  remetenteNome: string,
+): Promise<DadosRascunhoRH | null> {
+  const admin = createAdminClient() as unknown as AnyClient
+  const [rOc, rFunc, rAdv, rAts, rFts] = await Promise.all([
+    admin.from('ocorrencias')
+      .select('descricao, data_ocorrencia, gravidade, supervisor_id')
+      .eq('id', oc.id)
+      .single(),
+    admin.from('funcionarios')
+      .select('nome, registro, funcoes!funcionarios_funcao_id_fkey(nome), postos!posto_id(nome, secretaria)')
+      .eq('id', oc.funcionario_id)
+      .single(),
+    admin.from('advertencias')
+      .select('grau, natureza, data_ocorrencia')
+      .eq('funcionario_id', oc.funcionario_id)
+      .order('data_ocorrencia', { ascending: false }),
+    admin.from('atestados')
+      .select('data_inicio, data_fim')
+      .eq('funcionario_id', oc.funcionario_id)
+      .order('data_inicio', { ascending: false }),
+    admin.from('faltas')
+      .select('data_falta, tipo, dias')
+      .eq('funcionario_id', oc.funcionario_id)
+      .order('data_falta', { ascending: false }),
+  ])
+
+  const o = rOc.data
+  const f = rFunc.data
+  if (!o || !f) return null
+  const posto = Array.isArray(f.postos) ? f.postos[0] : f.postos
+  const funcao = Array.isArray(f.funcoes) ? f.funcoes[0] : f.funcoes
+
+  let supervisorNome: string | null = null
+  if (o.supervisor_id) {
+    const { data: p } = await admin.from('perfis').select('nome').eq('id', o.supervisor_id).single()
+    supervisorNome = p?.nome ?? null
+  }
+
+  return {
+    remetenteNome,
+    funcionarioNome: f.nome,
+    registro: f.registro ?? null,
+    funcao: funcao?.nome ?? null,
+    postoNome: posto?.nome ?? '—',
+    secretaria: posto?.secretaria ?? '',
+    dataOcorrencia: o.data_ocorrencia ?? null,
+    gravidade: o.gravidade ? (ROTULO_GRAVIDADE[o.gravidade] ?? o.gravidade) : null,
+    supervisorNome,
+    textoOcorrencia: o.descricao ?? '',
+    advertencias: ((rAdv.data ?? []) as { grau: string | null; natureza: string | null; data_ocorrencia: string | null }[]).map(a => ({
+      grau: GRAU_LABEL[a.grau ?? ''] ?? a.grau ?? '—',
+      natureza: a.natureza ? (NATUREZA_LABEL[a.natureza] ?? a.natureza) : '—',
+      data: a.data_ocorrencia,
+    })),
+    atestados: ((rAts.data ?? []) as { data_inicio: string; data_fim: string | null }[]).map(a => ({
+      inicio: a.data_inicio,
+      fim: a.data_fim,
+    })),
+    faltas: ((rFts.data ?? []) as { data_falta: string; tipo: string; dias: number | null }[]).map(x => ({
+      tipo: FALTA_TIPO_LABELS[x.tipo as FaltaTipo] ?? x.tipo,
+      dias: x.dias ?? 1,
+      data: x.data_falta,
+    })),
+  }
+}
+
+export type RascunhoRH =
+  | { success: true; para: string; assunto: string; corpo: string }
+  | { success: false; error: string }
+
+export async function getRascunhoRH(ocorrenciaId: string): Promise<RascunhoRH> {
+  const auth = await exigirGestao()
+  if (!auth) return { success: false, error: 'Sem permissão' }
+
+  const oc = await carregarOcorrenciaDevolutiva(ocorrenciaId, auth)
+  if (!oc) return { success: false, error: 'Sem permissão' }
+  if (oc.status === 'encerrada' || oc.status === 'resolvido') {
+    return { success: false, error: 'Esta ocorrência já foi encerrada' }
+  }
+  if (oc.com_rh_desde) return { success: false, error: 'Esta ocorrência já está com o RH' }
+
+  const dados = await montarDadosRascunhoRH(oc, auth.perfil.nome ?? 'Coordenação')
+  if (!dados) return { success: false, error: 'Não foi possível montar o rascunho' }
+
+  const { assunto, corpo } = montarRascunhoRH(dados)
+  return { success: true, para: process.env.RESEND_TO_RH ?? '', assunto, corpo }
+}
+
+const MAX_CORPO_RH = 20000
+
+export async function encaminharAoRH(
+  ocorrenciaId: string,
+  dados: { para: string; assunto: string; corpo: string },
+): Promise<ActionResult> {
+  const auth = await exigirGestao()
+  if (!auth) return { success: false, error: 'Sem permissão' }
+
+  const destinatarios = validarEmails(dados.para)
+  if (!destinatarios.ok) return { success: false, error: destinatarios.error }
+
+  const assunto = dados.assunto.trim()
+  const corpo = dados.corpo.trim()
+  if (!assunto || assunto.length > 200) return { success: false, error: 'Assunto inválido (até 200 caracteres)' }
+  if (!corpo) return { success: false, error: 'Escreva a mensagem' }
+  if (corpo.length > MAX_CORPO_RH) return { success: false, error: 'Mensagem muito longa' }
+
+  const oc = await carregarOcorrenciaDevolutiva(ocorrenciaId, auth)
+  if (!oc) return { success: false, error: 'Sem permissão' }
+  if (oc.status === 'encerrada' || oc.status === 'resolvido') {
+    return { success: false, error: 'Esta ocorrência já foi encerrada' }
+  }
+  if (oc.com_rh_desde) return { success: false, error: 'Esta ocorrência já está com o RH' }
+
+  // Envia primeiro: se o e-mail falhar, nada muda no sistema e o coordenador vê o erro.
+  const enviado = await enviarEmail({
+    to: destinatarios.emails,
+    subject: assunto,
+    html: corpoParaHtml(corpo),
+    replyTo: auth.user.email ?? undefined,
+  })
+  if (!enviado) {
+    return { success: false, error: 'Não foi possível enviar o e-mail. Confira a configuração do Resend e tente de novo.' }
+  }
+
+  const admin = createAdminClient() as unknown as AnyClient
+  const { data: marcadas, error } = await admin
+    .from('ocorrencias')
+    .update({ com_rh_desde: new Date().toISOString(), com_rh_por: auth.user.id })
+    .eq('id', ocorrenciaId)
+    .is('com_rh_desde', null)
+    .select('id')
+  if (error || !marcadas || marcadas.length === 0) {
+    return {
+      success: false,
+      error: 'O e-mail foi enviado, mas não foi possível marcar a ocorrência como "Com o RH". Não envie de novo.',
+    }
+  }
+
+  await admin.from('ocorrencia_comentarios').insert({
+    ocorrencia_id: ocorrenciaId,
+    autor_id: auth.user.id,
+    tipo: 'nota_interna',
+    texto: `Encaminhado ao RH (para: ${destinatarios.emails.join(', ')})\nAssunto: ${assunto}\n\n${corpo}`,
+  })
+
+  revalidatePath('/ocorrencias')
+  return { success: true }
+}
+
+export async function registrarRetornoRH(ocorrenciaId: string, texto: string): Promise<ActionResult> {
+  const auth = await exigirGestao()
+  if (!auth) return { success: false, error: 'Sem permissão' }
+
+  const validado = validarTexto(texto)
+  if (!validado.ok) return { success: false, error: validado.error }
+
+  const oc = await carregarOcorrenciaDevolutiva(ocorrenciaId, auth)
+  if (!oc) return { success: false, error: 'Sem permissão' }
+  if (!oc.com_rh_desde) return { success: false, error: 'Esta ocorrência não está com o RH' }
+
+  const admin = createAdminClient() as unknown as AnyClient
+
+  // Nota primeiro: se a gravação falhar, o "Com o RH" continua e o retorno não se perde.
+  const { error: erroNota } = await admin.from('ocorrencia_comentarios').insert({
+    ocorrencia_id: ocorrenciaId,
+    autor_id: auth.user.id,
+    tipo: 'nota_interna',
+    texto: `Retorno do RH:\n${validado.texto}`,
+  })
+  if (erroNota) return { success: false, error: erroNota.message }
+
+  const { error } = await admin
+    .from('ocorrencias')
+    .update({ com_rh_desde: null, com_rh_por: null })
+    .eq('id', ocorrenciaId)
+  if (error) return { success: false, error: error.message }
 
   revalidatePath('/ocorrencias')
   return { success: true }
