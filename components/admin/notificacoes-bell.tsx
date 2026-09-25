@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Bell, X, CheckCheck, AlertTriangle, FileText, UserMinus, Shield, Trash2, CalendarDays, Timer } from 'lucide-react'
+import { Bell, X, CheckCheck, AlertTriangle, FileText, UserMinus, Shield, Trash2, CalendarDays, Timer, MessageSquare } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { marcarTodasLidas, excluirNotificacoesLidas, excluirNotificacaoIndividual } from '@/app/(admin)/notificacoes/actions'
@@ -25,6 +25,7 @@ const TIPO_ICON: Record<string, React.ReactNode> = {
   alerta_ferias:  <CalendarDays size={14} className="text-orange-500" />,
   ferias_agendada:<CalendarDays size={14} className="text-indigo-500" />,
   alerta_retorno_inss: <Timer size={14} className="text-red-500" />,
+  ocorrencia:     <MessageSquare size={14} className="text-purple-500" />,
 }
 
 const TIPO_LABEL: Record<string, string> = {
@@ -80,6 +81,23 @@ function renderConteudo(log: LogAcao): React.ReactNode | null {
         {nomes.length > 0 && <span className="text-gray-400"> ({nomes.slice(0, 3).join(', ')}{nomes.length > 3 ? '...' : ''})</span>}
         {' '}
         <Link href="/efetivo" className="text-blue-500 underline hover:text-blue-700 text-[10px]">ver efetivo</Link>
+      </p>
+    )
+  }
+  if (log.tipo === 'ocorrencia') {
+    let funcionarioId = ''
+    try {
+      const d = JSON.parse(log.detalhes ?? '{}')
+      funcionarioId = d.funcionario_id ?? ''
+    } catch { /* ignore */ }
+    return (
+      <p className="text-xs text-gray-700 leading-snug">
+        <span className="font-semibold text-gray-900">{log.supervisor_nome}</span>
+        {' '}respondeu em ocorrência de{' '}
+        <span className="font-medium">{log.funcionario_nome ?? 'funcionário'}</span>{' '}
+        {funcionarioId && (
+          <Link href={`/ocorrencias?f=${funcionarioId}`} className="text-blue-500 underline hover:text-blue-700 text-[10px]">abrir dossiê</Link>
+        )}
       </p>
     )
   }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, type ReactNode } from 'react'
+import Link from 'next/link'
 import { Bell, X, CheckCheck, CheckCircle2, XCircle, Clock, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { marcarSolicitacoesLidasSupervisor, marcarAlertasSupervisorLidos } from '@/app/(admin)/notificacoes/actions'
@@ -35,6 +36,24 @@ function renderAlerta(a: AlertaSupervisor): ReactNode {
       <p className="text-xs text-gray-700 leading-snug">
         <span className={cn('font-semibold', a.tipo === 'falta_confirmar_atestado' ? 'text-amber-700' : 'text-red-700')}>{a.titulo}</span>
         {nomes.length > 0 && <span className="text-gray-400"> ({nomes.slice(0, 3).join(', ')}{nomes.length > 3 ? '...' : ''})</span>}
+      </p>
+    )
+  }
+  if (a.tipo === 'ocorrencia_devolutiva') {
+    let funcionarioId = ''
+    let funcionarioNome = ''
+    try {
+      const d = JSON.parse(a.detalhes ?? '{}')
+      funcionarioId = d.funcionario_id ?? ''
+      funcionarioNome = d.funcionario_nome ?? ''
+    } catch { /* ignore */ }
+    return (
+      <p className="text-xs text-gray-700 leading-snug">
+        <span className="font-semibold text-purple-700">{a.titulo}</span>
+        {funcionarioNome && <span className="text-gray-400"> ({funcionarioNome})</span>}{' '}
+        {funcionarioId && (
+          <Link href={`/ocorrencias?f=${funcionarioId}`} className="text-blue-500 underline hover:text-blue-700 text-[10px]">abrir dossiê</Link>
+        )}
       </p>
     )
   }

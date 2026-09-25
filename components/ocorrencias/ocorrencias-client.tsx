@@ -11,14 +11,16 @@ export function OcorrenciasClient({
   supervisores,
   alertasIniciais,
   canWrite,
+  funcionarioInicial,
 }: {
   funcionarios: FuncionarioPainel[]
   supervisores: SupervisorSimples[]
   alertasIniciais: AlertaRow[]
   currentUserId: string | null
   canWrite: boolean
+  funcionarioInicial: string | null
 }) {
-  const [selecionado, setSelecionado] = useState<string | null>(null)
+  const [selecionado, setSelecionado] = useState<string | null>(funcionarioInicial)
 
   return (
     <div className="space-y-6">

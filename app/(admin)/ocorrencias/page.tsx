@@ -2,7 +2,9 @@ import { getUser } from '@/lib/auth/get-user'
 import { getPainelFuncionarios, getSupervisoresSimples, getAlertas } from './actions'
 import { OcorrenciasClient } from '@/components/ocorrencias/ocorrencias-client'
 
-export default async function OcorrenciasPage() {
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export default async function OcorrenciasPage({ searchParams }: { searchParams: { f?: string } }) {
   const [funcionarios, supervisores, alertas, auth] = await Promise.all([
     getPainelFuncionarios(),
     getSupervisoresSimples(),
@@ -11,6 +13,7 @@ export default async function OcorrenciasPage() {
   ])
 
   const canWrite = auth?.perfil.role === 'admin' || auth?.perfil.role === 'coordenador' || auth?.perfil.role === 'supervisor'
+  const funcionarioInicial = searchParams.f && UUID_RE.test(searchParams.f) ? searchParams.f : null
 
   return (
     <div className="space-y-6">
@@ -25,6 +28,7 @@ export default async function OcorrenciasPage() {
         alertasIniciais={alertas}
         currentUserId={auth?.user.id ?? null}
         canWrite={canWrite}
+        funcionarioInicial={funcionarioInicial}
       />
     </div>
   )
