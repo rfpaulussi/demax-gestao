@@ -19,21 +19,35 @@ export interface RespostaModelo {
   tokensSaida: number
 }
 
+export interface OpcoesChamada {
+  /** Sobrescreve o modelo (padrão: ANTHROPIC_MODEL_ACORDOS ou o modelo barato de extração). */
+  modelo?: string
+  maxTokens?: number
+  /** null = não envia o parâmetro `temperature` (alguns modelos novos o rejeitam). Padrão: 0. */
+  temperatura?: number | null
+  timeoutMs?: number
+}
+
 export function iaConfigurada(): boolean {
   return !!process.env.ANTHROPIC_API_KEY
 }
 
 /** Uma chamada só, sem histórico, forçando a ferramenta dada. O texto já deve estar anonimizado. */
-export async function chamarFerramenta(sistema: string, ferramenta: Anthropic.Tool, mensagem: string): Promise<RespostaModelo> {
+export async function chamarFerramenta(
+  sistema: string,
+  ferramenta: Anthropic.Tool,
+  mensagem: string,
+  opcoes: OpcoesChamada = {},
+): Promise<RespostaModelo> {
   const chave = process.env.ANTHROPIC_API_KEY
   if (!chave) throw new ErroIA('NAO_CONFIGURADA', 'A IA não está configurada neste ambiente (falta ANTHROPIC_API_KEY).')
-  const modelo = process.env.ANTHROPIC_MODEL_ACORDOS || MODELO_PADRAO
-  const client = new Anthropic({ apiKey: chave, timeout: 25_000, maxRetries: 1 })
+  const modelo = opcoes.modelo || process.env.ANTHROPIC_MODEL_ACORDOS || MODELO_PADRAO
+  const client = new Anthropic({ apiKey: chave, timeout: opcoes.timeoutMs ?? 25_000, maxRetries: 1 })
   try {
     const resp = await client.messages.create({
       model: modelo,
-      max_tokens: 1024,
-      temperature: 0,
+      max_tokens: opcoes.maxTokens ?? 1024,
+      ...(opcoes.temperatura === null ? {} : { temperature: opcoes.temperatura ?? 0 }),
       system: sistema,
       tools: [ferramenta],
       tool_choice: { type: 'tool', name: ferramenta.name },
