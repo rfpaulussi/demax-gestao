@@ -62,7 +62,8 @@ export async function notificarDevolutiva(p: NotificarDevolutivaParams): Promise
     })
     if (destinatarios.length === 0) return
 
-    await admin.from('alertas_supervisor').insert(
+    // insert do Supabase não lança: confere o erro. Se falhar o sino, o e-mail ainda sai.
+    const { error: erroAlerta } = await admin.from('alertas_supervisor').insert(
       destinatarios.map(supervisor_id => ({
         supervisor_id,
         tipo: 'ocorrencia_devolutiva',
@@ -73,6 +74,7 @@ export async function notificarDevolutiva(p: NotificarDevolutivaParams): Promise
         }),
       })),
     )
+    if (erroAlerta) console.error('[devolutiva] falha ao gravar alerta do supervisor:', erroAlerta.message)
 
     await enviarEmail({ to: await buscarEmailsPorPerfil(destinatarios), subject, html })
   } catch (err) {
