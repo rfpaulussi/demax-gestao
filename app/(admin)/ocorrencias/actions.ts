@@ -485,6 +485,7 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
 
 type OcorrenciaDevolutiva = {
   id: string
+  status: string
   posto_id: string | null
   supervisor_id: string | null
   funcionario_id: string
@@ -499,7 +500,7 @@ async function carregarOcorrenciaDevolutiva(
 ): Promise<OcorrenciaDevolutiva | null> {
   const { data } = await (createAdminClient() as unknown as AnyClient)
     .from('ocorrencias')
-    .select('id, tipo, posto_id, supervisor_id, funcionario_id, funcionarios!funcionario_id(nome)')
+    .select('id, tipo, status, posto_id, supervisor_id, funcionario_id, funcionarios!funcionario_id(nome)')
     .eq('id', ocorrenciaId)
     .single()
   if (!data || data.tipo !== 'ocorrencia' || !data.funcionario_id) return null
@@ -512,6 +513,7 @@ async function carregarOcorrenciaDevolutiva(
   const func = Array.isArray(data.funcionarios) ? data.funcionarios[0] : data.funcionarios
   return {
     id: data.id,
+    status: data.status ?? 'aberta',
     posto_id: data.posto_id,
     supervisor_id: data.supervisor_id,
     funcionario_id: data.funcionario_id,
@@ -647,6 +649,12 @@ export async function updateStatusOcorrencia(formData: FormData): Promise<Action
   const status     = formData.get('status') as string
   const parecerRaw = (formData.get('parecer') as string | null) ?? ''
 
+  // Só as duas transições que a tela oferece; qualquer outro valor é recusado
+  // (senão um status fora da lista pularia a exigência de parecer).
+  if (status !== 'em_analise' && status !== 'encerrada') {
+    return { success: false, error: 'Status inválido' }
+  }
+
   // Encerrar exige parecer. Ele vira uma mensagem (tipo 'parecer') na conversa.
   let parecer: string | null = null
   if (status === 'encerrada') {
@@ -657,6 +665,11 @@ export async function updateStatusOcorrencia(formData: FormData): Promise<Action
 
   const oc = await carregarOcorrenciaDevolutiva(id, auth)
   if (!oc) return { success: false, error: 'Sem permissão' }
+
+  // Ocorrência já encerrada não reabre nem recebe um segundo parecer.
+  if (oc.status === 'encerrada' || oc.status === 'resolvido') {
+    return { success: false, error: 'Esta ocorrência já foi encerrada' }
+  }
 
   const adminSupabase = createAdminClient() as unknown as AnyClient
 
