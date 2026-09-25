@@ -26,6 +26,8 @@ export interface OpcoesChamada {
   /** null = não envia o parâmetro `temperature` (alguns modelos novos o rejeitam). Padrão: 0. */
   temperatura?: number | null
   timeoutMs?: number
+  /** Tentativas extras do SDK. Padrão: 1. Use 0 quando o tempo total precisa caber num limite (ex.: maxDuration). */
+  maxRetries?: number
 }
 
 export function iaConfigurada(): boolean {
@@ -42,7 +44,7 @@ export async function chamarFerramenta(
   const chave = process.env.ANTHROPIC_API_KEY
   if (!chave) throw new ErroIA('NAO_CONFIGURADA', 'A IA não está configurada neste ambiente (falta ANTHROPIC_API_KEY).')
   const modelo = opcoes.modelo || process.env.ANTHROPIC_MODEL_ACORDOS || MODELO_PADRAO
-  const client = new Anthropic({ apiKey: chave, timeout: opcoes.timeoutMs ?? 25_000, maxRetries: 1 })
+  const client = new Anthropic({ apiKey: chave, timeout: opcoes.timeoutMs ?? 25_000, maxRetries: opcoes.maxRetries ?? 1 })
   try {
     const resp = await client.messages.create({
       model: modelo,

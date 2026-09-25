@@ -26,7 +26,9 @@ const opcoesIA = () => ({
   modelo: process.env.ANTHROPIC_MODEL_OCORRENCIAS || MODELO_PADRAO_OCORRENCIAS,
   maxTokens: 2000,
   temperatura: null as number | null,
-  timeoutMs: 60_000,
+  // 40 s sem retry: o tempo total tem que caber nos 60 s de maxDuration da página.
+  timeoutMs: 40_000,
+  maxRetries: 0,
 })
 
 // Limite simples por usuário (melhor esforço: cada instância do servidor tem a sua memória).
@@ -117,6 +119,65 @@ async function carregarPessoas(): Promise<PessoaRef[]> {
   return [...funcionarios, ...doPerfil].filter(p => p.nome.trim().length > 0)
 }
 
+// ─── auditoria: a linha nasce ANTES da chamada e é completada (ou marcada como falha) depois ──────
+
+async function abrirAuditoria(p: {
+  ocorrenciaId: string
+  tipo: 'analise' | 'devolutiva_retorno'
+  userId: string
+  textoEnviado: string
+  mapa: Record<string, string>
+}): Promise<string | null> {
+  const { data, error } = await (createAdminClient() as AnyClient)
+    .from('ocorrencia_analises_ia')
+    .insert({
+      ocorrencia_id: p.ocorrenciaId,
+      tipo: p.tipo,
+      solicitada_por: p.userId,
+      modelo: opcoesIA().modelo,
+      texto_enviado: p.textoEnviado,
+      mapa: p.mapa,
+      resultado: {},
+    })
+    .select('id')
+    .single()
+  return error || !data ? null : (data.id as string)
+}
+
+async function fecharAuditoria(
+  id: string,
+  resp: { modelo: string; tokensEntrada: number; tokensSaida: number },
+  resultado: unknown,
+): Promise<void> {
+  await (createAdminClient() as AnyClient)
+    .from('ocorrencia_analises_ia')
+    .update({
+      modelo: resp.modelo,
+      tokens_entrada: resp.tokensEntrada,
+      tokens_saida: resp.tokensSaida,
+      resultado,
+    })
+    .eq('id', id)
+}
+
+// Chamada que falhou: fica registrada (o texto foi enviado) e já sai de "pendente".
+async function falharAuditoria(
+  id: string,
+  motivo: string,
+  resp?: { modelo: string; tokensEntrada: number; tokensSaida: number },
+): Promise<void> {
+  await (createAdminClient() as AnyClient)
+    .from('ocorrencia_analises_ia')
+    .update({
+      ...(resp ? { modelo: resp.modelo, tokens_entrada: resp.tokensEntrada, tokens_saida: resp.tokensSaida } : {}),
+      resultado: { erro: motivo },
+      decisao: 'reprovada',
+      decidida_em: new Date().toISOString(),
+      motivo: `Falha na chamada: ${motivo}`,
+    })
+    .eq('id', id)
+}
+
 function mensagemErroIA(e: unknown): string {
   if (e instanceof ErroIA) return e.message
   return 'Não foi possível falar com a IA. Tente novamente.'
@@ -194,38 +255,40 @@ export async function analisarOcorrencia(ocorrenciaId: string): Promise<Resultad
     historico: base.historico,
   })
 
+  // Auditoria ANTES do envio: o registro do que vai à API existe mesmo se a chamada falhar,
+  // e se a auditoria não puder ser gravada (ex.: migração pendente) NADA é enviado à IA.
+  const auditoriaId = await abrirAuditoria({
+    ocorrenciaId,
+    tipo: 'analise',
+    userId: auth.user.id,
+    textoEnviado: mensagem,
+    mapa: anon.nomes,
+  })
+  if (!auditoriaId) {
+    return { success: false, error: 'Não foi possível registrar a auditoria da análise. Nada foi enviado à IA.' }
+  }
+
   try {
     const resp = await chamarFerramenta(PROMPT_ANALISE, FERRAMENTA_ANALISE, mensagem, opcoesIA())
     const analise = lerAnalise(resp.entrada)
-    if (!analise) return { success: false, error: 'A IA devolveu uma resposta fora do formato. Tente de novo.' }
+    if (!analise) {
+      await falharAuditoria(auditoriaId, 'Resposta da IA fora do formato', resp)
+      return { success: false, error: 'A IA devolveu uma resposta fora do formato. Tente de novo.' }
+    }
 
-    const { data: linha, error } = await (createAdminClient() as AnyClient)
-      .from('ocorrencia_analises_ia')
-      .insert({
-        ocorrencia_id: ocorrenciaId,
-        tipo: 'analise',
-        solicitada_por: auth.user.id,
-        modelo: resp.modelo,
-        tokens_entrada: resp.tokensEntrada,
-        tokens_saida: resp.tokensSaida,
-        texto_enviado: mensagem,
-        mapa: anon.nomes,
-        resultado: analise,
-      })
-      .select('id')
-      .single()
-    if (error || !linha) return { success: false, error: 'A análise foi feita, mas não foi possível registrá-la. Tente de novo.' }
-
+    await fecharAuditoria(auditoriaId, resp, analise)
     return {
       success: true,
-      analiseId: linha.id,
+      analiseId: auditoriaId,
       analise: restaurarAnalise(analise, anon.nomes),
       modelo: resp.modelo,
       tokensEntrada: resp.tokensEntrada,
       tokensSaida: resp.tokensSaida,
     }
   } catch (e) {
-    return { success: false, error: mensagemErroIA(e) }
+    const erro = mensagemErroIA(e)
+    await falharAuditoria(auditoriaId, erro)
+    return { success: false, error: erro }
   }
 }
 
@@ -235,71 +298,100 @@ export type ResultadoRetorno =
   | { success: true; analiseId: string; devolutiva: string; pontos: string[] }
   | { success: false; error: string }
 
+const SEPARADOR_RESPOSTA_RH = '\n<<<SEPARADOR_RESPOSTA_RH>>>\n'
+
+type MensagemRetorno =
+  | { ok: true; mensagem: string; nomes: Record<string, string> }
+  | { ok: false; error: string }
+
+// Monta (e anonimiza) a mensagem do retorno. Usada pela prévia E pelo envio, para serem idênticas.
+// Relato e resposta do RH são anonimizados JUNTOS, numa só chamada: a mesma pessoa recebe o mesmo
+// código (FUNC_n) nos dois textos e a restauração dos nomes é uma só.
+async function prepararMensagemRetorno(ocorrenciaId: string, respostaRH: string): Promise<MensagemRetorno> {
+  const validado = validarTexto(respostaRH)
+  if (!validado.ok) return { ok: false, error: validado.error }
+  // Se o próprio texto do RH contivesse o separador, o corte abaixo ficaria errado.
+  if (validado.texto.includes(SEPARADOR_RESPOSTA_RH.trim())) {
+    return { ok: false, error: 'O texto contém um trecho reservado. Remova "<<<SEPARADOR_RESPOSTA_RH>>>".' }
+  }
+
+  const base = await carregarBase(ocorrenciaId)
+  if (!base) return { ok: false, error: 'Ocorrência não encontrada' }
+
+  const junto = anonimizarOcorrencia(`${base.descricao}${SEPARADOR_RESPOSTA_RH}${validado.texto}`, await carregarPessoas())
+  const partes = junto.texto.split(SEPARADOR_RESPOSTA_RH)
+  if (partes.length !== 2) return { ok: false, error: 'Não foi possível preparar o texto para a IA.' }
+
+  const contexto = montarContexto({
+    funcao: base.funcao,
+    dataOcorrencia: base.dataOcorrencia,
+    gravidade: base.gravidade,
+    textoAnonimo: partes[0],
+    historico: base.historico,
+  })
+  return { ok: true, mensagem: montarContextoRetorno({ contexto, respostaRhAnonima: partes[1] }), nomes: junto.nomes }
+}
+
+export type PreviaRetorno =
+  | { success: true; mensagem: string; iaConfigurada: boolean }
+  | { success: false; error: string }
+
+// Prévia do retorno do RH: mostra o texto exato que iria à IA. Nada é enviado.
+export async function previaRetorno(ocorrenciaId: string, respostaRH: string): Promise<PreviaRetorno> {
+  const guard = await requireRole(['admin', 'coordenador'])
+  if (!guard.success) return { success: false, error: guard.error }
+
+  const preparada = await prepararMensagemRetorno(ocorrenciaId, respostaRH)
+  if (!preparada.ok) return { success: false, error: preparada.error }
+  return { success: true, mensagem: preparada.mensagem, iaConfigurada: iaConfigurada() }
+}
+
 export async function rascunharDevolutivaRetorno(ocorrenciaId: string, respostaRH: string): Promise<ResultadoRetorno> {
   const guard = await requireRole(['admin', 'coordenador'])
   if (!guard.success) return { success: false, error: guard.error }
   const { auth } = guard
-
-  const validado = validarTexto(respostaRH)
-  if (!validado.ok) return { success: false, error: validado.error }
 
   if (!iaConfigurada()) return { success: false, error: 'A IA não está configurada neste ambiente (falta ANTHROPIC_API_KEY).' }
   if (!dentroDoLimite(auth.user.id)) {
     return { success: false, error: 'Muitas análises em pouco tempo. Aguarde alguns minutos.' }
   }
 
-  const base = await carregarBase(ocorrenciaId)
-  if (!base) return { success: false, error: 'Ocorrência não encontrada' }
+  const preparada = await prepararMensagemRetorno(ocorrenciaId, respostaRH)
+  if (!preparada.ok) return { success: false, error: preparada.error }
+  const { mensagem, nomes } = preparada
 
-  // Relato e resposta do RH são anonimizados JUNTOS, numa só chamada: assim a mesma pessoa recebe
-  // o mesmo código (FUNC_n) nos dois textos e a restauração dos nomes é uma só.
-  const SEPARADOR = '\n<<<SEPARADOR_RESPOSTA_RH>>>\n'
-  const junto = anonimizarOcorrencia(`${base.descricao}${SEPARADOR}${validado.texto}`, await carregarPessoas())
-  const [textoAnonimo, respostaAnonima] = junto.texto.split(SEPARADOR)
-  if (respostaAnonima === undefined) return { success: false, error: 'Não foi possível preparar o texto para a IA.' }
-
-  const contexto = montarContexto({
-    funcao: base.funcao,
-    dataOcorrencia: base.dataOcorrencia,
-    gravidade: base.gravidade,
-    textoAnonimo,
-    historico: base.historico,
+  // Auditoria ANTES do envio (se não puder gravar, nada vai à IA).
+  const auditoriaId = await abrirAuditoria({
+    ocorrenciaId,
+    tipo: 'devolutiva_retorno',
+    userId: auth.user.id,
+    textoEnviado: mensagem,
+    mapa: nomes,
   })
-  const mensagem = montarContextoRetorno({ contexto, respostaRhAnonima: respostaAnonima })
+  if (!auditoriaId) {
+    return { success: false, error: 'Não foi possível registrar a auditoria do rascunho. Nada foi enviado à IA.' }
+  }
 
   try {
     const resp = await chamarFerramenta(PROMPT_RETORNO, FERRAMENTA_RETORNO, mensagem, opcoesIA())
     const retorno = lerRetorno(resp.entrada)
-    if (!retorno) return { success: false, error: 'A IA devolveu uma resposta fora do formato. Tente de novo.' }
+    if (!retorno) {
+      await falharAuditoria(auditoriaId, 'Resposta da IA fora do formato', resp)
+      return { success: false, error: 'A IA devolveu uma resposta fora do formato. Tente de novo.' }
+    }
 
-    const nomes = junto.nomes
+    await fecharAuditoria(auditoriaId, resp, retorno)
     const restaurar = (t: string) => restaurarNomes(t, nomes)
-
-    const { data: linha, error } = await (createAdminClient() as AnyClient)
-      .from('ocorrencia_analises_ia')
-      .insert({
-        ocorrencia_id: ocorrenciaId,
-        tipo: 'devolutiva_retorno',
-        solicitada_por: auth.user.id,
-        modelo: resp.modelo,
-        tokens_entrada: resp.tokensEntrada,
-        tokens_saida: resp.tokensSaida,
-        texto_enviado: mensagem,
-        mapa: nomes,
-        resultado: retorno,
-      })
-      .select('id')
-      .single()
-    if (error || !linha) return { success: false, error: 'O rascunho foi feito, mas não foi possível registrá-lo. Tente de novo.' }
-
     return {
       success: true,
-      analiseId: linha.id,
+      analiseId: auditoriaId,
       devolutiva: restaurar(retorno.devolutiva_supervisor),
       pontos: retorno.pontos_de_atencao.map(restaurar),
     }
   } catch (e) {
-    return { success: false, error: mensagemErroIA(e) }
+    const erro = mensagemErroIA(e)
+    await falharAuditoria(auditoriaId, erro)
+    return { success: false, error: erro }
   }
 }
 
@@ -324,13 +416,9 @@ export async function decidirAnalise(
   if (!analise) return { success: false, error: 'Análise não encontrada' }
   if (analise.decisao !== 'pendente') return { success: false, error: 'Esta análise já foi decidida' }
 
-  // Aprovar com devolutiva: posta na conversa, em nome do coordenador, o texto que ELE editou.
-  if (dados.decisao === 'aprovada' && dados.devolutivaEditada?.trim()) {
-    const postada = await comentarOcorrencia(analise.ocorrencia_id, dados.devolutivaEditada)
-    if (!postada.success) return { success: false, error: postada.error }
-  }
-
-  const { data: atualizadas, error } = await admin
+  // Reserva a decisão ANTES de postar: a atualização condicional só passa para um clique, então
+  // duplo clique ou dois coordenadores ao mesmo tempo não postam duas mensagens.
+  const { data: reservadas, error } = await admin
     .from('ocorrencia_analises_ia')
     .update({
       decisao: dados.decisao,
@@ -342,7 +430,20 @@ export async function decidirAnalise(
     .eq('decisao', 'pendente')
     .select('id')
   if (error) return { success: false, error: error.message }
-  if (!atualizadas || atualizadas.length === 0) return { success: false, error: 'Esta análise já foi decidida' }
+  if (!reservadas || reservadas.length === 0) return { success: false, error: 'Esta análise já foi decidida' }
+
+  // Aprovar com devolutiva: posta na conversa, em nome do coordenador, o texto que ELE editou.
+  // Se a postagem falhar, devolve a análise a "pendente" para ele poder tentar de novo.
+  if (dados.decisao === 'aprovada' && dados.devolutivaEditada?.trim()) {
+    const postada = await comentarOcorrencia(analise.ocorrencia_id, dados.devolutivaEditada)
+    if (!postada.success) {
+      await admin
+        .from('ocorrencia_analises_ia')
+        .update({ decisao: 'pendente', decidida_por: null, decidida_em: null, motivo: null })
+        .eq('id', analiseId)
+      return { success: false, error: postada.error }
+    }
+  }
 
   revalidatePath('/ocorrencias')
   return { success: true }

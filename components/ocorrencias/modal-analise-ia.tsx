@@ -6,6 +6,7 @@ import {
   previaAnalise,
   analisarOcorrencia,
   rascunharDevolutivaRetorno,
+  previaRetorno,
   decidirAnalise,
   listarAnalises,
   type AnaliseHistorico,
@@ -77,6 +78,17 @@ export function ModalAnaliseIA({
       setAnalise(r.analise)
       setDevolutiva(r.analise.devolutiva_supervisor)
       setConsideracoes(r.analise.email_rh)
+    })
+  }
+
+  // Retorno do RH: primeiro mostra o texto exato que iria à IA; só envia depois do "Enviar para a IA".
+  function handlePreviaRetorno() {
+    setErro(null)
+    startTransition(async () => {
+      const r = await previaRetorno(ocorrenciaId, respostaRH)
+      if (!r.success) { setErro(r.error); return }
+      setMensagem(r.mensagem)
+      setIaOk(r.iaConfigurada)
     })
   }
 
@@ -181,18 +193,45 @@ export function ModalAnaliseIA({
                 Cole a resposta que o RH enviou. Nomes de funcionários e supervisores viram códigos antes de ir à IA;
                 nomes de terceiros escritos no texto não são detectados.
               </p>
-              <textarea value={respostaRH} onChange={e => setRespostaRH(e.target.value)} rows={6} placeholder="Resposta do RH…" className={textareaClass} />
+              <textarea
+                value={respostaRH}
+                onChange={e => { setRespostaRH(e.target.value); setMensagem('') }}
+                rows={6}
+                placeholder="Resposta do RH…"
+                className={textareaClass}
+              />
+              {mensagem && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                    Texto exato que vai para a IA (confira antes de enviar)
+                  </p>
+                  <pre className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
+                    {mensagem}
+                  </pre>
+                  {!iaOk && <p className="text-xs text-red-500">A IA não está configurada neste ambiente.</p>}
+                </div>
+              )}
               <div className="flex justify-end gap-3">
                 <button onClick={onClose} className="h-9 rounded-lg border border-gray-200 px-4 text-xs font-semibold uppercase tracking-widest text-gray-500 hover:bg-gray-50">
                   Cancelar
                 </button>
-                <button
-                  disabled={isPending || !respostaRH.trim()}
-                  onClick={handleRascunharRetorno}
-                  className="h-9 rounded-lg bg-slate-900 px-4 text-xs font-semibold uppercase tracking-widest text-white hover:bg-slate-700 disabled:opacity-50"
-                >
-                  {isPending ? 'Rascunhando…' : 'Rascunhar devolutiva'}
-                </button>
+                {!mensagem ? (
+                  <button
+                    disabled={isPending || !respostaRH.trim()}
+                    onClick={handlePreviaRetorno}
+                    className="h-9 rounded-lg bg-slate-900 px-4 text-xs font-semibold uppercase tracking-widest text-white hover:bg-slate-700 disabled:opacity-50"
+                  >
+                    {isPending ? 'Preparando…' : 'Ver prévia'}
+                  </button>
+                ) : (
+                  <button
+                    disabled={isPending || !iaOk}
+                    onClick={handleRascunharRetorno}
+                    className="h-9 rounded-lg bg-slate-900 px-4 text-xs font-semibold uppercase tracking-widest text-white hover:bg-slate-700 disabled:opacity-50"
+                  >
+                    {isPending ? 'Rascunhando…' : 'Enviar para a IA e rascunhar'}
+                  </button>
+                )}
               </div>
             </div>
           )}
