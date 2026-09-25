@@ -43,12 +43,15 @@ CREATE POLICY ocorrencia_comentarios_supervisor_select ON ocorrencia_comentarios
     )
   );
 
--- supervisor: escreve na conversa das ocorrências do seu posto, sempre como ele mesmo
+-- supervisor: escreve na conversa das ocorrências do seu posto, sempre como ele mesmo.
+-- Só 'mensagem': o 'parecer' nasce junto com o encerramento, via Server Action (admin client),
+-- então não pode ser forjado direto pela API.
 CREATE POLICY ocorrencia_comentarios_supervisor_insert ON ocorrencia_comentarios
   FOR INSERT TO authenticated
   WITH CHECK (
     is_supervisor()
     AND autor_id = auth.uid()
+    AND tipo = 'mensagem'
     AND EXISTS (
       SELECT 1 FROM ocorrencias o
       WHERE o.id = ocorrencia_id
