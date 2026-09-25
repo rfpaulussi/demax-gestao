@@ -3,7 +3,9 @@
 import { useEffect, useState, useTransition } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import type { DossieFuncionario, SupervisorSimples, TimelineTipo } from '@/app/(admin)/ocorrencias/actions'
-import { getDossieFuncionario, updateStatusOcorrencia } from '@/app/(admin)/ocorrencias/actions'
+import { getDossieFuncionario, updateStatusOcorrencia, registrarRetornoRH } from '@/app/(admin)/ocorrencias/actions'
+import { ModalEncaminharRH } from './modal-encaminhar-rh'
+import { diasComRH } from '@/lib/ocorrencias/encaminhar-rh'
 import { ModalNovaOcorrencia } from './modal-nova-ocorrencia'
 import { ConversaOcorrencia } from './conversa-ocorrencia'
 import { downloadDossiePDF } from './dossie-pdf'
@@ -51,11 +53,13 @@ export function ModalDossie({
   funcionarioId,
   supervisores,
   canWrite,
+  ehGestao,
   onClose,
 }: {
   funcionarioId: string
   supervisores: SupervisorSimples[]
   canWrite: boolean
+  ehGestao: boolean
   onClose: () => void
 }) {
   const [dossie, setDossie]         = useState<DossieFuncionario | null>(null)
@@ -66,6 +70,9 @@ export function ModalDossie({
   const [conversasAbertas, setConversasAbertas] = useState<Set<string>>(new Set())
   const [encerrandoId, setEncerrandoId]         = useState<string | null>(null)
   const [parecer, setParecer]                   = useState('')
+  const [encaminharId, setEncaminharId] = useState<string | null>(null)
+  const [retornoId, setRetornoId]       = useState<string | null>(null)
+  const [retornoTexto, setRetornoTexto] = useState('')
   const [isPending, startTransition] = useTransition()
 
   // silencioso = atualiza os dados sem trocar a tela por "Carregando" (usado ao enviar mensagem)
@@ -80,6 +87,20 @@ export function ModalDossie({
     carregar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [funcionarioId])
+
+  function handleRetornoRH(idComPrefixo: string) {
+    const id = idComPrefixo.replace('ocorrencia-', '')
+    startTransition(async () => {
+      const result = await registrarRetornoRH(id, retornoTexto)
+      if (result.success) {
+        setRetornoId(null)
+        setRetornoTexto('')
+        carregar()
+      } else {
+        alert(result.error)
+      }
+    })
+  }
 
   function toggleConversa(id: string) {
     setConversasAbertas(prev => {
@@ -251,6 +272,30 @@ export function ModalDossie({
                                 Encerrar
                               </button>
                             )}
+                            {ehGestao && ehOcorrencia && (item.status === 'aberta' || item.status === 'em_analise') && (
+                              item.com_rh_desde ? (
+                                <>
+                                  <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">
+                                    Com o RH há {diasComRH(item.com_rh_desde)} {diasComRH(item.com_rh_desde) === 1 ? 'dia' : 'dias'}
+                                  </span>
+                                  <button
+                                    disabled={isPending}
+                                    onClick={() => { setRetornoId(item.id); setRetornoTexto('') }}
+                                    className="rounded-lg bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+                                  >
+                                    Registrar retorno do RH
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  disabled={isPending}
+                                  onClick={() => setEncaminharId(item.id)}
+                                  className="rounded-lg bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+                                >
+                                  Encaminhar ao RH
+                                </button>
+                              )
+                            )}
                           </div>
                         </div>
 
@@ -263,6 +308,38 @@ export function ModalDossie({
                             >
                               {conversaAberta ? 'Ocultar conversa' : `Conversa (${item.comentarios ?? 0})`}
                             </button>
+                          </div>
+                        )}
+
+                        {ehGestao && retornoId === item.id && (
+                          <div className="space-y-2 border-t border-gray-50 bg-indigo-50/50 px-4 py-3">
+                            <label className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+                              Retorno do RH (nota interna, o supervisor não vê)
+                            </label>
+                            <textarea
+                              value={retornoTexto}
+                              onChange={e => setRetornoTexto(e.target.value)}
+                              rows={4}
+                              placeholder="Cole ou resuma a resposta que o RH enviou…"
+                              className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400"
+                            />
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => { setRetornoId(null); setRetornoTexto('') }}
+                                className="h-8 rounded-lg border border-gray-200 px-3 text-xs font-semibold uppercase tracking-widest text-gray-500 hover:bg-gray-50"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isPending || !retornoTexto.trim()}
+                                onClick={() => handleRetornoRH(item.id)}
+                                className="h-8 rounded-lg bg-indigo-600 px-3 text-xs font-semibold uppercase tracking-widest text-white hover:bg-indigo-700 disabled:opacity-50"
+                              >
+                                {isPending ? 'Salvando…' : 'Registrar retorno'}
+                              </button>
+                            </div>
                           </div>
                         )}
 
@@ -311,6 +388,14 @@ export function ModalDossie({
                   })
                 )}
               </div>
+
+              {ehGestao && encaminharId && (
+                <ModalEncaminharRH
+                  ocorrenciaId={encaminharId.replace('ocorrencia-', '')}
+                  onClose={() => setEncaminharId(null)}
+                  onEnviado={() => carregar()}
+                />
+              )}
 
               {canWrite && (
                 <ModalNovaOcorrencia

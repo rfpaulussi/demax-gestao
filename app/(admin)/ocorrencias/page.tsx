@@ -13,6 +13,7 @@ export default async function OcorrenciasPage({ searchParams }: { searchParams: 
   ])
 
   const canWrite = auth?.perfil.role === 'admin' || auth?.perfil.role === 'coordenador' || auth?.perfil.role === 'supervisor'
+  const ehGestao = auth?.perfil.role === 'admin' || auth?.perfil.role === 'coordenador'
   const funcionarioInicial = searchParams.f && UUID_RE.test(searchParams.f) ? searchParams.f : null
 
   return (
@@ -28,6 +29,7 @@ export default async function OcorrenciasPage({ searchParams }: { searchParams: 
         alertasIniciais={alertas}
         currentUserId={auth?.user.id ?? null}
         canWrite={canWrite}
+        ehGestao={ehGestao}
         funcionarioInicial={funcionarioInicial}
       />
     </div>

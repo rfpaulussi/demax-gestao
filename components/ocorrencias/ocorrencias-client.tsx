@@ -11,6 +11,7 @@ export function OcorrenciasClient({
   supervisores,
   alertasIniciais,
   canWrite,
+  ehGestao,
   funcionarioInicial,
 }: {
   funcionarios: FuncionarioPainel[]
@@ -18,6 +19,7 @@ export function OcorrenciasClient({
   alertasIniciais: AlertaRow[]
   currentUserId: string | null
   canWrite: boolean
+  ehGestao: boolean
   funcionarioInicial: string | null
 }) {
   const [selecionado, setSelecionado] = useState<string | null>(funcionarioInicial)
@@ -33,6 +35,7 @@ export function OcorrenciasClient({
           funcionarioId={selecionado}
           supervisores={supervisores}
           canWrite={canWrite}
+          ehGestao={ehGestao}
           onClose={() => setSelecionado(null)}
         />
       )}

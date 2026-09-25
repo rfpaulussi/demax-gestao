@@ -62,7 +62,13 @@ export function ConversaOcorrencia({
           {comentarios.map(c => (
             <div
               key={c.id}
-              className={`rounded-lg px-3 py-2 ${c.tipo === 'parecer' ? 'bg-green-50 ring-1 ring-green-200' : 'bg-gray-50'}`}
+              className={`rounded-lg px-3 py-2 ${
+                c.tipo === 'parecer'
+                  ? 'bg-green-50 ring-1 ring-green-200'
+                  : c.tipo === 'nota_interna'
+                    ? 'bg-amber-50 ring-1 ring-amber-200'
+                    : 'bg-gray-50'
+              }`}
             >
               <p className="text-xs">
                 <span className="font-semibold text-gray-900">{c.autor_nome}</span>
@@ -73,6 +79,11 @@ export function ConversaOcorrencia({
                 {c.tipo === 'parecer' && (
                   <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">
                     Parecer
+                  </span>
+                )}
+                {c.tipo === 'nota_interna' && (
+                  <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                    Nota interna (só gestão)
                   </span>
                 )}
               </p>
