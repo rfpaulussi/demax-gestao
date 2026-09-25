@@ -2,6 +2,9 @@ import { getUser } from '@/lib/auth/get-user'
 import { getPainelFuncionarios, getSupervisoresSimples, getAlertas } from './actions'
 import { OcorrenciasClient } from '@/components/ocorrencias/ocorrencias-client'
 
+// A análise de IA leva mais que os 10 s padrão de uma função na Vercel.
+export const maxDuration = 60
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export default async function OcorrenciasPage({ searchParams }: { searchParams: { f?: string } }) {

@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { getRascunhoRH, encaminharAoRH } from '@/app/(admin)/ocorrencias/actions'
+import { inserirConsideracoes } from '@/lib/ocorrencias/encaminhar-rh'
 
 const inputClass =
   'h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm text-gray-700 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
@@ -11,10 +12,12 @@ export function ModalEncaminharRH({
   ocorrenciaId,
   onClose,
   onEnviado,
+  consideracoes,
 }: {
   ocorrenciaId: string
   onClose: () => void
   onEnviado: () => void
+  consideracoes?: string
 }) {
   const [carregando, setCarregando] = useState(true)
   const [erroCarga, setErroCarga]   = useState<string | null>(null)
@@ -32,7 +35,7 @@ export function ModalEncaminharRH({
       if (r.success) {
         setPara(r.para)
         setAssunto(r.assunto)
-        setCorpo(r.corpo)
+        setCorpo(consideracoes ? inserirConsideracoes(r.corpo, consideracoes) : r.corpo)
       } else {
         setErroCarga(r.error)
       }

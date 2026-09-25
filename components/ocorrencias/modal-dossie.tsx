@@ -5,6 +5,7 @@ import { Dialog } from '@base-ui/react/dialog'
 import type { DossieFuncionario, SupervisorSimples, TimelineTipo } from '@/app/(admin)/ocorrencias/actions'
 import { getDossieFuncionario, updateStatusOcorrencia, registrarRetornoRH } from '@/app/(admin)/ocorrencias/actions'
 import { ModalEncaminharRH } from './modal-encaminhar-rh'
+import { ModalAnaliseIA } from './modal-analise-ia'
 import { diasComRH } from '@/lib/ocorrencias/encaminhar-rh'
 import { ModalNovaOcorrencia } from './modal-nova-ocorrencia'
 import { ConversaOcorrencia } from './conversa-ocorrencia'
@@ -72,6 +73,8 @@ export function ModalDossie({
   const [parecer, setParecer]                   = useState('')
   const [encaminharId, setEncaminharId] = useState<string | null>(null)
   const [retornoId, setRetornoId]       = useState<string | null>(null)
+  const [analiseIA, setAnaliseIA]       = useState<{ id: string; modo: 'analise' | 'retorno' } | null>(null)
+  const [consideracoesIA, setConsideracoesIA] = useState('')
   const [retornoTexto, setRetornoTexto] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -296,6 +299,26 @@ export function ModalDossie({
                                 </button>
                               )
                             )}
+                            {ehGestao && ehOcorrencia && (item.status === 'aberta' || item.status === 'em_analise') && (
+                              <>
+                                <button
+                                  disabled={isPending}
+                                  onClick={() => setAnaliseIA({ id: item.id, modo: 'analise' })}
+                                  className="rounded-lg bg-purple-50 px-2 py-0.5 text-xs font-semibold text-purple-700 hover:bg-purple-100 disabled:opacity-50"
+                                >
+                                  Analisar com IA
+                                </button>
+                                {item.com_rh_desde && (
+                                  <button
+                                    disabled={isPending}
+                                    onClick={() => setAnaliseIA({ id: item.id, modo: 'retorno' })}
+                                    className="rounded-lg bg-purple-50 px-2 py-0.5 text-xs font-semibold text-purple-700 hover:bg-purple-100 disabled:opacity-50"
+                                  >
+                                    Rascunhar devolutiva do retorno
+                                  </button>
+                                )}
+                              </>
+                            )}
                           </div>
                         </div>
 
@@ -392,8 +415,22 @@ export function ModalDossie({
               {ehGestao && encaminharId && (
                 <ModalEncaminharRH
                   ocorrenciaId={encaminharId.replace('ocorrencia-', '')}
-                  onClose={() => setEncaminharId(null)}
+                  consideracoes={consideracoesIA}
+                  onClose={() => { setEncaminharId(null); setConsideracoesIA('') }}
                   onEnviado={() => carregar()}
+                />
+              )}
+
+              {ehGestao && analiseIA && (
+                <ModalAnaliseIA
+                  ocorrenciaId={analiseIA.id.replace('ocorrencia-', '')}
+                  modo={analiseIA.modo}
+                  onClose={() => setAnaliseIA(null)}
+                  onAprovada={() => carregar(true)}
+                  onEncaminharRH={(consideracoes) => {
+                    setConsideracoesIA(consideracoes)
+                    setEncaminharId(analiseIA.id)
+                  }}
                 />
               )}
 
