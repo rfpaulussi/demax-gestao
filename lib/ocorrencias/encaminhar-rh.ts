@@ -124,3 +124,17 @@ export function corpoParaHtml(corpo: string): string {
 <div style="max-width:640px;margin:0 auto;background:#fff;border-radius:10px;padding:24px;font-size:14px;line-height:1.6;color:#1e293b">${conteudo}</div>
 </body></html>`
 }
+
+/**
+ * Insere um bloco de "CONSIDERAÇÕES" (sugerido pela IA) no rascunho do e-mail, antes da frase de fechamento.
+ * O cabeçalho com nome, RE, posto e histórico continua vindo do sistema, nunca da IA.
+ */
+export function inserirConsideracoes(corpo: string, consideracoes: string): string {
+  const bloco = consideracoes.trim()
+  if (!bloco) return corpo
+  const secao = `CONSIDERAÇÕES\n${bloco}\n`
+  const marca = 'Fico no aguardo da sua orientação.'
+  const i = corpo.indexOf(marca)
+  if (i < 0) return `${corpo.trimEnd()}\n\n${secao}`
+  return `${corpo.slice(0, i)}${secao}\n${corpo.slice(i)}`
+}

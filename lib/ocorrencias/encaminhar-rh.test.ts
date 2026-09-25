@@ -4,6 +4,7 @@ import {
   validarEmails,
   diasComRH,
   corpoParaHtml,
+  inserirConsideracoes,
   type DadosRascunhoRH,
 } from './encaminhar-rh'
 
@@ -127,5 +128,29 @@ describe('corpoParaHtml', () => {
     const html = corpoParaHtml('Linha 1\n<b>Linha 2</b>')
     expect(html).toContain('Linha 1<br>&lt;b&gt;Linha 2&lt;/b&gt;')
     expect(html).not.toContain('<b>')
+  })
+})
+
+describe('inserirConsideracoes', () => {
+  it('insere o bloco antes do "Fico no aguardo", mantendo o resto do rascunho', () => {
+    const { corpo } = montarRascunhoRH(base)
+    const r = inserirConsideracoes(corpo, 'Solicito orientação sobre o acompanhamento.')
+    const iBloco = r.indexOf('CONSIDERAÇÕES')
+    const iAguardo = r.indexOf('Fico no aguardo')
+    expect(iBloco).toBeGreaterThan(0)
+    expect(iBloco).toBeLessThan(iAguardo)
+    expect(r).toContain('Solicito orientação sobre o acompanhamento.')
+    expect(r).toContain('Maria Souza')
+    expect(r.endsWith('Rodolfo Paulussi')).toBe(true)
+  })
+
+  it('acrescenta no fim quando não acha a frase de fechamento', () => {
+    const r = inserirConsideracoes('Texto livre editado.', 'Bloco da IA.')
+    expect(r).toContain('Texto livre editado.')
+    expect(r.trimEnd().endsWith('Bloco da IA.')).toBe(true)
+  })
+
+  it('não muda nada quando o bloco está vazio', () => {
+    expect(inserirConsideracoes('Corpo.', '   ')).toBe('Corpo.')
   })
 })
