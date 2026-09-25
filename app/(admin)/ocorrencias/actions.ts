@@ -500,17 +500,21 @@ async function carregarOcorrenciaDevolutiva(
 ): Promise<OcorrenciaDevolutiva | null> {
   const { data } = await (createAdminClient() as unknown as AnyClient)
     .from('ocorrencias')
-    .select('id, tipo, status, posto_id, supervisor_id, funcionario_id, funcionarios!funcionario_id(nome)')
+    .select('id, tipo, status, posto_id, supervisor_id, funcionario_id, funcionarios!funcionario_id(nome, posto_id)')
     .eq('id', ocorrenciaId)
     .single()
   if (!data || data.tipo !== 'ocorrencia' || !data.funcionario_id) return null
 
+  const func = Array.isArray(data.funcionarios) ? data.funcionarios[0] : data.funcionarios
+
+  // Mesmo escopo do RLS e do dossiê: vale o posto da ocorrência OU o posto atual do funcionário.
   if (auth.perfil.role === 'supervisor') {
     const postoIds = await getPostoIdsSupervisor(createClient(), auth.user.id)
-    if (!data.posto_id || !postoIds.includes(data.posto_id)) return null
+    const noPostoDaOcorrencia = !!data.posto_id && postoIds.includes(data.posto_id)
+    const noPostoDoFuncionario = !!func?.posto_id && postoIds.includes(func.posto_id)
+    if (!noPostoDaOcorrencia && !noPostoDoFuncionario) return null
   }
 
-  const func = Array.isArray(data.funcionarios) ? data.funcionarios[0] : data.funcionarios
   return {
     id: data.id,
     status: data.status ?? 'aberta',
@@ -673,7 +677,21 @@ export async function updateStatusOcorrencia(formData: FormData): Promise<Action
 
   const adminSupabase = createAdminClient() as unknown as AnyClient
 
-  // Parecer primeiro: se a gravação falhar o status não muda e o usuário pode tentar de novo.
+  // A troca de status é condicional (só ocorrência ainda aberta/em análise) e devolve as linhas
+  // afetadas: assim dois cliques ao mesmo tempo não passam os dois, e não sai parecer duplicado.
+  const { data: atualizadas, error } = await adminSupabase
+    .from('ocorrencias')
+    .update({ status, atualizado_por: auth.user.id, atualizado_em: new Date().toISOString() })
+    .eq('id', id)
+    .in('status', ['aberta', 'em_analise'])
+    .select('id')
+  if (error) return { success: false, error: error.message }
+  if (!atualizadas || atualizadas.length === 0) {
+    return { success: false, error: 'Esta ocorrência já foi encerrada' }
+  }
+
+  // Parecer depois de garantir a transição. Se a gravação falhar, desfaz o status
+  // pra ocorrência não ficar encerrada sem parecer.
   if (parecer) {
     const { error: erroParecer } = await adminSupabase.from('ocorrencia_comentarios').insert({
       ocorrencia_id: id,
@@ -681,14 +699,11 @@ export async function updateStatusOcorrencia(formData: FormData): Promise<Action
       texto: parecer,
       tipo: 'parecer',
     })
-    if (erroParecer) return { success: false, error: erroParecer.message }
+    if (erroParecer) {
+      await adminSupabase.from('ocorrencias').update({ status: oc.status }).eq('id', id)
+      return { success: false, error: erroParecer.message }
+    }
   }
-
-  const { error } = await adminSupabase
-    .from('ocorrencias')
-    .update({ status, atualizado_por: auth.user.id, atualizado_em: new Date().toISOString() })
-    .eq('id', id)
-  if (error) return { success: false, error: error.message }
 
   if (parecer) {
     await notificarDevolutiva({
