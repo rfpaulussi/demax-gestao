@@ -62,14 +62,15 @@ export async function enviarEmail(opts: {
   to: string[]
   subject: string
   html: string
-}): Promise<void> {
+  replyTo?: string
+}): Promise<boolean> {
   if (!process.env.RESEND_API_KEY) {
     console.warn('[email] RESEND_API_KEY não configurada — e-mail ignorado')
-    return
+    return false
   }
   if (opts.to.length === 0) {
     console.warn('[email] Nenhum destinatário — e-mail ignorado')
-    return
+    return false
   }
   try {
     const { error } = await getResend().emails.send({
@@ -77,10 +78,16 @@ export async function enviarEmail(opts: {
       to: opts.to,
       subject: opts.subject,
       html: opts.html,
+      ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
     })
-    if (error) console.error('[email] Resend error:', error)
+    if (error) {
+      console.error('[email] Resend error:', error)
+      return false
+    }
+    return true
   } catch (e) {
     console.error('[email] Erro ao enviar:', e)
+    return false
   }
 }
 
