@@ -92,15 +92,16 @@ export async function registrarAtestado(formData: FormData) {
     }
   }
 
-  // Faltas injustificadas já lançadas dentro do período do atestado: exige decisão explícita
-  // (evita o funcionário ser penalizado duas vezes pelo mesmo dia).
+  // Qualquer falta já lançada dentro do período do atestado exige decisão explícita — falta e
+  // atestado nunca coexistem pro mesmo dia (é um ou é outro). Sem filtro de tipo: cobre inclusive
+  // 'justificada' (o caso mais comum — falta lançada "aguardando atestado" e o atestado chega
+  // depois), que antes escapava dessa checagem e ficava sobreposta ao atestado pra sempre.
   const faltasAcao = formData.get('faltas_acao') as string | null
   const adminFaltas = createAdminClient()
   const { data: faltasConf } = await adminFaltas
     .from('faltas')
     .select('id, data_falta, data_fim')
     .eq('funcionario_id', funcionarioId)
-    .in('tipo', ['sem_justificativa', 'sem_atestado'])
     .lte('data_falta', dataFim)
   const conflitantes = (faltasConf ?? []).filter(f => (f.data_fim ?? f.data_falta) >= dataInicio)
   if (conflitantes.length > 0 && faltasAcao !== 'remover' && faltasAcao !== 'manter') {

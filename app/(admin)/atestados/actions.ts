@@ -75,11 +75,13 @@ export async function getFaltasConflitantes(
   if (!funcionarioId || !dataInicio || !dataFim) return []
   const auth = await getUser()
   if (!auth) return []
+  // Qualquer tipo de falta conflita com atestado (falta e atestado nunca coexistem pro
+  // mesmo dia) — sem filtro de tipo, senão a checagem do modal diverge da do backend
+  // (registrarAtestado, efetivo/actions.ts) e a falta pode escapar da checagem por aqui.
   const { data } = await createAdminClient()
     .from('faltas')
     .select('id, data_falta, data_fim, dias')
     .eq('funcionario_id', funcionarioId)
-    .in('tipo', ['sem_justificativa', 'sem_atestado'])
     .lte('data_falta', dataFim)
   return ((data ?? []) as FaltaConflitante[]).filter(f => (f.data_fim ?? f.data_falta) >= dataInicio)
 }

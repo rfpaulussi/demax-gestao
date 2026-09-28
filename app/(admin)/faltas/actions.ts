@@ -283,9 +283,9 @@ export async function registrarFalta(fd: FormData) {
 
   if (existing) return { success: false, error: 'DUPLICATE' }
 
-  // Dia já coberto por atestado: lançar falta penalizaria o funcionário duas vezes.
-  // Só faltas injustificadas conflitam; justificada/declaração/suspensão passam.
-  if (tipo === 'sem_justificativa' || tipo === ('sem_atestado' as FaltaTipo)) {
+  // Dia já coberto por atestado: falta e atestado nunca coexistem pro mesmo dia (é um ou
+  // é outro) — qualquer tipo de falta conflita, não só sem_justificativa/sem_atestado.
+  {
     const { data: atestadoNoDia } = await createAdminClient()
       .from('atestados')
       .select('id')
