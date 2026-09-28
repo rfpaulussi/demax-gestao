@@ -79,7 +79,7 @@ export type FuncionarioPainel = {
     faltas: number
     ocorrencias: number
   }
-  aguardandoResposta: boolean
+  aguardando: LadoConversa | null
 }
 
 type RawFuncPainel = {
@@ -130,16 +130,18 @@ async function getSupervisoresPorPosto(
 
 type RawOcorrenciaAberta = { id: string; funcionario_id: string | null }
 type RawComentarioLeve = { ocorrencia_id: string; autor_id: string; created_at: string }
+export type LadoConversa = 'gestao' | 'supervisor'
 
-// Ocorrências abertas onde a "bola" está do lado de quem está vendo o painel: sem
-// resposta ainda (default: aguardando gestão) ou a última mensagem foi da outra parte.
-// Nota interna (RH<->coordenação) não conta — não faz parte da conversa com o supervisor.
-async function getFuncionarioIdsAguardandoResposta(
+// Ocorrências abertas: de que lado está a bola — sem resposta ainda (default:
+// aguardando gestão) ou a última mensagem foi da outra parte. Nota interna
+// (RH<->coordenação) não conta — não faz parte da conversa com o supervisor.
+// Devolve o lado absoluto por funcionário (não relativo a quem está olhando),
+// pra dar pra mostrar "aguardando você" ou "aguardando supervisor" conforme o role de quem vê.
+async function getFuncionarioLadoAguardando(
   supabase: ReturnType<typeof createClient>,
   auth: AuthUser | null,
-): Promise<Set<string>> {
-  if (!auth || auth.perfil.role === 'viewer') return new Set()
-  const ladoViewer = auth.perfil.role === 'supervisor' ? 'supervisor' : 'gestao'
+): Promise<Map<string, LadoConversa>> {
+  if (!auth || auth.perfil.role === 'viewer') return new Map()
 
   const ocorrencias = await fetchAllRows<RawOcorrenciaAberta>((from, to) =>
     (supabase as unknown as AnyClient)
@@ -150,7 +152,7 @@ async function getFuncionarioIdsAguardandoResposta(
       .not('funcionario_id', 'is', null)
       .range(from, to) as unknown as PromiseLike<{ data: RawOcorrenciaAberta[] | null; error: { message: string } | null }>,
   )
-  if (ocorrencias.length === 0) return new Set()
+  if (ocorrencias.length === 0) return new Map()
 
   const ocorrenciaIds = ocorrencias.map(o => o.id)
   const comentarios = await fetchAllRows<RawComentarioLeve>((from, to) =>
@@ -175,16 +177,20 @@ async function getFuncionarioIdsAguardandoResposta(
     }
   }
 
-  const funcionarioIds = new Set<string>()
+  const ladoPorFuncionario = new Map<string, LadoConversa>()
   for (const o of ocorrencias) {
     if (!o.funcionario_id) continue
     const ultimoAutor = ultimoAutorPorOcorrencia.get(o.id)
-    const ladoQueDeveResponder = ultimoAutor
+    const ladoQueDeveResponder: LadoConversa = ultimoAutor
       ? (rolePorAutor.get(ultimoAutor) === 'supervisor' ? 'gestao' : 'supervisor')
       : 'gestao' // sem mensagem ainda: aguardando o primeiro olhar da gestão
-    if (ladoQueDeveResponder === ladoViewer) funcionarioIds.add(o.funcionario_id)
+    // um funcionário pode ter várias ocorrências abertas; "gestao" tem prioridade
+    // porque normalmente é a ação mais urgente (primeiro olhar/decisão).
+    if (ladoPorFuncionario.get(o.funcionario_id) !== 'gestao') {
+      ladoPorFuncionario.set(o.funcionario_id, ladoQueDeveResponder)
+    }
   }
-  return funcionarioIds
+  return ladoPorFuncionario
 }
 
 export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
@@ -210,7 +216,7 @@ export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
     return query as unknown as PromiseLike<{ data: RawFuncPainel[] | null; error: { message: string } | null }>
   })
 
-  const [advertenciasMap, atestadosMap, faltasMap, ocorrenciasMap, supervisoresPorPosto, aguardandoIds] = await Promise.all([
+  const [advertenciasMap, atestadosMap, faltasMap, ocorrenciasMap, supervisoresPorPosto, ladoPorFuncionario] = await Promise.all([
     contarPorFuncionario((from, to) =>
       supabase.from('advertencias').select('funcionario_id').range(from, to) as unknown as PromiseLike<{ data: RawContagem[] | null; error: { message: string } | null }>,
     ),
@@ -229,7 +235,7 @@ export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
         .range(from, to) as unknown as PromiseLike<{ data: RawContagem[] | null; error: { message: string } | null }>,
     ),
     getSupervisoresPorPosto(supabase),
-    getFuncionarioIdsAguardandoResposta(supabase, auth),
+    getFuncionarioLadoAguardando(supabase, auth),
   ])
 
   return funcionariosRaw.map(f => ({
@@ -245,7 +251,7 @@ export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
       faltas: faltasMap.get(f.id) ?? 0,
       ocorrencias: ocorrenciasMap.get(f.id) ?? 0,
     },
-    aguardandoResposta: aguardandoIds.has(f.id),
+    aguardando: ladoPorFuncionario.get(f.id) ?? null,
   }))
 }
 

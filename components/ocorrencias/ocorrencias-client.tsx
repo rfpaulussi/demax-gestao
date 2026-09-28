@@ -28,7 +28,7 @@ export function OcorrenciasClient({
     <div className="space-y-6">
       <AlertasSection alertasIniciais={alertasIniciais} canWrite={canWrite} />
 
-      <BuscaFuncionario funcionarios={funcionarios} onSelect={setSelecionado} />
+      <BuscaFuncionario funcionarios={funcionarios} onSelect={setSelecionado} ehGestao={ehGestao} />
 
       {selecionado && (
         <ModalDossie

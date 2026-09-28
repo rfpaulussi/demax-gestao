@@ -9,6 +9,7 @@ const inputClass =
 
 type SortCol = 'nome' | 'registro' | 'posto' | 'supervisor' | 'total' | 'advertencias' | 'atestados' | 'faltas' | 'ocorrencias'
 type SortDir = 'asc' | 'desc'
+type Categoria = 'advertencias' | 'atestados' | 'faltas' | 'ocorrencias'
 
 const MAX_LINHAS = 200
 
@@ -63,18 +64,25 @@ function totalRegistros(f: FuncionarioPainel): number {
   return f.contagens.advertencias + f.contagens.atestados + f.contagens.faltas + f.contagens.ocorrencias
 }
 
+const STATUS_LABEL = { gestao: 'gestão', supervisor: 'supervisor' } as const
+
 export function BuscaFuncionario({
   funcionarios,
   onSelect,
+  ehGestao,
 }: {
   funcionarios: FuncionarioPainel[]
   onSelect: (id: string) => void
+  ehGestao: boolean
 }) {
+  const ladoViewer = ehGestao ? 'gestao' : 'supervisor'
+
   const [busca, setBusca]           = useState('')
   const [secretaria, setSecretaria] = useState('')
   const [sortCol, setSortCol]       = useState<SortCol>('total')
   const [sortDir, setSortDir]       = useState<SortDir>('desc')
-  const [soAguardando, setSoAguardando] = useState(false)
+  const [soAguardando, setSoAguardando]   = useState(false)
+  const [categoria, setCategoria]         = useState<Categoria | null>(null)
 
   const secretarias = useMemo(
     () => Array.from(new Set(funcionarios.map(f => f.secretaria).filter(Boolean))).sort(),
@@ -86,7 +94,8 @@ export function BuscaFuncionario({
   const filtrados = useMemo(() => {
     let list = funcionarios
     if (secretaria) list = list.filter(f => f.secretaria === secretaria)
-    if (soAguardando) list = list.filter(f => f.aguardandoResposta)
+    if (categoria) list = list.filter(f => f.contagens[categoria] > 0)
+    if (soAguardando) list = list.filter(f => f.aguardando === ladoViewer)
     if (temBusca) {
       const termo = busca.trim().toLowerCase()
       list = list.filter(f => f.nome.toLowerCase().includes(termo))
@@ -94,7 +103,7 @@ export function BuscaFuncionario({
       list = list.filter(f => totalRegistros(f) > 0)
     }
     return list
-  }, [funcionarios, busca, secretaria, temBusca, soAguardando])
+  }, [funcionarios, busca, secretaria, temBusca, soAguardando, categoria, ladoViewer])
 
   const ordenados = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1
@@ -140,11 +149,25 @@ export function BuscaFuncionario({
     return { comRegistro, advertencias, atestados, faltas, ocorrencias }
   }, [filtrados])
 
-  // count independe do toggle "só aguardando" (senão o card zeraria a si mesmo ao ativar)
-  const totalAguardando = useMemo(() => {
-    const escopo = secretaria ? funcionarios.filter(f => f.secretaria === secretaria) : funcionarios
-    return escopo.filter(f => f.aguardandoResposta).length
-  }, [funcionarios, secretaria])
+  // counts independem do próprio toggle (senão o card zeraria a si mesmo ao ativar)
+  const escopoCards = useMemo(
+    () => (secretaria ? funcionarios.filter(f => f.secretaria === secretaria) : funcionarios),
+    [funcionarios, secretaria],
+  )
+  const totalAguardando = useMemo(
+    () => escopoCards.filter(f => f.aguardando === ladoViewer).length,
+    [escopoCards, ladoViewer],
+  )
+  const totaisCategoria = useMemo(() => {
+    const t: Record<Categoria, number> = { advertencias: 0, atestados: 0, faltas: 0, ocorrencias: 0 }
+    for (const f of escopoCards) {
+      t.advertencias += f.contagens.advertencias
+      t.atestados += f.contagens.atestados
+      t.faltas += f.contagens.faltas
+      t.ocorrencias += f.contagens.ocorrencias
+    }
+    return t
+  }, [escopoCards])
 
   const visiveis = ordenados.slice(0, MAX_LINHAS)
   const cortado = ordenados.length > MAX_LINHAS
@@ -175,11 +198,35 @@ export function BuscaFuncionario({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
-        <CounterCard label="Funcionários c/ Registro" value={cards.comRegistro}  topColor="border-t-gray-400"   />
-        <CounterCard label="Advertências"              value={cards.advertencias} topColor="border-t-orange-500" />
-        <CounterCard label="Atestados"                 value={cards.atestados}    topColor="border-t-blue-500"   />
-        <CounterCard label="Faltas"                    value={cards.faltas}       topColor="border-t-red-500"    />
-        <CounterCard label="Ocorrências"                value={cards.ocorrencias}  topColor="border-t-purple-500" />
+        <CounterCard label="Funcionários c/ Registro" value={cards.comRegistro} topColor="border-t-gray-400" />
+        <CounterCard
+          label="Advertências"
+          value={totaisCategoria.advertencias}
+          topColor="border-t-orange-500"
+          onClick={() => setCategoria(c => (c === 'advertencias' ? null : 'advertencias'))}
+          ativo={categoria === 'advertencias'}
+        />
+        <CounterCard
+          label="Atestados"
+          value={totaisCategoria.atestados}
+          topColor="border-t-blue-500"
+          onClick={() => setCategoria(c => (c === 'atestados' ? null : 'atestados'))}
+          ativo={categoria === 'atestados'}
+        />
+        <CounterCard
+          label="Faltas"
+          value={totaisCategoria.faltas}
+          topColor="border-t-red-500"
+          onClick={() => setCategoria(c => (c === 'faltas' ? null : 'faltas'))}
+          ativo={categoria === 'faltas'}
+        />
+        <CounterCard
+          label="Ocorrências"
+          value={totaisCategoria.ocorrencias}
+          topColor="border-t-purple-500"
+          onClick={() => setCategoria(c => (c === 'ocorrencias' ? null : 'ocorrencias'))}
+          ativo={categoria === 'ocorrencias'}
+        />
         <CounterCard
           label="Aguardando Sua Resposta"
           value={totalAguardando}
@@ -188,6 +235,30 @@ export function BuscaFuncionario({
           ativo={soAguardando}
         />
       </div>
+
+      {(categoria || soAguardando) && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+          <span className="font-semibold uppercase tracking-widest text-gray-400">Filtros ativos:</span>
+          {categoria && (
+            <button
+              type="button"
+              onClick={() => setCategoria(null)}
+              className="rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-600 hover:bg-gray-200"
+            >
+              {COUNT_COLS.find(c => c.key === categoria)?.label} ×
+            </button>
+          )}
+          {soAguardando && (
+            <button
+              type="button"
+              onClick={() => setSoAguardando(false)}
+              className="rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-600 hover:bg-gray-200"
+            >
+              Aguardando sua resposta ×
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <input
@@ -232,15 +303,18 @@ export function BuscaFuncionario({
                     {sortCol === col.key && <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>}
                   </th>
                 ))}
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">
+                  Status
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {visiveis.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">
+                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">
                     {soAguardando
                       ? 'Nada aguardando sua resposta'
-                      : temBusca || secretaria
+                      : temBusca || secretaria || categoria
                         ? 'Nenhum funcionário encontrado'
                         : 'Nenhum funcionário com registro no momento'}
                   </td>
@@ -256,6 +330,17 @@ export function BuscaFuncionario({
                     <td className="px-4 py-3 tabular-nums text-gray-600">{f.contagens.atestados}</td>
                     <td className="px-4 py-3 tabular-nums text-gray-600">{f.contagens.faltas}</td>
                     <td className="px-4 py-3 tabular-nums text-gray-600">{f.contagens.ocorrencias}</td>
+                    <td className="px-4 py-3">
+                      {f.aguardando === ladoViewer ? (
+                        <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700">
+                          Aguardando você
+                        </span>
+                      ) : f.aguardando ? (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                          Aguardando {STATUS_LABEL[f.aguardando]}
+                        </span>
+                      ) : null}
+                    </td>
                   </tr>
                 ))
               )}
