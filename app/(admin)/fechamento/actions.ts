@@ -162,7 +162,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     supabase
       .from('funcionarios')
       .select(`
-        id, nome, registro, data_admissao, data_desligamento, status, posto_id,
+        id, nome, registro, data_admissao, data_desligamento, status, posto_id, funcao_id,
         funcoes!funcionarios_funcao_id_fkey ( nome ),
         postos!posto_id ( nome, secretaria, config_escalas_postos ( regime ) )
       `)
@@ -178,7 +178,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
   if (funcionarios.length === 0) return { porFuncionario: [], porPosto: [] }
 
   // 2. Busca paralela
-  const [ferRes, atRes, falRes, advRes, insRes, afaRes, cobRes, todosPostosRes, postoConfigRes, transfRes, supPostoRes] =
+  const [ferRes, atRes, falRes, advRes, insRes, afaRes, cobRes, todosPostosRes, postoConfigRes, transfRes, supPostoRes, funcoesRes] =
     await Promise.all([
       supabase
         .from('ferias')
@@ -228,15 +228,15 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
 
       supabase.from('config_escalas_postos').select('posto_id, regime'),
 
-      // Transferências de posto — histórico completo até o fim do mês (não só as
-      // aprovadas dentro do mês): precisamos saber em qual posto o funcionário
-      // estava ao FINAL do mês fechado, que pode diferir do posto_id atual dele
-      // se ele foi transferido de novo depois (ex.: fechamento de um mês passado).
+      // Histórico completo de posto_id e funcao_id (sem filtro de data — tabela
+      // pequena, ~400 linhas no total). Precisamos do histórico INTEIRO, não só
+      // até o fim do mês: se a primeira mudança de posto/função da vida do
+      // funcionário só aconteceu DEPOIS do mês fechado, é o valor_antes dela (não
+      // o posto_id/funcao_id atual) que valia durante o mês.
       supabase
         .from('movimentacoes')
-        .select('funcionario_id, valor_antes, valor_depois, created_at')
-        .eq('campo_alterado', 'posto_id')
-        .lte('created_at', mesEndStr + 'T23:59:59')
+        .select('funcionario_id, campo_alterado, valor_antes, valor_depois, created_at')
+        .in('campo_alterado', ['posto_id', 'funcao_id'])
         .order('created_at', { ascending: true }),
 
       // Supervisor responsável por cada posto (pra aba RH-Postos)
@@ -244,6 +244,8 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
         .from('config_supervisores_postos')
         .select('posto_id, perfis!supervisor_id ( nome )')
         .eq('ativo', true),
+
+      supabase.from('funcoes').select('id, nome'),
     ])
 
   if (ferRes.error)       throw ferRes.error
@@ -257,6 +259,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
   if (postoConfigRes.error)  throw postoConfigRes.error
   if (transfRes.error)       throw transfRes.error
   if (supPostoRes.error)     throw supPostoRes.error
+  if (funcoesRes.error)      throw funcoesRes.error
 
   const ferias         = ferRes.data  ?? []
   const atestados      = atRes.data   ?? []
@@ -267,11 +270,17 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
   // Cobertura registrada com origem === destino não é troca real de posto (substituição
   // interna no mesmo local) — não deve gerar rateio nem linha "Cobertura" em outro posto.
   const coberturas     = (cobRes.data ?? []).filter(c => c.posto_origem_id !== c.posto_destino_id)
-  const transferencias = transfRes.data ?? []
+  const movsPostoId    = (transfRes.data ?? []).filter(m => m.campo_alterado === 'posto_id')
+  const movsFuncaoId   = (transfRes.data ?? []).filter(m => m.campo_alterado === 'funcao_id')
 
   const postosMap = new Map<string, { nome: string; secretaria: string }>()
   for (const p of todosPostosRes.data ?? []) {
     postosMap.set(p.id, { nome: p.nome, secretaria: p.secretaria ?? '' })
+  }
+
+  const funcoesMap = new Map<string, string>()
+  for (const fn of funcoesRes.data ?? []) {
+    funcoesMap.set(fn.id, fn.nome)
   }
 
   const postoConfigMap = new Map<string, string>()
@@ -288,6 +297,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     funcionarios.map(f => f.id),
     postoConfigMap,
     postoIdPorFuncionario,
+    mesEndStr,
   )
 
   const supervisorPorPosto = new Map<string, string>()
@@ -296,23 +306,43 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     if (perfil?.nome) supervisorPorPosto.set(sp.posto_id, perfil.nome)
   }
 
-  // Histórico completo (até o fim do mês) por funcionário, em ordem cronológica.
-  const transferenciasPorFunc = new Map<string, TransferenciaPosto[]>()
-  for (const m of transferencias) {
-    if (!m.funcionario_id || !m.created_at) continue
-    const dataStr = m.created_at.slice(0, 10)
-    const arr = transferenciasPorFunc.get(m.funcionario_id) ?? []
-    arr.push({ data: toDate(dataStr), postoAntes: m.valor_antes, postoDepois: m.valor_depois })
-    transferenciasPorFunc.set(m.funcionario_id, arr)
+  function agruparHistoricoPorFunc(
+    movs: { funcionario_id: string | null; valor_antes: string | null; valor_depois: string | null; created_at: string | null }[],
+  ): Map<string, TransferenciaPosto[]> {
+    const porFunc = new Map<string, TransferenciaPosto[]>()
+    for (const m of movs) {
+      if (!m.funcionario_id || !m.created_at) continue
+      const arr = porFunc.get(m.funcionario_id) ?? []
+      arr.push({ data: toDate(m.created_at.slice(0, 10)), postoAntes: m.valor_antes, postoDepois: m.valor_depois })
+      porFunc.set(m.funcionario_id, arr)
+    }
+    return porFunc
   }
 
-  // Posto em que o funcionário estava ao FINAL do mês fechado (última transferência
-  // até lá). Sem isso, funcionário sem transferência dentro do mês mas transferido
-  // DEPOIS (ex.: fechamento de mês passado) ficaria com o posto_id atual (errado).
-  const postoAoFimDoMesPorFunc = new Map<string, string | null>()
-  transferenciasPorFunc.forEach((txs, funcId) => {
-    if (txs.length > 0) postoAoFimDoMesPorFunc.set(funcId, txs[txs.length - 1].postoDepois)
-  })
+  // Histórico completo (qualquer data, passado ou futuro) por funcionário, em ordem
+  // cronológica — usado só pra achar o valor vigente ao fim do mês (abaixo).
+  const transferenciasPorFunc = agruparHistoricoPorFunc(movsPostoId)
+  const funcaoHistPorFunc     = agruparHistoricoPorFunc(movsFuncaoId)
+
+  // Valor (posto_id/funcao_id) vigente ao FINAL do mês fechado. Sem isso, um
+  // funcionário sem mudança DENTRO do mês mas mudado DEPOIS (ex.: fechamento de
+  // um mês passado) ficaria com o valor atual (errado). Cobre também o caso em
+  // que a 1ª mudança da vida do funcionário só aconteceu depois do mês fechado —
+  // aí o valor_antes dela é que valia durante o mês, não o valor atual.
+  function resolverValorNoFimDoMes(historicoAsc: TransferenciaPosto[], valorAtual: string | null): string | null {
+    const ateOMes = historicoAsc.filter(h => h.data <= mesEnd)
+    if (ateOMes.length > 0) return ateOMes[ateOMes.length - 1].postoDepois
+    const depoisDoMes = historicoAsc.filter(h => h.data > mesEnd)
+    if (depoisDoMes.length > 0) return depoisDoMes[0].postoAntes
+    return valorAtual
+  }
+
+  const postoAoFimDoMesPorFunc  = new Map<string, string | null>()
+  const funcaoAoFimDoMesPorFunc = new Map<string, string | null>()
+  for (const func of funcionarios) {
+    postoAoFimDoMesPorFunc.set(func.id, resolverValorNoFimDoMes(transferenciasPorFunc.get(func.id) ?? [], func.posto_id ?? null))
+    funcaoAoFimDoMesPorFunc.set(func.id, resolverValorNoFimDoMes(funcaoHistPorFunc.get(func.id) ?? [], func.funcao_id ?? null))
+  }
 
   const feriados = feriadosDoAno(ano)
 
@@ -333,6 +363,11 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     const postos  = func.postos  as unknown as { nome: string; secretaria: string | null; config_escalas_postos: { regime: string }[] | null } | null
     const funcoes = func.funcoes as unknown as { nome: string } | null
     const regime  = regimesPorFuncionario.get(func.id) ?? postos?.config_escalas_postos?.[0]?.regime ?? postoConfigMap.get(func.posto_id ?? '') ?? '5x2'
+
+    // Função vigente no mês fechado (pode diferir da função atual, se o funcionário
+    // mudou de função depois do mês) — ver resolverValorNoFimDoMes acima.
+    const funcaoIdNoMes = funcaoAoFimDoMesPorFunc.get(func.id) ?? func.funcao_id ?? null
+    const funcaoNoMes   = (funcaoIdNoMes ? funcoesMap.get(funcaoIdNoMes) : null) ?? funcoes?.nome ?? null
 
     const postoAoFimDoMes = postoAoFimDoMesPorFunc.get(func.id) ?? func.posto_id ?? null
     const transferenciasNoMes = (transferenciasPorFunc.get(func.id) ?? [])
@@ -432,8 +467,6 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     const diasEmCobertura = coberturasPrestadas.reduce((s, c) => s + c.dias_no_posto, 0)
     const diasNoPostoBase = Math.max(0, diasTrabalhados - diasEmCobertura)
 
-    const multiPosto = coberturasPrestadas.length > 0
-
     // Dias líquidos por segmento de posto (bruto - férias/faltas/atestados/afastamento/cobertura
     // que caem dentro do segmento) — usados na etapa "por posto" pra ratear entre os postos, e
     // pra achar o posto preponderante mesmo quando houve transferência no meio do mês.
@@ -489,11 +522,17 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
       }
     }
 
+    // multi_posto sinaliza atividade em >1 posto DENTRO do mês (cobertura prestada).
+    // Não confundir com posto_preponderante_id !== posto_id, que pode acontecer com
+    // um único posto no mês inteiro (ex.: funcionário transferido de novo só depois
+    // do mês fechado) — a aba Por Funcionário trata esse caso separadamente.
+    const multiPosto = coberturasPrestadas.length > 0
+
     return {
       funcionario_id:      func.id,
       funcionario_nome:    func.nome,
       registro:            (func as { registro?: string | null }).registro ?? null,
-      funcao:              funcoes?.nome ?? null,
+      funcao:              funcaoNoMes,
       posto_id:            func.posto_id ?? null,
       posto_nome:          postos?.nome ?? null,
       secretaria:          postos?.secretaria ?? null,

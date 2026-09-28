@@ -44,23 +44,22 @@ function exportExcel(
       rows.push({ data: [sec.toUpperCase(), ...Array(NC - 1).fill('')], style: 'groupHeader' })
       rows.push({ data: HEADERS, style: 'colHeader' })
       for (const f of grupo) {
-        // Cobertura em posto diferente do posto de origem (ignora autocobertura no mesmo posto)
-        const covsDiferentes = f.coberturas_prestadas.filter(c => c.posto_id !== f.posto_id)
-        const covPrincipal = covsDiferentes.length > 0
-          ? covsDiferentes.reduce((max, c) => (c.dias_no_posto > max.dias_no_posto ? c : max))
-          : null
+        // Posto onde o funcionário realmente passou o mês (preponderante) difere do
+        // posto_id atual dele — seja por cobertura, seja por transferência real (ex.:
+        // transferido de novo depois do mês fechado). Cobre os dois casos, não só cobertura.
+        const divergePostoAtual = f.posto_preponderante_id !== null && f.posto_preponderante_id !== f.posto_id
         rows.push({
           data: [
             f.funcionario_nome, f.registro ?? '—', f.funcao ?? '—', f.posto_nome ?? '—',
-            covPrincipal ? covPrincipal.posto_nome : '',
-            covPrincipal ? covPrincipal.secretaria : '',
+            divergePostoAtual ? (f.posto_preponderante_nome ?? '') : '',
+            divergePostoAtual ? (f.secretaria_preponderante ?? '') : '',
             f.regime,
             f.dias_uteis, f.ferias_dias || 0, f.faltas_dias || 0, f.atestados_dias || 0,
             f.dias_suspensao || 0, f.afastamento_dias || 0, f.dias_trabalhados,
             f.insalubridade_dias || 0,
             f.tem_suspensao ? 'Suspensão' : f.tem_advertencia ? 'Sim' : '',
           ],
-          style: covPrincipal ? 'multiPosto' : undefined,
+          style: divergePostoAtual ? 'multiPosto' : undefined,
         })
       }
       rows.push({ data: [
@@ -368,22 +367,17 @@ function TabFuncionarios({ dados, mostrarVazias }: { dados: FechamentoFuncionari
                   <div className="flex items-center gap-1.5">
                     {f.funcionario_nome}
                     {f.data_desligamento && <span className="inline-block rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-500">desligado {fmt(f.data_desligamento)}</span>}
-                    {(() => {
-                      const covsDiferentes = f.coberturas_prestadas.filter(c => c.posto_id !== f.posto_id)
-                      if (covsDiferentes.length === 0) return null
-                      const covPrincipal = covsDiferentes.reduce((max, c) => (c.dias_no_posto > max.dias_no_posto ? c : max))
-                      return (
-                        <span title={`Cobriu posto diferente no mês: ${covPrincipal.posto_nome} (${covPrincipal.secretaria})`}
-                          className={cn(
-                            'inline-block rounded px-1.5 py-0.5 text-[10px] font-bold',
-                            covPrincipal.secretaria !== f.secretaria
-                              ? 'bg-indigo-100 text-indigo-700'
-                              : 'bg-sky-100 text-sky-700',
-                          )}>
-                          ↔ {covPrincipal.posto_nome}
-                        </span>
-                      )
-                    })()}
+                    {f.posto_preponderante_id !== null && f.posto_preponderante_id !== f.posto_id && (
+                      <span title={`Passou o mês em outro posto: ${f.posto_preponderante_nome ?? '—'} (${f.secretaria_preponderante ?? '—'})`}
+                        className={cn(
+                          'inline-block rounded px-1.5 py-0.5 text-[10px] font-bold',
+                          f.secretaria_preponderante !== f.secretaria
+                            ? 'bg-indigo-100 text-indigo-700'
+                            : 'bg-sky-100 text-sky-700',
+                        )}>
+                        ↔ {f.posto_preponderante_nome}
+                      </span>
+                    )}
                   </div>
                 </td>
                 <td className="px-3 py-2.5 text-gray-500 font-mono whitespace-nowrap">{f.registro ?? '—'}</td>
