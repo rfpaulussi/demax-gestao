@@ -288,18 +288,6 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     postoConfigMap.set(pc.posto_id, pc.regime)
   }
 
-  const postoIdPorFuncionario = new Map<string, string | null>()
-  for (const f of funcionarios) {
-    postoIdPorFuncionario.set(f.id, f.posto_id ?? null)
-  }
-  const regimesPorFuncionario = await obterRegimesPorFuncionario(
-    supabase,
-    funcionarios.map(f => f.id),
-    postoConfigMap,
-    postoIdPorFuncionario,
-    mesEndStr,
-  )
-
   const supervisorPorPosto = new Map<string, string>()
   for (const sp of supPostoRes.data ?? []) {
     const perfil = sp.perfis as unknown as { nome: string } | null
@@ -344,6 +332,22 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     funcaoAoFimDoMesPorFunc.set(func.id, resolverValorNoFimDoMes(funcaoHistPorFunc.get(func.id) ?? [], func.funcao_id ?? null))
   }
 
+  // Regime também precisa do posto de FIM DE MÊS (não o atual) no fallback: sem
+  // isso, um funcionário sem turno cadastrado (cai no fallback por posto) usaria o
+  // regime do posto ATUAL, que pode ter mudado depois do mês fechado — mesma
+  // classe de bug do posto_id, só que escondida dentro do cálculo de dias úteis.
+  const postoIdPorFuncionario = new Map<string, string | null>()
+  for (const f of funcionarios) {
+    postoIdPorFuncionario.set(f.id, postoAoFimDoMesPorFunc.get(f.id) ?? f.posto_id ?? null)
+  }
+  const regimesPorFuncionario = await obterRegimesPorFuncionario(
+    supabase,
+    funcionarios.map(f => f.id),
+    postoConfigMap,
+    postoIdPorFuncionario,
+    mesEndStr,
+  )
+
   const feriados = feriadosDoAno(ano)
 
   // Segmentos de posto (por funcionário) e dias líquidos por segmento — usados
@@ -362,14 +366,19 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
 
     const postos  = func.postos  as unknown as { nome: string; secretaria: string | null; config_escalas_postos: { regime: string }[] | null } | null
     const funcoes = func.funcoes as unknown as { nome: string } | null
-    const regime  = regimesPorFuncionario.get(func.id) ?? postos?.config_escalas_postos?.[0]?.regime ?? postoConfigMap.get(func.posto_id ?? '') ?? '5x2'
+
+    const postoAoFimDoMes = postoAoFimDoMesPorFunc.get(func.id) ?? func.posto_id ?? null
+
+    // Regime vigente no mês fechado: turno histórico (regimesPorFuncionario, já
+    // resolvido com o posto de fim de mês) senão o regime configurado no posto
+    // de fim de mês (nunca o posto atual, que pode ter mudado depois).
+    const regime = regimesPorFuncionario.get(func.id) ?? postoConfigMap.get(postoAoFimDoMes ?? '') ?? '5x2'
 
     // Função vigente no mês fechado (pode diferir da função atual, se o funcionário
     // mudou de função depois do mês) — ver resolverValorNoFimDoMes acima.
     const funcaoIdNoMes = funcaoAoFimDoMesPorFunc.get(func.id) ?? func.funcao_id ?? null
     const funcaoNoMes   = (funcaoIdNoMes ? funcoesMap.get(funcaoIdNoMes) : null) ?? funcoes?.nome ?? null
 
-    const postoAoFimDoMes = postoAoFimDoMesPorFunc.get(func.id) ?? func.posto_id ?? null
     const transferenciasNoMes = (transferenciasPorFunc.get(func.id) ?? [])
       .filter(t => t.data >= mesStart && t.data <= mesEnd)
 

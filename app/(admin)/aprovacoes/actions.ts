@@ -311,12 +311,32 @@ export async function aprovarSolicitacao(
     }
 
     case 'retorno_afastamento': {
-      const postoRetornoId = (dadosDepois.posto_retorno_id as string | undefined) ?? func?.posto_id ?? null
+      const postoOrigemRetorno = func?.posto_id ?? null
+      const postoRetornoId = (dadosDepois.posto_retorno_id as string | undefined) ?? postoOrigemRetorno
       const { error: errRetorno } = await adminSupabase
         .from('funcionarios')
         .update({ status: 'ativo', posto_id: postoRetornoId })
         .eq('id', funcionarioId)
       if (errRetorno) return { success: false, error: errRetorno.message }
+
+      // O campoMap genérico no fim da função só loga 1 campo por tipo de solicitação
+      // (aqui, 'status') — mas retorno_afastamento também pode mudar posto_id (quando o
+      // funcionário volta pra um posto diferente do que tinha antes de ser afastado).
+      // Sem isso, o fechamento (e a timeline de Movimentações) nunca saberiam que o
+      // posto mudou nesse retorno.
+      if (postoRetornoId !== postoOrigemRetorno) {
+        const { error: errMovPosto } = await adminSupabase.from('movimentacoes').insert({
+          funcionario_id: funcionarioId,
+          tipo: 'retorno_afastamento',
+          campo_alterado: 'posto_id',
+          valor_antes: postoOrigemRetorno,
+          valor_depois: postoRetornoId,
+          executado_por: guard.userId,
+          solicitacao_id: id,
+        })
+        if (errMovPosto) console.error('[movimentacoes] retorno_afastamento posto_id:', errMovPosto.message)
+      }
+
       await supabase
         .from('afastamentos')
         .update({ data_fim_real: dadosDepois.data_retorno as string })
