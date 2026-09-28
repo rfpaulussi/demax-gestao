@@ -7,9 +7,14 @@ import { exportToExcel } from '@/lib/export-excel'
 const inputClass =
   'h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm text-gray-700 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400'
 
-type SortCol = 'nome' | 'registro' | 'posto' | 'supervisor' | 'total' | 'advertencias' | 'atestados' | 'faltas' | 'ocorrencias'
+type SortCol = 'nome' | 'registro' | 'posto' | 'supervisor' | 'total' | 'advertencias' | 'atestados' | 'faltas' | 'ocorrencias' | 'aguardando'
 type SortDir = 'asc' | 'desc'
 type Categoria = 'advertencias' | 'atestados' | 'faltas' | 'ocorrencias'
+
+function diasDesde(iso: string): number {
+  const ms = Date.now() - new Date(iso).getTime()
+  return Math.max(0, Math.floor(ms / 86400000))
+}
 
 const MAX_LINHAS = 200
 
@@ -77,15 +82,25 @@ export function BuscaFuncionario({
 }) {
   const ladoViewer = ehGestao ? 'gestao' : 'supervisor'
 
-  const [busca, setBusca]           = useState('')
-  const [secretaria, setSecretaria] = useState('')
-  const [sortCol, setSortCol]       = useState<SortCol>('total')
-  const [sortDir, setSortDir]       = useState<SortDir>('desc')
+  const [busca, setBusca]             = useState('')
+  const [secretaria, setSecretaria]   = useState('')
+  const [supervisor, setSupervisor]   = useState('')
+  const [posto, setPosto]             = useState('')
+  const [sortCol, setSortCol]         = useState<SortCol>('total')
+  const [sortDir, setSortDir]         = useState<SortDir>('desc')
   const [soAguardando, setSoAguardando]   = useState(false)
   const [categoria, setCategoria]         = useState<Categoria | null>(null)
 
   const secretarias = useMemo(
     () => Array.from(new Set(funcionarios.map(f => f.secretaria).filter(Boolean))).sort(),
+    [funcionarios],
+  )
+  const supervisores = useMemo(
+    () => Array.from(new Set(funcionarios.flatMap(f => f.supervisor_nomes))).sort(),
+    [funcionarios],
+  )
+  const postos = useMemo(
+    () => Array.from(new Set(funcionarios.map(f => f.posto_nome).filter(Boolean))).sort(),
     [funcionarios],
   )
 
@@ -94,6 +109,8 @@ export function BuscaFuncionario({
   const filtrados = useMemo(() => {
     let list = funcionarios
     if (secretaria) list = list.filter(f => f.secretaria === secretaria)
+    if (supervisor) list = list.filter(f => f.supervisor_nomes.includes(supervisor))
+    if (posto) list = list.filter(f => f.posto_nome === posto)
     if (categoria) list = list.filter(f => f.contagens[categoria] > 0)
     if (soAguardando) list = list.filter(f => f.aguardando === ladoViewer)
     if (temBusca) {
@@ -103,7 +120,7 @@ export function BuscaFuncionario({
       list = list.filter(f => totalRegistros(f) > 0)
     }
     return list
-  }, [funcionarios, busca, secretaria, temBusca, soAguardando, categoria, ladoViewer])
+  }, [funcionarios, busca, secretaria, supervisor, posto, temBusca, soAguardando, categoria, ladoViewer])
 
   const ordenados = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1
@@ -127,6 +144,13 @@ export function BuscaFuncionario({
           return dir * (a.contagens.faltas - b.contagens.faltas)
         case 'ocorrencias':
           return dir * (a.contagens.ocorrencias - b.contagens.ocorrencias)
+        case 'aguardando': {
+          // sem pendência vai pro final, independente da direção
+          if (!a.aguardandoDesde && !b.aguardandoDesde) return 0
+          if (!a.aguardandoDesde) return 1
+          if (!b.aguardandoDesde) return -1
+          return dir * (new Date(a.aguardandoDesde).getTime() - new Date(b.aguardandoDesde).getTime())
+        }
         default:
           return 0
       }
@@ -231,12 +255,18 @@ export function BuscaFuncionario({
           label="Aguardando Sua Resposta"
           value={totalAguardando}
           topColor="border-t-rose-500"
-          onClick={() => setSoAguardando(v => !v)}
+          onClick={() => {
+            setSoAguardando(v => {
+              const next = !v
+              if (next) { setSortCol('aguardando'); setSortDir('asc') } // mais antiga (mais urgente) primeiro
+              return next
+            })
+          }}
           ativo={soAguardando}
         />
       </div>
 
-      {(categoria || soAguardando) && (
+      {(categoria || soAguardando || secretaria || supervisor || posto) && (
         <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
           <span className="font-semibold uppercase tracking-widest text-gray-400">Filtros ativos:</span>
           {categoria && (
@@ -257,6 +287,21 @@ export function BuscaFuncionario({
               Aguardando sua resposta ×
             </button>
           )}
+          {secretaria && (
+            <button type="button" onClick={() => setSecretaria('')} className="rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-600 hover:bg-gray-200">
+              {secretaria} ×
+            </button>
+          )}
+          {supervisor && (
+            <button type="button" onClick={() => setSupervisor('')} className="rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-600 hover:bg-gray-200">
+              {supervisor} ×
+            </button>
+          )}
+          {posto && (
+            <button type="button" onClick={() => setPosto('')} className="rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-600 hover:bg-gray-200">
+              {posto} ×
+            </button>
+          )}
         </div>
       )}
 
@@ -275,6 +320,22 @@ export function BuscaFuncionario({
         >
           <option value="">Todas as secretarias</option>
           {secretarias.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select
+          value={supervisor}
+          onChange={e => setSupervisor(e.target.value)}
+          className={inputClass + ' max-w-xs'}
+        >
+          <option value="">Todos os supervisores</option>
+          {supervisores.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select
+          value={posto}
+          onChange={e => setPosto(e.target.value)}
+          className={inputClass + ' max-w-xs'}
+        >
+          <option value="">Todos os postos</option>
+          {postos.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
         <button
           type="button"
@@ -303,8 +364,15 @@ export function BuscaFuncionario({
                     {sortCol === col.key && <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>}
                   </th>
                 ))}
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-400">
+                <th
+                  onClick={() => handleSort('aguardando')}
+                  className={[
+                    'cursor-pointer select-none px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest hover:text-gray-600',
+                    sortCol === 'aguardando' ? 'text-gray-700' : 'text-gray-400',
+                  ].join(' ')}
+                >
                   Status
+                  {sortCol === 'aguardando' && <span className="ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>}
                 </th>
               </tr>
             </thead>
@@ -314,7 +382,7 @@ export function BuscaFuncionario({
                   <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">
                     {soAguardando
                       ? 'Nada aguardando sua resposta'
-                      : temBusca || secretaria || categoria
+                      : temBusca || secretaria || supervisor || posto || categoria
                         ? 'Nenhum funcionário encontrado'
                         : 'Nenhum funcionário com registro no momento'}
                   </td>
@@ -333,11 +401,11 @@ export function BuscaFuncionario({
                     <td className="px-4 py-3">
                       {f.aguardando === ladoViewer ? (
                         <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700">
-                          Aguardando você
+                          Aguardando você{f.aguardandoDesde ? ` · há ${diasDesde(f.aguardandoDesde)}d` : ''}
                         </span>
                       ) : f.aguardando ? (
                         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
-                          Aguardando {STATUS_LABEL[f.aguardando]}
+                          Aguardando {STATUS_LABEL[f.aguardando]}{f.aguardandoDesde ? ` · há ${diasDesde(f.aguardandoDesde)}d` : ''}
                         </span>
                       ) : null}
                     </td>

@@ -80,6 +80,7 @@ export type FuncionarioPainel = {
     ocorrencias: number
   }
   aguardando: LadoConversa | null
+  aguardandoDesde: string | null
 }
 
 type RawFuncPainel = {
@@ -128,25 +129,28 @@ async function getSupervisoresPorPosto(
   return map
 }
 
-type RawOcorrenciaAberta = { id: string; funcionario_id: string | null }
+type RawOcorrenciaAberta = { id: string; funcionario_id: string | null; created_at: string }
 type RawComentarioLeve = { ocorrencia_id: string; autor_id: string; created_at: string }
 export type LadoConversa = 'gestao' | 'supervisor'
+export type AguardandoInfo = { lado: LadoConversa; desde: string }
 
 // Ocorrências abertas: de que lado está a bola — sem resposta ainda (default:
-// aguardando gestão) ou a última mensagem foi da outra parte. Nota interna
-// (RH<->coordenação) não conta — não faz parte da conversa com o supervisor.
+// aguardando gestão, desde o registro) ou a última mensagem foi da outra parte
+// (desde essa mensagem). Nota interna (RH<->coordenação) não conta — não faz
+// parte da conversa com o supervisor.
 // Devolve o lado absoluto por funcionário (não relativo a quem está olhando),
-// pra dar pra mostrar "aguardando você" ou "aguardando supervisor" conforme o role de quem vê.
-async function getFuncionarioLadoAguardando(
+// pra dar pra mostrar "aguardando você" ou "aguardando supervisor" conforme o role de quem vê,
+// junto da data desde quando está pendente — pra dar pra priorizar por urgência.
+async function getFuncionarioAguardando(
   supabase: ReturnType<typeof createClient>,
   auth: AuthUser | null,
-): Promise<Map<string, LadoConversa>> {
+): Promise<Map<string, AguardandoInfo>> {
   if (!auth || auth.perfil.role === 'viewer') return new Map()
 
   const ocorrencias = await fetchAllRows<RawOcorrenciaAberta>((from, to) =>
     (supabase as unknown as AnyClient)
       .from('ocorrencias')
-      .select('id, funcionario_id')
+      .select('id, funcionario_id, created_at')
       .eq('tipo', 'ocorrencia')
       .in('status', ['aberta', 'em_analise'])
       .not('funcionario_id', 'is', null)
@@ -165,8 +169,8 @@ async function getFuncionarioLadoAguardando(
       .range(from, to) as unknown as PromiseLike<{ data: RawComentarioLeve[] | null; error: { message: string } | null }>,
   )
 
-  const ultimoAutorPorOcorrencia = new Map<string, string>()
-  for (const c of comentarios) ultimoAutorPorOcorrencia.set(c.ocorrencia_id, c.autor_id)
+  const ultimoComentarioPorOcorrencia = new Map<string, RawComentarioLeve>()
+  for (const c of comentarios) ultimoComentarioPorOcorrencia.set(c.ocorrencia_id, c)
 
   const autorIds = Array.from(new Set(comentarios.map(c => c.autor_id)))
   const rolePorAutor = new Map<string, string>()
@@ -177,20 +181,24 @@ async function getFuncionarioLadoAguardando(
     }
   }
 
-  const ladoPorFuncionario = new Map<string, LadoConversa>()
+  const infoPorFuncionario = new Map<string, AguardandoInfo>()
   for (const o of ocorrencias) {
     if (!o.funcionario_id) continue
-    const ultimoAutor = ultimoAutorPorOcorrencia.get(o.id)
-    const ladoQueDeveResponder: LadoConversa = ultimoAutor
-      ? (rolePorAutor.get(ultimoAutor) === 'supervisor' ? 'gestao' : 'supervisor')
+    const ultimo = ultimoComentarioPorOcorrencia.get(o.id)
+    const lado: LadoConversa = ultimo
+      ? (rolePorAutor.get(ultimo.autor_id) === 'supervisor' ? 'gestao' : 'supervisor')
       : 'gestao' // sem mensagem ainda: aguardando o primeiro olhar da gestão
+    const desde = ultimo?.created_at ?? o.created_at
+
+    const atual = infoPorFuncionario.get(o.funcionario_id)
     // um funcionário pode ter várias ocorrências abertas; "gestao" tem prioridade
-    // porque normalmente é a ação mais urgente (primeiro olhar/decisão).
-    if (ladoPorFuncionario.get(o.funcionario_id) !== 'gestao') {
-      ladoPorFuncionario.set(o.funcionario_id, ladoQueDeveResponder)
+    // (normalmente é a ação mais urgente) e, dentro do mesmo lado, a pendência
+    // mais antiga é a mais urgente.
+    if (!atual || (atual.lado !== 'gestao' && lado === 'gestao') || (atual.lado === lado && desde < atual.desde)) {
+      infoPorFuncionario.set(o.funcionario_id, { lado, desde })
     }
   }
-  return ladoPorFuncionario
+  return infoPorFuncionario
 }
 
 export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
@@ -216,7 +224,7 @@ export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
     return query as unknown as PromiseLike<{ data: RawFuncPainel[] | null; error: { message: string } | null }>
   })
 
-  const [advertenciasMap, atestadosMap, faltasMap, ocorrenciasMap, supervisoresPorPosto, ladoPorFuncionario] = await Promise.all([
+  const [advertenciasMap, atestadosMap, faltasMap, ocorrenciasMap, supervisoresPorPosto, aguardandoPorFuncionario] = await Promise.all([
     contarPorFuncionario((from, to) =>
       supabase.from('advertencias').select('funcionario_id').range(from, to) as unknown as PromiseLike<{ data: RawContagem[] | null; error: { message: string } | null }>,
     ),
@@ -235,7 +243,7 @@ export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
         .range(from, to) as unknown as PromiseLike<{ data: RawContagem[] | null; error: { message: string } | null }>,
     ),
     getSupervisoresPorPosto(supabase),
-    getFuncionarioLadoAguardando(supabase, auth),
+    getFuncionarioAguardando(supabase, auth),
   ])
 
   return funcionariosRaw.map(f => ({
@@ -251,7 +259,8 @@ export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
       faltas: faltasMap.get(f.id) ?? 0,
       ocorrencias: ocorrenciasMap.get(f.id) ?? 0,
     },
-    aguardando: ladoPorFuncionario.get(f.id) ?? null,
+    aguardando: aguardandoPorFuncionario.get(f.id)?.lado ?? null,
+    aguardandoDesde: aguardandoPorFuncionario.get(f.id)?.desde ?? null,
   }))
 }
 
