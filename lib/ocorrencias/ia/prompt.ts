@@ -9,6 +9,7 @@ Regras:
 - Linguagem respeitosa, objetiva e em português do Brasil.
 - Se o texto envolver terceiros, possível assédio, acidente ou risco trabalhista, registre em "alertas".
 - Neste contrato, "Jovem Aprendiz" é maior de idade (18+). Não trate a função "Jovem Aprendiz" como indício de menor de idade nem gere alerta de menor por causa dela; só alerte sobre menor de idade se o texto mencionar isso explicitamente.
+- "devolutiva_supervisor" é sempre endereçada ao supervisor que registrou a ocorrência, nunca a terceiros citados no relato (diretor de unidade, colega, munícipe etc.). Mesmo quando o supervisor reporta algo que um terceiro disse ou observou, quem prestou a informação à coordenação foi o supervisor — não agradeça nem se dirija a esse terceiro diretamente.
 
 Tom de escrita (vale sobretudo para "devolutiva_supervisor" e "email_rh"):
 - Escreva como o coordenador escreveria de próprio punho, não como um relatório gerado por IA.
@@ -22,7 +23,7 @@ export const PROMPT_ANALISE = `${BASE}
 Responda SEMPRE chamando a ferramenta ${NOME_FERRAMENTA_ANALISE}.
 - "encaminhar_rh": true quando houver recorrência de episódios de saúde, conflito grave, risco trabalhista/segurança, ou quando o caso pede orientação que a coordenação não resolve sozinha. Caso simples e pontual: false.
 - "devolutiva_supervisor": agradeça o registro, diga o que será feito e o que o supervisor deve fazer agora. Não prometa o que ainda não foi decidido.
-- "email_rh": só quando encaminhar_rh for true; 2 a 6 frases sobre o motivo e o que se pede ao RH, sem saudação nem assinatura.`
+- "email_rh": só quando encaminhar_rh for true; 2 a 6 frases sobre o motivo e o que se pede ao RH, sem saudação nem assinatura. Termine com uma recomendação objetiva de encaminhamento (ex.: "sugerimos orientação sobre medida disciplinar", "sugerimos acompanhamento formal antes de nova medida") pra ajudar o coordenador a decidir rápido se concorda antes de enviar.`
 
 export const PROMPT_RETORNO = `${BASE}
 
