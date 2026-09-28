@@ -220,7 +220,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
 
       supabase
         .from('coberturas_temporarias')
-        .select('funcionario_id, posto_destino_id, data_inicio, data_retorno_real, data_prev_retorno, status')
+        .select('funcionario_id, posto_origem_id, posto_destino_id, data_inicio, data_retorno_real, data_prev_retorno, status')
         .lte('data_inicio', mesEndStr)
         .or(`data_retorno_real.is.null,data_retorno_real.gte.${mesStartStr}`),
 
@@ -263,7 +263,9 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
   const advertencias   = advRes.data  ?? []
   const insalubridades = insRes.data  ?? []
   const afastamentos   = afaRes.data  ?? []
-  const coberturas     = cobRes.data  ?? []
+  // Cobertura registrada com origem === destino não é troca real de posto (substituição
+  // interna no mesmo local) — não deve gerar rateio nem linha "Cobertura" em outro posto.
+  const coberturas     = (cobRes.data ?? []).filter(c => c.posto_origem_id !== c.posto_destino_id)
   const transferencias = transfRes.data ?? []
 
   const postosMap = new Map<string, { nome: string; secretaria: string }>()

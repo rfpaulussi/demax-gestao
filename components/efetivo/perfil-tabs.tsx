@@ -77,6 +77,7 @@ type Tab = 'movimentacoes' | 'afastamentos' | 'advertencias' | 'faltas' | 'solic
 const TIPO_LABELS: Record<string, string> = {
   desligamento:       'Desligamento',
   transferencia:      'Transferência',
+  cobertura:          'Cobertura',
   mudanca_funcao:     'Mudança de Função',
   promocao:           'Promoção',
   mudanca_supervisor: 'Mudança de Supervisor',
@@ -165,7 +166,7 @@ function MovDetail({
     )
   }
 
-  if (m.tipo === 'transferencia' && m.campo_alterado === 'posto_id') {
+  if ((m.tipo === 'transferencia' || m.tipo === 'cobertura') && m.campo_alterado === 'posto_id') {
     const antes  = (m.valor_antes  && postoNomeMap[m.valor_antes])  ? postoNomeMap[m.valor_antes]  : (m.valor_antes  ?? '—')
     const depois = (m.valor_depois && postoNomeMap[m.valor_depois]) ? postoNomeMap[m.valor_depois] : (m.valor_depois ?? '—')
     return (

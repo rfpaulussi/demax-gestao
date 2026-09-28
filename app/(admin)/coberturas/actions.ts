@@ -125,6 +125,16 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
     .eq('id', substitutoId)
   if (errSubstituto) console.error('[coberturas] registrarCobertura: atualizar posto do substituto:', errSubstituto.message)
 
+  const { error: errMovCob } = await adminSupabase.from('movimentacoes').insert({
+    funcionario_id: substitutoId,
+    tipo: 'cobertura',
+    campo_alterado: 'posto_id',
+    valor_antes: postoOrigemId,
+    valor_depois: postoDestinoId,
+    executado_por: guard.userId,
+  })
+  if (errMovCob) console.error('[coberturas] registrarCobertura: registrar movimentacao:', errMovCob.message)
+
   const isFalta    = tipoMotivo === 'falta_justificada' || tipoMotivo === 'falta_injustificada'
   const isAtestado = tipoMotivo === 'atestado_medico'
 
@@ -273,7 +283,7 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
 
   const { data: cob, error: fetchError } = await (supabase as unknown as AnyClient)
     .from('coberturas_temporarias')
-    .select('funcionario_id, posto_origem_id, funcionario_ausente_id')
+    .select('funcionario_id, posto_origem_id, posto_destino_id, funcionario_ausente_id')
     .eq('id', id)
     .single()
 
@@ -294,6 +304,16 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
       .update({ posto_id: cob.posto_origem_id })
       .eq('id', cob.funcionario_id)
     if (errRestore) console.error('[coberturas] encerrarCobertura: restaurar posto do substituto:', errRestore.message)
+
+    const { error: errMovCob } = await adminSupabase.from('movimentacoes').insert({
+      funcionario_id: cob.funcionario_id,
+      tipo: 'cobertura',
+      campo_alterado: 'posto_id',
+      valor_antes: cob.posto_destino_id ?? null,
+      valor_depois: cob.posto_origem_id,
+      executado_por: guard.userId,
+    })
+    if (errMovCob) console.error('[coberturas] encerrarCobertura: registrar movimentacao:', errMovCob.message)
   }
 
   if (cob.funcionario_ausente_id) {
@@ -355,6 +375,16 @@ export async function encerrarCoberturasVencidas(): Promise<{ encerradas: number
         dados_novos:      { posto_id: cob.posto_origem_id },
       } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
       if (errHist) console.error('[coberturas] encerrarCoberturasVencidas: registrar historico', cob.funcionario_id, ':', errHist.message)
+
+      const { error: errMovCob } = await supabase.from('movimentacoes').insert({
+        funcionario_id: cob.funcionario_id,
+        tipo: 'cobertura',
+        campo_alterado: 'posto_id',
+        valor_antes: cob.posto_destino_id ?? null,
+        valor_depois: cob.posto_origem_id,
+        executado_por: null,
+      })
+      if (errMovCob) console.error('[coberturas] encerrarCoberturasVencidas: registrar movimentacao', cob.funcionario_id, ':', errMovCob.message)
     }
 
     if (cob.funcionario_ausente_id) ausentesParaVerificar.add(cob.funcionario_ausente_id)

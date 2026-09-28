@@ -165,7 +165,7 @@ export default async function PerfilFuncionarioPage({
   const funcaoIdSet = new Set<string>()
   const turnoIdSet  = new Set<string>()
   for (const m of movList) {
-    if (m.tipo === 'transferencia' && m.campo_alterado === 'posto_id') {
+    if ((m.tipo === 'transferencia' || m.tipo === 'cobertura') && m.campo_alterado === 'posto_id') {
       if (isUUID(m.valor_antes))  postoIdSet.add(m.valor_antes)
       if (isUUID(m.valor_depois)) postoIdSet.add(m.valor_depois)
     }
