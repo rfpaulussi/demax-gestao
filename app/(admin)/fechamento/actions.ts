@@ -228,13 +228,14 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
 
       supabase.from('config_escalas_postos').select('posto_id, regime'),
 
-      // Transferências de posto aprovadas dentro do mês — usadas pra ratear dias
-      // úteis entre os postos por onde o funcionário passou oficialmente.
+      // Transferências de posto — histórico completo até o fim do mês (não só as
+      // aprovadas dentro do mês): precisamos saber em qual posto o funcionário
+      // estava ao FINAL do mês fechado, que pode diferir do posto_id atual dele
+      // se ele foi transferido de novo depois (ex.: fechamento de um mês passado).
       supabase
         .from('movimentacoes')
         .select('funcionario_id, valor_antes, valor_depois, created_at')
         .eq('campo_alterado', 'posto_id')
-        .gte('created_at', mesStartStr)
         .lte('created_at', mesEndStr + 'T23:59:59')
         .order('created_at', { ascending: true }),
 
@@ -295,6 +296,7 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     if (perfil?.nome) supervisorPorPosto.set(sp.posto_id, perfil.nome)
   }
 
+  // Histórico completo (até o fim do mês) por funcionário, em ordem cronológica.
   const transferenciasPorFunc = new Map<string, TransferenciaPosto[]>()
   for (const m of transferencias) {
     if (!m.funcionario_id || !m.created_at) continue
@@ -303,6 +305,14 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     arr.push({ data: toDate(dataStr), postoAntes: m.valor_antes, postoDepois: m.valor_depois })
     transferenciasPorFunc.set(m.funcionario_id, arr)
   }
+
+  // Posto em que o funcionário estava ao FINAL do mês fechado (última transferência
+  // até lá). Sem isso, funcionário sem transferência dentro do mês mas transferido
+  // DEPOIS (ex.: fechamento de mês passado) ficaria com o posto_id atual (errado).
+  const postoAoFimDoMesPorFunc = new Map<string, string | null>()
+  transferenciasPorFunc.forEach((txs, funcId) => {
+    if (txs.length > 0) postoAoFimDoMesPorFunc.set(funcId, txs[txs.length - 1].postoDepois)
+  })
 
   const feriados = feriadosDoAno(ano)
 
@@ -324,11 +334,15 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     const funcoes = func.funcoes as unknown as { nome: string } | null
     const regime  = regimesPorFuncionario.get(func.id) ?? postos?.config_escalas_postos?.[0]?.regime ?? postoConfigMap.get(func.posto_id ?? '') ?? '5x2'
 
+    const postoAoFimDoMes = postoAoFimDoMesPorFunc.get(func.id) ?? func.posto_id ?? null
+    const transferenciasNoMes = (transferenciasPorFunc.get(func.id) ?? [])
+      .filter(t => t.data >= mesStart && t.data <= mesEnd)
+
     const segmentosPosto = buildSegmentosPosto(
       periodoInicio,
       periodoFim,
-      func.posto_id ?? null,
-      transferenciasPorFunc.get(func.id) ?? [],
+      postoAoFimDoMes,
+      transferenciasNoMes,
     )
 
     const feriasFunc       = ferias.filter(f => f.funcionario_id === func.id)
