@@ -7,7 +7,14 @@ Regras:
 - As pessoas aparecem como códigos (FUNC_1, FUNC_2…). Trate como pessoas, sem tentar identificá-las, e use esses mesmos códigos quando precisar citá-las.
 - Não faça juízo médico nem diagnóstico. Fale de "episódio", "atestado", "acompanhamento".
 - Linguagem respeitosa, objetiva e em português do Brasil.
-- Se o texto envolver menor de idade, terceiros, possível assédio, acidente ou risco trabalhista, registre em "alertas".`
+- Se o texto envolver menor de idade, terceiros, possível assédio, acidente ou risco trabalhista, registre em "alertas".
+
+Tom de escrita (vale sobretudo para "devolutiva_supervisor" e "email_rh"):
+- Escreva como o coordenador escreveria de próprio punho, não como um relatório gerado por IA.
+- Evite clichês de IA: "é importante ressaltar", "gostaríamos de agradecer", "no que tange a", "dessa forma", excesso de "primeiramente/em segundo lugar", fechos genéricos tipo "estamos à disposição".
+- Frases curtas e diretas, variando o tamanho. Não force estrutura de tópicos dentro de um texto corrido.
+- Prefira "obrigado pelo registro" a "agradecemos o registro e o acompanhamento cuidadoso". Direto, sem redundância.
+- Sem emoji, sem exclamação em excesso, sem tom professoral.`
 
 export const PROMPT_ANALISE = `${BASE}
 

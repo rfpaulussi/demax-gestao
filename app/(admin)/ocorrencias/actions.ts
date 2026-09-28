@@ -79,6 +79,7 @@ export type FuncionarioPainel = {
     faltas: number
     ocorrencias: number
   }
+  aguardandoResposta: boolean
 }
 
 type RawFuncPainel = {
@@ -127,6 +128,65 @@ async function getSupervisoresPorPosto(
   return map
 }
 
+type RawOcorrenciaAberta = { id: string; funcionario_id: string | null }
+type RawComentarioLeve = { ocorrencia_id: string; autor_id: string; created_at: string }
+
+// Ocorrências abertas onde a "bola" está do lado de quem está vendo o painel: sem
+// resposta ainda (default: aguardando gestão) ou a última mensagem foi da outra parte.
+// Nota interna (RH<->coordenação) não conta — não faz parte da conversa com o supervisor.
+async function getFuncionarioIdsAguardandoResposta(
+  supabase: ReturnType<typeof createClient>,
+  auth: AuthUser | null,
+): Promise<Set<string>> {
+  if (!auth || auth.perfil.role === 'viewer') return new Set()
+  const ladoViewer = auth.perfil.role === 'supervisor' ? 'supervisor' : 'gestao'
+
+  const ocorrencias = await fetchAllRows<RawOcorrenciaAberta>((from, to) =>
+    (supabase as unknown as AnyClient)
+      .from('ocorrencias')
+      .select('id, funcionario_id')
+      .eq('tipo', 'ocorrencia')
+      .in('status', ['aberta', 'em_analise'])
+      .not('funcionario_id', 'is', null)
+      .range(from, to) as unknown as PromiseLike<{ data: RawOcorrenciaAberta[] | null; error: { message: string } | null }>,
+  )
+  if (ocorrencias.length === 0) return new Set()
+
+  const ocorrenciaIds = ocorrencias.map(o => o.id)
+  const comentarios = await fetchAllRows<RawComentarioLeve>((from, to) =>
+    (supabase as unknown as AnyClient)
+      .from('ocorrencia_comentarios')
+      .select('ocorrencia_id, autor_id, created_at')
+      .eq('tipo', 'mensagem')
+      .in('ocorrencia_id', ocorrenciaIds)
+      .order('created_at', { ascending: true })
+      .range(from, to) as unknown as PromiseLike<{ data: RawComentarioLeve[] | null; error: { message: string } | null }>,
+  )
+
+  const ultimoAutorPorOcorrencia = new Map<string, string>()
+  for (const c of comentarios) ultimoAutorPorOcorrencia.set(c.ocorrencia_id, c.autor_id)
+
+  const autorIds = Array.from(new Set(comentarios.map(c => c.autor_id)))
+  const rolePorAutor = new Map<string, string>()
+  if (autorIds.length > 0) {
+    const { data: perfis } = await supabase.from('perfis').select('id, role').in('id', autorIds)
+    for (const p of (perfis ?? []) as { id: string; role: string | null }[]) {
+      if (p.role) rolePorAutor.set(p.id, p.role)
+    }
+  }
+
+  const funcionarioIds = new Set<string>()
+  for (const o of ocorrencias) {
+    if (!o.funcionario_id) continue
+    const ultimoAutor = ultimoAutorPorOcorrencia.get(o.id)
+    const ladoQueDeveResponder = ultimoAutor
+      ? (rolePorAutor.get(ultimoAutor) === 'supervisor' ? 'gestao' : 'supervisor')
+      : 'gestao' // sem mensagem ainda: aguardando o primeiro olhar da gestão
+    if (ladoQueDeveResponder === ladoViewer) funcionarioIds.add(o.funcionario_id)
+  }
+  return funcionarioIds
+}
+
 export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
   const supabase = createClient()
   const auth = await getUser()
@@ -150,7 +210,7 @@ export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
     return query as unknown as PromiseLike<{ data: RawFuncPainel[] | null; error: { message: string } | null }>
   })
 
-  const [advertenciasMap, atestadosMap, faltasMap, ocorrenciasMap, supervisoresPorPosto] = await Promise.all([
+  const [advertenciasMap, atestadosMap, faltasMap, ocorrenciasMap, supervisoresPorPosto, aguardandoIds] = await Promise.all([
     contarPorFuncionario((from, to) =>
       supabase.from('advertencias').select('funcionario_id').range(from, to) as unknown as PromiseLike<{ data: RawContagem[] | null; error: { message: string } | null }>,
     ),
@@ -169,6 +229,7 @@ export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
         .range(from, to) as unknown as PromiseLike<{ data: RawContagem[] | null; error: { message: string } | null }>,
     ),
     getSupervisoresPorPosto(supabase),
+    getFuncionarioIdsAguardandoResposta(supabase, auth),
   ])
 
   return funcionariosRaw.map(f => ({
@@ -184,6 +245,7 @@ export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
       faltas: faltasMap.get(f.id) ?? 0,
       ocorrencias: ocorrenciasMap.get(f.id) ?? 0,
     },
+    aguardandoResposta: aguardandoIds.has(f.id),
   }))
 }
 

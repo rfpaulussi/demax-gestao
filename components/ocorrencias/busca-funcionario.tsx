@@ -29,12 +29,33 @@ const COUNT_COLS: { key: SortCol; label: string }[] = [
   { key: 'ocorrencias',  label: 'Ocorrências'  },
 ]
 
-function CounterCard({ label, value, topColor }: { label: string; value: number; topColor: string }) {
+function CounterCard({
+  label,
+  value,
+  topColor,
+  onClick,
+  ativo,
+}: {
+  label: string
+  value: number
+  topColor: string
+  onClick?: () => void
+  ativo?: boolean
+}) {
+  const Tag = onClick ? 'button' : 'div'
   return (
-    <div className={`rounded-xl border border-gray-100 border-t-4 bg-white p-3 shadow-sm ${topColor}`}>
+    <Tag
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      className={[
+        `rounded-xl border border-gray-100 border-t-4 bg-white p-3 text-left shadow-sm ${topColor}`,
+        onClick ? 'cursor-pointer transition hover:shadow-md' : '',
+        ativo ? 'ring-2 ring-gray-400' : '',
+      ].join(' ')}
+    >
       <p className="text-2xl font-black tracking-tight text-gray-900">{value}</p>
       <p className="mt-1 text-xs font-semibold uppercase tracking-widest text-gray-400">{label}</p>
-    </div>
+    </Tag>
   )
 }
 
@@ -53,6 +74,7 @@ export function BuscaFuncionario({
   const [secretaria, setSecretaria] = useState('')
   const [sortCol, setSortCol]       = useState<SortCol>('total')
   const [sortDir, setSortDir]       = useState<SortDir>('desc')
+  const [soAguardando, setSoAguardando] = useState(false)
 
   const secretarias = useMemo(
     () => Array.from(new Set(funcionarios.map(f => f.secretaria).filter(Boolean))).sort(),
@@ -64,6 +86,7 @@ export function BuscaFuncionario({
   const filtrados = useMemo(() => {
     let list = funcionarios
     if (secretaria) list = list.filter(f => f.secretaria === secretaria)
+    if (soAguardando) list = list.filter(f => f.aguardandoResposta)
     if (temBusca) {
       const termo = busca.trim().toLowerCase()
       list = list.filter(f => f.nome.toLowerCase().includes(termo))
@@ -71,7 +94,7 @@ export function BuscaFuncionario({
       list = list.filter(f => totalRegistros(f) > 0)
     }
     return list
-  }, [funcionarios, busca, secretaria, temBusca])
+  }, [funcionarios, busca, secretaria, temBusca, soAguardando])
 
   const ordenados = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1
@@ -117,6 +140,12 @@ export function BuscaFuncionario({
     return { comRegistro, advertencias, atestados, faltas, ocorrencias }
   }, [filtrados])
 
+  // count independe do toggle "só aguardando" (senão o card zeraria a si mesmo ao ativar)
+  const totalAguardando = useMemo(() => {
+    const escopo = secretaria ? funcionarios.filter(f => f.secretaria === secretaria) : funcionarios
+    return escopo.filter(f => f.aguardandoResposta).length
+  }, [funcionarios, secretaria])
+
   const visiveis = ordenados.slice(0, MAX_LINHAS)
   const cortado = ordenados.length > MAX_LINHAS
 
@@ -145,12 +174,19 @@ export function BuscaFuncionario({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
         <CounterCard label="Funcionários c/ Registro" value={cards.comRegistro}  topColor="border-t-gray-400"   />
         <CounterCard label="Advertências"              value={cards.advertencias} topColor="border-t-orange-500" />
         <CounterCard label="Atestados"                 value={cards.atestados}    topColor="border-t-blue-500"   />
         <CounterCard label="Faltas"                    value={cards.faltas}       topColor="border-t-red-500"    />
         <CounterCard label="Ocorrências"                value={cards.ocorrencias}  topColor="border-t-purple-500" />
+        <CounterCard
+          label="Aguardando Sua Resposta"
+          value={totalAguardando}
+          topColor="border-t-rose-500"
+          onClick={() => setSoAguardando(v => !v)}
+          ativo={soAguardando}
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -202,7 +238,11 @@ export function BuscaFuncionario({
               {visiveis.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">
-                    {temBusca || secretaria ? 'Nenhum funcionário encontrado' : 'Nenhum funcionário com registro no momento'}
+                    {soAguardando
+                      ? 'Nada aguardando sua resposta'
+                      : temBusca || secretaria
+                        ? 'Nenhum funcionário encontrado'
+                        : 'Nenhum funcionário com registro no momento'}
                   </td>
                 </tr>
               ) : (
