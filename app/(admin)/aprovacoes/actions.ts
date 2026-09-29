@@ -8,6 +8,7 @@ import type { TipoSolicitacao } from '@/types'
 import type { Json } from '@/types/database'
 import { aplicarMudancaHorario } from '@/app/(admin)/efetivo/horario/actions'
 import { registrarAtestado } from '@/app/(admin)/efetivo/actions'
+import { cidFormatoValido } from '@/lib/auditoria-atestados/cid-formato'
 import { FUNCAO_JOVEM_APRENDIZ, precisaNovoTurno } from '@/lib/turnos/escala'
 import { removerFaltasCobertas } from '@/lib/faltas-conflito'
 import { existeAfastamentoAberto, fecharAfastamentosVencidos, fecharAfastamentosNoDesligamento } from '@/lib/afastamentos'
@@ -134,7 +135,7 @@ export async function buscarSolicitacoes(
  *  aprovação — a coluna atestados.cid_codigo tem FK pra essa tabela. */
 async function garantirCidNaReferencia(admin: ReturnType<typeof createAdminClient>, codigo: string | null | undefined): Promise<string | null> {
   if (!codigo) return null
-  if (!/^[A-Z]d{2}(.d{1,2})?$/.test(codigo)) return `CID "${codigo}" inválido`
+  if (!cidFormatoValido(codigo)) return `CID "${codigo}" inválido`
   const { data } = await admin.from('cid_referencia').select('codigo').eq('codigo', codigo).maybeSingle()
   if (data) return null
   const { error } = await admin.from('cid_referencia').insert({ codigo, descricao: 'Sem descrição (cadastrado pela auditoria SESMT)' })

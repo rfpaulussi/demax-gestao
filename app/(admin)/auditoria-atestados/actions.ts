@@ -9,6 +9,7 @@ import { extrairRegistroDeMatricula } from '@/lib/auditoria-atestados/parse'
 import { compararAuditoria, type FuncionarioLookup } from '@/lib/auditoria-atestados/comparar'
 import type { LinhaSesmt, AtestadoSistema, ResultadoAuditoria } from '@/lib/auditoria-atestados/tipos'
 import type { Json } from '@/types/database'
+import { cidFormatoValido } from '@/lib/auditoria-atestados/cid-formato'
 
 type FuncionarioRaw = { id: string; registro: string | null; nome: string; posto_id: string | null }
 type AtestadoRaw = {
@@ -100,12 +101,10 @@ type ResultadoSolicitacao = { success: true } | { success: false; error: string 
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/
 
-const CID_FORMATO = /^[A-Z]d{2}(.d{1,2})?$/
-
 /** true = CID válido que ainda não existe em cid_referencia (será cadastrado na aprovação). */
 async function cidPrecisaCadastro(supabase: ReturnType<typeof createClient>, cid: string | null): Promise<boolean | 'invalido'> {
   if (!cid) return false
-  if (!CID_FORMATO.test(cid)) return 'invalido'
+  if (!cidFormatoValido(cid)) return 'invalido'
   const { data } = await supabase.from('cid_referencia').select('codigo').eq('codigo', cid).maybeSingle()
   return !data
 }

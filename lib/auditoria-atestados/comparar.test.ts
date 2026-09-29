@@ -45,6 +45,7 @@ describe('classificarCid', () => {
     expect(classificarCid(null, 'R52')).toBe('sesmt_sem_cid')
     expect(classificarCid('R52.0', 'R52')).toBe('igual')
     expect(classificarCid('J02.9', 'J02')).toBe('igual')
+    expect(classificarCid('r52.0', ' R52 ')).toBe('igual')
     expect(classificarCid('F41.9', 'F41.1')).toBe('subcodigo')
     expect(classificarCid('Z10.8', 'F32')).toBe('cid_diferente')
   })

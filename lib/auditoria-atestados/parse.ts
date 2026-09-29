@@ -73,7 +73,7 @@ export function ultimoDiaAfastadoAntesDoRetorno(dataRetornoIso: string): string 
 export type CategoriaCid = 'igual' | 'sistema_sem_cid' | 'sesmt_sem_cid' | 'subcodigo' | 'cid_diferente'
 
 const baseCid = (c: string) => c.slice(0, 3).toUpperCase()
-const normalizarCid = (c: string) => c.replace(/[.s]/g, '').toUpperCase()
+const normalizarCid = (c: string) => c.replace(/[.\s]/g, '').toUpperCase()
 
 /** Um código ser o prefixo do outro (R52 vs R52.0, J02 vs J02.9) = mesmo CID, só sem/com subcódigo. */
 function cidsCompativeis(a: string, b: string): boolean {
