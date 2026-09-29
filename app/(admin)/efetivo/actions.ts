@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import { aplicarMudancaHorario } from '@/app/(admin)/efetivo/horario/actions'
+import { removerFaltasCobertas } from '@/lib/faltas-conflito'
 
 // ─── execução direta ──────────────────────────────────────────────────────────
 
@@ -1046,6 +1047,15 @@ export async function cadastrarAfastamentoRastreado(
     executado_por: auth.user.id,
   })
   if (errMov) console.error('[movimentacoes] cadastrarAfastamentoRastreado:', errMov.message)
+
+  await removerFaltasCobertas(
+    createAdminClient(),
+    funcionarioId,
+    dataInicio,
+    dataFimPrevista,
+    `afastamento ${dataInicio} → ${dataFimPrevista}`,
+    auth.user.id,
+  )
 
   revalidatePath('/efetivo')
   revalidatePath('/dashboard')

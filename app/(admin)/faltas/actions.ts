@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import type { FaltaTipo } from '@/components/faltas/faltas-config'
 import { logSupervisorAcao } from '@/lib/log-supervisor'
+import { existeAfastamentoNoPeriodo } from '@/lib/faltas-conflito'
 
 export type { FaltaTipo }
 
@@ -283,18 +284,24 @@ export async function registrarFalta(fd: FormData) {
 
   if (existing) return { success: false, error: 'DUPLICATE' }
 
-  // Dia já coberto por atestado: falta e atestado nunca coexistem pro mesmo dia (é um ou
-  // é outro) — qualquer tipo de falta conflita, não só sem_justificativa/sem_atestado.
+  // Dia já coberto por atestado ou afastamento: falta nunca coexiste com nenhum dos
+  // dois no mesmo dia (é um ou é outro) — qualquer tipo de falta conflita.
   {
-    const { data: atestadoNoDia } = await createAdminClient()
+    const fimEfetivo = data_fim && data_fim > data_inicio ? data_fim : data_inicio
+    const admin = createAdminClient()
+    const { data: atestadoNoDia } = await admin
       .from('atestados')
       .select('id')
       .eq('funcionario_id', funcionario_id)
-      .lte('data_inicio', data_fim && data_fim > data_inicio ? data_fim : data_inicio)
+      .lte('data_inicio', fimEfetivo)
       .gte('data_fim', data_inicio)
       .limit(1)
       .maybeSingle()
     if (atestadoNoDia) return { success: false, error: 'ATESTADO_NO_DIA' }
+
+    if (await existeAfastamentoNoPeriodo(admin, funcionario_id, data_inicio, fimEfetivo)) {
+      return { success: false, error: 'AFASTAMENTO_NO_DIA' }
+    }
   }
 
   const adminSupabase = createAdminClient()

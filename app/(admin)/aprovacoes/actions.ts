@@ -8,6 +8,7 @@ import type { TipoSolicitacao } from '@/types'
 import type { Json } from '@/types/database'
 import { aplicarMudancaHorario } from '@/app/(admin)/efetivo/horario/actions'
 import { FUNCAO_JOVEM_APRENDIZ, precisaNovoTurno } from '@/lib/turnos/escala'
+import { removerFaltasCobertas } from '@/lib/faltas-conflito'
 
 async function nomeSupervisorDoPosto(postoId: string | null): Promise<string | null> {
   if (!postoId) return null
@@ -290,6 +291,18 @@ export async function aprovarSolicitacao(
         solicitacao_id:    sol.id,
       })
 
+      // Falta nunca coexiste com afastamento no mesmo dia — remove as que ficarem
+      // totalmente cobertas pelo período do afastamento (período em aberto: cobre
+      // qualquer falta a partir do início, já que o afastamento ainda está em curso).
+      await removerFaltasCobertas(
+        adminSupabase,
+        funcionarioId,
+        dadosDepois.data_inicio as string,
+        (dadosDepois.data_retorno_prevista as string | null) ?? null,
+        `afastamento ${dadosDepois.data_inicio}${dadosDepois.data_retorno_prevista ? ` → ${dadosDepois.data_retorno_prevista}` : ' (em curso)'}`,
+        guard.userId,
+      )
+
       // Rede de segurança: se a solicitação prometia atestado ("registrar atestado
       // junto"), confere se ele realmente existe antes de deixar o funcionário
       // afastado sem lançamento correspondente passar batido — não bloqueia a
@@ -407,6 +420,15 @@ export async function aprovarSolicitacao(
         solicitacao_id: id,
       })
       if (errAfastamentoRescisao) return { success: false, error: errAfastamentoRescisao.message }
+
+      await removerFaltasCobertas(
+        adminSupabase,
+        funcionarioId,
+        dadosDepois.data_parou_trabalhar as string,
+        null,
+        `afastamento (rescisão indireta, a partir de ${dadosDepois.data_parou_trabalhar})`,
+        guard.userId,
+      )
       break
     }
 

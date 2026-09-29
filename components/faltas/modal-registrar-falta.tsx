@@ -64,7 +64,11 @@ export function ModalRegistrarFalta({ open, onClose, funcionariosOpt }: Props) {
       const result = await registrarFalta(fd)
       if (!result.success) {
         if (result.error === 'ATESTADO_NO_DIA') {
-          setErro('Este funcionário tem atestado cobrindo este período. Não é possível lançar falta injustificada — verifique as datas.')
+          setErro('Este funcionário já tem atestado cobrindo esse período — falta e atestado não podem coexistir no mesmo dia. Verifique as datas ou corrija o atestado em vez de lançar a falta.')
+          return
+        }
+        if (result.error === 'AFASTAMENTO_NO_DIA') {
+          setErro('Este funcionário já está afastado (INSS ou outro motivo) nesse período — falta e afastamento não podem coexistir no mesmo dia. Verifique as datas em Afastamentos.')
           return
         }
         const isDuplicate =
@@ -188,23 +192,29 @@ export function ModalRegistrarFalta({ open, onClose, funcionariosOpt }: Props) {
               </select>
             </div>
 
-            {tipo === 'sem_justificativa' && (
+            {tipo && (
               <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 text-xs text-amber-900">
-                <p className="font-semibold">Antes de lançar a falta, confirme:</p>
+                <p className="font-semibold">Falta e atestado/afastamento não podem coexistir no mesmo dia.</p>
                 <ul className="mt-1 list-disc space-y-0.5 pl-4">
-                  <li>Você tentou contato com o funcionário ou com a família?</li>
-                  <li>Pode haver atestado, declaração ou outro motivo a caminho? Se houver, o funcionário seria penalizado em dobro.</li>
-                  <li>Na dúvida, aguarde ou lance como <strong>Declaração</strong> ou <strong>Justificada</strong> e corrija depois.</li>
+                  <li>Se já existe atestado ou afastamento cobrindo essa data, o sistema <strong>bloqueia</strong> o lançamento — corrija as datas do atestado/afastamento em vez de insistir na falta.</li>
+                  {tipo === 'sem_justificativa' && (
+                    <>
+                      <li>Você tentou contato com o funcionário ou com a família?</li>
+                      <li>Pode haver atestado a caminho? Se houver, aguarde ou lance como <strong>Declaração</strong> ou <strong>Justificada</strong> e corrija depois — evita o funcionário ser penalizado em dobro.</li>
+                    </>
+                  )}
                 </ul>
-                <label className="mt-2 flex cursor-pointer items-start gap-2 font-medium">
-                  <input
-                    type="checkbox"
-                    checked={confirmaFalta}
-                    onChange={e => setConfirmaFalta(e.target.checked)}
-                    className="mt-0.5"
-                  />
-                  Confirmo que o funcionário faltou sem nenhuma justificativa até o momento.
-                </label>
+                {tipo === 'sem_justificativa' && (
+                  <label className="mt-2 flex cursor-pointer items-start gap-2 font-medium">
+                    <input
+                      type="checkbox"
+                      checked={confirmaFalta}
+                      onChange={e => setConfirmaFalta(e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    Confirmo que o funcionário faltou sem nenhuma justificativa até o momento.
+                  </label>
+                )}
               </div>
             )}
 

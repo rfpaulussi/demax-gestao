@@ -502,6 +502,9 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = []
                           className="h-3.5 w-3.5 rounded border-amber-300 text-amber-600" />
                         <span>Lançar falta ao salvar</span>
                       </label>
+                      <p className="text-amber-700">
+                        Falta e atestado/afastamento não coexistem no mesmo dia — se já existir um dos dois cobrindo esse período, a falta <strong>não</strong> será registrada.
+                      </p>
                       {lancarFalta && dataInicio && (
                         <p className="text-amber-700">
                           Período:{' '}
@@ -531,6 +534,9 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = []
                           className="h-3.5 w-3.5 rounded border-blue-300 text-blue-600" />
                         <span>Registrar atestado ao salvar</span>
                       </label>
+                      <p className="text-blue-700">
+                        Se já existir falta lançada nesse período, ela será removida automaticamente (o atestado passa a cobrir esses dias).
+                      </p>
                       {registrarAtestado && (
                         <div className="space-y-2 border-t border-blue-200 pt-2">
                           {/* Datas editáveis — pré-preenchidas com datas de ausência */}

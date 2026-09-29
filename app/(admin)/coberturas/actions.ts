@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import { logSupervisorAcao } from '@/lib/log-supervisor'
 import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
+import { removerFaltasCobertas, existeAtestadoNoPeriodo, existeAfastamentoNoPeriodo } from '@/lib/faltas-conflito'
 
 export type RegisterResult =
   | { success: false; error: string }
@@ -186,29 +187,14 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
           // qualquer falta do ausente totalmente coberta pelo período do atestado. Sem
           // UI de escolha aqui (diferente do modal de Atestados), então remove direto as
           // totalmente cobertas; parciais ficam como estão pra revisão manual.
-          const { data: faltasCobertura } = await supabase
-            .from('faltas')
-            .select('id, data_falta, data_fim')
-            .eq('funcionario_id', ausenteId)
-            .lte('data_falta', atestadoDataFim)
-          const cobertasPorAtestado = (faltasCobertura ?? []).filter(
-            f => f.data_falta >= atestadoDataInicio && (f.data_fim ?? f.data_falta) <= atestadoDataFim,
+          await removerFaltasCobertas(
+            adminSupabase,
+            ausenteId,
+            atestadoDataInicio,
+            atestadoDataFim,
+            `atestado ${atestadoDataInicio} → ${atestadoDataFim}`,
+            guard.userId,
           )
-          if (cobertasPorAtestado.length > 0) {
-            const { error: errDelFalta } = await adminSupabase.from('faltas').delete().in('id', cobertasPorAtestado.map(f => f.id))
-            if (errDelFalta) {
-              console.error('[coberturas] registrarCobertura: remover faltas cobertas pelo atestado:', errDelFalta.message)
-            } else {
-              await adminSupabase.from('movimentacoes').insert(cobertasPorAtestado.map(f => ({
-                funcionario_id: ausenteId,
-                tipo: 'exclusao_falta',
-                campo_alterado: 'falta',
-                valor_antes: `${f.data_falta}${f.data_fim && f.data_fim !== f.data_falta ? ` → ${f.data_fim}` : ''} (substituída por atestado ${atestadoDataInicio} → ${atestadoDataFim})`,
-                valor_depois: null,
-                executado_por: guard.userId,
-              })))
-            }
-          }
 
           // Inserir também em atestados (posto_id e registrado_por são obrigatórios)
           const { error: errAtest } = await adminSupabase.from('atestados').insert({
@@ -254,8 +240,14 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
           .eq('cobertura_id', coberturaId)
           .maybeSingle()
 
+        const fimEfetivoFalta = dataPrevRetorno ?? dataInicio
+
         if (existingFalta) {
           faltaMsg = `Falta de ${ausenteNome} já estava registrada.`
+        } else if (await existeAtestadoNoPeriodo(supabase, ausenteId, dataInicio, fimEfetivoFalta)) {
+          faltaMsg = `⚠ Falta de ${ausenteNome} não registrada: já existe atestado cobrindo esse período — falta e atestado não coexistem.`
+        } else if (await existeAfastamentoNoPeriodo(supabase, ausenteId, dataInicio, fimEfetivoFalta)) {
+          faltaMsg = `⚠ Falta de ${ausenteNome} não registrada: ela já está afastada nesse período — falta e afastamento não coexistem.`
         } else {
           const { error: errFalta } = await (adminSupabase as unknown as AnyClient)
             .from('faltas')
