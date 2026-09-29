@@ -188,7 +188,7 @@ function SolicitacaoCard({ sol, canApprove, impacto, funcoes }: { sol: Solicitac
 const TIPO_ORDEM: TipoSolicitacao[] = [
   'transferencia', 'mudanca_funcao', 'mudanca_horario', 'desligamento', 'rescisao_indireta',
   'promocao', 'mudanca_supervisor', 'alteracao_salario', 'afastamento',
-  'retorno_afastamento', 'admissao',
+  'retorno_afastamento', 'admissao', 'lancamento_atestado', 'correcao_atestado',
 ]
 
 export function AprovacoesList({ solicitacoes, canApprove = true, impactos = {}, funcoes = [] }: { solicitacoes: SolicitacaoPendente[]; canApprove?: boolean; impactos?: Record<string, ImpactoResult>; funcoes?: FuncaoOpt[] }) {

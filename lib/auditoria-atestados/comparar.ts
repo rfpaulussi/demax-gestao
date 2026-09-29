@@ -1,6 +1,6 @@
 // lib/auditoria-atestados/comparar.ts
 
-import { extrairCodigoCid, ehAfastamentoIndeterminado, motivoIndicaOcupacional, ultimoDiaAfastadoAntesDoRetorno } from './parse'
+import { extrairCodigoCid, ehAfastamentoIndeterminado, motivoIndicaOcupacional, ultimoDiaAfastadoAntesDoRetorno, diferencaDias } from './parse'
 import type { LinhaSesmt, AtestadoSistema, LinhaResultado, ResultadoAuditoria, CampoDivergente } from './tipos'
 
 function periodosSeSobrepoem(aInicio: string, aFim: string, bInicio: string, bFim: string): boolean {
@@ -26,6 +26,13 @@ function compararCampos(sesmt: LinhaSesmt, sistema: AtestadoSistema): CampoDiver
   return divergentes
 }
 
+/** Tolerância (dias) no início pra parear "não lançado" com um atestado do sistema que quase bate. */
+const TOLERANCIA_INICIO_DIAS = 2
+
+function mesmoGrupoCid(a: string | null, b: string | null): boolean {
+  return !a || !b || a.slice(0, 3).toUpperCase() === b.slice(0, 3).toUpperCase()
+}
+
 export type FuncionarioLookup = { id: string; postoId: string | null }
 
 /**
@@ -45,6 +52,7 @@ export function compararAuditoria(
 ): Omit<ResultadoAuditoria, 'cids'> {
   const linhas: LinhaResultado[] = []
   const atestadosUsados = new Set<string>()
+  const quaseNaoLancados: Array<{ idx: number; registro: string; linha: LinhaSesmt }> = []
 
   for (const { linha, registro } of linhasSesmt) {
     const funcionario = registro ? funcionariosPorRegistro.get(registro) : undefined
@@ -55,6 +63,7 @@ export function compararAuditoria(
 
     const candidatosTodos = atestadosPorRegistro.get(registro) ?? []
     if (candidatosTodos.length === 0) {
+      quaseNaoLancados.push({ idx: linhas.length, registro, linha })
       linhas.push({ status: 'nao_lancado', sesmt: linha, funcionarioId: funcionario.id, postoId: funcionario.postoId })
       continue
     }
@@ -71,6 +80,7 @@ export function compararAuditoria(
     )
 
     if (candidatos.length === 0) {
+      quaseNaoLancados.push({ idx: linhas.length, registro, linha })
       linhas.push({ status: 'nao_lancado', sesmt: linha, funcionarioId: funcionario.id, postoId: funcionario.postoId })
     } else if (candidatos.length === 1) {
       const sistema = candidatos[0]
@@ -87,10 +97,38 @@ export function compararAuditoria(
     }
   }
 
+  // Passada por proximidade: linha do SESMT sem atestado sobreposto, mas com um atestado do
+  // mesmo funcionário começando até TOLERANCIA_INICIO_DIAS dias de distância e CID compatível,
+  // é quase certamente o mesmo atestado lançado com a data trocada — vira divergência de data
+  // (corrigível) em vez de "não lançado" + "sem SESMT".
+  for (const { idx, registro, linha } of quaseNaoLancados) {
+    const cidSesmt = extrairCodigoCid(linha.cidTexto)
+    const proximos = (atestadosPorRegistro.get(registro) ?? [])
+      .filter(a => !atestadosUsados.has(a.id) && diferencaDias(a.dataInicio, linha.dataInicio) <= TOLERANCIA_INICIO_DIAS && mesmoGrupoCid(cidSesmt, a.cidCodigo))
+      .sort((x, y) => diferencaDias(x.dataInicio, linha.dataInicio) - diferencaDias(y.dataInicio, linha.dataInicio))
+    if (proximos.length === 0) continue
+    const sistema = proximos[0]
+    atestadosUsados.add(sistema.id)
+    const camposDivergentes = compararCampos(linha, sistema)
+    linhas[idx] = camposDivergentes.length === 0
+      ? { status: 'confere', sesmt: linha, sistema }
+      : { status: 'divergencia', sesmt: linha, sistema, camposDivergentes, porProximidade: true }
+  }
+
+  // Janela coberta pela planilha: atestado do sistema fora dela não é "sem registro no SESMT",
+  // é só período que a planilha não cobre.
+  let janelaInicio = ''
+  let janelaFim = ''
+  for (const { linha } of linhasSesmt) {
+    const fim = ehAfastamentoIndeterminado(linha.diasTexto) ? linha.dataInicio : ultimoDiaAfastadoAntesDoRetorno(linha.dataRetorno)
+    if (!janelaInicio || linha.dataInicio < janelaInicio) janelaInicio = linha.dataInicio
+    if (!janelaFim || fim > janelaFim) janelaFim = fim
+  }
+
   // Segunda passada: atestados do sistema não usados em nenhum pareamento
   for (const candidatos of Array.from(atestadosPorRegistro.values())) {
     for (const a of candidatos) {
-      if (!atestadosUsados.has(a.id)) {
+      if (!atestadosUsados.has(a.id) && periodosSeSobrepoem(a.dataInicio, a.dataFim, janelaInicio, janelaFim)) {
         linhas.push({ status: 'sem_sesmt', sistema: a })
       }
     }
@@ -105,5 +143,5 @@ export function compararAuditoria(
     semSesmt: linhas.filter(l => l.status === 'sem_sesmt').length,
   }
 
-  return { linhas, contadores }
+  return { linhas, contadores, janela: janelaInicio ? { inicio: janelaInicio, fim: janelaFim } : null }
 }

@@ -35,6 +35,8 @@ export type LinhaResultado =
       sesmt: LinhaSesmt
       sistema: AtestadoSistema
       camposDivergentes: CampoDivergente[]
+      // true quando o pareamento veio da tolerância de datas (início até 2 dias de diferença)
+      porProximidade?: boolean
     }
   | {
       status: 'nao_lancado'
@@ -61,6 +63,8 @@ export type LinhaResultado =
 export type ResultadoAuditoria = {
   linhas: LinhaResultado[]
   cids: { codigo: string; descricao: string }[]
+  // período coberto pela planilha (início mais antigo → último dia afastado mais recente)
+  janela: { inicio: string; fim: string } | null
   contadores: {
     confere: number
     divergencia: number

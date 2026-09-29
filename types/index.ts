@@ -175,6 +175,8 @@ export type TipoSolicitacao =
   | 'rescisao_indireta'
   | 'admissao'
   | 'mudanca_horario'
+  | 'lancamento_atestado'
+  | 'correcao_atestado'
 
 /** Status de solicitação */
 export type StatusSolicitacao = 'pendente' | 'aprovada' | 'rejeitada'

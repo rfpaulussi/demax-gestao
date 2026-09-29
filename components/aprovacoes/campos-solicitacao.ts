@@ -17,6 +17,8 @@ export const TIPO_BADGE: Record<TipoSolicitacao, { label: string; className: str
   rescisao_indireta:   { label: 'Rescisão Indireta',   className: 'bg-rose-50 text-rose-700 ring-rose-200'        },
   admissao:            { label: 'Admissão',            className: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
   mudanca_horario:     { label: 'Mudança Horário',      className: 'bg-cyan-50 text-cyan-700 ring-cyan-200'          },
+  lancamento_atestado: { label: 'Lançar Atestado',      className: 'bg-sky-50 text-sky-700 ring-sky-200'             },
+  correcao_atestado:   { label: 'Corrigir Atestado',    className: 'bg-violet-50 text-violet-700 ring-violet-200'    },
 }
 
 export function badgeDaSolicitacao(tipo: TipoSolicitacao, dadosDepois: Record<string, unknown> | null): { label: string; className: string } {
@@ -122,6 +124,28 @@ export function camposDaSolicitacao(tipo: TipoSolicitacao, dadosAntes: Dados, da
       campos.push({ label: 'Turno', valor: `${str(antes.turno_atual_nome)} → ${str(depois.turno_destino_nome)}` })
       if (depois.dia_curso_destino) campos.push({ label: 'Dia de Curso', valor: diaCursoLabel(depois.dia_curso_destino) })
       break
+
+    case 'lancamento_atestado':
+      campos.push({ label: 'Período', valor: `${fmtData(depois.data_inicio)} → ${fmtData(depois.data_fim)}` })
+      campos.push({ label: 'CID', valor: depois.sem_cid ? 'Sem CID' : str(depois.cid_codigo, 'Sem CID') })
+      if (depois.origem_ocupacional) campos.push({ label: 'Origem', valor: str(depois.origem_ocupacional) })
+      campos.push({ label: 'Fonte', valor: 'Auditoria SESMT' })
+      break
+
+    case 'correcao_atestado': {
+      const CAMPOS_CORRECAO: [string, string, (v: unknown) => string][] = [
+        ['data_inicio', 'Início', fmtData],
+        ['data_fim', 'Fim', fmtData],
+        ['cid_codigo', 'CID', v => str(v, 'Sem CID')],
+        ['origem_ocupacional', 'Origem', v => str(v, 'Não ocupacional')],
+      ]
+      for (const [chave, label, fmt] of CAMPOS_CORRECAO) {
+        if (!(chave in depois)) continue
+        campos.push({ label, valor: `${fmt(antes[chave])} → ${fmt(depois[chave])}` })
+      }
+      campos.push({ label: 'Fonte', valor: 'Auditoria SESMT' })
+      break
+    }
 
     case 'admissao':
       campos.push({ label: 'Nome', valor: str(depois.nome) })

@@ -7,6 +7,7 @@ import { getUser } from '@/lib/auth/get-user'
 import type { TipoSolicitacao } from '@/types'
 import type { Json } from '@/types/database'
 import { aplicarMudancaHorario } from '@/app/(admin)/efetivo/horario/actions'
+import { registrarAtestado } from '@/app/(admin)/efetivo/actions'
 import { FUNCAO_JOVEM_APRENDIZ, precisaNovoTurno } from '@/lib/turnos/escala'
 import { removerFaltasCobertas } from '@/lib/faltas-conflito'
 import { existeAfastamentoAberto, fecharAfastamentosVencidos, fecharAfastamentosNoDesligamento } from '@/lib/afastamentos'
@@ -127,6 +128,30 @@ export async function buscarSolicitacoes(
   }
 
   return rows
+}
+
+/** Fecha a solicitação como aprovada quando a própria action do tipo já gravou a movimentação. */
+async function finalizarAprovacaoSemMovimentacao(
+  id: string,
+  userId: string,
+  observacao: string | undefined,
+  dadosDepois: Record<string, unknown>,
+): Promise<ActionResult> {
+  await createClient()
+    .from('solicitacoes')
+    .update({
+      status:           'aprovada',
+      aprovado_por:     userId,
+      aprovado_em:      new Date().toISOString(),
+      observacao_admin: observacao ?? null,
+      dados_depois:     dadosDepois as unknown as Json,
+    })
+    .eq('id', id)
+
+  revalidatePath('/aprovacoes')
+  revalidatePath('/efetivo')
+  revalidatePath('/dashboard')
+  return { success: true }
 }
 
 // ─── aprovarSolicitacao ────────────────────────────────────────────────────────
@@ -426,6 +451,74 @@ export async function aprovarSolicitacao(
       revalidatePath('/dashboard')
 
       return { success: true }
+    }
+
+    case 'lancamento_atestado': {
+      const ini = dadosDepois.data_inicio as string
+      const fim = dadosDepois.data_fim as string
+      // Alguém pode ter lançado o mesmo atestado depois do pedido — não duplica.
+      const { data: existentes } = await adminSupabase
+        .from('atestados').select('id, data_inicio, data_fim').eq('funcionario_id', funcionarioId).lte('data_inicio', fim)
+      if ((existentes ?? []).some(a => a.data_fim >= ini)) {
+        return { success: false, error: 'Já existe atestado lançado neste período para o funcionário — rejeite esta solicitação ou ajuste o existente.' }
+      }
+      const fd = new FormData()
+      fd.set('funcionario_id', funcionarioId)
+      fd.set('posto_id', (dadosDepois.posto_id as string | undefined) ?? func?.posto_id ?? '')
+      fd.set('data_inicio', ini)
+      fd.set('data_fim', fim)
+      fd.set('motivo', (dadosDepois.motivo as string | undefined) ?? '')
+      fd.set('cid_codigo', (dadosDepois.cid_codigo as string | undefined) ?? '')
+      fd.set('sem_cid', dadosDepois.sem_cid ? 'true' : 'false')
+      fd.set('origem_ocupacional', (dadosDepois.origem_ocupacional as string | undefined) ?? '')
+      try {
+        await registrarAtestado(fd)
+      } catch (e) {
+        return { success: false, error: e instanceof Error ? e.message : 'Erro ao lançar atestado' }
+      }
+      return finalizarAprovacaoSemMovimentacao(id, guard.userId, observacao, dadosDepois)
+    }
+
+    case 'correcao_atestado': {
+      const atestadoId = dadosDepois.atestado_id as string | undefined
+      if (!atestadoId) return { success: false, error: 'Solicitação sem atestado vinculado' }
+      const { data: at } = await adminSupabase
+        .from('atestados')
+        .select('id, funcionario_id, data_inicio, data_fim, cid_codigo, origem_ocupacional')
+        .eq('id', atestadoId).single()
+      if (!at || at.funcionario_id !== funcionarioId) return { success: false, error: 'Atestado não encontrado (pode ter sido excluído)' }
+
+      const update: { data_inicio?: string; data_fim?: string; cid_codigo?: string | null; sem_cid?: boolean; origem_ocupacional?: 'acidente_trabalho' | 'doenca_ocupacional' | null } = {}
+      if (typeof dadosDepois.data_inicio === 'string') update.data_inicio = dadosDepois.data_inicio
+      if (typeof dadosDepois.data_fim === 'string') update.data_fim = dadosDepois.data_fim
+      if ('cid_codigo' in dadosDepois) {
+        update.cid_codigo = (dadosDepois.cid_codigo as string | null) || null
+        update.sem_cid = update.cid_codigo === null
+      }
+      if ('origem_ocupacional' in dadosDepois) update.origem_ocupacional = (dadosDepois.origem_ocupacional as 'acidente_trabalho' | 'doenca_ocupacional' | null) || null
+      if ((update.data_fim ?? at.data_fim) < (update.data_inicio ?? at.data_inicio)) {
+        return { success: false, error: 'Data fim ficaria anterior à data início' }
+      }
+
+      const { error: errUpd } = await adminSupabase.from('atestados').update(update).eq('id', atestadoId)
+      if (errUpd) return { success: false, error: errUpd.message }
+
+      const resumo = (o: Record<string, unknown>) =>
+        Object.entries(o).filter(([k]) => ['data_inicio', 'data_fim', 'cid_codigo', 'origem_ocupacional'].includes(k))
+          .map(([k, v]) => `${k}=${v ?? '—'}`).join(', ')
+      const { error: errMovAt } = await supabase.from('movimentacoes').insert({
+        funcionario_id: funcionarioId,
+        tipo:           'atestado',
+        campo_alterado: 'atestado',
+        valor_antes:    resumo(dadosAntes) || null,
+        valor_depois:   `correção (auditoria SESMT): ${resumo(dadosDepois)}`,
+        executado_por:  guard.userId,
+        solicitacao_id: id,
+      })
+      if (errMovAt) console.error('[movimentacoes] correcao_atestado:', errMovAt.message)
+
+      revalidatePath('/atestados')
+      return finalizarAprovacaoSemMovimentacao(id, guard.userId, observacao, dadosDepois)
     }
 
     case 'rescisao_indireta': {

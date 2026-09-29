@@ -40,6 +40,8 @@ const TIPO_LABELS: Record<TipoSolicitacao, string> = {
   rescisao_indireta:   'Rescisão Indireta',
   admissao:            'Admissão',
   mudanca_horario:     'Mudança de Horário',
+  lancamento_atestado: 'Lançamento de Atestado',
+  correcao_atestado:   'Correção de Atestado',
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────

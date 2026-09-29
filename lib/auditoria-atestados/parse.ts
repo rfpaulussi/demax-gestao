@@ -69,3 +69,40 @@ export function ultimoDiaAfastadoAntesDoRetorno(dataRetornoIso: string): string 
   const dd = String(dt.getUTCDate()).padStart(2, '0')
   return `${yy}-${mm}-${dd}`
 }
+
+export type CategoriaCid = 'igual' | 'sistema_sem_cid' | 'sesmt_sem_cid' | 'subcodigo' | 'cid_diferente'
+
+const baseCid = (c: string) => c.slice(0, 3).toUpperCase()
+
+/**
+ * Classifica a diferença de CID entre SESMT e sistema. "subcodigo" = mesmo grupo de 3
+ * caracteres (F41.9 vs F41.1, R52.0 vs R52) — costuma ser detalhe de cadastro, não um CID
+ * de fato diferente.
+ */
+export function classificarCid(cidSesmt: string | null, cidSistema: string | null): CategoriaCid {
+  if (cidSesmt === cidSistema) return 'igual'
+  if (!cidSistema) return 'sistema_sem_cid'
+  if (!cidSesmt) return 'sesmt_sem_cid'
+  return baseCid(cidSesmt) === baseCid(cidSistema) ? 'subcodigo' : 'cid_diferente'
+}
+
+export const LABEL_CATEGORIA_CID: Record<Exclude<CategoriaCid, 'igual'>, string> = {
+  sistema_sem_cid: 'Sistema sem CID',
+  sesmt_sem_cid: 'SESMT sem CID',
+  subcodigo: 'Subcódigo diferente',
+  cid_diferente: 'CID diferente',
+}
+
+/**
+ * Último dia afastado segundo o SESMT (retorno − 1), no mesmo critério de
+ * `atestados.data_fim`. null quando o afastamento é indeterminado (999/9999 dias) — a data
+ * de retorno nesse caso é só um placeholder.
+ */
+export function fimSesmt(diasTexto: string, dataRetornoIso: string): string | null {
+  return ehAfastamentoIndeterminado(diasTexto) ? null : ultimoDiaAfastadoAntesDoRetorno(dataRetornoIso)
+}
+
+export function diferencaDias(aIso: string, bIso: string): number {
+  const t = (s: string) => { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000 }
+  return Math.abs(t(aIso) - t(bIso))
+}

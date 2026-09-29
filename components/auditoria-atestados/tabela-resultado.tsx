@@ -5,9 +5,10 @@ import { useState } from 'react'
 import Link from 'next/link'
 import * as XLSX from 'xlsx-js-style'
 import { cn } from '@/lib/utils'
-import { extrairRegistroDeMatricula } from '@/lib/auditoria-atestados/parse'
+import { extrairRegistroDeMatricula, extrairCodigoCid, classificarCid, fimSesmt, LABEL_CATEGORIA_CID, type CategoriaCid } from '@/lib/auditoria-atestados/parse'
 import { ModalLancarAtestado } from './modal-lancar-atestado'
-import type { ResultadoAuditoria, LinhaResultado, CampoDivergente } from '@/lib/auditoria-atestados/tipos'
+import { ModalSolicitarCorrecao } from './modal-solicitar-correcao'
+import type { ResultadoAuditoria, LinhaResultado, CampoDivergente, LinhaSesmt } from '@/lib/auditoria-atestados/tipos'
 
 const LABEL_STATUS: Record<LinhaResultado['status'], string> = {
   confere: 'Confere',
@@ -25,6 +26,17 @@ function formatarDataBr(iso: string | null | undefined): string {
   return `${d}/${m}/${y}`
 }
 
+/** Último dia afastado segundo o SESMT (mesmo critério do `Fim` do sistema). */
+function fimSesmtBr(s: LinhaSesmt): string {
+  const fim = fimSesmt(s.diasTexto, s.dataRetorno)
+  return fim ? formatarDataBr(fim) : `Em aberto (${s.diasTexto} dias)`
+}
+
+function categoriaCidDaLinha(l: Extract<LinhaResultado, { status: 'divergencia' }>): CategoriaCid | null {
+  if (!l.camposDivergentes.includes('cid')) return null
+  return classificarCid(extrairCodigoCid(l.sesmt.cidTexto), l.sistema.cidCodigo)
+}
+
 function registroDaMatricula(matriculaRaw: string): string {
   return extrairRegistroDeMatricula(matriculaRaw) ?? matriculaRaw
 }
@@ -38,17 +50,19 @@ function CardContador({ label, valor, cor }: { label: string; valor: number; cor
   )
 }
 
-function CelulaComparada({ sesmt, sistema, divergente }: { sesmt: string; sistema: string; divergente: boolean }) {
+function CelulaComparada({ sesmt, sistema, divergente, nota }: { sesmt: string; sistema: string; divergente: boolean; nota?: string }) {
   return (
     <td className={cn('px-3 py-2 text-sm', divergente ? 'bg-red-50' : '')}>
       <div className="text-gray-500">SESMT: {sesmt}</div>
       <div className={cn(divergente ? 'font-semibold text-red-700' : 'text-gray-700')}>Sistema: {sistema}</div>
+      {nota && <div className="mt-0.5 text-[11px] font-medium text-red-500">{nota}</div>}
     </td>
   )
 }
 
-function LinhaConfereOuDivergencia({ l }: { l: Extract<LinhaResultado, { status: 'confere' | 'divergencia' }> }) {
+function LinhaConfereOuDivergencia({ l, onCorrigir, enviado }: { l: Extract<LinhaResultado, { status: 'confere' | 'divergencia' }>; onCorrigir?: () => void; enviado?: boolean }) {
   const divergentes: CampoDivergente[] = l.status === 'divergencia' ? l.camposDivergentes : []
+  const categoriaCid = l.status === 'divergencia' ? categoriaCidDaLinha(l) : null
   return (
     <tr className="border-t border-gray-100">
       <td className="px-3 py-2 text-sm text-gray-700">{l.sesmt.nome}</td>
@@ -57,9 +71,10 @@ function LinhaConfereOuDivergencia({ l }: { l: Extract<LinhaResultado, { status:
         sesmt={formatarDataBr(l.sesmt.dataInicio)}
         sistema={formatarDataBr(l.sistema.dataInicio)}
         divergente={divergentes.includes('data_inicio')}
+        nota={l.status === 'divergencia' && l.porProximidade ? 'Pareado por data próxima' : undefined}
       />
       <CelulaComparada
-        sesmt={formatarDataBr(l.sesmt.dataRetorno)}
+        sesmt={fimSesmtBr(l.sesmt)}
         sistema={formatarDataBr(l.sistema.dataFim)}
         divergente={divergentes.includes('data_fim')}
       />
@@ -67,28 +82,43 @@ function LinhaConfereOuDivergencia({ l }: { l: Extract<LinhaResultado, { status:
         sesmt={l.sesmt.cidTexto}
         sistema={l.sistema.cidCodigo ?? 'Sem CID'}
         divergente={divergentes.includes('cid')}
+        nota={categoriaCid && categoriaCid !== 'igual' ? LABEL_CATEGORIA_CID[categoriaCid] : undefined}
       />
       <td className={cn('px-3 py-2 text-sm', divergentes.includes('origem_ocupacional') ? 'bg-red-50 font-medium text-red-700' : 'text-gray-600')}>
         {l.sesmt.motivo}
       </td>
-      <td className="px-3 py-2 text-sm">
+      <td className="space-y-1 px-3 py-2 text-sm">
         <Link
           href={`/atestados?busca=${encodeURIComponent(l.sesmt.nome)}`}
           target="_blank"
-          className="font-medium text-blue-600 hover:underline"
+          className="block font-medium text-blue-600 hover:underline"
         >
           Ver no sistema
         </Link>
+        {l.status === 'divergencia' && onCorrigir && (
+          enviado ? (
+            <span className="block text-xs font-medium text-green-600">✓ Enviado p/ aprovação</span>
+          ) : (
+            <button type="button" onClick={onCorrigir} className="rounded bg-slate-900 px-2 py-1 text-xs font-medium text-white hover:bg-slate-700">
+              Solicitar correção
+            </button>
+          )
+        )}
       </td>
     </tr>
   )
+}
+
+function detalheCid(l: Extract<LinhaResultado, { status: 'divergencia' }>): string {
+  const cat = categoriaCidDaLinha(l)
+  return cat && cat !== 'igual' ? ` (CID: ${LABEL_CATEGORIA_CID[cat]})` : ''
 }
 
 function exportarExcel(resultado: ResultadoAuditoria) {
   const header = [
     'Status', 'Funcionário', 'Matrícula',
     'Início SESMT', 'Início Sistema',
-    'Retorno SESMT', 'Fim Sistema',
+    'Fim SESMT (último dia)', 'Fim Sistema',
     'CID SESMT', 'CID Sistema',
     'Motivo SESMT', 'Origem ocupacional Sistema',
     'Detalhe',
@@ -102,17 +132,19 @@ function exportarExcel(resultado: ResultadoAuditoria) {
         return [
           status, l.sesmt.nome, registroDaMatricula(l.sesmt.matriculaRaw),
           formatarDataBr(l.sesmt.dataInicio), formatarDataBr(l.sistema.dataInicio),
-          formatarDataBr(l.sesmt.dataRetorno), formatarDataBr(l.sistema.dataFim),
+          fimSesmtBr(l.sesmt), formatarDataBr(l.sistema.dataFim),
           l.sesmt.cidTexto, l.sistema.cidCodigo ?? 'Sem CID',
           l.sesmt.motivo, l.sistema.origemOcupacional ?? '—',
-          l.status === 'divergencia' ? `Campos divergentes: ${l.camposDivergentes.join(', ')}` : '',
+          l.status === 'divergencia'
+            ? `Campos divergentes: ${l.camposDivergentes.join(', ')}${detalheCid(l)}${l.porProximidade ? ' — pareado por data próxima' : ''}`
+            : '',
         ]
       case 'nao_lancado':
       case 'matricula_nao_encontrada':
         return [
           status, l.sesmt.nome, registroDaMatricula(l.sesmt.matriculaRaw),
           formatarDataBr(l.sesmt.dataInicio), '—',
-          formatarDataBr(l.sesmt.dataRetorno), '—',
+          fimSesmtBr(l.sesmt), '—',
           l.sesmt.cidTexto, '—',
           l.sesmt.motivo, '—',
           '',
@@ -121,7 +153,7 @@ function exportarExcel(resultado: ResultadoAuditoria) {
         return [
           status, l.sesmt.nome, registroDaMatricula(l.sesmt.matriculaRaw),
           formatarDataBr(l.sesmt.dataInicio), '—',
-          formatarDataBr(l.sesmt.dataRetorno), '—',
+          fimSesmtBr(l.sesmt), '—',
           l.sesmt.cidTexto, '—',
           l.sesmt.motivo, '—',
           `${l.candidatos.length} atestados candidatos: ${l.candidatos.map(c => `${formatarDataBr(c.dataInicio)}→${formatarDataBr(c.dataFim)}`).join(' | ')}`,
@@ -150,8 +182,17 @@ export function TabelaResultado({ resultado }: { resultado: ResultadoAuditoria }
   const { linhas, contadores, cids } = resultado
   const [modalIndex, setModalIndex] = useState<number | null>(null)
   const [lancados, setLancados] = useState<Set<number>>(new Set())
+  const [filtroDiv, setFiltroDiv] = useState<'todas' | 'datas' | Exclude<CategoriaCid, 'igual'>>('todas')
+  const [corrigirId, setCorrigirId] = useState<string | null>(null)
+  const [corrigidos, setCorrigidos] = useState<Set<string>>(new Set())
 
   const divergencias = linhas.filter((l): l is Extract<LinhaResultado, { status: 'divergencia' }> => l.status === 'divergencia')
+  const divergenciasFiltradas = divergencias.filter(l => {
+    if (filtroDiv === 'todas') return true
+    const cat = categoriaCidDaLinha(l)
+    return filtroDiv === 'datas' ? cat === null : cat === filtroDiv
+  })
+  const linhaCorrecao = corrigirId ? divergencias.find(l => l.sistema.id === corrigirId) ?? null : null
   const conferem = linhas.filter((l): l is Extract<LinhaResultado, { status: 'confere' }> => l.status === 'confere')
   const naoLancados = linhas.filter((l): l is Extract<LinhaResultado, { status: 'nao_lancado' | 'matricula_nao_encontrada' }> =>
     l.status === 'nao_lancado' || l.status === 'matricula_nao_encontrada',
@@ -179,11 +220,29 @@ export function TabelaResultado({ resultado }: { resultado: ResultadoAuditoria }
         </button>
       </div>
 
+      {resultado.janela && (
+        <p className="text-xs text-gray-400">
+          Período coberto pela planilha: {formatarDataBr(resultado.janela.inicio)} a {formatarDataBr(resultado.janela.fim)}. Atestados do sistema fora dele não entram em &quot;Sem SESMT&quot;.
+        </p>
+      )}
+
       {divergencias.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
           <div className="border-b border-gray-100 px-4 py-3">
-            <h2 className="text-sm font-bold text-gray-900">⚠️ Divergências ({divergencias.length})</h2>
-            <p className="text-xs text-gray-400">Cada célula mostra SESMT em cima, Sistema embaixo — em vermelho quando diferem</p>
+            <h2 className="text-sm font-bold text-gray-900">⚠️ Divergências ({divergenciasFiltradas.length}{divergenciasFiltradas.length !== divergencias.length ? ` de ${divergencias.length}` : ''})</h2>
+            <p className="text-xs text-gray-400">Cada célula mostra SESMT em cima, Sistema embaixo — em vermelho quando diferem. Fim = último dia afastado nos dois lados.</p>
+            <select
+              value={filtroDiv}
+              onChange={e => setFiltroDiv(e.target.value as typeof filtroDiv)}
+              className="mt-2 rounded border border-gray-300 px-2 py-1 text-xs"
+            >
+              <option value="todas">Todas ({divergencias.length})</option>
+              <option value="datas">Só datas / origem</option>
+              <option value="sistema_sem_cid">CID: sistema sem CID</option>
+              <option value="subcodigo">CID: subcódigo diferente</option>
+              <option value="cid_diferente">CID: diferente</option>
+              <option value="sesmt_sem_cid">CID: SESMT sem CID</option>
+            </select>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -199,8 +258,8 @@ export function TabelaResultado({ resultado }: { resultado: ResultadoAuditoria }
                 </tr>
               </thead>
               <tbody>
-                {divergencias.map((l, i) => (
-                  <LinhaConfereOuDivergencia key={i} l={l} />
+                {divergenciasFiltradas.map((l, i) => (
+                  <LinhaConfereOuDivergencia key={i} l={l} onCorrigir={() => setCorrigirId(l.sistema.id)} enviado={corrigidos.has(l.sistema.id)} />
                 ))}
               </tbody>
             </table>
@@ -212,7 +271,7 @@ export function TabelaResultado({ resultado }: { resultado: ResultadoAuditoria }
         <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
           <div className="border-b border-gray-100 px-4 py-3">
             <h2 className="text-sm font-bold text-gray-900">❌ Não lançados no sistema ({naoLancados.length})</h2>
-            <p className="text-xs text-gray-400">Clique em &quot;Lançar&quot; pra criar o atestado pré-preenchido com os dados do SESMT, ou use o Excel pra conferir em lote</p>
+            <p className="text-xs text-gray-400">&quot;Solicitar&quot; envia o atestado pré-preenchido para Aprovações — nada é gravado até o admin aprovar</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -221,7 +280,7 @@ export function TabelaResultado({ resultado }: { resultado: ResultadoAuditoria }
                   <th className="px-3 py-2">Funcionário</th>
                   <th className="px-3 py-2">Matrícula</th>
                   <th className="px-3 py-2">Início</th>
-                  <th className="px-3 py-2">Retorno</th>
+                  <th className="px-3 py-2">Fim</th>
                   <th className="px-3 py-2">CID</th>
                   <th className="px-3 py-2">Motivo</th>
                   <th className="px-3 py-2">Ação</th>
@@ -233,19 +292,19 @@ export function TabelaResultado({ resultado }: { resultado: ResultadoAuditoria }
                     <td className="px-3 py-2 text-sm text-gray-700">{l.sesmt.nome}</td>
                     <td className="px-3 py-2 text-sm text-gray-600">{registroDaMatricula(l.sesmt.matriculaRaw)}</td>
                     <td className="px-3 py-2 text-sm text-gray-600">{formatarDataBr(l.sesmt.dataInicio)}</td>
-                    <td className="px-3 py-2 text-sm text-gray-600">{formatarDataBr(l.sesmt.dataRetorno)}</td>
+                    <td className="px-3 py-2 text-sm text-gray-600">{fimSesmtBr(l.sesmt)}</td>
                     <td className="px-3 py-2 text-sm text-gray-600">{l.sesmt.cidTexto}</td>
                     <td className="px-3 py-2 text-sm text-gray-600">{l.sesmt.motivo}</td>
                     <td className="px-3 py-2 text-sm">
                       {lancados.has(i) ? (
-                        <span className="font-medium text-green-600">✓ Lançado</span>
+                        <span className="font-medium text-green-600">✓ Enviado p/ aprovação</span>
                       ) : l.status === 'nao_lancado' ? (
                         <button
                           type="button"
                           onClick={() => setModalIndex(i)}
                           className="rounded bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-700"
                         >
-                          Lançar
+                          Solicitar
                         </button>
                       ) : (
                         <span className="text-xs text-gray-400" title="Matrícula não encontrada no sistema — confira se é a matrícula correta">
@@ -259,6 +318,17 @@ export function TabelaResultado({ resultado }: { resultado: ResultadoAuditoria }
             </table>
           </div>
         </div>
+      )}
+
+      {linhaCorrecao && (
+        <ModalSolicitarCorrecao
+          key={linhaCorrecao.sistema.id}
+          linha={linhaCorrecao}
+          cids={cids}
+          open
+          onClose={() => setCorrigirId(null)}
+          onEnviado={() => setCorrigidos(prev => new Set(prev).add(linhaCorrecao.sistema.id))}
+        />
       )}
 
       {linhaModal?.status === 'nao_lancado' && (

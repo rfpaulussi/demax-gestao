@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
-import { registrarAtestado } from '@/app/(admin)/efetivo/actions'
+import { solicitarLancamentoAtestado } from '@/app/(admin)/auditoria-atestados/actions'
 import { extrairCodigoCid, motivoIndicaOcupacional, ultimoDiaAfastadoAntesDoRetorno } from '@/lib/auditoria-atestados/parse'
 import type { LinhaResultado } from '@/lib/auditoria-atestados/tipos'
 
@@ -47,24 +47,28 @@ export function ModalLancarAtestado({ linha, cids, open, onClose, onLancado }: P
       setErro('Funcionário sem posto vinculado no sistema — lance manualmente pela tela Efetivo.')
       return
     }
-    const fd = new FormData()
-    fd.set('funcionario_id', linha.funcionarioId)
-    fd.set('posto_id', linha.postoId)
-    fd.set('data_inicio', dataInicio)
-    fd.set('data_fim', dataFim)
-    fd.set('motivo', linha.sesmt.motivo)
-    fd.set('cid_codigo', semCid ? '' : cidCodigo)
-    fd.set('sem_cid', semCid ? 'true' : 'false')
-    fd.set('origem_ocupacional', origemOcupacional)
+    if (!semCid && cidCodigo && !cids.some(c => c.codigo === cidCodigo)) {
+      setErro(`CID ${cidCodigo} não existe na tabela de referência do sistema — escolha um da lista ou marque "Sem CID".`)
+      return
+    }
 
     setPending(true)
     setErro(null)
     try {
-      await registrarAtestado(fd)
+      const r = await solicitarLancamentoAtestado({
+        funcionarioId: linha.funcionarioId,
+        dataInicio,
+        dataFim,
+        motivo: linha.sesmt.motivo,
+        cidCodigo: semCid ? null : cidCodigo || null,
+        semCid,
+        origemOcupacional: (origemOcupacional || null) as 'acidente_trabalho' | 'doenca_ocupacional' | null,
+      })
+      if (!r.success) { setErro(r.error); return }
       onLancado()
       onClose()
     } catch (err) {
-      setErro(err instanceof Error ? err.message : 'Erro ao lançar atestado')
+      setErro(err instanceof Error ? err.message : 'Erro ao enviar solicitação')
     } finally {
       setPending(false)
     }
@@ -75,11 +79,11 @@ export function ModalLancarAtestado({ linha, cids, open, onClose, onLancado }: P
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/50" />
         <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-xl">
-          <Dialog.Title className="mb-1 text-lg font-semibold">Lançar Atestado (do SESMT)</Dialog.Title>
+          <Dialog.Title className="mb-1 text-lg font-semibold">Solicitar lançamento de atestado</Dialog.Title>
           <p className="mb-4 text-sm text-gray-500">{linha.sesmt.nome}</p>
 
           <div className="mb-4 rounded border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
-            Dados pré-preenchidos com base na planilha do SESMT. Revise antes de salvar.
+            Dados pré-preenchidos com base na planilha do SESMT. Nada é gravado agora: o pedido vai para Aprovações e só vira atestado quando o admin aprovar.
           </div>
 
           {!linha.postoId && (
@@ -185,7 +189,7 @@ export function ModalLancarAtestado({ linha, cids, open, onClose, onLancado }: P
                 disabled={pending || !linha.postoId}
                 className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
               >
-                {pending ? 'Salvando...' : 'Lançar atestado'}
+                {pending ? 'Enviando...' : 'Enviar para aprovação'}
               </button>
             </div>
           </form>
