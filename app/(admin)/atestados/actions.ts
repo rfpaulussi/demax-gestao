@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import { logSupervisorAcao } from '@/lib/log-supervisor'
+import { existeAfastamentoAberto, removerAfastamentosEspelhoDeAtestado } from '@/lib/afastamentos'
 import { calcularEpisodioInss, type AtestadoParaEpisodio, type EpisodioInss } from '@/lib/atestados/episodio-inss'
 
 async function verificarAcessoAtestado(
@@ -156,6 +157,26 @@ export async function deleteAtestado(id: string): Promise<{ error?: string }> {
   }
 
   if (atestado) {
+    // Excluiu, apagou: o afastamento espelho criado junto com o atestado sai também. Se foi
+    // lançado errado, não sobra resíduo; se vier outro atestado, ele gera o seu.
+    const removidos = await removerAfastamentosEspelhoDeAtestado(adminSupabase, atestado.funcionario_id, atestado.data_inicio, atestado.data_fim)
+
+    // Sem mais nenhuma ausência vigente, o status "preso" (atestado/afastado) volta a ativo.
+    const hoje = new Date().toISOString().slice(0, 10)
+    const [{ data: func }, { data: atsRest }, { data: faltasRest }, afastAberto] = await Promise.all([
+      adminSupabase.from('funcionarios').select('status').eq('id', atestado.funcionario_id).single(),
+      adminSupabase.from('atestados').select('id').eq('funcionario_id', atestado.funcionario_id).gte('data_fim', hoje).limit(1),
+      adminSupabase.from('faltas').select('id').eq('funcionario_id', atestado.funcionario_id).gte('data_fim', hoje).limit(1),
+      existeAfastamentoAberto(adminSupabase, atestado.funcionario_id),
+    ])
+    if (
+      (func?.status === 'atestado' || func?.status === 'afastado') &&
+      !afastAberto && (atsRest?.length ?? 0) === 0 && (faltasRest?.length ?? 0) === 0
+    ) {
+      await adminSupabase.from('funcionarios').update({ status: 'ativo', motivo_afastamento: null }).eq('id', atestado.funcionario_id)
+    }
+    if (removidos > 0) revalidatePath('/efetivo')
+
     await adminSupabase.from('movimentacoes').insert({
       funcionario_id: atestado.funcionario_id,
       tipo:           'exclusao_atestado',

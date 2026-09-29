@@ -9,6 +9,7 @@ import type { Json } from '@/types/database'
 import { aplicarMudancaHorario } from '@/app/(admin)/efetivo/horario/actions'
 import { FUNCAO_JOVEM_APRENDIZ, precisaNovoTurno } from '@/lib/turnos/escala'
 import { removerFaltasCobertas } from '@/lib/faltas-conflito'
+import { existeAfastamentoAberto, fecharAfastamentosVencidos, fecharAfastamentosNoDesligamento } from '@/lib/afastamentos'
 
 async function nomeSupervisorDoPosto(postoId: string | null): Promise<string | null> {
   if (!postoId) return null
@@ -21,6 +22,23 @@ async function nomeSupervisorDoPosto(postoId: string | null): Promise<string | n
     .limit(1)
     .maybeSingle()
   return (data as unknown as { perfis: { nome: string | null } | null } | null)?.perfis?.nome ?? null
+}
+
+/** Máximo 1 afastamento aberto por funcionário. Resíduo vencido de quem já voltou é fechado; se
+ *  ainda sobrar um aberto, devolve a mensagem de erro (aprovação não segue). */
+async function validarSemAfastamentoAberto(
+  admin: ReturnType<typeof createAdminClient>,
+  funcionarioId: string,
+  status: string | null,
+  hoje: string,
+): Promise<string | null> {
+  if (status !== 'afastado' && status !== 'rescisao_indireta') {
+    await fecharAfastamentosVencidos(admin, funcionarioId, hoje)
+  }
+  if (await existeAfastamentoAberto(admin, funcionarioId)) {
+    return 'Funcionário já tem um afastamento em aberto — registre o retorno antes de aprovar outro.'
+  }
+  return null
 }
 
 // ─── Tipos públicos ───────────────────────────────────────────────────────────
@@ -200,6 +218,8 @@ export async function aprovarSolicitacao(
         })
         .eq('id', funcionarioId)
       if (errDeslig) return { success: false, error: errDeslig.message }
+      // Desligou, encerrou: nenhum afastamento fica aberto nem termina depois do desligamento.
+      await fecharAfastamentosNoDesligamento(adminSupabase, funcionarioId, dataDesligamento ?? hojeISO)
       break
     }
 
@@ -275,6 +295,8 @@ export async function aprovarSolicitacao(
     }
 
     case 'afastamento': {
+      const erroAfastAberto = await validarSemAfastamentoAberto(adminSupabase, funcionarioId, func?.status ?? null, hojeISO)
+      if (erroAfastAberto) return { success: false, error: erroAfastAberto }
       const motivoAfastamento = String(dadosDepois.motivo ?? '').toUpperCase().startsWith('INSS')
         ? 'inss'
         : 'ausencia_temporaria'
@@ -407,6 +429,8 @@ export async function aprovarSolicitacao(
     }
 
     case 'rescisao_indireta': {
+      const erroAfastAbertoRescisao = await validarSemAfastamentoAberto(adminSupabase, funcionarioId, func?.status ?? null, hojeISO)
+      if (erroAfastAbertoRescisao) return { success: false, error: erroAfastAbertoRescisao }
       const { error: errStatusRescisao } = await supabase
         .from('funcionarios')
         .update({ status: 'rescisao_indireta' })

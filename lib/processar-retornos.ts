@@ -2,6 +2,7 @@
 
 import { createAdminClient } from './supabase/admin'
 import { revalidatePath } from 'next/cache'
+import { fecharAfastamentosVencidos } from './afastamentos'
 
 export type ResultadoRetorno = {
   processados: number
@@ -68,7 +69,8 @@ export async function processarRetornosAtestado(): Promise<ResultadoRetorno> {
 
   if (retornar.length === 0) return { processados: 0, nomes: [] }
 
-  // 6. Atualizar para ativo
+  // 6. Fecha afastamentos vencidos que ficaram abertos (ex.: espelho de atestado) e atualiza pra ativo
+  for (const f of retornar) await fecharAfastamentosVencidos(admin, f.id, hoje)
   const retornarIds = retornar.map((f: { id: string }) => f.id)
   await admin
     .from('funcionarios')

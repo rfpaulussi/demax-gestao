@@ -28,8 +28,8 @@ type PostoRef = { id: string; nome: string; secretaria: string | null }
 type AfastamentoRef = { id: string; funcionario_id: string; motivo: string | null; data_inicio: string; data_fim_prevista: string | null; data_fim_real: string | null; created_at: string | null }
 type AtestadoRef = { id: string; funcionario_id: string; data_inicio: string; data_fim: string; created_at: string | null }
 type SolicitacaoRef = { id: string; tipo: string; funcionario_id: string | null; created_at: string | null }
-type OcorrenciaRef = { id: string; posto_id: string | null; data_ocorrencia: string | null; status: string | null; tipo: string | null }
-type InsalubridadeRef = { id: string; funcionario_id: string; mes: number; ano: number }
+type OcorrenciaRef = { id: string; posto_id: string | null; data_ocorrencia: string | null; status: string | null; tipo: string | null; titulo: string | null }
+type InsalubridadeRef = { id: string; funcionario_id: string; data_cobertura: string; periodo_dias: number | null }
 
 const FERIAS_TIPO_MAP: Record<TipoInconsistencia, { tipo: string; severidade: Severidade }> = {
   MULTIPLOS_EM_CURSO: { tipo: 'FERIAS_MULTIPLOS_EM_CURSO', severidade: 'alta' },
@@ -69,8 +69,8 @@ export async function buscarAchados(): Promise<Achado[]> {
     supabase.from('afastamentos').select('id, funcionario_id, motivo, data_inicio, data_fim_prevista, data_fim_real, created_at'),
     supabase.from('atestados').select('id, funcionario_id, data_inicio, data_fim, created_at'),
     supabase.from('solicitacoes').select('id, tipo, funcionario_id, created_at').eq('status', 'pendente'),
-    supabase.from('ocorrencias').select('id, posto_id, data_ocorrencia, status, tipo'),
-    supabase.from('insalubridade_coberturas').select('id, funcionario_id, mes, ano'),
+    supabase.from('ocorrencias').select('id, posto_id, data_ocorrencia, status, tipo, titulo'),
+    supabase.from('insalubridade_coberturas').select('id, funcionario_id, data_cobertura, periodo_dias'),
     buscarInconsistenciasFerias(),
   ])
 
@@ -121,12 +121,15 @@ export async function buscarAchados(): Promise<Achado[]> {
       if (horasDeDiferenca <= 1) continue
       const fimAfastamento = af.data_fim_real ?? af.data_fim_prevista ?? '9999-12-31'
       if (!(at.data_inicio <= fimAfastamento && at.data_fim >= af.data_inicio)) continue
+      // Afastamento já encerrado: é o mesmo evento registrado em dois lugares, sem impacto
+      // operacional hoje — só informativo. Ainda aberto: atestado sobreposto de verdade.
+      const afAberto = !af.data_fim_real
       achados.push({
         tipo: 'ATESTADO_EM_AFASTAMENTO',
-        severidade: 'alta',
+        severidade: afAberto ? 'alta' : 'baixa',
         ...ref(at.funcionario_id),
         titulo: 'Atestado lançado com funcionário já afastado',
-        descricao: `Atestado criado em ${fmtData(at.created_at)} sobrepõe afastamento aberto desde ${fmtData(af.data_inicio)}.`,
+        descricao: `Atestado criado em ${fmtData(at.created_at)} sobrepõe afastamento ${afAberto ? 'aberto' : 'já encerrado'} desde ${fmtData(af.data_inicio)}.`,
         link: linkEfetivo(funcMap.get(at.funcionario_id)?.nome),
         status_atual: funcMap.get(at.funcionario_id)?.status ?? null,
         data_ref: af.data_inicio,
@@ -231,29 +234,46 @@ export async function buscarAchados(): Promise<Achado[]> {
         funcionario_nome: null,
         posto_nome: posto?.nome ?? (o.tipo === 'alerta' ? 'Alerta' : null),
         secretaria: posto?.secretaria ?? null,
+        data_ref: o.data_ocorrencia,
+        registro_id: o.id,
         titulo: `Ocorrência aberta há ${dias} dias`,
-        descricao: 'Segue com status "aberta" há mais de 30 dias sem análise.',
+        descricao: `${o.titulo ? `"${o.titulo}" — ` : ''}ocorrência de ${fmtData(o.data_ocorrencia + 'T00:00:00')} segue com status "aberta" há mais de 30 dias sem análise.`,
         link: '/ocorrencias',
       })
     }
   }
 
-  // 8. Mais de uma cobertura de insalubridade pro mesmo funcionário no mesmo mês.
-  const insalubridadePorChave = new Map<string, InsalubridadeRef[]>()
+  // 8. Coberturas de insalubridade do mesmo funcionário com períodos que se sobrepõem
+  // (mesma data de cobertura, ou um período invadindo o outro). Várias no mês são normais —
+  // cada registro é um dia/período diferente de cobertura.
+  const insalubridadePorFunc = new Map<string, InsalubridadeRef[]>()
   for (const i of insalubridade) {
-    const chave = `${i.funcionario_id}-${i.mes}-${i.ano}`
-    if (!insalubridadePorChave.has(chave)) insalubridadePorChave.set(chave, [])
-    insalubridadePorChave.get(chave)!.push(i)
+    if (!insalubridadePorFunc.has(i.funcionario_id)) insalubridadePorFunc.set(i.funcionario_id, [])
+    insalubridadePorFunc.get(i.funcionario_id)!.push(i)
   }
-  for (const itens of Array.from(insalubridadePorChave.values())) {
-    if (itens.length > 1) {
+  function fimInsalubridade(i: InsalubridadeRef): string {
+    const d = new Date(i.data_cobertura + 'T12:00:00')
+    d.setDate(d.getDate() + Math.max((i.periodo_dias ?? 1) - 1, 0))
+    return d.toISOString().slice(0, 10)
+  }
+  for (const [funcId, itens] of Array.from(insalubridadePorFunc.entries())) {
+    const ordenados = [...itens].sort((a, b) => a.data_cobertura.localeCompare(b.data_cobertura))
+    const sobrepostos: string[] = []
+    for (let x = 0; x < ordenados.length; x++) {
+      for (let y = x + 1; y < ordenados.length; y++) {
+        if (ordenados[y].data_cobertura > fimInsalubridade(ordenados[x])) break
+        sobrepostos.push(`${fmtData(ordenados[x].data_cobertura + 'T12:00:00')} × ${fmtData(ordenados[y].data_cobertura + 'T12:00:00')}`)
+      }
+    }
+    if (sobrepostos.length > 0) {
       achados.push({
         tipo: 'DUPLICIDADE_INSALUBRIDADE',
         severidade: 'media',
-        ...ref(itens[0].funcionario_id),
-        titulo: 'Cobertura de insalubridade duplicada no mês',
-        descricao: `${itens.length} registros de cobertura de insalubridade para ${itens[0].mes}/${itens[0].ano}.`,
-        link: linkEfetivo(funcMap.get(itens[0].funcionario_id)?.nome),
+        ...ref(funcId),
+        titulo: 'Cobertura de insalubridade sobreposta',
+        descricao: `Períodos de cobertura que se sobrepõem: ${sobrepostos.join('; ')}.`,
+        link: linkEfetivo(funcMap.get(funcId)?.nome),
+        registro_id: ordenados[0].id,
       })
     }
   }

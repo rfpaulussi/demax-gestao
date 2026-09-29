@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import { aplicarMudancaHorario } from '@/app/(admin)/efetivo/horario/actions'
 import { removerFaltasCobertas } from '@/lib/faltas-conflito'
+import { existeAfastamentoAberto, fecharAfastamentosVencidos } from '@/lib/afastamentos'
 
 // ─── execução direta ──────────────────────────────────────────────────────────
 
@@ -91,6 +92,13 @@ export async function registrarAtestado(formData: FormData) {
     if (!podeIgnorar) {
       throw new Error('Funcionário está afastado. Apenas admin/coordenador podem lançar atestado nesta situação — solicite o retorno de afastamento antes.')
     }
+  }
+
+  // Afastamento aberto (mesmo com o status já revertido) + atestado seria o mesmo evento
+  // registrado duas vezes — supervisor não lança; só admin/coordenador (ex.: documentar INSS).
+  if (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador' &&
+      await existeAfastamentoAberto(createAdminClient(), funcionarioId)) {
+    throw new Error('Este funcionário já tem um afastamento em aberto. Não lance atestado para o mesmo período — solicite o retorno do afastamento ou fale com o RH.')
   }
 
   // Qualquer falta já lançada dentro do período do atestado exige decisão explícita — falta e
@@ -465,6 +473,16 @@ export async function solicitarAfastamento(fd: FormData): Promise<ActionResult> 
     .select('status, posto_id')
     .eq('id', funcionario_id)
     .single()
+
+  // Máximo 1 afastamento aberto por funcionário. Resíduo vencido de um funcionário que já
+  // voltou (status diferente de afastado) é fechado aqui em vez de travar o novo pedido.
+  const adminAfast = createAdminClient()
+  if (func?.status !== 'afastado' && func?.status !== 'rescisao_indireta') {
+    await fecharAfastamentosVencidos(adminAfast, funcionario_id, new Date().toISOString().slice(0, 10))
+  }
+  if (await existeAfastamentoAberto(adminAfast, funcionario_id)) {
+    return { success: false, error: 'Este funcionário já tem um afastamento em aberto — registre o retorno antes de solicitar outro.' }
+  }
 
   // Para motivos INSS com "registrar atestado junto" marcado, grava o atestado
   // ANTES de criar a solicitação — se falhar, bloqueia aqui (mesma regra de
@@ -1026,6 +1044,9 @@ export async function cadastrarAfastamentoRastreado(
   if (errFunc || !func) return { success: false, error: 'Funcionário não encontrado' }
   if (func.status !== 'afastado') {
     return { success: false, error: 'Funcionário não está com status afastado' }
+  }
+  if (await existeAfastamentoAberto(createAdminClient(), funcionarioId)) {
+    return { success: false, error: 'Funcionário já tem um afastamento em aberto — prorrogue ou registre o retorno.' }
   }
 
   const { error: errInsert } = await supabase.from('afastamentos').insert({

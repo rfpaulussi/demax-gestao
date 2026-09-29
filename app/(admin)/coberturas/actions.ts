@@ -7,6 +7,7 @@ import { getUser } from '@/lib/auth/get-user'
 import { logSupervisorAcao } from '@/lib/log-supervisor'
 import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
 import { removerFaltasCobertas, existeAtestadoNoPeriodo, existeAfastamentoNoPeriodo } from '@/lib/faltas-conflito'
+import { existeAfastamentoAberto, fecharAfastamentosVencidos } from '@/lib/afastamentos'
 
 export type RegisterResult =
   | { success: false; error: string }
@@ -169,9 +170,10 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
         .eq('funcionario_id', ausenteId)
         .lte('data_inicio', dataPrevRetorno ?? dataInicio)
         .or(`data_fim_prevista.is.null,data_fim_prevista.gte.${dataInicio}`)
-        .maybeSingle()
+        .limit(1)
 
-      if (existingAfast) {
+      // Máximo 1 afastamento aberto por funcionário: se já há um aberto (ou sobreposto), não cria outro.
+      if ((existingAfast?.length ?? 0) > 0 || await existeAfastamentoAberto(adminSupabase, ausenteId)) {
         atestadoMsg = `Atestado de ${ausenteNome} já estava registrado.`
       } else {
         const { error: errAfast } = await adminSupabase.from('afastamentos').insert({
@@ -343,6 +345,7 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
       .eq('funcionario_ausente_id', cob.funcionario_ausente_id)
       .eq('status', 'ativa')
     if (count === 0 && !(await temAusenciaAindaVigente(adminSupabase as unknown as AnyClient, cob.funcionario_ausente_id, hoje))) {
+      await fecharAfastamentosVencidos(adminSupabase, cob.funcionario_ausente_id, hoje)
       const { error: errRev } = await adminSupabase.from('funcionarios')
         .update({ status: 'ativo', motivo_afastamento: null })
         .eq('id', cob.funcionario_ausente_id)
@@ -417,6 +420,7 @@ export async function encerrarCoberturasVencidas(): Promise<{ encerradas: number
       .eq('funcionario_ausente_id', ausenteId)
       .eq('status', 'ativa')
     if (count === 0 && !(await temAusenciaAindaVigente(supabase as unknown as AnyClient, ausenteId, hoje))) {
+      await fecharAfastamentosVencidos(supabase, ausenteId, hoje)
       const { error: errRev } = await supabase.from('funcionarios')
         .update({ status: 'ativo', motivo_afastamento: null })
         .eq('id', ausenteId)
