@@ -5,9 +5,10 @@ import { useState } from 'react'
 import Link from 'next/link'
 import * as XLSX from 'xlsx-js-style'
 import { cn } from '@/lib/utils'
-import { extrairRegistroDeMatricula, extrairCodigoCid, classificarCid, fimSesmt, LABEL_CATEGORIA_CID, type CategoriaCid } from '@/lib/auditoria-atestados/parse'
+import { extrairRegistroDeMatricula, extrairCodigoCid, motivoIndicaOcupacional, classificarCid, fimSesmt, LABEL_CATEGORIA_CID, type CategoriaCid } from '@/lib/auditoria-atestados/parse'
 import { ModalLancarAtestado } from './modal-lancar-atestado'
 import { ModalSolicitarCorrecao } from './modal-solicitar-correcao'
+import { rankearCandidatos } from '@/lib/auditoria-atestados/candidatos'
 import type { ResultadoAuditoria, LinhaResultado, CampoDivergente, LinhaSesmt } from '@/lib/auditoria-atestados/tipos'
 
 const LABEL_STATUS: Record<LinhaResultado['status'], string> = {
@@ -109,6 +110,73 @@ function LinhaConfereOuDivergencia({ l, onCorrigir, enviado }: { l: Extract<Linh
   )
 }
 
+function BlocoAmbiguo({ l }: { l: Extract<LinhaResultado, { status: 'ambiguo' }> }) {
+  const candidatos = rankearCandidatos(l.sesmt, l.candidatos)
+  const cidSesmt = extrairCodigoCid(l.sesmt.cidTexto)
+  return (
+    <div className="px-4 py-3">
+      <div className="mb-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
+        <span className="font-semibold text-gray-900">{l.sesmt.nome}</span>
+        <span className="text-gray-500">Matrícula {registroDaMatricula(l.sesmt.matriculaRaw)}</span>
+        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
+          SESMT: {formatarDataBr(l.sesmt.dataInicio)} → {fimSesmtBr(l.sesmt)} · CID {cidSesmt ?? 'Sem CID'}
+          {motivoIndicaOcupacional(l.sesmt.motivo) ? ' · Ocupacional' : ''}
+        </span>
+      </div>
+      <table className="w-full">
+        <thead>
+          <tr className="text-left text-xs font-semibold uppercase tracking-widest text-gray-500">
+            <th className="px-3 py-1">Atestado no sistema</th>
+            <th className="px-3 py-1">Início</th>
+            <th className="px-3 py-1">Fim</th>
+            <th className="px-3 py-1">CID</th>
+            <th className="px-3 py-1">Situação</th>
+            <th className="px-3 py-1">Ação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {candidatos.map((c, i) => (
+            <tr key={c.atestado.id} className={cn('border-t border-gray-100 text-sm', c.maisProvavel ? 'bg-green-50' : '')}>
+              <td className="px-3 py-2 text-gray-600">#{i + 1}</td>
+              <td className="px-3 py-2 text-gray-700">
+                {formatarDataBr(c.atestado.dataInicio)}
+                <div className={cn('text-xs', c.diferencaInicioDias === 0 ? 'text-green-700' : 'text-gray-400')}>
+                  {c.diferencaInicioDias === 0 ? 'igual ao SESMT' : `${c.diferencaInicioDias}d de diferença`}
+                </div>
+              </td>
+              <td className="px-3 py-2 text-gray-700">
+                {formatarDataBr(c.atestado.dataFim)}
+                {c.diferencaFimDias !== null && (
+                  <div className={cn('text-xs', c.diferencaFimDias === 0 ? 'text-green-700' : 'text-gray-400')}>
+                    {c.diferencaFimDias === 0 ? 'igual ao SESMT' : `${c.diferencaFimDias}d de diferença`}
+                  </div>
+                )}
+              </td>
+              <td className="px-3 py-2 text-gray-700">
+                {c.atestado.cidCodigo ?? 'Sem CID'}
+                {c.cid !== 'igual' && <div className="text-xs text-red-500">{LABEL_CATEGORIA_CID[c.cid]}</div>}
+              </td>
+              <td className="space-y-1 px-3 py-2">
+                {c.maisProvavel && <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">Mais provável</span>}
+                {c.sobrepoeCom.length > 0 && (
+                  <span className="block text-xs font-medium text-red-600">
+                    ⚠ Sobrepõe {c.sobrepoeCom.length === 1 ? 'outro atestado' : `${c.sobrepoeCom.length} atestados`} — possível duplicidade
+                  </span>
+                )}
+              </td>
+              <td className="px-3 py-2">
+                <Link href={`/atestados?busca=${encodeURIComponent(l.sesmt.nome)}`} target="_blank" className="text-xs font-medium text-blue-600 hover:underline">
+                  Ver no sistema
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function detalheCid(l: Extract<LinhaResultado, { status: 'divergencia' }>): string {
   const cat = categoriaCidDaLinha(l)
   return cat && cat !== 'igual' ? ` (CID: ${LABEL_CATEGORIA_CID[cat]})` : ''
@@ -156,7 +224,7 @@ function exportarExcel(resultado: ResultadoAuditoria) {
           fimSesmtBr(l.sesmt), '—',
           l.sesmt.cidTexto, '—',
           l.sesmt.motivo, '—',
-          `${l.candidatos.length} atestados candidatos: ${l.candidatos.map(c => `${formatarDataBr(c.dataInicio)}→${formatarDataBr(c.dataFim)}`).join(' | ')}`,
+          `${l.candidatos.length} atestados candidatos (duplicidade a corrigir): ${l.candidatos.map(c => `${formatarDataBr(c.dataInicio)}→${formatarDataBr(c.dataFim)} ${c.cidCodigo ?? 'Sem CID'}`).join(' | ')}`,
         ]
       case 'sem_sesmt':
         return [
@@ -197,9 +265,8 @@ export function TabelaResultado({ resultado }: { resultado: ResultadoAuditoria }
   const naoLancados = linhas.filter((l): l is Extract<LinhaResultado, { status: 'nao_lancado' | 'matricula_nao_encontrada' }> =>
     l.status === 'nao_lancado' || l.status === 'matricula_nao_encontrada',
   )
-  const ambiguosOuSemSesmt = linhas.filter(
-    (l): l is Extract<LinhaResultado, { status: 'ambiguo' | 'sem_sesmt' }> => l.status === 'ambiguo' || l.status === 'sem_sesmt',
-  )
+  const ambiguos = linhas.filter((l): l is Extract<LinhaResultado, { status: 'ambiguo' }> => l.status === 'ambiguo')
+  const semSesmt = linhas.filter((l): l is Extract<LinhaResultado, { status: 'sem_sesmt' }> => l.status === 'sem_sesmt')
   const linhaModal = modalIndex !== null ? naoLancados[modalIndex] : null
 
   return (
@@ -343,36 +410,46 @@ export function TabelaResultado({ resultado }: { resultado: ResultadoAuditoria }
         />
       )}
 
-      {ambiguosOuSemSesmt.length > 0 && (
+      {ambiguos.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-sm">
+          <div className="border-b border-amber-100 bg-amber-50 px-4 py-3">
+            <h2 className="text-sm font-bold text-gray-900">🔀 Ambíguos ({ambiguos.length})</h2>
+            <p className="text-xs text-amber-800">
+              O período do SESMT cobre mais de um atestado do sistema. Atestado duplicado ou sobreposto não é permitido: confira
+              qual é o correto e corrija ou exclua o outro em Atestados.
+            </p>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {ambiguos.map((l, i) => (
+              <BlocoAmbiguo key={i} l={l} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {semSesmt.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
           <div className="border-b border-gray-100 px-4 py-3">
-            <h2 className="text-sm font-bold text-gray-900">ℹ️ Ambíguos / Sem registro no SESMT ({ambiguosOuSemSesmt.length})</h2>
+            <h2 className="text-sm font-bold text-gray-900">ℹ️ Sem registro no SESMT ({semSesmt.length})</h2>
+            <p className="text-xs text-gray-400">Atestados lançados no sistema, dentro do período da planilha, que o SESMT não listou</p>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-widest text-gray-500">
-                  <th className="px-3 py-2">Tipo</th>
                   <th className="px-3 py-2">Funcionário</th>
                   <th className="px-3 py-2">Matrícula</th>
-                  <th className="px-3 py-2">Detalhe</th>
+                  <th className="px-3 py-2">Período no sistema</th>
+                  <th className="px-3 py-2">CID</th>
                 </tr>
               </thead>
               <tbody>
-                {ambiguosOuSemSesmt.map((l, i) => (
+                {semSesmt.map((l, i) => (
                   <tr key={i} className="border-t border-gray-100">
-                    <td className="px-3 py-2 text-sm text-gray-600">{l.status === 'ambiguo' ? 'Ambíguo' : 'Sem SESMT'}</td>
-                    <td className="px-3 py-2 text-sm text-gray-700">
-                      {l.status === 'ambiguo' ? l.sesmt.nome : l.sistema.funcionarioNome}
-                    </td>
-                    <td className="px-3 py-2 text-sm text-gray-600">
-                      {l.status === 'ambiguo' ? registroDaMatricula(l.sesmt.matriculaRaw) : l.sistema.registro}
-                    </td>
-                    <td className="px-3 py-2 text-sm text-gray-600">
-                      {l.status === 'ambiguo'
-                        ? `${l.candidatos.length} atestados candidatos no sistema (${l.candidatos.map(c => `${formatarDataBr(c.dataInicio)}→${formatarDataBr(c.dataFim)}`).join(', ')})`
-                        : `${formatarDataBr(l.sistema.dataInicio)} → ${formatarDataBr(l.sistema.dataFim)}${l.sistema.cidCodigo ? ` (${l.sistema.cidCodigo})` : ''}`}
-                    </td>
+                    <td className="px-3 py-2 text-sm text-gray-700">{l.sistema.funcionarioNome}</td>
+                    <td className="px-3 py-2 text-sm text-gray-600">{l.sistema.registro}</td>
+                    <td className="px-3 py-2 text-sm text-gray-600">{formatarDataBr(l.sistema.dataInicio)} → {formatarDataBr(l.sistema.dataFim)}</td>
+                    <td className="px-3 py-2 text-sm text-gray-600">{l.sistema.cidCodigo ?? 'Sem CID'}</td>
                   </tr>
                 ))}
               </tbody>

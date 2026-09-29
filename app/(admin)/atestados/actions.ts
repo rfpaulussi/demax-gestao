@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import { logSupervisorAcao } from '@/lib/log-supervisor'
 import { existeAfastamentoAberto, removerAfastamentosEspelhoDeAtestado } from '@/lib/afastamentos'
+import { buscarAtestadoSobreposto, mensagemSobreposicao } from '@/lib/atestados/sobreposicao'
 import { calcularEpisodioInss, type AtestadoParaEpisodio, type EpisodioInss } from '@/lib/atestados/episodio-inss'
 
 async function verificarAcessoAtestado(
@@ -104,6 +105,11 @@ export async function updateAtestado(
   }
 
   const adminSupabase = createAdminClient()
+
+  const { data: atAtual } = await adminSupabase.from('atestados').select('funcionario_id').eq('id', id).single()
+  if (!atAtual) return { error: 'Atestado não encontrado' }
+  const sobreposto = await buscarAtestadoSobreposto(adminSupabase, atAtual.funcionario_id, dataInicio, dataFim, id)
+  if (sobreposto) return { error: mensagemSobreposicao(sobreposto) }
 
   const { error } = await adminSupabase
     .from('atestados')

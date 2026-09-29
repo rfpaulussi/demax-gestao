@@ -130,8 +130,8 @@ export function ModalEditarAtestado({ atestado, onClose, cids }: Props) {
             </div>
 
             {sobreposicoes.length > 0 && (
-              <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                <p className="font-semibold">⚠ Período sobrepõe atestado(s) já registrado(s):</p>
+              <div className="rounded border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-800">
+                <p className="font-semibold">⛔ Atestado duplicado não é permitido — o período sobrepõe atestado(s) já registrado(s):</p>
                 <ul className="mt-1 space-y-0.5">
                   {sobreposicoes.map((s, i) => (
                     <li key={i}>
@@ -231,7 +231,7 @@ export function ModalEditarAtestado({ atestado, onClose, cids }: Props) {
               </button>
               <button
                 type="submit"
-                disabled={pending}
+                disabled={pending || sobreposicoes.length > 0}
                 className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 {pending ? 'Salvando...' : 'Salvar'}

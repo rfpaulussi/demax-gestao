@@ -10,6 +10,7 @@ import { compararAuditoria, type FuncionarioLookup } from '@/lib/auditoria-atest
 import type { LinhaSesmt, AtestadoSistema, ResultadoAuditoria } from '@/lib/auditoria-atestados/tipos'
 import type { Json } from '@/types/database'
 import { cidFormatoValido } from '@/lib/auditoria-atestados/cid-formato'
+import { buscarAtestadoSobreposto, mensagemSobreposicao } from '@/lib/atestados/sobreposicao'
 
 type FuncionarioRaw = { id: string; registro: string | null; nome: string; posto_id: string | null }
 type AtestadoRaw = {
@@ -135,6 +136,9 @@ export async function solicitarLancamentoAtestado(input: {
   if (!func) return { success: false, error: 'Funcionário não encontrado' }
   if (!func.posto_id) return { success: false, error: 'Funcionário sem posto vinculado — lance manualmente pela tela Efetivo.' }
 
+  const sobrepostoLancar = await buscarAtestadoSobreposto(supabase, input.funcionarioId, input.dataInicio, input.dataFim)
+  if (sobrepostoLancar) return { success: false, error: mensagemSobreposicao(sobrepostoLancar) }
+
   const cidLancar = input.semCid ? null : input.cidCodigo || null
   const cidNovoLancar = await cidPrecisaCadastro(supabase, cidLancar)
   if (cidNovoLancar === 'invalido') return { success: false, error: `CID "${cidLancar}" inválido (formato esperado: A00 ou A00.0).` }
@@ -212,6 +216,11 @@ export async function solicitarCorrecaoAtestado(atestadoId: string, campos: Camp
   const fim = (depois.data_fim as string | undefined) ?? at.data_fim
   const ini = (depois.data_inicio as string | undefined) ?? at.data_inicio
   if (fim < ini) return { success: false, error: 'Data fim não pode ser anterior à data início.' }
+
+  if ('data_inicio' in depois || 'data_fim' in depois) {
+    const sobrepostoCorrecao = await buscarAtestadoSobreposto(supabase, at.funcionario_id, ini, fim, at.id)
+    if (sobrepostoCorrecao) return { success: false, error: mensagemSobreposicao(sobrepostoCorrecao) }
+  }
 
   const { data: pendentes } = await supabase
     .from('solicitacoes')

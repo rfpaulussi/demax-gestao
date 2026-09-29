@@ -9,6 +9,7 @@ import type { Json } from '@/types/database'
 import { aplicarMudancaHorario } from '@/app/(admin)/efetivo/horario/actions'
 import { registrarAtestado } from '@/app/(admin)/efetivo/actions'
 import { cidFormatoValido } from '@/lib/auditoria-atestados/cid-formato'
+import { buscarAtestadoSobreposto, mensagemSobreposicao } from '@/lib/atestados/sobreposicao'
 import { FUNCAO_JOVEM_APRENDIZ, precisaNovoTurno } from '@/lib/turnos/escala'
 import { removerFaltasCobertas } from '@/lib/faltas-conflito'
 import { existeAfastamentoAberto, fecharAfastamentosVencidos, fecharAfastamentosNoDesligamento } from '@/lib/afastamentos'
@@ -519,6 +520,9 @@ export async function aprovarSolicitacao(
       if ((update.data_fim ?? at.data_fim) < (update.data_inicio ?? at.data_inicio)) {
         return { success: false, error: 'Data fim ficaria anterior à data início' }
       }
+
+      const sobrepostoCorrecao = await buscarAtestadoSobreposto(adminSupabase, funcionarioId, update.data_inicio ?? at.data_inicio, update.data_fim ?? at.data_fim, atestadoId)
+      if (sobrepostoCorrecao) return { success: false, error: mensagemSobreposicao(sobrepostoCorrecao) }
 
       const { error: errUpd } = await adminSupabase.from('atestados').update(update).eq('id', atestadoId)
       if (errUpd) return { success: false, error: errUpd.message }

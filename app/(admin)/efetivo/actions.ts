@@ -7,6 +7,7 @@ import { getUser } from '@/lib/auth/get-user'
 import { aplicarMudancaHorario } from '@/app/(admin)/efetivo/horario/actions'
 import { removerFaltasCobertas } from '@/lib/faltas-conflito'
 import { existeAfastamentoAberto, fecharAfastamentosVencidos } from '@/lib/afastamentos'
+import { buscarAtestadoSobreposto, mensagemSobreposicao } from '@/lib/atestados/sobreposicao'
 
 // ─── execução direta ──────────────────────────────────────────────────────────
 
@@ -100,6 +101,10 @@ export async function registrarAtestado(formData: FormData) {
       await existeAfastamentoAberto(createAdminClient(), funcionarioId)) {
     throw new Error('Este funcionário já tem um afastamento em aberto. Não lance atestado para o mesmo período — solicite o retorno do afastamento ou fale com o RH.')
   }
+
+  // Atestado duplicado/sobreposto nunca entra — vale pra todos os perfis.
+  const sobreposto = await buscarAtestadoSobreposto(createAdminClient(), funcionarioId, dataInicio, dataFim)
+  if (sobreposto) throw new Error(mensagemSobreposicao(sobreposto))
 
   // Qualquer falta já lançada dentro do período do atestado exige decisão explícita — falta e
   // atestado nunca coexistem pro mesmo dia (é um ou é outro). Sem filtro de tipo: cobre inclusive
@@ -494,6 +499,10 @@ export async function solicitarAfastamento(fd: FormData): Promise<ActionResult> 
     const n = diasStr ? parseInt(diasStr) : (data_retorno_prevista ? diffDays(data_inicio, data_retorno_prevista) : 0)
     if (n > 0) {
       const data_fim = data_retorno_prevista ?? addDaysToDate(data_inicio, n - 1)
+      const sobrepostoInss = await buscarAtestadoSobreposto(adminAfast, funcionario_id, data_inicio, data_fim)
+      if (sobrepostoInss) {
+        return { success: false, error: `${mensagemSobreposicao(sobrepostoInss)} Solicitação não enviada — desmarque "Registrar atestado junto" ou ajuste as datas.` }
+      }
       const { error: errAtestado } = await supabase.from('atestados').insert({
         funcionario_id,
         posto_id:        postoId,

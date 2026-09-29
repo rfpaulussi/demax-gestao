@@ -8,6 +8,7 @@ import { logSupervisorAcao } from '@/lib/log-supervisor'
 import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
 import { removerFaltasCobertas, existeAtestadoNoPeriodo, existeAfastamentoNoPeriodo } from '@/lib/faltas-conflito'
 import { existeAfastamentoAberto, fecharAfastamentosVencidos } from '@/lib/afastamentos'
+import { buscarAtestadoSobreposto, mensagemSobreposicao } from '@/lib/atestados/sobreposicao'
 
 export type RegisterResult =
   | { success: false; error: string }
@@ -172,8 +173,13 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
         .or(`data_fim_prevista.is.null,data_fim_prevista.gte.${dataInicio}`)
         .limit(1)
 
+      // Atestado duplicado/sobreposto nunca entra: nada é gravado (nem afastamento, nem baixa de faltas).
+      const atestadoSobreposto = await buscarAtestadoSobreposto(adminSupabase, ausenteId, atestadoDataInicio, atestadoDataFim)
+
       // Máximo 1 afastamento aberto por funcionário: se já há um aberto (ou sobreposto), não cria outro.
-      if ((existingAfast?.length ?? 0) > 0 || await existeAfastamentoAberto(adminSupabase, ausenteId)) {
+      if (atestadoSobreposto) {
+        atestadoMsg = `⚠ Atestado de ${ausenteNome} não foi salvo: ${mensagemSobreposicao(atestadoSobreposto)}`
+      } else if ((existingAfast?.length ?? 0) > 0 || await existeAfastamentoAberto(adminSupabase, ausenteId)) {
         atestadoMsg = `Atestado de ${ausenteNome} já estava registrado.`
       } else {
         const { error: errAfast } = await adminSupabase.from('afastamentos').insert({
