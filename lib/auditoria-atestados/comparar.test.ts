@@ -43,9 +43,17 @@ describe('classificarCid', () => {
     expect(classificarCid('A09', 'A09')).toBe('igual')
     expect(classificarCid('R52.0', null)).toBe('sistema_sem_cid')
     expect(classificarCid(null, 'R52')).toBe('sesmt_sem_cid')
-    expect(classificarCid('R52.0', 'R52')).toBe('subcodigo')
+    expect(classificarCid('R52.0', 'R52')).toBe('igual')
+    expect(classificarCid('J02.9', 'J02')).toBe('igual')
     expect(classificarCid('F41.9', 'F41.1')).toBe('subcodigo')
     expect(classificarCid('Z10.8', 'F32')).toBe('cid_diferente')
+  })
+})
+
+describe('CID compatível não gera divergência', () => {
+  it('R52.0 no SESMT e R52 no sistema confere', () => {
+    const r = rodar([sesmt({ dataInicio: '2026-09-09', dataRetorno: '2026-09-10', cidTexto: 'R52.0' })], [at({ cidCodigo: 'R52' })])
+    expect(r.linhas[0].status).toBe('confere')
   })
 })
 

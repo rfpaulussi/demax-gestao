@@ -100,6 +100,16 @@ type ResultadoSolicitacao = { success: true } | { success: false; error: string 
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/
 
+const CID_FORMATO = /^[A-Z]d{2}(.d{1,2})?$/
+
+/** true = CID válido que ainda não existe em cid_referencia (será cadastrado na aprovação). */
+async function cidPrecisaCadastro(supabase: ReturnType<typeof createClient>, cid: string | null): Promise<boolean | 'invalido'> {
+  if (!cid) return false
+  if (!CID_FORMATO.test(cid)) return 'invalido'
+  const { data } = await supabase.from('cid_referencia').select('codigo').eq('codigo', cid).maybeSingle()
+  return !data
+}
+
 async function assertAdminOuCoord(): Promise<{ userId: string } | { erro: string }> {
   const auth = await getUser()
   if (!auth) return { erro: 'Não autenticado' }
@@ -126,6 +136,10 @@ export async function solicitarLancamentoAtestado(input: {
   if (!func) return { success: false, error: 'Funcionário não encontrado' }
   if (!func.posto_id) return { success: false, error: 'Funcionário sem posto vinculado — lance manualmente pela tela Efetivo.' }
 
+  const cidLancar = input.semCid ? null : input.cidCodigo || null
+  const cidNovoLancar = await cidPrecisaCadastro(supabase, cidLancar)
+  if (cidNovoLancar === 'invalido') return { success: false, error: `CID "${cidLancar}" inválido (formato esperado: A00 ou A00.0).` }
+
   const { data: pendentes } = await supabase
     .from('solicitacoes')
     .select('id, dados_depois')
@@ -145,7 +159,8 @@ export async function solicitarLancamentoAtestado(input: {
       data_inicio: input.dataInicio,
       data_fim: input.dataFim,
       motivo: input.motivo || null,
-      cid_codigo: input.semCid ? null : input.cidCodigo || null,
+      cid_codigo: cidLancar,
+      cid_novo: cidNovoLancar === true,
       sem_cid: input.semCid,
       origem_ocupacional: input.origemOcupacional,
       posto_id: func.posto_id,
@@ -188,6 +203,12 @@ export async function solicitarCorrecaoAtestado(atestadoId: string, campos: Camp
   if (campos.cidCodigo !== undefined && (campos.cidCodigo || null) !== at.cid_codigo) { antes.cid_codigo = at.cid_codigo; depois.cid_codigo = campos.cidCodigo || null }
   if (campos.origemOcupacional !== undefined && (campos.origemOcupacional || null) !== at.origem_ocupacional) { antes.origem_ocupacional = at.origem_ocupacional; depois.origem_ocupacional = campos.origemOcupacional || null }
   if (Object.keys(antes).length === 0) return { success: false, error: 'Nenhuma diferença a corrigir' }
+
+  if ('cid_codigo' in depois) {
+    const novo = await cidPrecisaCadastro(supabase, depois.cid_codigo as string | null)
+    if (novo === 'invalido') return { success: false, error: `CID "${depois.cid_codigo}" inválido (formato esperado: A00 ou A00.0).` }
+    if (novo) depois.cid_novo = true
+  }
 
   const fim = (depois.data_fim as string | undefined) ?? at.data_fim
   const ini = (depois.data_inicio as string | undefined) ?? at.data_inicio

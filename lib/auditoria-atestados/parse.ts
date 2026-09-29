@@ -73,16 +73,25 @@ export function ultimoDiaAfastadoAntesDoRetorno(dataRetornoIso: string): string 
 export type CategoriaCid = 'igual' | 'sistema_sem_cid' | 'sesmt_sem_cid' | 'subcodigo' | 'cid_diferente'
 
 const baseCid = (c: string) => c.slice(0, 3).toUpperCase()
+const normalizarCid = (c: string) => c.replace(/[.s]/g, '').toUpperCase()
+
+/** Um código ser o prefixo do outro (R52 vs R52.0, J02 vs J02.9) = mesmo CID, só sem/com subcódigo. */
+function cidsCompativeis(a: string, b: string): boolean {
+  const x = normalizarCid(a)
+  const y = normalizarCid(b)
+  return x === y || x.startsWith(y) || y.startsWith(x)
+}
 
 /**
- * Classifica a diferença de CID entre SESMT e sistema. "subcodigo" = mesmo grupo de 3
- * caracteres (F41.9 vs F41.1, R52.0 vs R52) — costuma ser detalhe de cadastro, não um CID
- * de fato diferente.
+ * Classifica a diferença de CID entre SESMT e sistema. Quando um código é prefixo do outro
+ * (R52 vs R52.0) conta como "igual". "subcodigo" = mesmo grupo de 3 caracteres mas subcódigos
+ * distintos (F41.9 vs F41.1).
  */
 export function classificarCid(cidSesmt: string | null, cidSistema: string | null): CategoriaCid {
   if (cidSesmt === cidSistema) return 'igual'
   if (!cidSistema) return 'sistema_sem_cid'
   if (!cidSesmt) return 'sesmt_sem_cid'
+  if (cidsCompativeis(cidSesmt, cidSistema)) return 'igual'
   return baseCid(cidSesmt) === baseCid(cidSistema) ? 'subcodigo' : 'cid_diferente'
 }
 

@@ -130,6 +130,17 @@ export async function buscarSolicitacoes(
   return rows
 }
 
+/** CID vindo da auditoria SESMT que ainda não está em cid_referencia: cadastra (sem descrição) na
+ *  aprovação — a coluna atestados.cid_codigo tem FK pra essa tabela. */
+async function garantirCidNaReferencia(admin: ReturnType<typeof createAdminClient>, codigo: string | null | undefined): Promise<string | null> {
+  if (!codigo) return null
+  if (!/^[A-Z]d{2}(.d{1,2})?$/.test(codigo)) return `CID "${codigo}" inválido`
+  const { data } = await admin.from('cid_referencia').select('codigo').eq('codigo', codigo).maybeSingle()
+  if (data) return null
+  const { error } = await admin.from('cid_referencia').insert({ codigo, descricao: 'Sem descrição (cadastrado pela auditoria SESMT)' })
+  return error ? `Não foi possível cadastrar o CID ${codigo}: ${error.message}` : null
+}
+
 /** Fecha a solicitação como aprovada quando a própria action do tipo já gravou a movimentação. */
 async function finalizarAprovacaoSemMovimentacao(
   id: string,
@@ -462,6 +473,9 @@ export async function aprovarSolicitacao(
       if ((existentes ?? []).some(a => a.data_fim >= ini)) {
         return { success: false, error: 'Já existe atestado lançado neste período para o funcionário — rejeite esta solicitação ou ajuste o existente.' }
       }
+      const erroCid = await garantirCidNaReferencia(adminSupabase, dadosDepois.sem_cid ? null : (dadosDepois.cid_codigo as string | null | undefined))
+      if (erroCid) return { success: false, error: erroCid }
+
       const fd = new FormData()
       fd.set('funcionario_id', funcionarioId)
       fd.set('posto_id', (dadosDepois.posto_id as string | undefined) ?? func?.posto_id ?? '')
@@ -487,6 +501,11 @@ export async function aprovarSolicitacao(
         .select('id, funcionario_id, data_inicio, data_fim, cid_codigo, origem_ocupacional')
         .eq('id', atestadoId).single()
       if (!at || at.funcionario_id !== funcionarioId) return { success: false, error: 'Atestado não encontrado (pode ter sido excluído)' }
+
+      if ('cid_codigo' in dadosDepois) {
+        const erroCid = await garantirCidNaReferencia(adminSupabase, dadosDepois.cid_codigo as string | null)
+        if (erroCid) return { success: false, error: erroCid }
+      }
 
       const update: { data_inicio?: string; data_fim?: string; cid_codigo?: string | null; sem_cid?: boolean; origem_ocupacional?: 'acidente_trabalho' | 'doenca_ocupacional' | null } = {}
       if (typeof dadosDepois.data_inicio === 'string') update.data_inicio = dadosDepois.data_inicio

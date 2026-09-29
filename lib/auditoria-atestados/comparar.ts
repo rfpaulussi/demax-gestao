@@ -1,6 +1,6 @@
 // lib/auditoria-atestados/comparar.ts
 
-import { extrairCodigoCid, ehAfastamentoIndeterminado, motivoIndicaOcupacional, ultimoDiaAfastadoAntesDoRetorno, diferencaDias } from './parse'
+import { extrairCodigoCid, classificarCid, ehAfastamentoIndeterminado, motivoIndicaOcupacional, ultimoDiaAfastadoAntesDoRetorno, diferencaDias } from './parse'
 import type { LinhaSesmt, AtestadoSistema, LinhaResultado, ResultadoAuditoria, CampoDivergente } from './tipos'
 
 function periodosSeSobrepoem(aInicio: string, aFim: string, bInicio: string, bFim: string): boolean {
@@ -17,7 +17,7 @@ function compararCampos(sesmt: LinhaSesmt, sistema: AtestadoSistema): CampoDiver
   if (!indeterminado && ultimoDiaAfastadoAntesDoRetorno(sesmt.dataRetorno) !== sistema.dataFim) divergentes.push('data_fim')
 
   const cidSesmt = extrairCodigoCid(sesmt.cidTexto)
-  if (cidSesmt !== sistema.cidCodigo) divergentes.push('cid')
+  if (classificarCid(cidSesmt, sistema.cidCodigo) !== 'igual') divergentes.push('cid')
 
   const esperaOcupacional = motivoIndicaOcupacional(sesmt.motivo)
   const temOcupacional = sistema.origemOcupacional != null

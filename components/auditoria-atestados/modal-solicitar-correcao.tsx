@@ -23,8 +23,8 @@ interface Props {
   onEnviado: () => void
 }
 
-/** Só propõe o que o SESMT afirma e o sistema consegue receber (CID precisa existir na tabela
- *  de referência, senão a aprovação falharia por FK). Origem ocupacional fica de fora: o SESMT
+/** Só propõe o que o SESMT afirma. CID fora da tabela de referência é cadastrado na aprovação
+ *  (o admin vê o aviso no card). Origem ocupacional fica de fora: o SESMT
  *  não distingue acidente de doença — ajuste manual em Atestados. */
 export function ModalSolicitarCorrecao({ linha, cids, open, onClose, onEnviado }: Props) {
   const { propostos, avisos } = useMemo(() => {
@@ -41,8 +41,10 @@ export function ModalSolicitarCorrecao({ linha, cids, open, onClose, onEnviado }
     if (dv.includes('cid')) {
       const cid = extrairCodigoCid(linha.sesmt.cidTexto)
       if (!cid) avisos.push('SESMT sem CID — nada a propor para o CID.')
-      else if (!cids.some(c => c.codigo === cid)) avisos.push(`CID ${cid} não existe na tabela de referência do sistema — cadastre-o antes de propor essa correção.`)
-      else propostos.push({ chave: 'cidCodigo', label: 'CID', antes: linha.sistema.cidCodigo ?? 'Sem CID', depois: cid, valor: cid })
+      else {
+        if (!cids.some(c => c.codigo === cid)) avisos.push(`CID ${cid} ainda não existe na tabela de referência — será cadastrado (sem descrição) se o admin aprovar.`)
+        propostos.push({ chave: 'cidCodigo', label: 'CID', antes: linha.sistema.cidCodigo ?? 'Sem CID', depois: cid, valor: cid })
+      }
     }
     if (dv.includes('origem_ocupacional')) avisos.push('Origem ocupacional diverge — ajuste manualmente em Atestados (o SESMT não distingue acidente de doença).')
     return { propostos, avisos }

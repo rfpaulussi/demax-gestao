@@ -47,11 +47,6 @@ export function ModalLancarAtestado({ linha, cids, open, onClose, onLancado }: P
       setErro('Funcionário sem posto vinculado no sistema — lance manualmente pela tela Efetivo.')
       return
     }
-    if (!semCid && cidCodigo && !cids.some(c => c.codigo === cidCodigo)) {
-      setErro(`CID ${cidCodigo} não existe na tabela de referência do sistema — escolha um da lista ou marque "Sem CID".`)
-      return
-    }
-
     setPending(true)
     setErro(null)
     try {

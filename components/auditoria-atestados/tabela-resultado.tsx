@@ -404,7 +404,12 @@ export function TabelaResultado({ resultado }: { resultado: ResultadoAuditoria }
                     <td className="px-3 py-2 text-sm text-gray-600">{registroDaMatricula(l.sesmt.matriculaRaw)}</td>
                     <td className="px-3 py-2 text-sm text-gray-600">{formatarDataBr(l.sistema.dataInicio)}</td>
                     <td className="px-3 py-2 text-sm text-gray-600">{formatarDataBr(l.sistema.dataFim)}</td>
-                    <td className="px-3 py-2 text-sm text-gray-600">{l.sistema.cidCodigo ?? '—'}</td>
+                    <td className="px-3 py-2 text-sm text-gray-600">
+                      {l.sistema.cidCodigo ?? '—'}
+                      {extrairCodigoCid(l.sesmt.cidTexto) && extrairCodigoCid(l.sesmt.cidTexto) !== l.sistema.cidCodigo && (
+                        <span className="ml-1 text-xs text-gray-400">(SESMT: {extrairCodigoCid(l.sesmt.cidTexto)})</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

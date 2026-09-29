@@ -129,6 +129,7 @@ export function camposDaSolicitacao(tipo: TipoSolicitacao, dadosAntes: Dados, da
       campos.push({ label: 'Período', valor: `${fmtData(depois.data_inicio)} → ${fmtData(depois.data_fim)}` })
       campos.push({ label: 'CID', valor: depois.sem_cid ? 'Sem CID' : str(depois.cid_codigo, 'Sem CID') })
       if (depois.origem_ocupacional) campos.push({ label: 'Origem', valor: str(depois.origem_ocupacional) })
+      if (depois.cid_novo) campos.push({ label: 'Atenção', valor: `CID ${str(depois.cid_codigo)} será cadastrado na tabela de referência (sem descrição)` })
       campos.push({ label: 'Fonte', valor: 'Auditoria SESMT' })
       break
 
@@ -143,6 +144,7 @@ export function camposDaSolicitacao(tipo: TipoSolicitacao, dadosAntes: Dados, da
         if (!(chave in depois)) continue
         campos.push({ label, valor: `${fmt(antes[chave])} → ${fmt(depois[chave])}` })
       }
+      if (depois.cid_novo) campos.push({ label: 'Atenção', valor: `CID ${str(depois.cid_codigo)} será cadastrado na tabela de referência (sem descrição)` })
       campos.push({ label: 'Fonte', valor: 'Auditoria SESMT' })
       break
     }
