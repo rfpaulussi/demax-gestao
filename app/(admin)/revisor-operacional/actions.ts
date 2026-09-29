@@ -16,6 +16,11 @@ export type Achado = {
   titulo: string
   descricao: string
   link: string | null
+  // Campos de apoio pra triagem/exportação (opcionais)
+  status_atual?: string | null
+  data_ref?: string | null
+  detalhe?: string | null
+  registro_id?: string | null
 }
 
 type FuncionarioRef = { id: string; nome: string; status: string | null; data_desligamento: string | null; posto_id: string | null }
@@ -123,6 +128,10 @@ export async function buscarAchados(): Promise<Achado[]> {
         titulo: 'Atestado lançado com funcionário já afastado',
         descricao: `Atestado criado em ${fmtData(at.created_at)} sobrepõe afastamento aberto desde ${fmtData(af.data_inicio)}.`,
         link: linkEfetivo(funcMap.get(at.funcionario_id)?.nome),
+        status_atual: funcMap.get(at.funcionario_id)?.status ?? null,
+        data_ref: af.data_inicio,
+        detalhe: `Atestado ${fmtData(at.data_inicio)}–${fmtData(at.data_fim)}; afastamento motivo "${af.motivo ?? '—'}" ${fmtData(af.data_inicio)}–${fmtData(af.data_fim_real ?? af.data_fim_prevista)}`,
+        registro_id: af.id,
       })
     }
   }
@@ -138,6 +147,8 @@ export async function buscarAchados(): Promise<Achado[]> {
         titulo: 'Status "afastado" sem registro de afastamento aberto',
         descricao: 'Funcionário está marcado como afastado, mas não há nenhuma linha aberta em afastamentos sustentando esse status.',
         link: linkEfetivo(f.nome),
+        status_atual: f.status,
+        registro_id: f.id,
       })
     }
   }
@@ -154,6 +165,10 @@ export async function buscarAchados(): Promise<Achado[]> {
         titulo: 'Afastamento aberto sem status correspondente',
         descricao: `Há um afastamento aberto desde ${fmtData(a.data_inicio)}, mas o status atual é "${f.status ?? '—'}".`,
         link: linkEfetivo(f.nome),
+        status_atual: f.status,
+        data_ref: a.data_inicio,
+        detalhe: `Motivo "${a.motivo ?? '—'}"; previsão fim ${fmtData(a.data_fim_prevista)}${a.data_fim_prevista && a.data_fim_prevista < hoje ? ' (VENCIDA)' : ''}; desligamento ${fmtData(f.data_desligamento)}`,
+        registro_id: a.id,
       })
     }
   }

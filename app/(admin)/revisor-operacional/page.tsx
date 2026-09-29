@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { getUser } from '@/lib/auth/get-user'
 import { buscarAchados } from './actions'
 import type { Achado, Severidade } from './actions'
+import { ExportarAchados } from '@/components/revisor/exportar-achados'
 
 const SEVERIDADE_CONFIG: Record<Severidade, { label: string; corTopo: string; corBadge: string }> = {
   alta: { label: 'Alta', corTopo: 'border-t-red-500', corBadge: 'bg-red-100 text-red-700' },
@@ -62,7 +63,14 @@ export default async function RevisorOperacionalPage() {
   }
 
   const achados = await buscarAchados()
-  const porSeveridade = ORDEM.map(sev => ({
+  const tipoMap = new Map<string, { tipo: string; titulo: string; total: number }>()
+  for (const a of achados) {
+    const r = tipoMap.get(a.tipo) ?? { tipo: a.tipo, titulo: a.titulo.replace(/\d+ dias/, 'N dias'), total: 0 }
+    r.total++
+    tipoMap.set(a.tipo, r)
+  }
+  const resumoTipos = Array.from(tipoMap.values()).sort((x, y) => y.total - x.total)
+  const porSeveridade =ORDEM.map(sev => ({
     sev,
     cfg: SEVERIDADE_CONFIG[sev],
     itens: achados.filter(a => a.severidade === sev),
@@ -70,10 +78,32 @@ export default async function RevisorOperacionalPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-bold text-gray-900">Revisor Operacional</h1>
-        <p className="text-sm text-gray-400">Divergências e inconsistências detectadas automaticamente no sistema</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-lg font-bold text-gray-900">Revisor Operacional</h1>
+          <p className="text-sm text-gray-400">Divergências e inconsistências detectadas automaticamente no sistema</p>
+        </div>
+        {achados.length > 0 && <ExportarAchados achados={achados} />}
       </div>
+
+      {resumoTipos.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
+          <div className="border-b border-gray-100 px-5 py-3">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-900">Resumo por tipo</h2>
+          </div>
+          <table className="w-full text-sm">
+            <tbody className="divide-y divide-gray-50">
+              {resumoTipos.map(r => (
+                <tr key={r.tipo}>
+                  <td className="px-5 py-2 font-mono text-xs text-gray-600">{r.tipo}</td>
+                  <td className="px-5 py-2 text-gray-800">{r.titulo}</td>
+                  <td className="px-5 py-2 text-right font-semibold text-gray-900">{r.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <CounterCard label="Total" value={achados.length} topColor="border-t-gray-400" />
