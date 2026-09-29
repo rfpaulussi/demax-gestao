@@ -52,7 +52,8 @@ function indicesDe(header: string[], colunas: string[]): number[] | null {
 
 export function parsePlanilhaSesmt(raw: unknown[][]): ResultadoParsePlanilha {
   const header = (raw[0] ?? []).map(texto)
-  const corpo = raw.slice(1)
+  // linhas totalmente vazias (rodapé em branco do export) não contam como ignoradas
+  const corpo = raw.slice(1).filter(row => row.some(c => texto(c) !== ''))
 
   const idxLista = indicesDe(header, COLUNAS_LISTA)
   if (idxLista) {
