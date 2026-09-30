@@ -171,6 +171,7 @@ export function ModalDossie({
                   <p className="text-sm text-gray-400">
                     {dossie.funcionario.posto_nome} — {dossie.funcionario.secretaria || '—'}
                     {dossie.funcionario.registro && ` · RE ${dossie.funcionario.registro}`}
+                    {dossie.funcionario.dataAdmissao && ` · Admissão ${new Date(dossie.funcionario.dataAdmissao + 'T12:00:00').toLocaleDateString('pt-BR')}`}
                     {' · CPF '}{maskCPF(dossie.funcionario.cpf)}
                   </p>
                 </div>

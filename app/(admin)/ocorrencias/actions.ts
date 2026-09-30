@@ -405,6 +405,7 @@ export type DossieFuncionario = {
     nome: string
     cpf: string | null
     registro: string | null
+    dataAdmissao: string | null
     posto_nome: string
     secretaria: string
   }
@@ -440,12 +441,12 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
 
   const { data: funcRaw } = await supabase
     .from('funcionarios')
-    .select('id, nome, cpf, registro, postos!posto_id(nome, secretaria)')
+    .select('id, nome, cpf, registro, data_admissao, postos!posto_id(nome, secretaria)')
     .eq('id', funcionarioId)
     .single()
   if (!funcRaw) return null
   const func = funcRaw as unknown as {
-    id: string; nome: string; cpf: string | null; registro: string | null
+    id: string; nome: string; cpf: string | null; registro: string | null; data_admissao: string | null
     postos: { nome: string; secretaria: string | null } | null
   }
 
@@ -571,6 +572,7 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
       nome: func.nome,
       cpf: func.cpf,
       registro: func.registro,
+      dataAdmissao: func.data_admissao,
       posto_nome: func.postos?.nome ?? '—',
       secretaria: func.postos?.secretaria ?? '',
     },
