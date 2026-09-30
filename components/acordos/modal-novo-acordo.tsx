@@ -89,6 +89,8 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
   const [dataDoc, setDataDoc] = useState(new Date().toLocaleDateString('sv-SE'))
   const [template, setTemplate] = useState<TemplateId>('T3')
   const [situacaoEscolhida, setSituacaoEscolhida] = useState(false)
+  // "Trabalhou a mais" clicado, mas ainda sem escolher como vão descansar (o passo 1 só fecha depois da escolha)
+  const [grupoAberto, setGrupoAberto] = useState(false)
   const [f, setF] = useState<FormState>(FORM_VAZIO)
   const [funcs, setFuncs] = useState<FuncionarioParaAcordo[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -116,7 +118,13 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
     if (chave && (k === 'datasAjuste' || k === 'folgas' || k === 'participantes' || (typeof v === 'string' && v !== ''))) tocar(chave)
   }, [tocar])
 
+  function abrirGrupoTrabalhou() {
+    setGrupoAberto(true)
+    setSituacaoEscolhida(false)
+  }
+
   function escolherSituacao(id: TemplateId) {
+    setGrupoAberto(false)
     if (id !== template || !situacaoEscolhida) {
       setTemplate(id)
       setDiasManual(false)
@@ -149,6 +157,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
       tocar('posto')
     }
     setTemplate(r.template)
+    setGrupoAberto(false)
     setSituacaoEscolhida(true)
     setF({ ...FORM_VAZIO, ...r.form })
     // dias que o pedido cita um a um ficam como estão; só a quantidade ("em 6 dias") deixa o sistema escolher as datas
@@ -422,6 +431,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
     setDataDoc(new Date().toLocaleDateString('sv-SE'))
     setTemplate('T3')
     setSituacaoEscolhida(false)
+    setGrupoAberto(false)
     setF(FORM_VAZIO)
     setFuncs([])
     setSelectedIds(new Set())
@@ -577,8 +587,8 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
 
             {abertoPasso('situacao') ? (
               <Passo id="passo-situacao" numero={1} titulo="O que aconteceu?" feito={situacaoEscolhida} erro={tentou && !situacaoEscolhida}>
-                <SituacaoCards selecionado={situacaoEscolhida ? template : null} onSelect={escolherSituacao} />
-                {tentou && !situacaoEscolhida && <p className="text-xs font-medium text-red-600">Escolha a situação que melhor descreve o caso.</p>}
+                <SituacaoCards selecionado={situacaoEscolhida ? template : null} onSelect={escolherSituacao} grupoAberto={grupoAberto} onGrupo={abrirGrupoTrabalhou} />
+                {tentou && !situacaoEscolhida && <p className="text-xs font-medium text-red-600">{grupoAberto ? 'Escolha como vão descansar.' : 'Escolha a situação que melhor descreve o caso.'}</p>}
               </Passo>
             ) : (
               <PassoResumo id="passo-situacao" numero={1} titulo="O que aconteceu?" resumo={resumoSituacao} onEditar={() => alternarPasso('situacao')} />

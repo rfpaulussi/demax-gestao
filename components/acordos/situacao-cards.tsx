@@ -18,6 +18,9 @@ interface Props {
   /** null enquanto o usuário não escolheu. */
   selecionado: TemplateId | null
   onSelect: (id: TemplateId) => void
+  /** O card "Trabalhou a mais" foi clicado: abre "Como vão descansar?" sem escolher nada ainda. */
+  grupoAberto: boolean
+  onGrupo: () => void
 }
 
 interface CartaoProps {
@@ -57,8 +60,8 @@ function Cartao({ nome, cor, ativo, onClick, titulo, tag, exemplo, regra, radio 
   )
 }
 
-export function SituacaoCards({ selecionado, onSelect }: Props) {
-  const mostrarSub = selecionado !== null && GRUPO_TRABALHOU.templates.includes(selecionado)
+export function SituacaoCards({ selecionado, onSelect, grupoAberto, onGrupo }: Props) {
+  const mostrarSub = grupoAberto || (selecionado !== null && GRUPO_TRABALHOU.templates.includes(selecionado))
 
   return (
     <div className="space-y-2.5">
@@ -67,7 +70,7 @@ export function SituacaoCards({ selecionado, onSelect }: Props) {
           nome={NOME.grupo.nome}
           cor={NOME.grupo.cor}
           ativo={mostrarSub}
-          onClick={() => { if (!mostrarSub) onSelect(GRUPO_TRABALHOU.templates[0]) }}
+          onClick={() => { if (!mostrarSub) onGrupo() }}
           titulo={GRUPO_TRABALHOU.titulo}
           tag={GRUPO_TRABALHOU.tag}
           exemplo={GRUPO_TRABALHOU.exemplo}
