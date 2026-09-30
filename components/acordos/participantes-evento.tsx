@@ -18,6 +18,22 @@ interface Props {
 
 const VAZIO: ParticipanteEvento = { inicio: '', fim: '', folgas: [''] }
 
+const MODELO = [
+  { horario: '08h às 12:30h', funcionario: 'Amanda Gonçalves', folga: '23/12' },
+  { horario: '13:30h às 18h', funcionario: 'Irani Matilde da Costa', folga: '29/12' },
+  { horario: '08h às 18h', funcionario: 'Marília Rosana do Patrocínio', folga: '28/12 e 29/12' },
+]
+
+/** Planilha de referência com as 3 colunas que a colagem entende (texto puro, para o Excel não converter "23/12" em data). */
+async function baixarModelo() {
+  const { exportToExcel } = await import('@/lib/export-excel')
+  exportToExcel(MODELO, [
+    { label: 'Horário', value: r => r.horario, asText: true },
+    { label: 'Funcionário', value: r => r.funcionario, asText: true },
+    { label: 'Folga', value: r => r.folga, asText: true },
+  ], 'modelo-acordo-folga-dias-inteiros.xlsx')
+}
+
 /** T5 em dias inteiros: período trabalhado e dias de folga de cada funcionário (1 ou mais), com colagem da planilha. */
 export function ParticipantesEvento({ funcionarios, participantes, onChange, dataEvento, feriados, erro }: Props) {
   const [texto, setTexto] = useState('')
@@ -54,6 +70,9 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, dat
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" onClick={aplicarColagem} disabled={!texto.trim()} className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-40">
             Aplicar
+          </button>
+          <button type="button" onClick={baixarModelo} className="text-xs font-medium text-slate-600 underline hover:text-slate-900">
+            Baixar modelo (Excel)
           </button>
           {aplicadas !== null && <span className="text-xs text-slate-600">{aplicadas} funcionário(s) preenchido(s)</span>}
         </div>
