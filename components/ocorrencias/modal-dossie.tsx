@@ -151,6 +151,7 @@ export function ModalDossie({
       await downloadComunicadoDesligamentoPDF({
         nome: dossie.funcionario.nome,
         registro: dossie.funcionario.registro,
+        // dossiê não carrega função hoje — o PDF já deixa esse campo em branco, igual "Contrato".
         funcao: null,
         dataAdmissao: dossie.funcionario.dataAdmissao,
       })
