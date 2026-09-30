@@ -20,22 +20,29 @@ const VAZIO: ParticipanteEvento = { inicio: '', fim: '', folgas: [''] }
 /** Períodos oferecidos enquanto poucos estão preenchidos na lista. */
 const PERIODOS_PADRAO: [string, string][] = [['08:00', '12:30'], ['13:30', '18:00'], ['08:00', '18:00']]
 
-const MODELO = [
-  { funcionario: 'Amanda Gonçalves', inicio: '8:00', fim: '12:30', folga1: '23/12/2026', folga2: '' },
-  { funcionario: 'Irani Matilde da Costa', inicio: '13:30', fim: '18:00', folga1: '29/12/2026', folga2: '' },
-  { funcionario: 'Marília Rosana do Patrocínio', inicio: '8:00', fim: '18:00', folga1: '28/12/2026', folga2: '29/12/2026' },
-]
+const brData = (iso: string) => (iso ? iso.split('-').reverse().join('/') : '')
+const horaPlanilha = (hhmm: string) => (hhmm ? hhmm.replace(/^0/, '') : '')
 
-/** Planilha de referência com as colunas que a colagem entende (texto puro, para o Excel não converter as datas). */
-async function baixarModelo() {
+/** Planilha com os funcionários do acordo já listados (e o que já foi preenchido); só falta completar horário e folgas. Texto puro, para o Excel não converter as datas. */
+async function baixarModelo(funcionarios: { id: string; nome: string }[], participantes: Record<string, ParticipanteEvento>) {
   const { exportToExcel } = await import('@/lib/export-excel')
-  exportToExcel(MODELO, [
+  const linhas = funcionarios.map(f => {
+    const p = participantes[f.id]
+    return {
+      funcionario: f.nome,
+      inicio: horaPlanilha(p?.inicio ?? ''),
+      fim: horaPlanilha(p?.fim ?? ''),
+      folga1: brData(p?.folgas[0] ?? ''),
+      folga2: brData(p?.folgas[1] ?? ''),
+    }
+  })
+  exportToExcel(linhas, [
     { label: 'Funcionário', value: r => r.funcionario, asText: true },
     { label: 'Início', value: r => r.inicio, asText: true },
     { label: 'Fim', value: r => r.fim, asText: true },
     { label: 'Folga 1', value: r => r.folga1, asText: true },
     { label: 'Folga 2', value: r => r.folga2, asText: true },
-  ], 'modelo-acordo-folga-dias-inteiros.xlsx')
+  ], 'acordo-folga-dias-inteiros.xlsx')
 }
 
 const chipCls = (ativo: boolean) =>
@@ -103,8 +110,8 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
           <button type="button" onClick={aplicarColagem} disabled={!texto.trim()} className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-40">
             Aplicar
           </button>
-          <button type="button" onClick={baixarModelo} className="text-xs font-medium text-slate-600 underline hover:text-slate-900">
-            Baixar modelo (Excel)
+          <button type="button" onClick={() => baixarModelo(funcionarios, participantes)} className="text-xs font-medium text-slate-600 underline hover:text-slate-900">
+            Baixar planilha com os funcionários (Excel)
           </button>
           {aplicadas !== null && <span className="text-xs text-slate-600">{aplicadas} funcionário(s) preenchido(s)</span>}
         </div>
