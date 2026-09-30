@@ -34,6 +34,15 @@ export function PassoFuncionarios({
   postos, tipo, postosSel, onTogglePosto, funcs, selectedIds, onToggleFunc, onSetSelecionados, loading, erro,
 }: Props) {
   const [busca, setBusca] = useState('')
+  const [buscaPosto, setBuscaPosto] = useState('')
+
+  // busca por nome ou secretaria; os postos já marcados continuam na lista (coletivo) para não sumirem da seleção
+  const postosVisiveis = useMemo(() => {
+    const q = semAcento(buscaPosto.trim())
+    return postos
+      .filter(p => !p.nome.startsWith('AFASTADO'))
+      .filter(p => !q || postosSel.includes(p.id) || semAcento(p.nome).includes(q) || semAcento(p.secretaria ?? '').includes(q))
+  }, [postos, buscaPosto, postosSel])
 
   const { incluidos, naoIncluidos } = useMemo(() => {
     const q = semAcento(busca.trim())
@@ -77,8 +86,19 @@ export function PassoFuncionarios({
     <div className="space-y-4">
       <div>
         <p className={`${LABEL_CLS} mb-1.5`}>Em qual posto? {tipo === 'coletivo' && <span className="normal-case tracking-normal text-slate-400">(pode marcar vários)</span>}</p>
+        <div className="relative mb-2">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+          <input
+            value={buscaPosto}
+            onChange={e => setBuscaPosto(e.target.value)}
+            placeholder="Buscar unidade (nome ou secretaria)"
+            className={`${INPUT_CLS} pl-9`}
+            aria-label="Buscar unidade"
+          />
+        </div>
         <div className="max-h-40 divide-y divide-gray-50 overflow-y-auto rounded-xl border border-gray-200">
-          {postos.filter(p => !p.nome.startsWith('AFASTADO')).map(p => (
+          {postosVisiveis.length === 0 && <p className="px-3 py-3 text-sm text-gray-400">Nenhuma unidade encontrada.</p>}
+          {postosVisiveis.map(p => (
             <label key={p.id} className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-slate-50">
               <input
                 type={tipo === 'individual' ? 'radio' : 'checkbox'}
