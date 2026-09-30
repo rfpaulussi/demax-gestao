@@ -33,7 +33,7 @@ import { ResumoAcordo, type ItemResumo, type StatusResumo, type TextoGrupo, type
 /** Campo do formulário -> chave "tocada" (para só mostrar erro depois de interagir). */
 const CHAVE_DO_FORM: Partial<Record<keyof FormState, string>> = {
   dataEvento: 'dataEvento', nomeEvento: 'nomeEvento', periodoInicio: 'horas', periodoFim: 'horas', duracao: 'horas',
-  horaDispensa: 'horaDispensa', motivo: 'motivo', dataFolga: 'dataFolga', folgas: 'dataFolga', duracaoFolga: 'horasFolga', datasAjuste: 'dias', prazoLimite: 'prazo',
+  horaDispensa: 'horaDispensa', motivo: 'motivo', dataFolga: 'dataFolga', folgas: 'dataFolga', participantes: 'dataFolga', duracaoFolga: 'horasFolga', datasAjuste: 'dias', prazoLimite: 'prazo',
 }
 
 /** Chaves tocadas que "acendem" cada item do checklist. */
@@ -113,7 +113,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
     setF(prev => ({ ...prev, [k]: v }))
     const chave = CHAVE_DO_FORM[k]
     // limpar um campo (ex.: trocar de aba de período/horas) não conta como "tocar"
-    if (chave && (k === 'datasAjuste' || k === 'folgas' || (typeof v === 'string' && v !== ''))) tocar(chave)
+    if (chave && (k === 'datasAjuste' || k === 'folgas' || k === 'participantes' || (typeof v === 'string' && v !== ''))) tocar(chave)
   }, [tocar])
 
   function escolherSituacao(id: TemplateId) {
@@ -296,7 +296,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
       return {
         cabecalho: grupos.length > 1 ? `Grupo ${grupos.indexOf(g) + 1} · ${juntarRotulos(turnosDoGrupo(g))} · ${g.length} func.` : null,
         // revezamento: o parágrafo abre com os nomes do grupo (igual ao PDF)
-        texto: r.ok ? (campos.folgasPorFuncionario ? `${juntarRotulos(g.map(x => x.nome))} ${r.texto}` : r.texto) : null,
+        texto: r.ok ? (campos.folgasPorFuncionario || campos.participantes ? `${juntarRotulos(g.map(x => x.nome))} ${r.texto}` : r.texto) : null,
       }
     }),
     [campos, grupos, situacaoEscolhida, turnosDoGrupo],
@@ -340,9 +340,9 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
   const prazoObrigatorioDeFato = template === 'T4' || achados.some(a => a.codigo === 'PRAZO_OBRIGATORIO')
   // Prazo obrigatório nasce sugerido: a última data do acordo (reposição ou folga). Some se o usuário mexer no campo.
   const prazoSugerido = useMemo(() => {
-    const datas = [...f.datasAjuste, f.dataFolga, ...Object.values(f.folgas)].filter(Boolean)
+    const datas = [...f.datasAjuste, f.dataFolga, ...Object.values(f.folgas), ...Object.values(f.participantes).flatMap(p => p.folgas)].filter(Boolean)
     return datas.length ? datas.sort().at(-1)! : ''
-  }, [f.datasAjuste, f.dataFolga, f.folgas])
+  }, [f.datasAjuste, f.dataFolga, f.folgas, f.participantes])
   useEffect(() => {
     if (!prazoObrigatorioDeFato || tocou.has('prazo') || !prazoSugerido || f.prazoLimite === prazoSugerido) return
     setF(prev => ({ ...prev, prazoLimite: prazoSugerido }))

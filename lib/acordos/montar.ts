@@ -25,7 +25,7 @@ export function montarTextosAcordo(campos: CamposAcordo, funcs: FuncionarioCalc[
   if (grupos.length === 0) return { ok: false, erro: 'Selecione ao menos um funcionário.' }
 
   // Revezamento: cada grupo (mesma data de folga) abre o parágrafo com os nomes dele
-  const revezamento = !!campos.folgasPorFuncionario
+  const revezamento = !!campos.folgasPorFuncionario || !!campos.participantes
   const objetoPorFunc = new Map<string, string>()
   const objetosDosGrupos: string[] = []
   for (const g of grupos) {

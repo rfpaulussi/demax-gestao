@@ -11,6 +11,7 @@ import { fmtHM, motivoDoCalendario, rotuloAtalhoCalendario } from '@/lib/acordos
 import { Campo, INPUT_CLS, INPUT_ERRO_CLS, SubPasso } from './passo'
 import { MotivoChips } from './motivo-chips'
 import { DiasChips } from './dias-chips'
+import { ParticipantesEvento } from './participantes-evento'
 import { FolgasRevezamento, SeletorModoFolga, type FuncionarioFolga } from './folgas-revezamento'
 
 export { FORM_VAZIO, montarCampos, type FormState } from '@/lib/acordos/formulario'
@@ -410,10 +411,29 @@ export function CamposTemplate({
             </div>
             {chipsNome()}
             {blocoOutrosDias()}
-            {periodoOuHoras()}
+            <div role="tablist" className="flex gap-1 rounded-lg border border-gray-200 bg-white p-1">
+              <button type="button" role="tab" aria-selected={!f.diasInteiros} onClick={() => set('diasInteiros', false)} className={abaCls(!f.diasInteiros)}>
+                Hora por hora
+              </button>
+              <button type="button" role="tab" aria-selected={f.diasInteiros} onClick={() => set('diasInteiros', true)} className={abaCls(f.diasInteiros)}>
+                Folga em dias inteiros
+              </button>
+            </div>
+            {f.diasInteiros
+              ? <p className="text-xs text-gray-400">Cada funcionário tem o seu período trabalhado e ganha 1 ou mais dias inteiros de folga (ex.: meio período = 1 dia; dia todo = 2 dias).</p>
+              : periodoOuHoras()}
           </SubPasso>
-          <SubPasso letra={proxima()} titulo="Dia da folga">
-            {blocoFolga('Em que dia vão folgar?', 'ex: 26/06/2026')}
+          <SubPasso letra={proxima()} titulo={f.diasInteiros ? 'Período e folgas de cada funcionário' : 'Dia da folga'}>
+            {f.diasInteiros ? (
+              <ParticipantesEvento
+                funcionarios={funcionarios}
+                participantes={f.participantes}
+                onChange={p => set('participantes', p)}
+                dataEvento={f.dataEvento}
+                feriados={feriados}
+                erro={erros.dataFolga}
+              />
+            ) : blocoFolga('Em que dia vão folgar?', 'ex: 26/06/2026')}
           </SubPasso>
         </>
       )}

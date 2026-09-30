@@ -19,6 +19,13 @@ export interface Movimento {
   papel: PapelMovimento
 }
 
+/** T5 em "dias inteiros": o que um funcionário trabalhou no evento e os dias inteiros de folga que ganhou. */
+export interface ParticipanteEvento {
+  inicio: string   // 'HH:MM'
+  fim: string      // 'HH:MM'
+  folgas: string[] // 1 ou mais datas ISO; cada uma compensa a jornada inteira daquele dia
+}
+
 export interface CamposAcordo {
   template: TemplateId
   dataEvento?: string
@@ -34,6 +41,12 @@ export interface CamposAcordo {
   dataFolga?: string            // T3/T4/T5 (em revezamento: a folga mais cedo)
   /** Revezamento: cada funcionário com a sua data de folga (T3/T4/T5). Ausente = todos folgam em `dataFolga`. */
   folgasPorFuncionario?: Record<string, string>
+  /**
+   * Só T5. Quando presente, cada funcionário tem o seu período trabalhado e os seus dias inteiros de folga
+   * (1 ou mais), em vez de "horas trabalhadas = horas de folga". Substitui `periodoInicio/Fim`, `minutosOrigem`,
+   * `dataFolga` e `folgasPorFuncionario` no cálculo.
+   */
+  participantes?: Record<string, ParticipanteEvento>
   datasAjuste: string[]         // T1 redução; T2/T3/T4 acréscimo; T5 vazio
   prazoLimite?: string          // T4 obrigatório; demais quando cruza o mês
 }
