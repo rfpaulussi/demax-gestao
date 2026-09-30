@@ -7,6 +7,7 @@ import { getUser } from '@/lib/auth/get-user'
 import { logSupervisorAcao } from '@/lib/log-supervisor'
 import { existeAfastamentoAberto, removerAfastamentosEspelhoDeAtestado } from '@/lib/afastamentos'
 import { buscarAtestadoSobreposto, mensagemSobreposicao } from '@/lib/atestados/sobreposicao'
+import { atestadosConflitam } from '@/lib/atestados/periodos'
 import { calcularEpisodioInss, type AtestadoParaEpisodio, type EpisodioInss } from '@/lib/atestados/episodio-inss'
 
 async function verificarAcessoAtestado(
@@ -52,7 +53,7 @@ export async function getSobreposicoesAtestado(
     .gte('data_fim', dataInicio)
   if (excludeId) q = q.neq('id', excludeId)
   const { data } = await q
-  return (data ?? []).map(a => ({
+  return (data ?? []).filter(a => atestadosConflitam({ data_inicio: dataInicio, data_fim: dataFim }, a)).map(a => ({
     data_inicio: a.data_inicio,
     data_fim: a.data_fim,
     cid_codigo: a.cid_codigo,

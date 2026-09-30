@@ -3,6 +3,7 @@ import { getUser } from '@/lib/auth/get-user'
 import { createClient } from '@/lib/supabase/server'
 import { cn } from '@/lib/utils'
 import { AtestadosClient, type AtestadoRow } from '@/components/atestados/atestados-client'
+import { diasUnicosAtestados } from '@/lib/atestados/periodos'
 
 type AtestadoRaw = {
   id: string
@@ -129,12 +130,16 @@ export default async function AtestadosPage({
   limite.setDate(hoje.getDate() - 30)
   const limiteStr = toDateStr(limite)
 
-  const acumuladoMap = new Map<string, number>()
+  // Dia compartilhado entre dois atestados seguidos (passagem de bastão) conta uma vez só.
+  const porFuncionario = new Map<string, { data_inicio: string; data_fim: string }[]>()
   for (const a of all) {
     if (!a.data_fim || a.data_fim < limiteStr) continue
-    const dias = calcDias(a.data_inicio, a.data_fim)
-    acumuladoMap.set(a.funcionario_id, (acumuladoMap.get(a.funcionario_id) ?? 0) + dias)
+    const lista = porFuncionario.get(a.funcionario_id) ?? []
+    lista.push({ data_inicio: a.data_inicio, data_fim: a.data_fim })
+    porFuncionario.set(a.funcionario_id, lista)
   }
+  const acumuladoMap = new Map<string, number>()
+  porFuncionario.forEach((lista, funcionarioId) => acumuladoMap.set(funcionarioId, diasUnicosAtestados(lista)))
 
   // Opções de filtro derivadas de todos os registros
   const secretarias = Array.from(

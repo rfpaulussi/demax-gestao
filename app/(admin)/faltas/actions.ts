@@ -6,6 +6,7 @@ import { getUser } from '@/lib/auth/get-user'
 import type { FaltaTipo } from '@/components/faltas/faltas-config'
 import { logSupervisorAcao } from '@/lib/log-supervisor'
 import { existeAfastamentoNoPeriodo } from '@/lib/faltas-conflito'
+import { diasUnicosAtestados } from '@/lib/atestados/periodos'
 
 export type { FaltaTipo }
 
@@ -148,12 +149,10 @@ export async function buscarDashFaltas(mes: number, ano: number): Promise<DashFa
 
   const totalDiasFaltas = (faltas ?? []).reduce((a, f) => a + (f.dias ?? 1), 0)
 
-  const totalDiasAtestados = (atestados ?? []).reduce((a, at) => {
-    if (!at.data_fim) return a + 1
-    const d1 = new Date(at.data_inicio)
-    const d2 = new Date(at.data_fim)
-    return a + Math.ceil((d2.getTime() - d1.getTime()) / 86400000) + 1
-  }, 0)
+  // Dia compartilhado entre atestados seguidos conta uma vez só.
+  const totalDiasAtestados = diasUnicosAtestados(
+    (atestados ?? []).map(at => ({ data_inicio: at.data_inicio, data_fim: at.data_fim })),
+  )
 
   const semJustificativa = (faltas ?? []).filter(f => f.tipo === 'sem_atestado').length
 

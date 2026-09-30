@@ -1,3 +1,5 @@
+import { diasUnicosAtestados } from '@/lib/atestados/periodos'
+
 export type NivelRisco = 'ok' | 'atencao' | 'critico'
 
 export type FaltaEvento = { data_falta: string; tipo: string }
@@ -44,14 +46,6 @@ const TIPOS_MOVIMENTACAO_RELEVANTES = new Set([
 const LIMIAR_ATENCAO = 5
 const LIMIAR_CRITICO = 10
 
-function diasEntre(inicio: string, fim: string | null): number {
-  if (!fim) return 1
-  const d1 = new Date(inicio)
-  const d2 = new Date(fim)
-  const diff = Math.round((d2.getTime() - d1.getTime()) / 86400000)
-  return Math.max(1, diff + 1)
-}
-
 function arredondar(n: number): number {
   return Math.round(n * 10) / 10
 }
@@ -92,7 +86,7 @@ export function calcularScoreRisco(eventos: EventosScoreRisco): ScoreRisco {
     breakdown.push(`${qtd} advertência(s) grau ${grau} (${pts}pt)`)
   })
 
-  const totalDiasAtestado = eventos.atestados.reduce((sum, a) => sum + diasEntre(a.data_inicio, a.data_fim), 0)
+  const totalDiasAtestado = diasUnicosAtestados(eventos.atestados)
   if (totalDiasAtestado > 0) {
     const pts = arredondar(totalDiasAtestado * PESO_ATESTADO_POR_DIA)
     score += pts

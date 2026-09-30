@@ -406,16 +406,28 @@ export async function calcularFechamento(mes: number, ano: number): Promise<Resu
     }
 
     function atestadosNoIntervalo(s: Date, e: Date, regimeSeg: string): number {
-      return atestadosFunc.reduce((acc, a) => {
+      // Faixa efetiva de cada atestado no intervalo. Dia compartilhado entre atestados seguidos
+      // (passagem de bastão de 1 dia) entra uma única vez.
+      const faixas: { os: Date; oe: Date }[] = []
+      for (const a of atestadosFunc) {
         const fimCoberto = new Date(toDate(a.data_inicio).getTime() + (DIAS_COBERTURA_ATESTADO - 1) * 86400000).toISOString().split('T')[0]
         const fimEfetivo = fimCoberto < a.data_fim ? fimCoberto : a.data_fim
         const as_ = clipToMes(a.data_inicio, mesStartStr, mesStartStr, mesEndStr)
         const ae  = clipToMes(fimEfetivo, mesEndStr, mesStartStr, mesEndStr)
         const os = new Date(Math.max(toDate(as_).getTime(), s.getTime()))
         const oe = new Date(Math.min(toDate(ae).getTime(), e.getTime()))
-        if (os > oe) return acc
-        return acc + diasUteisNoPeriodo(os, oe, regimeSeg, feriados)
-      }, 0)
+        if (os <= oe) faixas.push({ os, oe })
+      }
+      faixas.sort((x, y) => x.os.getTime() - y.os.getTime())
+      let total = 0
+      let ate: Date | null = null
+      for (const f of faixas) {
+        if (ate && f.oe <= ate) continue
+        const de: Date = ate && f.os <= ate ? new Date(ate.getTime() + 86400000) : f.os
+        total += diasUteisNoPeriodo(de, f.oe, regimeSeg, feriados)
+        ate = f.oe
+      }
+      return total
     }
 
     function afastamentoNoIntervalo(s: Date, e: Date, regimeSeg: string): number {

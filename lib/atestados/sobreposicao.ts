@@ -1,10 +1,12 @@
 // lib/atestados/sobreposicao.ts
 //
-// Um funcionário não pode ter dois atestados cobrindo o mesmo dia. Esta checagem roda em todo
+// Um funcionário não pode ter dois atestados cobrindo o mesmo dia (exceto a passagem de bastão de
+// 1 dia — ver periodos.ts). Esta checagem roda em todo
 // caminho que grava `atestados` (lançamento, edição, INSS, cobertura, aprovações da auditoria);
-// o trigger da migration 20260929_atestados_sem_sobreposicao.sql é a rede de segurança no banco.
+// o trigger `atestados_sem_sobreposicao` (migrations 20260929 e 20260930) é a rede de segurança no banco.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { atestadosConflitam } from './periodos'
 
 export type AtestadoSobreposto = {
   id: string
@@ -31,12 +33,13 @@ export async function buscarAtestadoSobreposto(
     .lte('data_inicio', dataFim)
     .gte('data_fim', dataInicio)
     .order('data_inicio', { ascending: true })
-    .limit(1)
   if (excluirId) q = q.neq('id', excluirId)
   const { data } = await q
-  return ((data ?? [])[0] as AtestadoSobreposto | undefined) ?? null
+  // A query traz quem toca o período; a regra fina (passagem de bastão de 1 dia é permitida) é aqui.
+  const candidatos = (data ?? []) as AtestadoSobreposto[]
+  return candidatos.find(c => atestadosConflitam({ data_inicio: dataInicio, data_fim: dataFim }, c)) ?? null
 }
 
 export function mensagemSobreposicao(a: AtestadoSobreposto): string {
-  return `Já existe atestado neste período (${br(a.data_inicio)} a ${br(a.data_fim)}${a.cid_codigo ? `, CID ${a.cid_codigo}` : ''}). Não é permitido atestado duplicado ou sobreposto — ajuste as datas ou edite o atestado existente.`
+  return `Já existe atestado neste período (${br(a.data_inicio)} a ${br(a.data_fim)}${a.cid_codigo ? `, CID ${a.cid_codigo}` : ''}). Não é permitido atestado duplicado ou sobreposto (só pode dividir um único dia de fronteira) — ajuste as datas ou edite o atestado existente.`
 }
