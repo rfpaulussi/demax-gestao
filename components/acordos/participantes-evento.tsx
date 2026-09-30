@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { ParticipanteEvento } from '@/lib/acordos/tipos'
 import type { MapaFeriados } from '@/lib/acordos/validar'
 import { interpretarPlanilha } from '@/lib/acordos/colar'
+import { HoraSelect } from './hora-select'
 import { INPUT_CLS, INPUT_ERRO_CLS } from './passo'
 
 interface Props {
@@ -92,9 +93,9 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, dat
             <li key={fn.id} className="space-y-1.5 px-3 py-2">
               <p className="truncate text-sm font-medium text-slate-800">{fn.nome}</p>
               <div className="flex flex-wrap items-center gap-2">
-                <input type="time" aria-label={`Início de ${fn.nome}`} value={p.inicio} onChange={e => mudar(fn.id, { inicio: e.target.value })} className={`w-28 ${faltaPeriodo ? INPUT_ERRO_CLS : INPUT_CLS}`} />
+                <HoraSelect aria-label={`Início de ${fn.nome}`} value={p.inicio} onChange={v => mudar(fn.id, { inicio: v })} className={`w-28 ${faltaPeriodo ? INPUT_ERRO_CLS : INPUT_CLS}`} />
                 <span className="text-xs text-slate-400">às</span>
-                <input type="time" aria-label={`Fim de ${fn.nome}`} value={p.fim} onChange={e => mudar(fn.id, { fim: e.target.value })} className={`w-28 ${faltaPeriodo ? INPUT_ERRO_CLS : INPUT_CLS}`} />
+                <HoraSelect aria-label={`Fim de ${fn.nome}`} value={p.fim} onChange={v => mudar(fn.id, { fim: v })} className={`w-28 ${faltaPeriodo ? INPUT_ERRO_CLS : INPUT_CLS}`} />
                 <span className="mx-1 text-xs text-slate-400">folga:</span>
                 {p.folgas.map((d, i) => (
                   <span key={i} className="inline-flex items-center gap-1">
