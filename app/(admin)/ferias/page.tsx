@@ -469,6 +469,7 @@ function FeriasPageInner() {
         { label: 'Período Aquisitivo', value: r => r.periodo_inicio && r.periodo_fim ? `${formatDate(r.periodo_inicio)} – ${formatDate(r.periodo_fim)}` : '', asText: true },
         { label: 'Limite Gozo', value: r => formatDate(r.limite_gozo), asText: true },
         { label: 'Dias', value: r => r.dias_direito ?? 0 },
+        { label: 'Dias vendidos', value: r => r.dias_abono },
         { label: 'Início', value: r => formatDate(r.data_inicio), asText: true },
         { label: 'Fim', value: r => formatDate(r.data_fim), asText: true },
         { label: 'Status', value: r => r.status },
@@ -716,7 +717,13 @@ function FeriasPageInner() {
                         ? `${formatDate(item.periodo_inicio)} – ${formatDate(item.periodo_fim)}`
                         : '—'}
                     </td>
-                    <td className="px-3 py-3 text-center font-medium text-slate-700">{item.dias_direito ?? '—'}</td>
+                    <td className="px-3 py-3 text-center font-medium text-slate-700">{item.dias_direito ?? '—'}
+                      {item.dias_abono > 0 && (
+                        <span className="block text-[10px] font-semibold text-amber-700" title={`${item.dias_abono} dias vendidos (abono). Gozo: ${(item.dias_direito ?? 30) - item.dias_abono} dias`}>
+                          −{item.dias_abono} vendidos
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-3">
                       <LimiteBadge item={item} />
                     </td>
