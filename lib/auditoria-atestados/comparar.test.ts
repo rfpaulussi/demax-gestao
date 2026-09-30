@@ -64,3 +64,29 @@ describe('fimSesmt', () => {
     expect(fimSesmt('999', '2029-06-04')).toBeNull()
   })
 })
+
+describe('caso Sheila: passagem de bastão entre atestados vizinhos', () => {
+  const sheila = (o: Partial<LinhaSesmt>): LinhaSesmt => ({
+    matriculaRaw: '001-000-098625', nome: 'SHEILA', dataInicio: '2026-09-02', diasTexto: '3',
+    motivo: 'Acidente/Doença não relacionada ao trabalho', cidTexto: 'O20.9', dataRetorno: '2026-09-05', ...o,
+  })
+  const a = (id: string, ini: string, fim: string): AtestadoSistema => ({
+    id, funcionarioId: 'f', funcionarioNome: 'SHEILA', registro: '98625', dataInicio: ini, dataFim: fim,
+    cidCodigo: null, cidDescricao: null, origemOcupacional: null,
+  })
+  const funcs98625 = new Map([['98625', { id: 'f', postoId: 'p' }]])
+  const rodar98625 = (linhas: LinhaSesmt[], ats: AtestadoSistema[]) =>
+    compararAuditoria(linhas.map(linha => ({ linha, registro: '98625' })), funcs98625, new Map([['98625', ats]]))
+
+  it('linha 02→04 pareia com o atestado de mesmas datas e não consome o vizinho 04→13', () => {
+    const r = rodar98625(
+      [sheila({}), sheila({ dataInicio: '2026-09-05', diasTexto: '13', cidTexto: 'O06.9', dataRetorno: '2026-09-18' })],
+      [a('a', '2026-09-02', '2026-09-04'), a('b', '2026-09-04', '2026-09-13'), a('c', '2026-09-14', '2026-09-17')],
+    )
+    const primeira = r.linhas[0]
+    expect(primeira.status).toBe('divergencia') // só o CID (sistema sem CID)
+    expect((primeira as { sistema: AtestadoSistema }).sistema.id).toBe('a')
+    // a segunda linha (05→17) enxerga os dois restantes: ambígua, não um pareamento errado com o 14→17
+    expect(r.linhas[1].status).toBe('ambiguo')
+  })
+})

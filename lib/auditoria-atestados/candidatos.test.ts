@@ -38,3 +38,29 @@ describe('rankearCandidatos', () => {
     expect(r[0].diferencaFimDias).toBeNull()
   })
 })
+
+import { consecutivosCobremSesmt } from './candidatos'
+
+describe('consecutivosCobremSesmt', () => {
+  const linha = { ...sesmt, dataInicio: '2026-09-05', diasTexto: '13', dataRetorno: '2026-09-18' }
+  it('passagem de bastão e sem buraco: cobre', () => {
+    expect(consecutivosCobremSesmt(linha, [at('b', '2026-09-04', '2026-09-13', null), at('c', '2026-09-14', '2026-09-17', null)])).toBe(true)
+  })
+  it('buraco entre os atestados: não cobre', () => {
+    expect(consecutivosCobremSesmt(linha, [at('b', '2026-09-04', '2026-09-10', null), at('c', '2026-09-14', '2026-09-17', null)])).toBe(false)
+  })
+  it('não chega ao fim do SESMT: não cobre', () => {
+    expect(consecutivosCobremSesmt(linha, [at('b', '2026-09-04', '2026-09-13', null), at('c', '2026-09-14', '2026-09-15', null)])).toBe(false)
+  })
+  it('afastamento indeterminado e candidato único: não se aplica', () => {
+    expect(consecutivosCobremSesmt({ ...linha, diasTexto: '999' }, [at('b', '2026-09-04', '2026-09-13', null), at('c', '2026-09-14', '2026-09-17', null)])).toBe(false)
+    expect(consecutivosCobremSesmt(linha, [at('b', '2026-09-04', '2026-09-13', null)])).toBe(false)
+  })
+})
+
+describe('sobreposição entre candidatos usa a regra B', () => {
+  it('passagem de bastão não é possível duplicidade', () => {
+    const r = rankearCandidatos(sesmt, [at('a', '2026-09-02', '2026-09-04', null), at('b', '2026-09-04', '2026-09-13', null)])
+    expect(r.every(c => c.sobrepoeCom.length === 0)).toBe(true)
+  })
+})

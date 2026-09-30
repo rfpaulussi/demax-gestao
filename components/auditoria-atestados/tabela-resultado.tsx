@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 import { extrairRegistroDeMatricula, extrairCodigoCid, motivoIndicaOcupacional, classificarCid, fimSesmt, LABEL_CATEGORIA_CID, type CategoriaCid } from '@/lib/auditoria-atestados/parse'
 import { ModalLancarAtestado } from './modal-lancar-atestado'
 import { ModalSolicitarCorrecao } from './modal-solicitar-correcao'
-import { rankearCandidatos } from '@/lib/auditoria-atestados/candidatos'
+import { rankearCandidatos, consecutivosCobremSesmt } from '@/lib/auditoria-atestados/candidatos'
 import type { ResultadoAuditoria, LinhaResultado, CampoDivergente, LinhaSesmt } from '@/lib/auditoria-atestados/tipos'
 
 const LABEL_STATUS: Record<LinhaResultado['status'], string> = {
@@ -113,6 +113,7 @@ function LinhaConfereOuDivergencia({ l, onCorrigir, enviado }: { l: Extract<Linh
 function BlocoAmbiguo({ l }: { l: Extract<LinhaResultado, { status: 'ambiguo' }> }) {
   const candidatos = rankearCandidatos(l.sesmt, l.candidatos)
   const cidSesmt = extrairCodigoCid(l.sesmt.cidTexto)
+  const unificado = consecutivosCobremSesmt(l.sesmt, l.candidatos)
   return (
     <div className="px-4 py-3">
       <div className="mb-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
@@ -123,6 +124,11 @@ function BlocoAmbiguo({ l }: { l: Extract<LinhaResultado, { status: 'ambiguo' }>
           {motivoIndicaOcupacional(l.sesmt.motivo) ? ' · Ocupacional' : ''}
         </span>
       </div>
+      {unificado && (
+        <p className="mb-2 rounded bg-green-50 px-3 py-1.5 text-xs text-green-800">
+          Os atestados do sistema são consecutivos e cobrem todo o período do SESMT (o SESMT unificou em uma linha). Não é duplicidade — só confira CID e datas.
+        </p>
+      )}
       <table className="w-full">
         <thead>
           <tr className="text-left text-xs font-semibold uppercase tracking-widest text-gray-500">

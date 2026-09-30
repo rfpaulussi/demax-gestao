@@ -33,6 +33,24 @@ function mesmoGrupoCid(a: string | null, b: string | null): boolean {
   return !a || !b || a.slice(0, 3).toUpperCase() === b.slice(0, 3).toUpperCase()
 }
 
+/**
+ * Com vários atestados sobrepostos à linha do SESMT, escolhe o par certo quando dá pra saber:
+ *  - só um tem exatamente as datas do SESMT → é ele;
+ *  - senão, descarta o vizinho que só encosta num dia de fronteira (passagem de bastão) — ele
+ *    pertence a outra linha e, se fosse consumido aqui, faria essa linha virar "ambígua".
+ * Sem certeza, devolve todos (continua ambíguo).
+ */
+function preferirPar(candidatos: AtestadoSistema[], inicio: string, fim: string | null): AtestadoSistema[] {
+  if (candidatos.length <= 1) return candidatos
+  const exatos = candidatos.filter(a => a.dataInicio === inicio && (fim === null || a.dataFim === fim))
+  if (exatos.length === 1) return exatos
+  if (fim !== null && inicio < fim) {
+    const semVizinhos = candidatos.filter(a => !(a.dataInicio === fim && a.dataFim > fim) && !(a.dataFim === inicio && a.dataInicio < inicio))
+    if (semVizinhos.length >= 1 && semVizinhos.length < candidatos.length) return semVizinhos
+  }
+  return candidatos
+}
+
 export type FuncionarioLookup = { id: string; postoId: string | null }
 
 /**
@@ -72,12 +90,13 @@ export function compararAuditoria(
     // Pareamento guloso 1:1, na ordem das linhas do SESMT: um atestado do sistema já
     // pareado com uma linha anterior deste registro não é oferecido como candidato de
     // novo — evita que duas linhas SESMT "capturem" o mesmo atestado.
-    const candidatos = candidatosTodos.filter(a =>
+    const candidatosBrutos = candidatosTodos.filter(a =>
       !atestadosUsados.has(a.id) &&
       (indeterminado
         ? a.dataInicio <= linha.dataInicio && a.dataFim >= linha.dataInicio
         : periodosSeSobrepoem(linha.dataInicio, ultimoDiaAfastadoAntesDoRetorno(linha.dataRetorno), a.dataInicio, a.dataFim)),
     )
+    const candidatos = preferirPar(candidatosBrutos, linha.dataInicio, indeterminado ? null : ultimoDiaAfastadoAntesDoRetorno(linha.dataRetorno))
 
     if (candidatos.length === 0) {
       quaseNaoLancados.push({ idx: linhas.length, registro, linha })
