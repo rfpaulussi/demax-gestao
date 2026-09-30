@@ -101,6 +101,8 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
   const [tocou, setTocou] = useState<Set<string>>(new Set())
   const [tentou, setTentou] = useState(false)
   const [prazoRevelado, setPrazoRevelado] = useState(false)
+  // prazo limite acompanha a última data do acordo enquanto o tick "Preencher automaticamente" estiver marcado
+  const [prazoAuto, setPrazoAuto] = useState(true)
   const [gerandoRascunho, setGerandoRascunho] = useState(false)
   // Pedido interpretado pela IA: quantidade de dias pedida e funcionários citados (aplicados quando a lista do posto chega)
   const [quantidadeIA, setQuantidadeIA] = useState<number | null>(null)
@@ -353,9 +355,9 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
     return datas.length ? datas.sort().at(-1)! : ''
   }, [f.datasAjuste, f.dataFolga, f.folgas, f.participantes])
   useEffect(() => {
-    if (!prazoObrigatorioDeFato || tocou.has('prazo') || !prazoSugerido || f.prazoLimite === prazoSugerido) return
+    if (!prazoAuto || !(prazoObrigatorioDeFato || prazoMostrado || prazoRevelado) || !prazoSugerido || f.prazoLimite === prazoSugerido) return
     setF(prev => ({ ...prev, prazoLimite: prazoSugerido }))
-  }, [prazoObrigatorioDeFato, tocou, prazoSugerido, f.prazoLimite])
+  }, [prazoAuto, prazoObrigatorioDeFato, prazoMostrado, prazoRevelado, prazoSugerido, f.prazoLimite])
   // Prazo é o único item que sobrou: já vale mostrar em vermelho
   const soFaltaPrazo = situacaoEscolhida && okDe('titulo') && okDe('funcionarios') && okDe('datas') && okDe('motivo')
   const prazoVisivel = tentou || tocou.has('prazo') || !!achadoPrazo || soFaltaPrazo
@@ -441,6 +443,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
     setTocou(new Set())
     setTentou(false)
     setPrazoRevelado(false)
+    setPrazoAuto(true)
     setQuantidadeIA(null)
     selecaoIA.current = null
     setAbertoManual({})
@@ -649,6 +652,9 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
                 onChange={v => set('prazoLimite', v)}
                 erro={erroPrazo}
                 max={dataMaximaPrazo(campos)}
+                auto={prazoAuto}
+                onAuto={setPrazoAuto}
+                sugerido={prazoSugerido}
               />
             )}
             {situacaoEscolhida && !prazoMostrado && !prazoRevelado && (

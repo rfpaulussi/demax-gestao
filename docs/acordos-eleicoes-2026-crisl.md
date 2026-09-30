@@ -2,89 +2,89 @@
 
 Evento: **Eleições 2026**, domingo **04/10/2026**. Modal: Novo Acordo → "Dia de descanso trabalhado" → aba **Folga em dias inteiros**.
 Um acordo por escola. Colar o bloco no campo "Colar da planilha" e clicar **Aplicar**.
-Prazo limite: 31/01/2027 (precisa ser depois da última folga, 18/01/2027, e dentro de 6 meses do evento).
+Prazo limite: deixar o tick "Preencher automaticamente" marcado (vira a última folga, 18/01/2027 no caso do Mario Portes).
 
 Marília (Lourdes) alterada para **08h às 18h** (dia todo), mantendo 28/12 e 29/12.
 Conferir: "21/12." do Richard Searles foi lido como 21/12.
 
-Formato de cada linha: `horário<TAB>funcionário<TAB>folgas`
+Colunas de cada linha (como no modelo Excel): `Funcionário, Início, Fim, Folga 1, Folga 2` — horário só com número e data com ano.
 
 ## CEMPRE Lourdes Lopes Romeiro e Luz
 ```
-08h às 12:30h	Amanda Gonçalves	23/12
-08h às 12:30h	Ângela Fagundes	21/12
-08h às 18h	Marília Rosana do Patrocínio	28/12 e 29/12
-13:30h às 18h	Irani Matilde da Costa	29/12
-13:30h às 18h	Elaine dos Santos Feitosa	29/12
+Amanda Gonçalves	8:00	12:30	23/12/2026
+Ângela Fagundes	8:00	12:30	21/12/2026
+Marília Rosana do Patrocínio	8:00	18:00	28/12/2026	29/12/2026
+Irani Matilde da Costa	13:30	18:00	29/12/2026
+Elaine dos Santos Feitosa	13:30	18:00	29/12/2026
 ```
 
 ## CEMPRE Oswaldo Regino Ornelas
 ```
-08h às 12:30h	Kathleen de Souza Guedes	28/12
-08h às 12:30h	Rosana Aparecida de Andrade	22/12
-13:30h às 18h	Danielle Claro Dias Fernandes	29/12
-13:30h às 18h	Rosicleia Batista da Silva	23/12
-13:30h às 18h	Mariana Aparecida dos Santos Matos Souza	28/12
-13:30h às 18h	Maria das Dores Souza de Almeida	23/12
-13:30h às 18h	Michelle Ferreira de Moraes	29/12
-13:30h às 18h	Caroline Cardozo	04/01
-13:30h às 18h	Simone Tiarga Teixeira	28/12
-13:30h às 18h	Helia Vieira da Silva	21/12
+Kathleen de Souza Guedes	8:00	12:30	28/12/2026
+Rosana Aparecida de Andrade	8:00	12:30	22/12/2026
+Danielle Claro Dias Fernandes	13:30	18:00	29/12/2026
+Rosicleia Batista da Silva	13:30	18:00	23/12/2026
+Mariana Aparecida dos Santos Matos Souza	13:30	18:00	28/12/2026
+Maria das Dores Souza de Almeida	13:30	18:00	23/12/2026
+Michelle Ferreira de Moraes	13:30	18:00	29/12/2026
+Caroline Cardozo	13:30	18:00	04/01/2027
+Simone Tiarga Teixeira	13:30	18:00	28/12/2026
+Helia Vieira da Silva	13:30	18:00	21/12/2026
 ```
 
 ## Maria Aparecida de Faria
 ```
-08h às 12:30h	Graziele Kemily Gonçalves da Silva	22/12
-08h às 18h	Adriana de Souza Brito da Silva	28/12 e 29/12
-13:30h às 18h	Maria José Pereira da Silva Santos	23/12
-13:30h às 18h	Maria Cícera Belarmino Ferreira	29/12
+Graziele Kemily Gonçalves da Silva	8:00	12:30	22/12/2026
+Adriana de Souza Brito da Silva	8:00	18:00	28/12/2026	29/12/2026
+Maria José Pereira da Silva Santos	13:30	18:00	23/12/2026
+Maria Cícera Belarmino Ferreira	13:30	18:00	29/12/2026
 ```
 
 ## João Antônio Batalha
 ```
-13:30h às 18h	Marlene da Silva Albino	28/12
-13:30h às 18h	Maria de Fátima da Silva Oliveira	21/12
-08h às 18h	Agrissia de Souza Silva Fernandes	28/12 e 29/12
+Marlene da Silva Albino	13:30	18:00	28/12/2026
+Maria de Fátima da Silva Oliveira	13:30	18:00	21/12/2026
+Agrissia de Souza Silva Fernandes	8:00	18:00	28/12/2026	29/12/2026
 ```
 
 ## Escola Álvaro de Campos Carneiro
 ```
-13:30h às 18h	Richard Searles	21/12
-08h às 12:30h	Márcia Pereira da Silva	22/12
-08h às 12:30h	Andréa Aparecida Fernandes	28/12
-08h às 12:30h	Luciana Teixeira de Castro	29/12
-13:30h às 18h	Paulo Rogério Vaz Júnior	29/12
-13:30h às 18h	Leonardo Martins dos Santos	22/12
-13:30h às 18h	Terezinha de Jesus Aguiar	28/12
-13:30h às 18h	Solange Regina Mansores de Souza	23/12
+Richard Searles	13:30	18:00	21/12/2026
+Márcia Pereira da Silva	8:00	12:30	22/12/2026
+Andréa Aparecida Fernandes	8:00	12:30	28/12/2026
+Luciana Teixeira de Castro	8:00	12:30	29/12/2026
+Paulo Rogério Vaz Júnior	13:30	18:00	29/12/2026
+Leonardo Martins dos Santos	13:30	18:00	22/12/2026
+Terezinha de Jesus Aguiar	13:30	18:00	28/12/2026
+Solange Regina Mansores de Souza	13:30	18:00	23/12/2026
 ```
 
 ## Maria Luísa Menezes da Fonseca
 ```
-13:30h às 18h	Edileusa Bispo Valadares Cabral	21/12
-08h às 18h	Jucilene Aparecida Siqueira	28/12 e 29/12
-13:30h às 18h	Andréa Gomes da Cruz	22/12
-13:30h às 18h	Andréa Ribeiro Protásio	23/12
+Edileusa Bispo Valadares Cabral	13:30	18:00	21/12/2026
+Jucilene Aparecida Siqueira	8:00	18:00	28/12/2026	29/12/2026
+Andréa Gomes da Cruz	13:30	18:00	22/12/2026
+Andréa Ribeiro Protásio	13:30	18:00	23/12/2026
 ```
 
 ## Teresa Martins Pinhal
 ```
-08h às 18h	Rita de Cássia dos Santos Gomes	28/12 e 29/12
-13:30h às 18h	Luciana Aparecida Ferreira de Almeida	21/12
+Rita de Cássia dos Santos Gomes	8:00	18:00	28/12/2026	29/12/2026
+Luciana Aparecida Ferreira de Almeida	13:30	18:00	21/12/2026
 ```
 
 ## CEMPRE Sérgio Moretti
 ```
-08h às 12:30h	Neusa Gomes da Cruz	28/12
-13:30h às 18h	Wagner Santos Teodoro	23/12
+Neusa Gomes da Cruz	8:00	12:30	28/12/2026
+Wagner Santos Teodoro	13:30	18:00	23/12/2026
 ```
 
 ## Mario Portes
 ```
-08h às 12:30h	Raquel da Conceição Nascimento Mandu	18/01
-08h às 12:30h	Priscila Aparecida dos Santos Matsuo Coelh	04/01
-13:30h às 18h	Luciana Dutra Amaral	29/12
-13:30h às 18h	Daniel Reis de Souza	11/01
-13:30h às 18h	Jakson Paulo Fernandes	22/12
-13:30h às 18h	Alba da Silva Marcondes	04/01
+Raquel da Conceição Nascimento Mandu	8:00	12:30	18/01/2027
+Priscila Aparecida dos Santos Matsuo Coelh	8:00	12:30	04/01/2027
+Luciana Dutra Amaral	13:30	18:00	29/12/2026
+Daniel Reis de Souza	13:30	18:00	11/01/2027
+Jakson Paulo Fernandes	13:30	18:00	22/12/2026
+Alba da Silva Marcondes	13:30	18:00	04/01/2027
 ```

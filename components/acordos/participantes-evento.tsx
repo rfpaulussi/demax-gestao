@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ParticipanteEvento } from '@/lib/acordos/tipos'
 import type { MapaFeriados } from '@/lib/acordos/validar'
 import { interpretarPlanilha } from '@/lib/acordos/colar'
@@ -11,35 +11,64 @@ interface Props {
   funcionarios: { id: string; nome: string }[]
   participantes: Record<string, ParticipanteEvento>
   onChange: (p: Record<string, ParticipanteEvento>) => void
-  /** Data do evento: a planilha colada só traz dia/mês, o ano sai daqui. */
-  dataEvento: string
   feriados: MapaFeriados
   erro?: string
 }
 
 const VAZIO: ParticipanteEvento = { inicio: '', fim: '', folgas: [''] }
 
+/** Períodos oferecidos enquanto poucos estão preenchidos na lista. */
+const PERIODOS_PADRAO: [string, string][] = [['08:00', '12:30'], ['13:30', '18:00'], ['08:00', '18:00']]
+
 const MODELO = [
-  { horario: '08h às 12:30h', funcionario: 'Amanda Gonçalves', folga: '23/12' },
-  { horario: '13:30h às 18h', funcionario: 'Irani Matilde da Costa', folga: '29/12' },
-  { horario: '08h às 18h', funcionario: 'Marília Rosana do Patrocínio', folga: '28/12 e 29/12' },
+  { funcionario: 'Amanda Gonçalves', inicio: '8:00', fim: '12:30', folga1: '23/12/2026', folga2: '' },
+  { funcionario: 'Irani Matilde da Costa', inicio: '13:30', fim: '18:00', folga1: '29/12/2026', folga2: '' },
+  { funcionario: 'Marília Rosana do Patrocínio', inicio: '8:00', fim: '18:00', folga1: '28/12/2026', folga2: '29/12/2026' },
 ]
 
-/** Planilha de referência com as 3 colunas que a colagem entende (texto puro, para o Excel não converter "23/12" em data). */
+/** Planilha de referência com as colunas que a colagem entende (texto puro, para o Excel não converter as datas). */
 async function baixarModelo() {
   const { exportToExcel } = await import('@/lib/export-excel')
   exportToExcel(MODELO, [
-    { label: 'Horário', value: r => r.horario, asText: true },
     { label: 'Funcionário', value: r => r.funcionario, asText: true },
-    { label: 'Folga', value: r => r.folga, asText: true },
+    { label: 'Início', value: r => r.inicio, asText: true },
+    { label: 'Fim', value: r => r.fim, asText: true },
+    { label: 'Folga 1', value: r => r.folga1, asText: true },
+    { label: 'Folga 2', value: r => r.folga2, asText: true },
   ], 'modelo-acordo-folga-dias-inteiros.xlsx')
 }
 
+const chipCls = (ativo: boolean) =>
+  `rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
+    ativo ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500' : 'border-gray-200 bg-white text-slate-600 hover:border-gray-300 hover:bg-slate-50'
+  }`
+
+/** Manhã (termina até 13h), tarde (começa a partir das 12h) ou dia todo: cor e nome para achar a linha de relance. */
+function tipoDoPeriodo(p: ParticipanteEvento): { nome: string; borda: string; etiqueta: string } | null {
+  if (!p.inicio || !p.fim) return null
+  if (p.fim <= '13:00') return { nome: 'Manhã', borda: 'border-l-amber-400', etiqueta: 'bg-amber-100 text-amber-800' }
+  if (p.inicio >= '12:00') return { nome: 'Tarde', borda: 'border-l-indigo-400', etiqueta: 'bg-indigo-100 text-indigo-800' }
+  return { nome: 'Dia todo', borda: 'border-l-green-500', etiqueta: 'bg-green-100 text-green-800' }
+}
+
+const rotuloCls = 'rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest'
+
 /** T5 em dias inteiros: período trabalhado e dias de folga de cada funcionário (1 ou mais), com colagem da planilha. */
-export function ParticipantesEvento({ funcionarios, participantes, onChange, dataEvento, feriados, erro }: Props) {
+export function ParticipantesEvento({ funcionarios, participantes, onChange, feriados, erro }: Props) {
   const [texto, setTexto] = useState('')
   const [problemas, setProblemas] = useState<string[]>([])
   const [aplicadas, setAplicadas] = useState<number | null>(null)
+
+  // atalhos de período: os já usados na lista (1 clique repete), completados com os comuns
+  const periodos = useMemo(() => {
+    const usados = new Map<string, [string, string]>()
+    for (const f of funcionarios) {
+      const p = participantes[f.id]
+      if (p?.inicio && p?.fim) usados.set(`${p.inicio}|${p.fim}`, [p.inicio, p.fim])
+    }
+    for (const d of PERIODOS_PADRAO) if (usados.size < 3) usados.set(`${d[0]}|${d[1]}`, d)
+    return Array.from(usados.values()).sort((a, b) => (a[0] + a[1]).localeCompare(b[0] + b[1]))
+  }, [funcionarios, participantes])
 
   if (funcionarios.length === 0) {
     return <p className="text-xs text-gray-500">Selecione os funcionários no passo 2 para definir período e folgas de cada um.</p>
@@ -49,8 +78,7 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, dat
   const mudar = (id: string, p: Partial<ParticipanteEvento>) => onChange({ ...participantes, [id]: { ...de(id), ...p } })
 
   function aplicarColagem() {
-    if (!dataEvento) { setProblemas(['Informe primeiro a data do evento (o ano das folgas sai dela).']); setAplicadas(null); return }
-    const r = interpretarPlanilha(texto, funcionarios, dataEvento)
+    const r = interpretarPlanilha(texto, funcionarios)
     onChange({ ...participantes, ...r.participantes })
     setProblemas(r.problemas)
     setAplicadas(Object.keys(r.participantes).length)
@@ -59,13 +87,16 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, dat
   return (
     <div className="space-y-3">
       <div className="space-y-1.5 rounded-lg border border-dashed border-gray-300 bg-white p-3">
-        <label htmlFor="colar-planilha" className="text-xs font-semibold text-slate-500">Colar da planilha (horário, funcionário e folgas)</label>
+        <label htmlFor="colar-planilha" className="text-xs font-semibold text-slate-500">Colar da planilha</label>
+        <p className="text-[11px] text-gray-400">
+          Colunas: Funcionário, Início, Fim, Folga 1, Folga 2. Horário só com número (8, 12:30, 1800) e data com ano (23/12/2026).
+        </p>
         <textarea
           id="colar-planilha"
           rows={3}
           value={texto}
           onChange={e => setTexto(e.target.value)}
-          placeholder={'08h às 12:30h\tAmanda Gonçalves\t23/12\n08h às 18h\tMarília Rosana do Patrocínio\t28/12 e 29/12'}
+          placeholder={'Amanda Gonçalves\t8:00\t12:30\t23/12/2026\nMarília Rosana do Patrocínio\t8:00\t18:00\t28/12/2026\t29/12/2026'}
           className={`${INPUT_CLS} font-mono text-xs`}
         />
         <div className="flex flex-wrap items-center gap-3">
@@ -89,14 +120,28 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, dat
           const p = de(fn.id)
           const faltaPeriodo = !!erro && (!p.inicio || !p.fim)
           const faltaFolga = !!erro && p.folgas.filter(Boolean).length === 0
+          const tipo = tipoDoPeriodo(p)
           return (
-            <li key={fn.id} className="space-y-1.5 px-3 py-2">
-              <p className="truncate text-sm font-medium text-slate-800">{fn.nome}</p>
+            <li key={fn.id} className={`space-y-1.5 border-l-4 px-3 py-2 ${tipo?.borda ?? 'border-l-gray-200'}`}>
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <p className="flex min-w-0 items-center gap-2 text-sm font-medium text-slate-800">
+                  <span className="truncate">{fn.nome}</span>
+                  {tipo && <span className={`shrink-0 ${rotuloCls} ${tipo.etiqueta}`}>{tipo.nome}</span>}
+                </p>
+                <div className="flex flex-wrap gap-1" role="group" aria-label={`Período de ${fn.nome}`}>
+                  {periodos.map(([i, f]) => (
+                    <button key={`${i}|${f}`} type="button" onClick={() => mudar(fn.id, { inicio: i, fim: f })} className={chipCls(p.inicio === i && p.fim === f)}>
+                      {i}–{f}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="flex flex-wrap items-center gap-2">
-                <HoraSelect aria-label={`Início de ${fn.nome}`} value={p.inicio} onChange={v => mudar(fn.id, { inicio: v })} className={`w-28 ${faltaPeriodo ? INPUT_ERRO_CLS : INPUT_CLS}`} />
-                <span className="text-xs text-slate-400">às</span>
-                <HoraSelect aria-label={`Fim de ${fn.nome}`} value={p.fim} onChange={v => mudar(fn.id, { fim: v })} className={`w-28 ${faltaPeriodo ? INPUT_ERRO_CLS : INPUT_CLS}`} />
-                <span className="mx-1 text-xs text-slate-400">folga:</span>
+                <span className={`${rotuloCls} bg-blue-100 text-blue-800`}>Início</span>
+                <HoraSelect aria-label={`Início de ${fn.nome}`} value={p.inicio} onChange={v => mudar(fn.id, { inicio: v })} className={`!w-[5.5rem] ${faltaPeriodo ? INPUT_ERRO_CLS : INPUT_CLS}`} />
+                <span className={`${rotuloCls} bg-orange-100 text-orange-800`}>Fim</span>
+                <HoraSelect aria-label={`Fim de ${fn.nome}`} value={p.fim} onChange={v => mudar(fn.id, { fim: v })} className={`!w-[5.5rem] ${faltaPeriodo ? INPUT_ERRO_CLS : INPUT_CLS}`} />
+                <span className={`ml-1 ${rotuloCls} bg-emerald-100 text-emerald-800`}>Folga</span>
                 {p.folgas.map((d, i) => (
                   <span key={i} className="inline-flex items-center gap-1">
                     <input
@@ -104,7 +149,7 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, dat
                       aria-label={`Folga ${i + 1} de ${fn.nome}`}
                       value={d}
                       onChange={e => mudar(fn.id, { folgas: p.folgas.map((x, j) => (j === i ? e.target.value : x)) })}
-                      className={`w-36 ${faltaFolga ? INPUT_ERRO_CLS : INPUT_CLS}`}
+                      className={`!w-36 ${faltaFolga ? INPUT_ERRO_CLS : INPUT_CLS}`}
                     />
                     {p.folgas.length > 1 && (
                       <button type="button" aria-label="Remover folga" onClick={() => mudar(fn.id, { folgas: p.folgas.filter((_, j) => j !== i) })} className="text-xs text-slate-400 hover:text-slate-700">×</button>

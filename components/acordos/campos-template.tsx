@@ -430,7 +430,6 @@ export function CamposTemplate({
                 funcionarios={funcionarios}
                 participantes={f.participantes}
                 onChange={p => set('participantes', p)}
-                dataEvento={f.dataEvento}
                 feriados={feriados}
                 erro={erros.dataFolga}
               />
