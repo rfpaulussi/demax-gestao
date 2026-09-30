@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { editarFerias, type FeriasListaItem } from '@/app/(admin)/ferias/actions'
+import { DIAS_ABONO_PADRAO, abonoForaDoPrazo } from '@/lib/ferias/dias-direito'
+import { downloadSolicitacaoFeriasPDF } from '@/components/ferias/solicitacao-ferias-pdf'
 
 interface Props {
   item: FeriasListaItem | null
@@ -58,6 +60,7 @@ export function ModalEditarFerias({ item, onClose, onSuccess }: Props) {
   const [status, setStatus]         = useState(item?.status ?? 'disponivel')
   const obsInicial = (item?.observacao ?? '').toLowerCase().includes('importa') ? '' : (item?.observacao ?? '')
   const [observacao, setObservacao] = useState(obsInicial)
+  const [vendeuAbono, setVendeuAbono] = useState((item?.dias_abono ?? 0) > 0)
   const [confirmandoLimpeza, setConfirmandoLimpeza] = useState(false)
   const [showGuia, setShowGuia]     = useState(false)
   const [erro, setErro]             = useState<string | null>(null)
@@ -66,7 +69,11 @@ export function ModalEditarFerias({ item, onClose, onSuccess }: Props) {
 
   if (!item) return null
 
-  const diasDireito = item.dias_direito ?? 30
+  const diasDireitoTotal = item.dias_direito ?? 30
+  const diasAbono = vendeuAbono ? Math.min(DIAS_ABONO_PADRAO, diasDireitoTotal) : 0
+  // Dias efetivamente gozados = direito - dias vendidos
+  const diasDireito = diasDireitoTotal - diasAbono
+  const prazoAbonoVencido = vendeuAbono && abonoForaDoPrazo(item.periodo_fim)
   const diasCalculados = diasEntre(dataInicio, dataFim)
   const alertaLimite = limiteAlert(item.limite_gozo)
 
@@ -86,6 +93,7 @@ export function ModalEditarFerias({ item, onClose, onSuccess }: Props) {
           dias_utilizados: diasUtilizados,
           status,
           observacao: observacao || null,
+          dias_abono: diasAbono,
         })
         onSuccess()
         onClose()
@@ -151,7 +159,9 @@ export function ModalEditarFerias({ item, onClose, onSuccess }: Props) {
               </div>
               <div>
                 <span className="text-xs text-slate-400">Dias de direito</span>
-                <p className="font-semibold text-slate-700">{diasDireito} dias</p>
+                <p className="font-semibold text-slate-700">
+                  {diasDireitoTotal} dias{diasAbono > 0 && <span className="text-xs font-normal text-slate-500"> ({diasAbono} vendidos · gozo {diasDireito})</span>}
+                </p>
               </div>
               <div>
                 <span className="text-xs text-slate-400">Período aquisitivo</span>
@@ -207,6 +217,24 @@ export function ModalEditarFerias({ item, onClose, onSuccess }: Props) {
             <p className="text-xs text-blue-500 mb-2">
               💡 Ao definir o <strong>Início</strong>, o <strong>Fim</strong> é calculado automaticamente ({diasDireito} dias).
             </p>
+            <label className="flex items-center gap-2 mb-3 text-sm text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={vendeuAbono}
+                onChange={e => {
+                  const v = e.target.checked
+                  setVendeuAbono(v)
+                  if (dataInicio) setDataFim(addDias(dataInicio, diasDireitoTotal - (v ? Math.min(DIAS_ABONO_PADRAO, diasDireitoTotal) : 0)))
+                }}
+                className="rounded border-slate-300"
+              />
+              Funcionário vendeu {DIAS_ABONO_PADRAO} dias (abono)
+            </label>
+            {prazoAbonoVencido && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5 mb-3">
+                ⚠️ O abono deve ser solicitado até 15 dias antes do fim do período aquisitivo ({formatDateBR(item.periodo_fim)}). Prazo já passou — confirmar com o RH.
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-slate-400 mb-1 block">Início</label>
@@ -309,6 +337,27 @@ export function ModalEditarFerias({ item, onClose, onSuccess }: Props) {
             <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900">
               Fechar
             </button>
+            {dataInicio && dataFim && (
+              <button
+                type="button"
+                onClick={() => downloadSolicitacaoFeriasPDF({
+                  nome: item.funcionario_nome,
+                  registro: item.funcionario_registro,
+                  posto: item.posto_nome,
+                  secretaria: item.secretaria,
+                  numeroPeriodo: item.numero_periodo,
+                  periodoInicio: item.periodo_inicio,
+                  periodoFim: item.periodo_fim,
+                  diasDireito: diasDireitoTotal,
+                  diasAbono,
+                  dataInicio,
+                  dataFim,
+                })}
+                className="px-4 py-2 text-sm font-semibold bg-amber-500 text-slate-900 rounded-lg hover:bg-amber-400"
+              >
+                Pedido (PDF)
+              </button>
+            )}
             <button
               onClick={handleSalvar}
               disabled={pendingSave}

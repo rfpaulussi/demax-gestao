@@ -1267,6 +1267,7 @@ export type Database = {
           data_fim: string | null
           data_inicio: string | null
           dias_direito: number | null
+          dias_abono: number
           dias_utilizados: number | null
           funcionario_id: string
           id: string
@@ -1287,6 +1288,7 @@ export type Database = {
           data_fim?: string | null
           data_inicio?: string | null
           dias_direito?: number | null
+          dias_abono?: number
           dias_utilizados?: number | null
           funcionario_id: string
           id?: string
@@ -1307,6 +1309,7 @@ export type Database = {
           data_fim?: string | null
           data_inicio?: string | null
           dias_direito?: number | null
+          dias_abono?: number
           dias_utilizados?: number | null
           funcionario_id?: string
           id?: string

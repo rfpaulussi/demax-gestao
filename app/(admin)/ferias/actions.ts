@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
 import { assertRole } from '@/lib/auth/assert-role'
 import { obterRegimesPorFuncionario } from '@/lib/turnos/regime-funcionario'
+import { diasDireitoEfetivo } from '@/lib/ferias/dias-direito'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,7 @@ export type FeriasListaItem = {
   periodo_fim: string | null
   limite_gozo: string | null
   dias_direito: number | null
+  dias_abono: number
   data_inicio: string | null
   data_fim: string | null
   dias_utilizados: number | null
@@ -246,6 +248,7 @@ export async function buscarFeriasLista(): Promise<FeriasListaItem[]> {
       periodo_fim,
       limite_gozo,
       dias_direito,
+      dias_abono,
       data_inicio,
       data_fim,
       dias_utilizados,
@@ -319,7 +322,8 @@ export async function buscarFeriasLista(): Promise<FeriasListaItem[]> {
       periodo_inicio: r.periodo_inicio,
       periodo_fim: r.periodo_fim,
       limite_gozo: limiteGozo,
-      dias_direito: r.dias_direito,
+      dias_direito: diasDireitoEfetivo(r),
+      dias_abono: r.dias_abono ?? 0,
       data_inicio: r.data_inicio,
       data_fim: r.data_fim,
       dias_utilizados: r.dias_utilizados,
@@ -368,6 +372,7 @@ export async function editarFerias(id: string, data: {
   dias_utilizados: number | null
   status: string
   observacao?: string | null
+  dias_abono?: number
 }) {
   // Supervisor pode agendar datas do próprio posto; mudanças de status
   // administrativas (aprovado/em_curso/concluido/cancelado) ficam com admin/coordenador.
@@ -405,6 +410,10 @@ export async function editarFerias(id: string, data: {
     dias_utilizados: data.dias_utilizados,
     status: data.status,
     observacao: data.observacao ?? null,
+  }
+  if (data.dias_abono !== undefined) {
+    if (![0, 10].includes(data.dias_abono)) throw new Error('Abono deve ser 0 ou 10 dias.')
+    payload.dias_abono = data.dias_abono
   }
   const { error } = await adminSupabase.from('ferias').update(payload).eq('id', id)
   if (error) throw new Error(error.message)
@@ -598,7 +607,7 @@ export async function buscarSaldoFeriasAgregado(): Promise<SaldoFeriasItem[]> {
   const { data, error } = await supabase
     .from('ferias')
     .select(`
-      id, funcionario_id, numero_periodo, dias_direito, limite_gozo, status,
+      id, funcionario_id, numero_periodo, periodo_inicio, periodo_fim, dias_direito, dias_abono, limite_gozo, status,
       funcionarios ( nome, registro, postos ( id, nome, secretaria ) )
     `)
     .in('status', ['disponivel', 'agendado', 'aprovado'])
@@ -658,7 +667,7 @@ export async function buscarSaldoFeriasAgregado(): Promise<SaldoFeriasItem[]> {
       secretaria:           posto?.secretaria ?? '—',
       supervisor_nome:      mapaPostoSup.get(postoId) ?? '—',
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      total_dias:           periodos.reduce((s: number, p: any) => s + (p.dias_direito ?? 30), 0),
+      total_dias:           periodos.reduce((s: number, p: any) => s + diasDireitoEfetivo(p) - (p.dias_abono ?? 0), 0),
       periodos_pendentes:   periodos.length,
       limite_mais_proximo:  limiteMaisProximo,
       tem_vencido:          temVencido,
