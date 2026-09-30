@@ -11,7 +11,7 @@ import {
   listarAnalises,
   type AnaliseHistorico,
 } from '@/app/(admin)/ocorrencias/ia-actions'
-import type { AnaliseOcorrencia } from '@/lib/ocorrencias/ia/schema'
+import type { AnaliseOcorrencia, NivelRecomendado } from '@/lib/ocorrencias/ia/schema'
 
 const CATEGORIA_LABEL: Record<string, string> = {
   saude: 'Saúde', conduta: 'Conduta', desempenho: 'Desempenho',
@@ -19,6 +19,15 @@ const CATEGORIA_LABEL: Record<string, string> = {
 }
 const URGENCIA_COR: Record<string, string> = {
   baixa: 'bg-gray-100 text-gray-600', media: 'bg-amber-100 text-amber-700', alta: 'bg-red-100 text-red-700',
+}
+const NIVEL_LABEL: Record<NivelRecomendado, string> = {
+  orientar: 'Orientar', advertir: 'Advertir', suspender: 'Suspender', dispensar: 'Dispensar',
+}
+const NIVEL_COR: Record<NivelRecomendado, string> = {
+  orientar: 'bg-gray-100 text-gray-600',
+  advertir: 'bg-amber-100 text-amber-700',
+  suspender: 'bg-orange-100 text-orange-700',
+  dispensar: 'bg-red-100 text-red-700',
 }
 const DECISAO_LABEL: Record<string, string> = { pendente: 'Pendente', aprovada: 'Aprovada', reprovada: 'Reprovada' }
 
@@ -248,10 +257,19 @@ export function ModalAnaliseIA({
                     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${URGENCIA_COR[analise.urgencia] ?? ''}`}>
                       Urgência {analise.urgencia}
                     </span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${NIVEL_COR[analise.nivel_recomendado]}`}>
+                      Nível: {NIVEL_LABEL[analise.nivel_recomendado]}
+                    </span>
                     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${analise.encaminhar_rh ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>
                       {analise.encaminhar_rh ? 'Sugere encaminhar ao RH' : 'Não precisa ir ao RH'}
                     </span>
                   </div>
+
+                  {analise.nivel_recomendado === 'dispensar' && (
+                    <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+                      Decisão de dispensa é tratada diretamente com o gerente operacional. O sistema não envia nada automaticamente.
+                    </p>
+                  )}
 
                   {analise.alertas.length > 0 && (
                     <ul className="space-y-1 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
