@@ -123,6 +123,13 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
   function abrirGrupoTrabalhou() {
     setGrupoAberto(true)
     setSituacaoEscolhida(false)
+    setF(prev => ({ ...prev, diasInteiros: false }))
+  }
+
+  /** Card direto: T5 já em "folga em dias inteiros" (sem a pergunta "Como vão descansar?"). */
+  function escolherDiasInteiros() {
+    escolherSituacao('T5')
+    setF(prev => ({ ...prev, diasInteiros: true }))
   }
 
   function escolherSituacao(id: TemplateId) {
@@ -522,7 +529,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
   const numeroPrazo = 4
 
   // Resumos de uma linha para os passos colapsados
-  const resumoSituacao = TEMPLATES[template].titulo
+  const resumoSituacao = template === 'T5' && f.diasInteiros ? 'Evento · folga em dias inteiros' : TEMPLATES[template].titulo
   const nomesPostosSel = postos.filter(p => postosSel.includes(p.id)).map(p => p.nome)
   const resumoFuncionarios = nomesPostosSel.length === 1
     ? `${nomesPostosSel[0]} · ${selecionados.length} func.`
@@ -590,7 +597,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
 
             {abertoPasso('situacao') ? (
               <Passo id="passo-situacao" numero={1} titulo="O que aconteceu?" feito={situacaoEscolhida} erro={tentou && !situacaoEscolhida}>
-                <SituacaoCards selecionado={situacaoEscolhida ? template : null} onSelect={escolherSituacao} grupoAberto={grupoAberto} onGrupo={abrirGrupoTrabalhou} />
+                <SituacaoCards selecionado={situacaoEscolhida ? template : null} onSelect={escolherSituacao} grupoAberto={grupoAberto} onGrupo={abrirGrupoTrabalhou} diasInteiros={f.diasInteiros} onDiasInteiros={escolherDiasInteiros} />
                 {tentou && !situacaoEscolhida && <p className="text-xs font-medium text-red-600">{grupoAberto ? 'Escolha como vão descansar.' : 'Escolha a situação que melhor descreve o caso.'}</p>}
               </Passo>
             ) : (

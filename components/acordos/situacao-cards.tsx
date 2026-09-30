@@ -5,8 +5,9 @@ import { GRUPO_TRABALHOU, SITUACOES } from '@/lib/acordos/situacoes'
 const OUTRAS: TemplateId[] = ['T2', 'T3', 'T4']
 
 /** Nome curto de cada card, em etiqueta colorida no topo (achar o card sem ler o texto todo). */
-const NOME: Record<TemplateId | 'grupo', { nome: string; cor: string }> = {
+const NOME: Record<TemplateId | 'grupo' | 'diasInteiros', { nome: string; cor: string }> = {
   grupo: { nome: 'Trabalhou a mais', cor: 'bg-blue-100 text-blue-800' },
+  diasInteiros: { nome: 'Evento · dias de folga', cor: 'bg-teal-100 text-teal-800' },
   T1: { nome: 'Redução de jornada', cor: 'bg-amber-100 text-amber-800' },
   T2: { nome: 'Dispensa antecipada', cor: 'bg-orange-100 text-orange-800' },
   T3: { nome: 'Folga / emenda', cor: 'bg-purple-100 text-purple-800' },
@@ -21,6 +22,16 @@ interface Props {
   /** O card "Trabalhou a mais" foi clicado: abre "Como vão descansar?" sem escolher nada ainda. */
   grupoAberto: boolean
   onGrupo: () => void
+  /** T5 em "folga em dias inteiros" (card direto, sem passar por "Como vão descansar?"). */
+  diasInteiros: boolean
+  onDiasInteiros: () => void
+}
+
+const DIAS_INTEIROS = {
+  titulo: 'Trabalharam num evento e ganham dias inteiros de folga (ex.: eleições)',
+  tag: 'Trabalharam a mais → folga em dias inteiros',
+  exemplo: 'Eleições, domingo: meio período = 1 dia de folga, dia todo = 2 dias.',
+  regra: 'Cada um com o seu período e as suas folgas; dá para colar da planilha.',
 }
 
 interface CartaoProps {
@@ -60,8 +71,9 @@ function Cartao({ nome, cor, ativo, onClick, titulo, tag, exemplo, regra, radio 
   )
 }
 
-export function SituacaoCards({ selecionado, onSelect, grupoAberto, onGrupo }: Props) {
-  const mostrarSub = grupoAberto || (selecionado !== null && GRUPO_TRABALHOU.templates.includes(selecionado))
+export function SituacaoCards({ selecionado, onSelect, grupoAberto, onGrupo, diasInteiros, onDiasInteiros }: Props) {
+  const diretoAtivo = selecionado === 'T5' && diasInteiros
+  const mostrarSub = grupoAberto || (selecionado !== null && !diretoAtivo && GRUPO_TRABALHOU.templates.includes(selecionado))
 
   return (
     <div className="space-y-2.5">
@@ -75,6 +87,16 @@ export function SituacaoCards({ selecionado, onSelect, grupoAberto, onGrupo }: P
           tag={GRUPO_TRABALHOU.tag}
           exemplo={GRUPO_TRABALHOU.exemplo}
           regra={GRUPO_TRABALHOU.regra}
+        />
+        <Cartao
+          nome={NOME.diasInteiros.nome}
+          cor={NOME.diasInteiros.cor}
+          ativo={diretoAtivo}
+          onClick={onDiasInteiros}
+          titulo={DIAS_INTEIROS.titulo}
+          tag={DIAS_INTEIROS.tag}
+          exemplo={DIAS_INTEIROS.exemplo}
+          regra={DIAS_INTEIROS.regra}
         />
         {OUTRAS.map(id => {
           const s = SITUACOES[id]
@@ -105,7 +127,7 @@ export function SituacaoCards({ selecionado, onSelect, grupoAberto, onGrupo }: P
                   key={id}
                   nome={NOME[id].nome}
                   cor={NOME[id].cor}
-                  ativo={selecionado === id}
+                  ativo={selecionado === id && !diretoAtivo}
                   onClick={() => onSelect(id)}
                   titulo={s.opcao ?? s.titulo}
                   tag={s.tag}
