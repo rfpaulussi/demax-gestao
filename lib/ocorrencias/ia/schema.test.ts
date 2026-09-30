@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { lerAnalise, lerRetorno, CATEGORIAS, URGENCIAS } from './schema'
+import { lerAnalise, lerRetorno, CATEGORIAS, URGENCIAS, NIVEIS_RECOMENDADOS } from './schema'
 
 const valida = {
   categoria: 'saude',
   urgencia: 'alta',
+  nivel_recomendado: 'advertir',
   resumo: 'Colaboradora teve três crises em nove dias.',
   resolucao_sugerida: ['Contatar familiar', 'Agendar consulta no ambulatório'],
   encaminhar_rh: true,
@@ -68,6 +69,20 @@ describe('lerAnalise', () => {
   it('as listas de categorias e urgências são as combinadas', () => {
     expect([...CATEGORIAS]).toEqual(['saude', 'conduta', 'desempenho', 'seguranca', 'relacionamento', 'outro'])
     expect([...URGENCIAS]).toEqual(['baixa', 'media', 'alta'])
+  })
+
+  it('aceita os 4 níveis recomendados', () => {
+    for (const nivel of NIVEIS_RECOMENDADOS) {
+      expect(lerAnalise({ ...valida, nivel_recomendado: nivel })?.nivel_recomendado).toBe(nivel)
+    }
+  })
+
+  it('recusa nivel_recomendado fora da lista', () => {
+    expect(lerAnalise({ ...valida, nivel_recomendado: 'demitir' })).toBeNull()
+  })
+
+  it('as combinações de nível são as 4 esperadas, nesta ordem', () => {
+    expect([...NIVEIS_RECOMENDADOS]).toEqual(['orientar', 'advertir', 'suspender', 'dispensar'])
   })
 })
 

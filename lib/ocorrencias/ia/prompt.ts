@@ -22,6 +22,11 @@ export const PROMPT_ANALISE = `${BASE}
 
 Responda SEMPRE chamando a ferramenta ${NOME_FERRAMENTA_ANALISE}.
 - "encaminhar_rh": true quando houver recorrência de episódios de saúde, conflito grave, risco trabalhista/segurança, ou quando o caso pede orientação que a coordenação não resolve sozinha. Caso simples e pontual: false.
+- "nivel_recomendado": independente de "encaminhar_rh" — não force um a partir do outro.
+  - orientar: caso pontual, sem padrão recorrente.
+  - advertir: já houve conversa/orientação sobre o mesmo tipo de problema antes, sem melhora, ou a gravidade justifica registro formal.
+  - suspender: repetição após advertência já registrada, ou gravidade alta com risco à operação.
+  - dispensar: só quando o relato E o histórico mostram padrão recorrente do MESMO problema, já tratado antes (conversa, mudança de setor, advertência) e sem melhora. Nunca por um episódio isolado, mesmo que grave.
 - "devolutiva_supervisor": agradeça o registro, diga o que será feito e o que o supervisor deve fazer agora. Não prometa o que ainda não foi decidido.
 - "email_rh": só quando encaminhar_rh for true; 2 a 6 frases sobre o motivo e o que se pede ao RH, sem saudação nem assinatura. Termine com uma recomendação objetiva de encaminhamento (ex.: "sugerimos orientação sobre medida disciplinar", "sugerimos acompanhamento formal antes de nova medida") pra ajudar o coordenador a decidir rápido se concorda antes de enviar.`
 

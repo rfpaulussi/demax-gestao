@@ -6,10 +6,14 @@ export type Categoria = (typeof CATEGORIAS)[number]
 export const URGENCIAS = ['baixa', 'media', 'alta'] as const
 export type Urgencia = (typeof URGENCIAS)[number]
 
+export const NIVEIS_RECOMENDADOS = ['orientar', 'advertir', 'suspender', 'dispensar'] as const
+export type NivelRecomendado = (typeof NIVEIS_RECOMENDADOS)[number]
+
 /** O que a IA devolve na análise. É sugestão: quem decide é o coordenador. */
 export interface AnaliseOcorrencia {
   categoria: Categoria
   urgencia: Urgencia
+  nivel_recomendado: NivelRecomendado
   resumo: string
   resolucao_sugerida: string[]
   encaminhar_rh: boolean
@@ -42,6 +46,13 @@ export const FERRAMENTA_ANALISE: Anthropic.Tool = {
         description: 'Tema principal: saude, conduta, desempenho, seguranca, relacionamento ou outro.',
       },
       urgencia: { type: 'string', enum: [...URGENCIAS], description: 'baixa, media ou alta.' },
+      nivel_recomendado: {
+        type: 'string',
+        enum: [...NIVEIS_RECOMENDADOS],
+        description:
+          'Nível de medida que a situação parece pedir: orientar, advertir, suspender ou dispensar. ' +
+          'Independente de encaminhar_rh — decida os dois campos separadamente.',
+      },
       resumo: { type: 'string', description: 'Resumo neutro do ocorrido em até 4 frases.' },
       resolucao_sugerida: {
         type: 'array',
@@ -67,7 +78,7 @@ export const FERRAMENTA_ANALISE: Anthropic.Tool = {
         description: 'Pontos sensíveis (ex.: cita menor de idade, expõe dado de saúde de terceiro, possível assédio). Vazio se não houver.',
       },
     },
-    required: ['categoria', 'urgencia', 'resumo', 'resolucao_sugerida', 'encaminhar_rh', 'devolutiva_supervisor', 'alertas'],
+    required: ['categoria', 'urgencia', 'nivel_recomendado', 'resumo', 'resolucao_sugerida', 'encaminhar_rh', 'devolutiva_supervisor', 'alertas'],
   },
 }
 
@@ -111,6 +122,7 @@ export function lerAnalise(bruto: unknown): AnaliseOcorrencia | null {
   const o = bruto as Record<string, unknown>
   if (!(CATEGORIAS as readonly string[]).includes(o.categoria as string)) return null
   if (!(URGENCIAS as readonly string[]).includes(o.urgencia as string)) return null
+  if (!(NIVEIS_RECOMENDADOS as readonly string[]).includes(o.nivel_recomendado as string)) return null
   const resumo = texto(o.resumo, 1500)
   if (!resumo) return null
 
@@ -119,6 +131,7 @@ export function lerAnalise(bruto: unknown): AnaliseOcorrencia | null {
   return {
     categoria: o.categoria as Categoria,
     urgencia: o.urgencia as Urgencia,
+    nivel_recomendado: o.nivel_recomendado as NivelRecomendado,
     resumo,
     resolucao_sugerida: listaTextos(o.resolucao_sugerida, 8, 400),
     encaminhar_rh: encaminhar,
