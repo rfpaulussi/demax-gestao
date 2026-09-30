@@ -13,6 +13,9 @@ export interface ResumoCalculo {
   dataFolga?: string
   /** T2: saída normal do dia do evento (turno do primeiro funcionário); '' nos demais templates. */
   horaNormal: string
+  /** T5 com `participantes`: dias de folga e período trabalhado do primeiro funcionário do grupo. */
+  folgas?: string[]
+  periodo?: { inicio: string; fim: string }
 }
 
 export function saldoMin(movs: { minutos: number }[]): number {
@@ -21,12 +24,24 @@ export function saldoMin(movs: { minutos: number }[]): number {
 
 /** Data de folga de um funcionário: a dele no revezamento, senão a data comum a todos. */
 export function folgaDe(c: CamposAcordo, f: { id: string }): string | undefined {
+  if (c.participantes) return folgasDe(c, f)[0]
   return c.folgasPorFuncionario?.[f.id] ?? c.dataFolga
+}
+
+/** Todos os dias de folga de um funcionário (ordenados). Só o T5 com `participantes` tem mais de um. */
+export function folgasDe(c: CamposAcordo, f: { id: string }): string[] {
+  if (c.participantes) return [...(c.participantes[f.id]?.folgas ?? [])].sort()
+  const d = folgaDe(c, f)
+  return d ? [d] : []
 }
 
 /** Todas as datas de folga do acordo (ordenadas, sem repetição). */
 export function datasDeFolga(c: CamposAcordo): string[] {
-  const todas = [...Object.values(c.folgasPorFuncionario ?? {}), c.dataFolga].filter((d): d is string => !!d)
+  const todas = [
+    ...Object.values(c.folgasPorFuncionario ?? {}),
+    ...Object.values(c.participantes ?? {}).flatMap(p => p.folgas),
+    c.dataFolga,
+  ].filter((d): d is string => !!d)
   return Array.from(new Set(todas)).sort()
 }
 
@@ -37,6 +52,8 @@ export function datasDoEvento(c: CamposAcordo): string[] {
 
 /** Minutos de origem (T1/T5) de um funcionário num dos dias do evento. */
 export function origemDoDia(c: CamposAcordo, f: FuncionarioCalc, data: string): number {
+  const p = c.participantes?.[f.id]
+  if (p) return Math.max(0, minutosForaDoHorario(f.semana[diaSemanaDe(data)], p.inicio, p.fim))
   const min = c.periodoInicio && c.periodoFim
     ? minutosForaDoHorario(f.semana[diaSemanaDe(data)], c.periodoInicio, c.periodoFim)
     : c.minutosOrigem ?? 0 // sem período: a duração digitada já é hora extra
@@ -47,13 +64,25 @@ export function jornadaDoDia(f: FuncionarioCalc, iso: string): number {
   return jornadaDiaMin(f.semana[diaSemanaDe(iso)])
 }
 
+/** Minutos que o funcionário trabalhou fora do horário normal nos dias do evento (T1/T5). */
+export function trabalhadoMin(c: CamposAcordo, f: FuncionarioCalc): number {
+  return datasDoEvento(c).reduce((acc, d) => acc + origemDoDia(c, f, d), 0)
+}
+
+/** T5 com `participantes`: folga em dias inteiros = soma das jornadas dos dias de folga. */
+function creditoEmDias(c: CamposAcordo, f: FuncionarioCalc): number {
+  return folgasDe(c, f).reduce((acc, d) => acc + jornadaDoDia(f, d), 0)
+}
+
 /** Minutos de origem de um funcionário, calculados a partir do turno dele. */
 export function totalOrigem(c: CamposAcordo, f: FuncionarioCalc): number {
   let total = 0
   switch (c.template) {
     case 'T1':
+      total = trabalhadoMin(c, f)
+      break
     case 'T5':
-      total = datasDoEvento(c).reduce((acc, d) => acc + origemDoDia(c, f, d), 0)
+      total = c.participantes ? creditoEmDias(c, f) : trabalhadoMin(c, f)
       break
     case 'T2':
       total = c.dataEvento && c.horaDispensa
@@ -82,6 +111,9 @@ export function resumoCalculo(c: CamposAcordo, funcs: FuncionarioCalc[]): Resumo
     dataFolga,
     jornadaFolgaMin: dataFolga ? jornadaDoDia(f, dataFolga) : 0,
     horaNormal: c.template === 'T2' && c.dataEvento ? saidaDoDia(f.semana[diaSemanaDe(c.dataEvento)]) : '',
+    ...(c.participantes?.[f.id]
+      ? { folgas: folgasDe(c, f), periodo: { inicio: c.participantes[f.id].inicio, fim: c.participantes[f.id].fim } }
+      : {}),
   }
 }
 
@@ -112,6 +144,13 @@ export function construirMovimentos(c: CamposAcordo, funcs: FuncionarioCalc[]): 
         if (dataFolga) mov(dataFolga, -total, 'quitacao')
         break
       case 'T5':
+        if (c.participantes) {
+          // dias inteiros: o direito às folgas nasce no 1º dia do evento e cada folga o quita; o saldo fecha em zero
+          const primeiro = datasDoEvento(c)[0]
+          if (primeiro) mov(primeiro, total, 'origem')
+          for (const d of folgasDe(c, f)) mov(d, -jornadaDoDia(f, d), 'quitacao')
+          break
+        }
         for (const d of datasDoEvento(c)) mov(d, origemDoDia(c, f, d), 'origem')
         if (dataFolga) mov(dataFolga, -total, 'quitacao')
         break
@@ -135,8 +174,13 @@ export function agruparPorJornada(c: CamposAcordo, funcs: FuncionarioCalc[]): Fu
       case 'T3':
       case 'T4':
         return folgaDe(c, f) ? `${jornadaDoDia(f, folgaDe(c, f)!)}|${folgaDe(c, f)}` : null
-      case 'T5':
+      case 'T5': {
+        if (c.participantes) {
+          const p = c.participantes[f.id]
+          return `${p?.inicio ?? ''}|${p?.fim ?? ''}|${folgasDe(c, f).join(',')}`
+        }
         return folgaDe(c, f) ? `${totalOrigem(c, f)}|${jornadaDoDia(f, folgaDe(c, f)!)}|${folgaDe(c, f)}` : null
+      }
     }
   }
   if (funcs.length === 0) return []

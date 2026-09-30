@@ -2,7 +2,7 @@ import type { Achado, CamposAcordo, FuncionarioCalc, NivelAchado } from './tipos
 import { addMeses, diaSemanaDe, fmtDataBR, hhmmParaMin, mesDe, minParaHHMM } from './tempo'
 import { saidaDoDia, totalSemanalMin } from './horario-do-turno'
 import { JORNADA_SEMANAL_MIN, MAX_ACRESCIMO_DIA_MIN, MAX_JORNADA_DIA_MIN, PRAZO_MAXIMO_MESES, regimeElegivel } from './regras'
-import { agruparPorJornada, construirMovimentos, datasDeFolga, datasDoEvento, folgaDe, jornadaDoDia, origemDoDia, saldoMin, totalOrigem } from './movimentos'
+import { agruparPorJornada, construirMovimentos, datasDeFolga, datasDoEvento, folgasDe, jornadaDoDia, origemDoDia, saldoMin, totalOrigem, trabalhadoMin } from './movimentos'
 
 export type MapaFeriados = Map<string, { nome: string; tipo: string }>
 
@@ -17,12 +17,12 @@ export function camposFaltando(c: CamposAcordo): string[] {
     if (!c.dataEvento) faltas.push('data do evento')
     if (!(c.nomeEvento ?? '').trim()) faltas.push('nome do evento')
   }
-  if ((t === 'T1' || t === 'T5') && !(c.periodoInicio && c.periodoFim) && !(c.minutosOrigem && c.minutosOrigem > 0)) {
+  if ((t === 'T1' || t === 'T5') && !c.participantes && !(c.periodoInicio && c.periodoFim) && !(c.minutosOrigem && c.minutosOrigem > 0)) {
     faltas.push('horas trabalhadas no evento')
   }
   if (t === 'T2' && !c.horaDispensa) faltas.push('horário de dispensa')
   if (t === 'T3' || t === 'T4' || t === 'T5') {
-    if (!c.dataFolga) faltas.push('data da folga')
+    if (!c.dataFolga && !c.participantes) faltas.push('data da folga')
   }
   if (t === 'T4' && c.minutosFolga !== undefined && !(c.minutosFolga > 0)) faltas.push('horas de folga')
   if ((t === 'T3' || t === 'T4') && !(c.motivo ?? '').trim()) faltas.push('motivo')
@@ -66,9 +66,18 @@ export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriado
       if (!c.folgasPorFuncionario[f.id]) add('erro', 'FOLGA_SEM_DATA', `${f.nome}: informe a data ${t === 'T3' ? 'do dia não trabalhado' : 'da folga'} dele.`, f.id)
     }
   }
+  if (t === 'T5' && c.participantes) {
+    for (const f of funcs) {
+      const p = c.participantes[f.id]
+      if (!p || p.folgas.length === 0) add('erro', 'FOLGA_SEM_DATA', `${f.nome}: informe a data da folga dele.`, f.id)
+      else if (new Set(p.folgas).size !== p.folgas.length) add('erro', 'FOLGAS_REPETIDAS', `${f.nome}: há datas de folga repetidas.`, f.id)
+      if (!p?.inicio || !p?.fim) add('erro', 'PERIODO_INCOMPLETO', `${f.nome}: informe o início e o fim do período trabalhado.`, f.id)
+      else if (hhmmParaMin(p.fim) <= hhmmParaMin(p.inicio)) add('erro', 'PERIODO_INVALIDO', `${f.nome}: o fim do período trabalhado deve ser posterior ao início.`, f.id)
+    }
+  }
   // datas de folga dos funcionários avaliados (todos, ou só o grupo, conforme quem chama)
   const folgasDoGrupo = funcs.length
-    ? Array.from(new Set(funcs.map(f => folgaDe(c, f)).filter((d): d is string => !!d))).sort()
+    ? Array.from(new Set(funcs.flatMap(f => folgasDe(c, f)))).sort()
     : datasDeFolga(c)
   const folgaMaisCedo = folgasDoGrupo[0]
   const eventos = datasDoEvento(c)
@@ -154,13 +163,14 @@ export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriado
         add('erro', 'REDUCAO_MAIOR', `${f.nome}: a redução de ${porDia} min é maior que a jornada de ${fmtDataBR(d)}.`, f.id)
       }
     }
-    const folgaF = folgaDe(c, f)
-    if (folgaF && usaFolga) {
-      const jf = jornadaDoDia(f, folgaF)
-      if (jf === 0) {
-        add('erro', 'DIA_DE_FOLGA', `${f.nome}: ${fmtDataBR(folgaF)} já é dia de folga na escala dele.`, f.id)
-      } else if ((c.template === 'T5' || (c.template === 'T4' && c.minutosFolga !== undefined)) && orig > jf) {
-        add('erro', 'FOLGA_MAIOR', `${f.nome}: as horas a compensar superam a jornada do dia da folga.`, f.id)
+    if (usaFolga) {
+      for (const folgaF of folgasDe(c, f)) {
+        const jf = jornadaDoDia(f, folgaF)
+        if (jf === 0) {
+          add('erro', 'DIA_DE_FOLGA', `${f.nome}: ${fmtDataBR(folgaF)} já é dia de folga na escala dele.`, f.id)
+        } else if (!c.participantes && (c.template === 'T5' || (c.template === 'T4' && c.minutosFolga !== undefined)) && orig > jf) {
+          add('erro', 'FOLGA_MAIOR', `${f.nome}: as horas a compensar superam a jornada do dia da folga.`, f.id)
+        }
       }
     }
     if (c.template === 'T2' && c.dataEvento) {
@@ -172,7 +182,8 @@ export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriado
       }
     }
     if ((c.template === 'T1' || c.template === 'T5') && !periodoRuim) {
-      if (orig <= 0) {
+      // com `participantes` `orig` é o direito em dias de folga; o que precisa existir é o trabalho fora do horário
+      if ((c.participantes ? trabalhadoMin(c, f) : orig) <= 0) {
         add('erro', 'SEM_HORAS_A_COMPENSAR', `${f.nome}: as horas do evento estão dentro do horário normal dele; não há o que compensar.`, f.id)
       } else if (eventos.some(d => origemDoDia(c, f, d) > MAX_JORNADA_DIA_MIN)) {
         add('erro', 'ORIGEM_LIMITE', `${f.nome}: as horas trabalhadas num dia do evento passam do limite de ${MAX_JORNADA_DIA_MIN} min (10h).`, f.id)

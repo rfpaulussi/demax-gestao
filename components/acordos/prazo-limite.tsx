@@ -11,9 +11,14 @@ interface Props {
   erro: string | null
   /** Data máxima permitida (menor data do acordo + 6 meses). */
   max: string | null
+  /** "Preencher automaticamente": o prazo acompanha a última data do acordo. */
+  auto: boolean
+  onAuto: (v: boolean) => void
+  /** Última data do acordo (vazio enquanto não há datas). */
+  sugerido: string
 }
 
-export function PrazoLimite({ numero, obrigatorio, valor, onChange, erro, max }: Props) {
+export function PrazoLimite({ numero, obrigatorio, valor, onChange, erro, max, auto, onAuto, sugerido }: Props) {
   const titulo = (
     <>
       Prazo limite{' '}
@@ -26,10 +31,16 @@ export function PrazoLimite({ numero, obrigatorio, valor, onChange, erro, max }:
     <Passo id="passo-prazo" numero={numero} titulo={titulo} erro={!!erro} feito={!erro && !!valor}>
       <div>
         <label htmlFor="campo-prazo" className="mb-1.5 block text-xs font-bold uppercase tracking-widest text-slate-500">Até quando?</label>
+        <label className="mb-2 flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <input type="checkbox" checked={auto} onChange={e => onAuto(e.target.checked)} className="accent-slate-900" />
+          Preencher automaticamente
+          <span className="text-xs text-gray-400">{sugerido ? '(última data do acordo)' : '(aparece quando houver datas)'}</span>
+        </label>
         <input
           id="campo-prazo"
           type="date"
           value={valor}
+          disabled={auto}
           max={max ?? undefined}
           onChange={e => onChange(e.target.value)}
           className={`max-w-xs ${erro ? INPUT_ERRO_CLS : INPUT_CLS}`}

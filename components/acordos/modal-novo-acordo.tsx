@@ -33,7 +33,7 @@ import { ResumoAcordo, type ItemResumo, type StatusResumo, type TextoGrupo, type
 /** Campo do formulário -> chave "tocada" (para só mostrar erro depois de interagir). */
 const CHAVE_DO_FORM: Partial<Record<keyof FormState, string>> = {
   dataEvento: 'dataEvento', nomeEvento: 'nomeEvento', periodoInicio: 'horas', periodoFim: 'horas', duracao: 'horas',
-  horaDispensa: 'horaDispensa', motivo: 'motivo', dataFolga: 'dataFolga', folgas: 'dataFolga', duracaoFolga: 'horasFolga', datasAjuste: 'dias', prazoLimite: 'prazo',
+  horaDispensa: 'horaDispensa', motivo: 'motivo', dataFolga: 'dataFolga', folgas: 'dataFolga', participantes: 'dataFolga', duracaoFolga: 'horasFolga', datasAjuste: 'dias', prazoLimite: 'prazo',
 }
 
 /** Chaves tocadas que "acendem" cada item do checklist. */
@@ -89,6 +89,8 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
   const [dataDoc, setDataDoc] = useState(new Date().toLocaleDateString('sv-SE'))
   const [template, setTemplate] = useState<TemplateId>('T3')
   const [situacaoEscolhida, setSituacaoEscolhida] = useState(false)
+  // "Trabalhou a mais" clicado, mas ainda sem escolher como vão descansar (o passo 1 só fecha depois da escolha)
+  const [grupoAberto, setGrupoAberto] = useState(false)
   const [f, setF] = useState<FormState>(FORM_VAZIO)
   const [funcs, setFuncs] = useState<FuncionarioParaAcordo[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -99,6 +101,8 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
   const [tocou, setTocou] = useState<Set<string>>(new Set())
   const [tentou, setTentou] = useState(false)
   const [prazoRevelado, setPrazoRevelado] = useState(false)
+  // prazo limite acompanha a última data do acordo enquanto o tick "Preencher automaticamente" estiver marcado
+  const [prazoAuto, setPrazoAuto] = useState(true)
   const [gerandoRascunho, setGerandoRascunho] = useState(false)
   // Pedido interpretado pela IA: quantidade de dias pedida e funcionários citados (aplicados quando a lista do posto chega)
   const [quantidadeIA, setQuantidadeIA] = useState<number | null>(null)
@@ -113,10 +117,16 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
     setF(prev => ({ ...prev, [k]: v }))
     const chave = CHAVE_DO_FORM[k]
     // limpar um campo (ex.: trocar de aba de período/horas) não conta como "tocar"
-    if (chave && (k === 'datasAjuste' || k === 'folgas' || (typeof v === 'string' && v !== ''))) tocar(chave)
+    if (chave && (k === 'datasAjuste' || k === 'folgas' || k === 'participantes' || (typeof v === 'string' && v !== ''))) tocar(chave)
   }, [tocar])
 
+  function abrirGrupoTrabalhou() {
+    setGrupoAberto(true)
+    setSituacaoEscolhida(false)
+  }
+
   function escolherSituacao(id: TemplateId) {
+    setGrupoAberto(false)
     if (id !== template || !situacaoEscolhida) {
       setTemplate(id)
       setDiasManual(false)
@@ -149,6 +159,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
       tocar('posto')
     }
     setTemplate(r.template)
+    setGrupoAberto(false)
     setSituacaoEscolhida(true)
     setF({ ...FORM_VAZIO, ...r.form })
     // dias que o pedido cita um a um ficam como estão; só a quantidade ("em 6 dias") deixa o sistema escolher as datas
@@ -296,7 +307,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
       return {
         cabecalho: grupos.length > 1 ? `Grupo ${grupos.indexOf(g) + 1} · ${juntarRotulos(turnosDoGrupo(g))} · ${g.length} func.` : null,
         // revezamento: o parágrafo abre com os nomes do grupo (igual ao PDF)
-        texto: r.ok ? (campos.folgasPorFuncionario ? `${juntarRotulos(g.map(x => x.nome))} ${r.texto}` : r.texto) : null,
+        texto: r.ok ? (campos.folgasPorFuncionario || campos.participantes ? `${juntarRotulos(g.map(x => x.nome))} ${r.texto}` : r.texto) : null,
       }
     }),
     [campos, grupos, situacaoEscolhida, turnosDoGrupo],
@@ -340,13 +351,13 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
   const prazoObrigatorioDeFato = template === 'T4' || achados.some(a => a.codigo === 'PRAZO_OBRIGATORIO')
   // Prazo obrigatório nasce sugerido: a última data do acordo (reposição ou folga). Some se o usuário mexer no campo.
   const prazoSugerido = useMemo(() => {
-    const datas = [...f.datasAjuste, f.dataFolga, ...Object.values(f.folgas)].filter(Boolean)
+    const datas = [...f.datasAjuste, f.dataFolga, ...Object.values(f.folgas), ...Object.values(f.participantes).flatMap(p => p.folgas)].filter(Boolean)
     return datas.length ? datas.sort().at(-1)! : ''
-  }, [f.datasAjuste, f.dataFolga, f.folgas])
+  }, [f.datasAjuste, f.dataFolga, f.folgas, f.participantes])
   useEffect(() => {
-    if (!prazoObrigatorioDeFato || tocou.has('prazo') || !prazoSugerido || f.prazoLimite === prazoSugerido) return
+    if (!prazoAuto || !(prazoObrigatorioDeFato || prazoMostrado || prazoRevelado) || !prazoSugerido || f.prazoLimite === prazoSugerido) return
     setF(prev => ({ ...prev, prazoLimite: prazoSugerido }))
-  }, [prazoObrigatorioDeFato, tocou, prazoSugerido, f.prazoLimite])
+  }, [prazoAuto, prazoObrigatorioDeFato, prazoMostrado, prazoRevelado, prazoSugerido, f.prazoLimite])
   // Prazo é o único item que sobrou: já vale mostrar em vermelho
   const soFaltaPrazo = situacaoEscolhida && okDe('titulo') && okDe('funcionarios') && okDe('datas') && okDe('motivo')
   const prazoVisivel = tentou || tocou.has('prazo') || !!achadoPrazo || soFaltaPrazo
@@ -422,6 +433,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
     setDataDoc(new Date().toLocaleDateString('sv-SE'))
     setTemplate('T3')
     setSituacaoEscolhida(false)
+    setGrupoAberto(false)
     setF(FORM_VAZIO)
     setFuncs([])
     setSelectedIds(new Set())
@@ -431,6 +443,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
     setTocou(new Set())
     setTentou(false)
     setPrazoRevelado(false)
+    setPrazoAuto(true)
     setQuantidadeIA(null)
     selecaoIA.current = null
     setAbertoManual({})
@@ -577,8 +590,8 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
 
             {abertoPasso('situacao') ? (
               <Passo id="passo-situacao" numero={1} titulo="O que aconteceu?" feito={situacaoEscolhida} erro={tentou && !situacaoEscolhida}>
-                <SituacaoCards selecionado={situacaoEscolhida ? template : null} onSelect={escolherSituacao} />
-                {tentou && !situacaoEscolhida && <p className="text-xs font-medium text-red-600">Escolha a situação que melhor descreve o caso.</p>}
+                <SituacaoCards selecionado={situacaoEscolhida ? template : null} onSelect={escolherSituacao} grupoAberto={grupoAberto} onGrupo={abrirGrupoTrabalhou} />
+                {tentou && !situacaoEscolhida && <p className="text-xs font-medium text-red-600">{grupoAberto ? 'Escolha como vão descansar.' : 'Escolha a situação que melhor descreve o caso.'}</p>}
               </Passo>
             ) : (
               <PassoResumo id="passo-situacao" numero={1} titulo="O que aconteceu?" resumo={resumoSituacao} onEditar={() => alternarPasso('situacao')} />
@@ -639,6 +652,9 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
                 onChange={v => set('prazoLimite', v)}
                 erro={erroPrazo}
                 max={dataMaximaPrazo(campos)}
+                auto={prazoAuto}
+                onAuto={setPrazoAuto}
+                sugerido={prazoSugerido}
               />
             )}
             {situacaoEscolhida && !prazoMostrado && !prazoRevelado && (

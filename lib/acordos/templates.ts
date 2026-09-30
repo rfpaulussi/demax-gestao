@@ -78,6 +78,14 @@ export function gerarObjeto(c: CamposAcordo, r: ResumoCalculo): ResultadoTexto {
       texto = `trabalharem com acréscimo de ${porDia} diária no horário normal ${datas}, formando um saldo de ${horas} a ser compensado com ${r.jornadaFolgaMin <= 0 || r.horasTotalMin === r.jornadaFolgaMin ? 'a dispensa do trabalho' : `a dispensa de ${horas} do horário de trabalho`} no dia ${fmtDataBR(dataFolga)} (${motivo}), com prazo máximo de compensação até ${fmtDataBR(c.prazoLimite)}.`
       break
     case 'T5': {
+      if (r.folgas && r.periodo) {
+        // folga em dias inteiros: o período é o do grupo e cada funcionário ganha os dias de folga dele
+        if (!c.dataEvento || !nome || r.folgas.length === 0) return falta()
+        const periodoGrupo = `, das ${fmtHoraCurta(r.periodo.inicio)} às ${fmtHoraCurta(r.periodo.fim)}${variosDias ? ' em cada dia' : ''}`
+        const qtd = r.folgas.length === 1 ? '01 (um) dia' : r.folgas.length === 2 ? '02 (dois) dias' : `${String(r.folgas.length).padStart(2, '0')} dias`
+        texto = `trabalharem ${quandoEvento} (${nome})${periodoGrupo}, compensando o trabalho prestado com a concessão de ${qtd} de folga, ${fmtDatasComPrefixo(r.folgas)}.${sufixoPrazo}`
+        break
+      }
       if (!c.dataEvento || !nome || !dataFolga || r.horasTotalMin <= 0) return falta()
       const folga = fmtDataBR(dataFolga)
       const dispensa = r.horasTotalMin === r.jornadaFolgaMin

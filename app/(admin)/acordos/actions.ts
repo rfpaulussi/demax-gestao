@@ -151,20 +151,38 @@ function dataReal(iso: unknown): iso is string {
   return dt.getUTCFullYear() === a && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d
 }
 
+const HHMM = /^([01]d|2[0-3]):[0-5]d$/
+
+/** `participantes` (T5 em dias inteiros) vem do navegador: só T5, formato certo e ao menos uma folga por pessoa. */
+function participantesValidos(c: CamposAcordo): boolean {
+  const p = c.participantes
+  if (p === undefined) return true
+  if (c.template !== 'T5' || typeof p !== 'object' || p === null || Array.isArray(p)) return false
+  return Object.values(p).every(x =>
+    !!x && typeof x.inicio === 'string' && typeof x.fim === 'string' && HHMM.test(x.inicio) && HHMM.test(x.fim)
+    && Array.isArray(x.folgas) && x.folgas.length >= 1 && x.folgas.length <= 10,
+  )
+}
+
+function datasDeParticipantes(c: CamposAcordo): string[] {
+  return Object.values(c.participantes ?? {}).flatMap(p => p.folgas)
+}
+
 /** Todas as datas de `campos` vêm do navegador: precisam ser reais e estar num intervalo de anos plausível. */
 function datasDosCamposValidas(c: CamposAcordo): boolean {
   if (!Array.isArray(c.datasAjuste)) return false
   const folgas = c.folgasPorFuncionario
   if (folgas !== undefined && (typeof folgas !== 'object' || folgas === null || Array.isArray(folgas))) return false
   if (c.datasEvento !== undefined && !Array.isArray(c.datasEvento)) return false
+  if (!participantesValidos(c)) return false
   if (c.minutosFolga !== undefined && !(Number.isInteger(c.minutosFolga) && c.minutosFolga >= 0 && c.minutosFolga <= 1440)) return false
   const anoAtual = new Date().getFullYear()
-  const datas = [c.dataEvento, c.dataFolga, c.prazoLimite, ...(c.datasEvento ?? []), ...Object.values(folgas ?? {}), ...c.datasAjuste].filter(d => d !== undefined && d !== null && d !== '')
+  const datas = [c.dataEvento, c.dataFolga, c.prazoLimite, ...(c.datasEvento ?? []), ...Object.values(folgas ?? {}), ...datasDeParticipantes(c), ...c.datasAjuste].filter(d => d !== undefined && d !== null && d !== '')
   return datas.every(d => dataReal(d) && Number(d.slice(0, 4)) >= anoAtual - 1 && Number(d.slice(0, 4)) <= anoAtual + 3)
 }
 
 function anosDoAcordo(c: CamposAcordo): number[] {
-  const datas = [c.dataEvento, c.dataFolga, c.prazoLimite, ...(c.datasEvento ?? []), ...Object.values(c.folgasPorFuncionario ?? {}), ...c.datasAjuste].filter((d): d is string => !!d)
+  const datas = [c.dataEvento, c.dataFolga, c.prazoLimite, ...(c.datasEvento ?? []), ...Object.values(c.folgasPorFuncionario ?? {}), ...datasDeParticipantes(c), ...c.datasAjuste].filter((d): d is string => !!d)
   return Array.from(new Set(datas.map(d => Number(d.slice(0, 4)))))
 }
 
@@ -199,6 +217,9 @@ export async function criarAcordo(dados: {
   }
   if (Object.keys(dados.campos.folgasPorFuncionario ?? {}).some(k => !ids.includes(k))) {
     return { error: 'Há data de folga para um funcionário que não faz parte do acordo.' }
+  }
+  if (Object.keys(dados.campos.participantes ?? {}).some(k => !ids.includes(k))) {
+    return { error: 'Há período ou folga para um funcionário que não faz parte do acordo.' }
   }
   const inelegivel = funcs.find(f => !f.elegivel)
   if (inelegivel) return { error: `${inelegivel.nome}: ${inelegivel.motivo_inelegivel}` }

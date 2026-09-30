@@ -11,6 +11,8 @@ import { fmtHM, motivoDoCalendario, rotuloAtalhoCalendario } from '@/lib/acordos
 import { Campo, INPUT_CLS, INPUT_ERRO_CLS, SubPasso } from './passo'
 import { MotivoChips } from './motivo-chips'
 import { DiasChips } from './dias-chips'
+import { HoraSelect } from './hora-select'
+import { ParticipantesEvento } from './participantes-evento'
 import { FolgasRevezamento, SeletorModoFolga, type FuncionarioFolga } from './folgas-revezamento'
 
 export { FORM_VAZIO, montarCampos, type FormState } from '@/lib/acordos/formulario'
@@ -128,11 +130,11 @@ export function CamposTemplate({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="campo-periodoInicio" className="mb-1 block text-xs font-semibold text-slate-500">Das</label>
-            <input id="campo-periodoInicio" type="time" value={f.periodoInicio} onChange={e => set('periodoInicio', e.target.value)} className={cls('horas')} />
+            <HoraSelect id="campo-periodoInicio" value={f.periodoInicio} onChange={v => set('periodoInicio', v)} className={cls('horas')} />
           </div>
           <div>
             <label htmlFor="campo-periodoFim" className="mb-1 block text-xs font-semibold text-slate-500">Às</label>
-            <input id="campo-periodoFim" type="time" value={f.periodoFim} onChange={e => set('periodoFim', e.target.value)} className={cls('horas')} />
+            <HoraSelect id="campo-periodoFim" value={f.periodoFim} onChange={v => set('periodoFim', v)} className={cls('horas')} />
           </div>
         </div>
       ) : (
@@ -360,7 +362,7 @@ export function CamposTemplate({
               ajuda={dicaDispensa || 'Cada funcionário é comparado ao horário de saída do próprio turno. ex: 12:00'}
               erro={erros.horaDispensa}
             >
-              <input id="campo-horaDispensa" type="time" value={f.horaDispensa} onChange={e => set('horaDispensa', e.target.value)} className={`max-w-[10rem] ${cls('horaDispensa')}`} />
+              <HoraSelect id="campo-horaDispensa" value={f.horaDispensa} onChange={v => set('horaDispensa', v)} className={`max-w-[10rem] ${cls('horaDispensa')}`} />
             </Campo>
           </SubPasso>
           <SubPasso letra={proxima()} titulo="Motivo">{blocoMotivo(true)}</SubPasso>
@@ -410,10 +412,28 @@ export function CamposTemplate({
             </div>
             {chipsNome()}
             {blocoOutrosDias()}
-            {periodoOuHoras()}
+            <div role="tablist" className="flex gap-1 rounded-lg border border-gray-200 bg-white p-1">
+              <button type="button" role="tab" aria-selected={!f.diasInteiros} onClick={() => set('diasInteiros', false)} className={abaCls(!f.diasInteiros)}>
+                Hora por hora
+              </button>
+              <button type="button" role="tab" aria-selected={f.diasInteiros} onClick={() => set('diasInteiros', true)} className={abaCls(f.diasInteiros)}>
+                Folga em dias inteiros
+              </button>
+            </div>
+            {f.diasInteiros
+              ? <p className="text-xs text-gray-400">Cada funcionário tem o seu período trabalhado e ganha 1 ou mais dias inteiros de folga (ex.: meio período = 1 dia; dia todo = 2 dias).</p>
+              : periodoOuHoras()}
           </SubPasso>
-          <SubPasso letra={proxima()} titulo="Dia da folga">
-            {blocoFolga('Em que dia vão folgar?', 'ex: 26/06/2026')}
+          <SubPasso letra={proxima()} titulo={f.diasInteiros ? 'Período e folgas de cada funcionário' : 'Dia da folga'}>
+            {f.diasInteiros ? (
+              <ParticipantesEvento
+                funcionarios={funcionarios}
+                participantes={f.participantes}
+                onChange={p => set('participantes', p)}
+                feriados={feriados}
+                erro={erros.dataFolga}
+              />
+            ) : blocoFolga('Em que dia vão folgar?', 'ex: 26/06/2026')}
           </SubPasso>
         </>
       )}
