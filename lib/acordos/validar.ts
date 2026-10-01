@@ -114,6 +114,12 @@ export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriado
     add('erro', 'ORDEM_DATAS', 'Os dias de compensação devem ser posteriores ao dia da folga.')
   } else if (t === 'T4' && folgaMaisCedo && ajuste.some(d => d >= folgaMaisCedo)) {
     add('erro', 'ORDEM_DATAS', 'Os dias de acréscimo devem ser anteriores ao dia da folga.')
+  } else if (t === 'T5' && c.participantes && ultimoEvento) {
+    // dias inteiros: diz quem tem folga antes do dia trabalhado e quais datas
+    for (const f of funcs) {
+      const antes = folgasDe(c, f).filter(d => d <= ultimoEvento)
+      if (antes.length) add('erro', 'ORDEM_DATAS', `${f.nome}: a folga de ${antes.map(fmtDataBR).join(' e ')} é anterior ao dia trabalhado (${fmtDataBR(ultimoEvento)}). A folga deve ser depois.`, f.id)
+    }
   } else if (t === 'T5' && ultimoEvento && folgaMaisCedo && folgaMaisCedo <= ultimoEvento) {
     add('erro', 'ORDEM_DATAS', 'O dia da folga deve ser posterior ao dia trabalhado.')
   }

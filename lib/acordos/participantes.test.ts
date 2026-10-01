@@ -121,3 +121,14 @@ describe('montarTextosAcordo por turno', () => {
     expect(turnoDeAeC.objeto).not.toContain('Func b')
   })
 })
+
+describe('T5 em dias inteiros: folga antes do dia trabalhado', () => {
+  it('diz quem e quais datas', () => {
+    const c: CamposAcordo = {
+      template: 'T5', dataEvento: '2026-10-04', nomeEvento: 'X', datasAjuste: [], prazoLimite: '2027-01-05',
+      participantes: { a: { inicio: '08:00', fim: '12:00', folgas: ['2026-09-28', '2027-01-04'] } },
+    }
+    const m = validarAcordo(c, [func('a')]).filter(x => x.codigo === 'ORDEM_DATAS').map(x => x.mensagem)
+    expect(m).toEqual(['Func a: a folga de 28/09/2026 é anterior ao dia trabalhado (04/10/2026). A folga deve ser depois.'])
+  })
+})

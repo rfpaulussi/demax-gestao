@@ -431,6 +431,7 @@ export function CamposTemplate({
                 participantes={f.participantes}
                 onChange={p => set('participantes', p)}
                 feriados={feriados}
+                ultimoDiaTrabalhado={[f.dataEvento, ...f.datasEventoExtras].filter(Boolean).sort().at(-1)}
                 erro={erros.dataFolga}
               />
             ) : blocoFolga('Em que dia vão folgar?', 'ex: 26/06/2026')}

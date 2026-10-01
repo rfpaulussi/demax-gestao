@@ -13,6 +13,8 @@ interface Props {
   participantes: Record<string, ParticipanteEvento>
   onChange: (p: Record<string, ParticipanteEvento>) => void
   feriados: MapaFeriados
+  /** Último dia trabalhado: folga nesse dia ou antes fica em vermelho. */
+  ultimoDiaTrabalhado?: string
   erro?: string
 }
 
@@ -65,7 +67,7 @@ function tipoDoPeriodo(p: ParticipanteEvento): { nome: string; borda: string; et
 const rotuloCls = 'rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest'
 
 /** T5 em dias inteiros: período trabalhado e dias de folga de cada funcionário (1 ou mais), com colagem da planilha. */
-export function ParticipantesEvento({ funcionarios, participantes, onChange, feriados, erro }: Props) {
+export function ParticipantesEvento({ funcionarios, participantes, onChange, feriados, ultimoDiaTrabalhado, erro }: Props) {
   const [texto, setTexto] = useState('')
   const [problemas, setProblemas] = useState<string[]>([])
   const [aplicadas, setAplicadas] = useState<number | null>(null)
@@ -179,7 +181,7 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
                       aria-label={`Folga ${i + 1} de ${fn.nome}`}
                       value={d}
                       onChange={e => mudar(fn.id, { folgas: p.folgas.map((x, j) => (j === i ? e.target.value : x)) })}
-                      className={`!w-36 ${faltaFolga ? INPUT_ERRO_CLS : INPUT_CLS}`}
+                      className={`!w-36 ${faltaFolga || (d && ultimoDiaTrabalhado && d <= ultimoDiaTrabalhado) ? INPUT_ERRO_CLS : INPUT_CLS}`}
                     />
                     {p.folgas.length > 1 && (
                       <button type="button" aria-label="Remover folga" onClick={() => mudar(fn.id, { folgas: p.folgas.filter((_, j) => j !== i) })} className="text-xs text-slate-400 hover:text-slate-700">×</button>
@@ -188,6 +190,9 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
                 ))}
                 <button type="button" onClick={() => mudar(fn.id, { folgas: [...p.folgas, ''] })} className="text-xs font-medium text-slate-600 underline hover:text-slate-900">+ dia</button>
               </div>
+              {ultimoDiaTrabalhado && p.folgas.some(d => d && d <= ultimoDiaTrabalhado) && (
+                <p className="text-[11px] font-medium text-red-600">A folga precisa ser depois do dia trabalhado ({ultimoDiaTrabalhado.split('-').reverse().join('/')}).</p>
+              )}
               {p.folgas.some(d => d && feriados.get(d)) && (
                 <p className="text-[11px] font-medium text-amber-700">
                   {p.folgas.filter(d => d && feriados.get(d)).map(d => feriados.get(d)!.nome).join(', ')}
