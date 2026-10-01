@@ -10,7 +10,6 @@ const valida = {
   encaminhar_rh: true,
   motivo_rh: 'Recorrência de episódios de saúde.',
   devolutiva_supervisor: 'Obrigado pelo registro. Vamos acompanhar.',
-  email_rh: 'Solicito orientação sobre o acompanhamento.',
   alertas: ['Cita dado de saúde'],
 }
 
@@ -55,10 +54,9 @@ describe('lerAnalise', () => {
     expect(r?.resolucao_sugerida).toEqual(['ok'])
   })
 
-  it('zera email_rh e motivo quando não é para encaminhar', () => {
-    const r = lerAnalise({ ...valida, encaminhar_rh: false, email_rh: 'texto que não deveria ficar', motivo_rh: '' })
+  it('zera motivo quando não é para encaminhar', () => {
+    const r = lerAnalise({ ...valida, encaminhar_rh: false, motivo_rh: '' })
     expect(r?.encaminhar_rh).toBe(false)
-    expect(r?.email_rh).toBe('')
     expect(r?.motivo_rh).toBeNull()
   })
 

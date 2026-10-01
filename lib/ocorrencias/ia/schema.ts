@@ -20,8 +20,6 @@ export interface AnaliseOcorrencia {
   motivo_rh: string | null
   /** Rascunho da devolutiva ao supervisor (ainda com códigos FUNC_n; o servidor restaura os nomes). */
   devolutiva_supervisor: string
-  /** Só um bloco de "considerações e pedido ao RH", sem saudação nem assinatura. Vazio se não encaminhar. */
-  email_rh: string
   alertas: string[]
 }
 
@@ -67,10 +65,6 @@ export const FERRAMENTA_ANALISE: Anthropic.Tool = {
       devolutiva_supervisor: {
         type: 'string',
         description: 'Rascunho respeitoso de resposta ao supervisor, em português, sem afirmar decisões ainda não tomadas.',
-      },
-      email_rh: {
-        type: 'string',
-        description: 'Se encaminhar_rh for true: 2 a 6 frases com o motivo do encaminhamento e o que se pede ao RH, SEM saudação e SEM assinatura. Vazio se não encaminhar.',
       },
       alertas: {
         type: 'array',
@@ -137,7 +131,6 @@ export function lerAnalise(bruto: unknown): AnaliseOcorrencia | null {
     encaminhar_rh: encaminhar,
     motivo_rh: encaminhar && motivo ? motivo : null,
     devolutiva_supervisor: texto(o.devolutiva_supervisor, 3000),
-    email_rh: encaminhar ? texto(o.email_rh, 3000) : '',
     alertas: listaTextos(o.alertas, 6, 200),
   }
 }
@@ -148,4 +141,34 @@ export function lerRetorno(bruto: unknown): RetornoOcorrencia | null {
   const devolutiva = texto(o.devolutiva_supervisor, 3000)
   if (!devolutiva) return null
   return { devolutiva_supervisor: devolutiva, pontos_de_atencao: listaTextos(o.pontos_de_atencao, 5, 300) }
+}
+
+export interface ConsideracoesRH {
+  consideracoes_rh: string
+}
+
+export const NOME_FERRAMENTA_CONSIDERACOES_RH = 'redigir_consideracoes_rh'
+
+export const FERRAMENTA_CONSIDERACOES_RH: Anthropic.Tool = {
+  name: NOME_FERRAMENTA_CONSIDERACOES_RH,
+  description:
+    'Redige as considerações para encaminhar uma ocorrência ao RH, a partir da devolutiva que o coordenador já escreveu ao supervisor.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      consideracoes_rh: {
+        type: 'string',
+        description: '2 a 6 frases sobre o motivo do encaminhamento e o que se pede ao RH, SEM saudação e SEM assinatura, terminando com uma recomendação objetiva.',
+      },
+    },
+    required: ['consideracoes_rh'],
+  },
+}
+
+export function lerConsideracoesRH(bruto: unknown): ConsideracoesRH | null {
+  if (!bruto || typeof bruto !== 'object' || Array.isArray(bruto)) return null
+  const o = bruto as Record<string, unknown>
+  const consideracoes = texto(o.consideracoes_rh, 3000)
+  if (!consideracoes) return null
+  return { consideracoes_rh: consideracoes }
 }
