@@ -7,6 +7,8 @@ import {
   analisarOcorrencia,
   rascunharDevolutivaRetorno,
   previaRetorno,
+  previaConsideracoesRH,
+  gerarConsideracoesRH,
   decidirAnalise,
   listarAnalises,
   type AnaliseHistorico,
@@ -57,6 +59,8 @@ export function ModalAnaliseIA({
   const [devolutiva, setDevolutiva] = useState('')
   const [consideracoes, setConsideracoes] = useState('')
   const [pontos, setPontos]         = useState<string[]>([])
+  const [passoRH, setPassoRH] = useState<'inicial' | 'previa' | 'gerado'>('inicial')
+  const [mensagemRH, setMensagemRH] = useState('')
   const [reprovando, setReprovando] = useState(false)
   const [motivo, setMotivo]         = useState('')
   const [erro, setErro]             = useState<string | null>(null)
@@ -86,7 +90,6 @@ export function ModalAnaliseIA({
       setAnaliseId(r.analiseId)
       setAnalise(r.analise)
       setDevolutiva(r.analise.devolutiva_supervisor)
-      setConsideracoes(r.analise.email_rh)
     })
   }
 
@@ -109,6 +112,27 @@ export function ModalAnaliseIA({
       setAnaliseId(r.analiseId)
       setDevolutiva(r.devolutiva)
       setPontos(r.pontos)
+    })
+  }
+
+  function handlePreviaConsideracoesRH() {
+    setErro(null)
+    startTransition(async () => {
+      const r = await previaConsideracoesRH(ocorrenciaId, devolutiva)
+      if (!r.success) { setErro(r.error); return }
+      setMensagemRH(r.mensagem)
+      setIaOk(r.iaConfigurada)
+      setPassoRH('previa')
+    })
+  }
+
+  function handleGerarConsideracoesRH() {
+    setErro(null)
+    startTransition(async () => {
+      const r = await gerarConsideracoesRH(ocorrenciaId, devolutiva)
+      if (!r.success) { setErro(r.error); return }
+      setConsideracoes(r.consideracoes)
+      setPassoRH('gerado')
     })
   }
 
@@ -313,10 +337,46 @@ export function ModalAnaliseIA({
                 <textarea value={devolutiva} onChange={e => setDevolutiva(e.target.value)} rows={5} className={textareaClass} />
               </div>
 
-              {analise?.encaminhar_rh && (
+              {analise && passoRH === 'inicial' && (
+                <div className="flex justify-end">
+                  <button
+                    disabled={isPending || !devolutiva.trim()}
+                    onClick={handlePreviaConsideracoesRH}
+                    className="h-9 rounded-lg border border-indigo-200 px-4 text-xs font-semibold uppercase tracking-widest text-indigo-600 hover:bg-indigo-50 disabled:opacity-50"
+                  >
+                    Gerar considerações ao RH
+                  </button>
+                </div>
+              )}
+
+              {analise && passoRH === 'previa' && (
+                <div className="space-y-2 rounded-lg border border-indigo-100 bg-indigo-50/50 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                    Texto exato que vai para a IA (confira antes de enviar)
+                  </p>
+                  <pre className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-lg border border-gray-200 bg-white p-3 text-xs text-gray-700">
+                    {mensagemRH}
+                  </pre>
+                  {!iaOk && <p className="text-xs text-red-500">A IA não está configurada neste ambiente.</p>}
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setPassoRH('inicial')} className="h-9 rounded-lg border border-gray-200 px-4 text-xs font-semibold uppercase tracking-widest text-gray-500 hover:bg-gray-50">
+                      Voltar
+                    </button>
+                    <button
+                      disabled={isPending || !iaOk}
+                      onClick={handleGerarConsideracoesRH}
+                      className="h-9 rounded-lg bg-indigo-600 px-4 text-xs font-semibold uppercase tracking-widest text-white hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      {isPending ? 'Gerando…' : 'Enviar para a IA'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {analise && passoRH === 'gerado' && (
                 <div className="space-y-1">
                   <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                    Considerações para o e-mail ao RH (entram no rascunho do e-mail)
+                    Considerações para o e-mail ao RH (edite antes de encaminhar)
                   </label>
                   <textarea value={consideracoes} onChange={e => setConsideracoes(e.target.value)} rows={4} className={textareaClass} />
                 </div>
@@ -344,7 +404,7 @@ export function ModalAnaliseIA({
                   <button disabled={isPending} onClick={() => setReprovando(true)} className="h-9 rounded-lg border border-red-200 px-4 text-xs font-semibold uppercase tracking-widest text-red-600 hover:bg-red-50 disabled:opacity-50">
                     Reprovar
                   </button>
-                  {analise?.encaminhar_rh && (
+                  {passoRH === 'gerado' && (
                     <button disabled={isPending} onClick={handleEncaminhar} className="h-9 rounded-lg bg-indigo-600 px-4 text-xs font-semibold uppercase tracking-widest text-white hover:bg-indigo-700 disabled:opacity-50">
                       Encaminhar ao RH
                     </button>
