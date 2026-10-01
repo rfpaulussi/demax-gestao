@@ -72,10 +72,14 @@ interface Props {
   atalhosCalendario: CalendarioLinha[]
   /** Funcionários do acordo (para a folga em revezamento). */
   funcionarios: FuncionarioFolga[]
+  /** Funcionários dos postos escolhidos que estão desmarcados (para a planilha de folga em dias inteiros). */
+  candidatosPlanilha?: FuncionarioFolga[]
+  onMarcarFuncs?: (ids: string[]) => void
+  onDesmarcarFuncs?: (ids: string[]) => void
 }
 
 export function CamposTemplate({
-  template: t, f, set, feriados, diasManual, onDatasManuais, onRecalcular, erros, conta, semSugestao, dicaDispensa, notaPeriodo, nomesEvento, atalhosCalendario, funcionarios,
+  template: t, f, set, feriados, diasManual, onDatasManuais, onRecalcular, erros, conta, semSugestao, dicaDispensa, notaPeriodo, nomesEvento, atalhosCalendario, funcionarios, candidatosPlanilha, onMarcarFuncs, onDesmarcarFuncs,
 }: Props) {
   const [modo, setModo] = useState<'periodo' | 'horas'>(f.duracao && !f.periodoInicio ? 'horas' : 'periodo')
   const cls = (k: CampoChave) => (erros[k] ? INPUT_ERRO_CLS : INPUT_CLS)
@@ -428,6 +432,9 @@ export function CamposTemplate({
             {f.diasInteiros ? (
               <ParticipantesEvento
                 funcionarios={funcionarios}
+                candidatos={candidatosPlanilha}
+                onMarcar={onMarcarFuncs}
+                onDesmarcar={onDesmarcarFuncs}
                 participantes={f.participantes}
                 onChange={p => set('participantes', p)}
                 feriados={feriados}

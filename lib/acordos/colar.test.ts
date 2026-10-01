@@ -56,3 +56,25 @@ describe('parseHora', () => {
     expect(['', '25', '8:75', 'abc', '99:99'].map(parseHora)).toEqual([null, null, null, null, null])
   })
 })
+
+import { compararPlanilhaComSelecao } from './colar'
+
+describe('planilha base com linhas em branco e comparação com a seleção', () => {
+  it('linha só com o nome (em branco) é ignorada sem virar problema', () => {
+    const r = interpretarPlanilha('Amanda Gonçalves\t8\t12\t23/12/2026\nRichard Searles\t\t\t\t', fs)
+    expect(r.problemas).toEqual([])
+    expect(Object.keys(r.participantes)).toEqual(['1'])
+  })
+
+  it('compara com quem está marcado: quem foi lido e estava desmarcado / marcado fora da planilha', () => {
+    const sel = [fs[0], fs[3]]
+    const cand = [fs[1], fs[2]]
+    const c = compararPlanilhaComSelecao({ '1': {}, '2': {} }, sel, cand)
+    expect(c.marcarEsses.map(x => x.id)).toEqual(['2'])
+    expect(c.foraDaPlanilha.map(x => x.id)).toEqual(['1', '4'].filter(id => id !== '1'))
+  })
+
+  it('nada lido: não sugere desmarcar ninguém', () => {
+    expect(compararPlanilhaComSelecao({}, fs, []).foraDaPlanilha).toEqual([])
+  })
+})

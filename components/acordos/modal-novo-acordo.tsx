@@ -755,6 +755,9 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
                   notaPeriodo={notaPeriodo}
                   nomesEvento={nomesEvento}
                   funcionarios={selecionados.map(x => ({ id: x.id, nome: x.nome }))}
+                  candidatosPlanilha={funcs.filter(x => x.elegivel && !selectedIds.has(x.id)).map(x => ({ id: x.id, nome: x.nome }))}
+                  onMarcarFuncs={ids => { tocar('funcionarios'); setSelectedIds(prev => { const n = new Set(prev); ids.forEach(i => n.add(i)); return n }) }}
+                  onDesmarcarFuncs={ids => { tocar('funcionarios'); setSelectedIds(prev => { const n = new Set(prev); ids.forEach(i => n.delete(i)); return n }) }}
                   atalhosCalendario={atalhosCalendario}
                 />
               ) : (

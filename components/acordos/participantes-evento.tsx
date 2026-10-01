@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import type { ParticipanteEvento } from '@/lib/acordos/tipos'
 import type { MapaFeriados } from '@/lib/acordos/validar'
-import { interpretarPlanilha } from '@/lib/acordos/colar'
+import { compararPlanilhaComSelecao, interpretarPlanilha, type FuncionarioNome } from '@/lib/acordos/colar'
 import { HoraInput } from './hora-input'
 import { planilhaParaTexto } from '@/lib/acordos/planilha-arquivo'
 import { INPUT_CLS, INPUT_ERRO_CLS } from './passo'
@@ -13,6 +13,10 @@ interface Props {
   participantes: Record<string, ParticipanteEvento>
   onChange: (p: Record<string, ParticipanteEvento>) => void
   feriados: MapaFeriados
+  /** Funcionários dos postos escolhidos que estão desmarcados (a planilha pode citá-los). */
+  candidatos?: FuncionarioNome[]
+  onMarcar?: (ids: string[]) => void
+  onDesmarcar?: (ids: string[]) => void
   /** Último dia trabalhado: folga nesse dia ou antes fica em vermelho. */
   ultimoDiaTrabalhado?: string
   erro?: string
@@ -51,6 +55,12 @@ async function baixarModelo(funcionarios: { id: string; nome: string }[], partic
 /** '07:00' → '7', '08:30' → '8:30', '13:00' → '13' (rótulo curto do botão). */
 const horaCurta = (hhmm: string) => hhmm.replace(/^0/, '').replace(/:00$/, '')
 
+/** Nomes em uma linha; passando de 8, o resto vira "+ N" (a lista completa fica no tooltip). */
+function listaNomes(nomes: FuncionarioNome[]) {
+  const mostra = nomes.slice(0, 8).map(n => n.nome).join(', ')
+  return nomes.length > 8 ? `${mostra} e mais ${nomes.length - 8}` : mostra
+}
+
 const chipCls = (ativo: boolean) =>
   `rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
     ativo ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500' : 'border-gray-200 bg-white text-slate-600 hover:border-gray-300 hover:bg-slate-50'
@@ -67,11 +77,13 @@ function tipoDoPeriodo(p: ParticipanteEvento): { nome: string; borda: string; et
 const rotuloCls = 'rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest'
 
 /** T5 em dias inteiros: período trabalhado e dias de folga de cada funcionário (1 ou mais), com colagem da planilha. */
-export function ParticipantesEvento({ funcionarios, participantes, onChange, feriados, ultimoDiaTrabalhado, erro }: Props) {
+export function ParticipantesEvento({ funcionarios, participantes, onChange, feriados, ultimoDiaTrabalhado, erro, candidatos = [], onMarcar, onDesmarcar }: Props) {
   const [texto, setTexto] = useState('')
   const [problemas, setProblemas] = useState<string[]>([])
   const [aplicadas, setAplicadas] = useState<{ lidos: number; alterados: number; origem: string } | null>(null)
   const arquivoRef = useRef<HTMLInputElement>(null)
+  // depois de ler a planilha: quem está nela e desmarcado / quem está marcado e não está nela (o supervisor decide)
+  const [sugestao, setSugestao] = useState<{ marcarEsses: FuncionarioNome[]; foraDaPlanilha: FuncionarioNome[] } | null>(null)
 
   // atalhos de período: os já usados na lista (1 clique repete), completados com os comuns
   const periodos = useMemo(() => {
@@ -84,7 +96,7 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
     return Array.from(usados.values()).sort((a, b) => (a[0] + a[1]).localeCompare(b[0] + b[1]))
   }, [funcionarios, participantes])
 
-  if (funcionarios.length === 0) {
+  if (funcionarios.length === 0 && candidatos.length === 0) {
     return <p className="text-xs text-gray-500">Selecione os funcionários no passo 2 para definir período e folgas de cada um.</p>
   }
 
@@ -92,12 +104,15 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
   const mudar = (id: string, p: Partial<ParticipanteEvento>) => onChange({ ...participantes, [id]: { ...de(id), ...p } })
 
   function aplicarColagem(t: string = texto, origem = 'texto colado') {
-    const r = interpretarPlanilha(t, funcionarios)
+    // procura entre os marcados e entre os desmarcados dos postos escolhidos
+    const r = interpretarPlanilha(t, [...funcionarios, ...candidatos])
     // quantos funcionários ficaram com dados diferentes do que já estava na tela (deixa claro se a leitura trouxe algo novo)
     const alterados = Object.entries(r.participantes).filter(([id, p]) => JSON.stringify(participantes[id]) !== JSON.stringify(p)).length
     onChange({ ...participantes, ...r.participantes })
     setProblemas(r.problemas)
     setAplicadas({ lidos: Object.keys(r.participantes).length, alterados, origem })
+    const s = compararPlanilhaComSelecao(r.participantes, funcionarios, candidatos)
+    setSugestao(s.marcarEsses.length || s.foraDaPlanilha.length ? s : null)
   }
 
   async function enviarArquivo(e: ChangeEvent<HTMLInputElement>) {
@@ -150,6 +165,34 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
             </span>
           )}
         </div>
+        {sugestao && sugestao.foraDaPlanilha.length > 0 && onDesmarcar && (
+          <div className="space-y-1.5 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-xs text-amber-900">
+            <p className="font-semibold">{sugestao.foraDaPlanilha.length} funcionário(s) marcado(s) não estão na planilha:</p>
+            <p>{listaNomes(sugestao.foraDaPlanilha)}</p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => { onDesmarcar(sugestao.foraDaPlanilha.map(f => f.id)); setSugestao(s => (s ? { ...s, foraDaPlanilha: [] } : s)) }} className="rounded-md bg-slate-900 px-3 py-1 font-semibold text-white hover:bg-slate-700">
+                Desmarcar esses {sugestao.foraDaPlanilha.length}
+              </button>
+              <button type="button" onClick={() => setSugestao(s => (s ? { ...s, foraDaPlanilha: [] } : s))} className="rounded-md border border-amber-400 bg-white px-3 py-1 font-semibold text-amber-900 hover:bg-amber-100">
+                Manter marcados
+              </button>
+            </div>
+          </div>
+        )}
+        {sugestao && sugestao.marcarEsses.length > 0 && onMarcar && (
+          <div className="space-y-1.5 rounded-lg border border-blue-200 bg-blue-50 p-2.5 text-xs text-blue-900">
+            <p className="font-semibold">{sugestao.marcarEsses.length} nome(s) da planilha estão nos postos mas não estavam marcados:</p>
+            <p>{listaNomes(sugestao.marcarEsses)}</p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => { onMarcar(sugestao.marcarEsses.map(f => f.id)); setSugestao(s => (s ? { ...s, marcarEsses: [] } : s)) }} className="rounded-md bg-slate-900 px-3 py-1 font-semibold text-white hover:bg-slate-700">
+                Marcar esses {sugestao.marcarEsses.length}
+              </button>
+              <button type="button" onClick={() => setSugestao(s => (s ? { ...s, marcarEsses: [] } : s))} className="rounded-md border border-blue-300 bg-white px-3 py-1 font-semibold text-blue-900 hover:bg-blue-100">
+                Deixar de fora
+              </button>
+            </div>
+          </div>
+        )}
         {problemas.length > 0 && (
           <ul className="list-disc space-y-0.5 pl-5 text-xs font-medium text-amber-700">
             {problemas.map((p, i) => <li key={i}>{p}</li>)}

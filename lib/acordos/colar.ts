@@ -78,6 +78,22 @@ function acharPeriodo(linha: string, celulaDoNome?: number): { inicio: string; f
 }
 
 /**
+ * Depois de ler a planilha: quem está nela mas ficou desmarcado (`marcarEsses`) e quem está marcado mas não está nela
+ * (`foraDaPlanilha`). Sem ninguém lido (planilha vazia ou toda errada) não sugere desmarcar ninguém.
+ */
+export function compararPlanilhaComSelecao(
+  lidos: Record<string, unknown>,
+  selecionados: FuncionarioNome[],
+  candidatos: FuncionarioNome[],
+): { marcarEsses: FuncionarioNome[]; foraDaPlanilha: FuncionarioNome[] } {
+  const algumLido = Object.keys(lidos).length > 0
+  return {
+    marcarEsses: candidatos.filter(c => !!lidos[c.id]),
+    foraDaPlanilha: algumLido ? selecionados.filter(f => !lidos[f.id]) : [],
+  }
+}
+
+/**
  * Lê linhas coladas da planilha e devolve o período e as folgas de cada funcionário encontrado.
  * Colunas em qualquer ordem: funcionário, início, fim (só números: 8, 12:30, 1230) e uma ou mais datas de folga
  * com ano (23/12/2026). Também aceita o horário num texto só ("08h às 12:30h"). Não altera quem não aparece no texto.
@@ -90,7 +106,9 @@ export function interpretarPlanilha(texto: string, funcionarios: FuncionarioNome
     if (!linha.trim()) continue
     const rotulo = linha.replace(/\s+/g, ' ').trim().slice(0, 60)
     const { f, ambiguo, celula } = acharFuncionario(linha, funcionarios)
-    if (!f) { problemas.push(`${rotulo}: ${ambiguo ? 'nome bate com mais de um funcionário' : 'funcionário não encontrado neste posto'}.`); continue }
+    if (!f) { problemas.push(`${rotulo}: ${ambiguo ? 'nome bate com mais de um funcionário' : 'funcionário não encontrado nos postos escolhidos'}.`); continue }
+    // só o nome, sem horário nem folga (linha da planilha base deixada em branco): ignora, o funcionário não está trabalhando
+    if (celula !== undefined && !/\d/.test(linha.split('\t').filter((_, i) => i !== celula).join(' '))) continue
     const per = acharPeriodo(linha, celula)
     if (!per) { problemas.push(`${f.nome}: horário de início e fim não encontrado na linha.`); continue }
     const folgas: string[] = []
