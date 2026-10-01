@@ -7,13 +7,15 @@ import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { chamarFerramenta, ErroIA, iaConfigurada } from '@/lib/acordos/ia/cliente'
 import { validarTexto } from '@/lib/ocorrencias/devolutiva'
 import { anonimizarOcorrencia, restaurarNomes, type PessoaRef } from '@/lib/ocorrencias/ia/anonimizar'
-import { montarContexto, montarContextoRetorno } from '@/lib/ocorrencias/ia/contexto'
-import { PROMPT_ANALISE, PROMPT_RETORNO } from '@/lib/ocorrencias/ia/prompt'
+import { montarContexto, montarContextoRetorno, montarContextoConsideracoesRH } from '@/lib/ocorrencias/ia/contexto'
+import { PROMPT_ANALISE, PROMPT_RETORNO, PROMPT_CONSIDERACOES_RH } from '@/lib/ocorrencias/ia/prompt'
 import {
   FERRAMENTA_ANALISE,
   FERRAMENTA_RETORNO,
+  FERRAMENTA_CONSIDERACOES_RH,
   lerAnalise,
   lerRetorno,
+  lerConsideracoesRH,
   type AnaliseOcorrencia,
 } from '@/lib/ocorrencias/ia/schema'
 import { comentarOcorrencia } from './actions'
@@ -123,7 +125,7 @@ async function carregarPessoas(): Promise<PessoaRef[]> {
 
 async function abrirAuditoria(p: {
   ocorrenciaId: string
-  tipo: 'analise' | 'devolutiva_retorno'
+  tipo: 'analise' | 'devolutiva_retorno' | 'consideracoes_rh'
   userId: string
   textoEnviado: string
   mapa: Record<string, string>
@@ -224,7 +226,6 @@ function restaurarAnalise(a: AnaliseOcorrencia, nomes: Record<string, string>): 
     resolucao_sugerida: a.resolucao_sugerida.map(r),
     motivo_rh: a.motivo_rh ? r(a.motivo_rh) : null,
     devolutiva_supervisor: r(a.devolutiva_supervisor),
-    email_rh: r(a.email_rh),
     alertas: a.alertas.map(r),
   }
 }
@@ -332,6 +333,30 @@ async function prepararMensagemRetorno(ocorrenciaId: string, respostaRH: string)
   return { ok: true, mensagem: montarContextoRetorno({ contexto, respostaRhAnonima: partes[1] }), nomes: junto.nomes }
 }
 
+async function prepararMensagemConsideracoesRH(ocorrenciaId: string, devolutivaFinal: string): Promise<MensagemRetorno> {
+  const validado = validarTexto(devolutivaFinal)
+  if (!validado.ok) return { ok: false, error: validado.error }
+  if (validado.texto.includes(SEPARADOR_RESPOSTA_RH.trim())) {
+    return { ok: false, error: 'O texto contém um trecho reservado. Remova "<<<SEPARADOR_RESPOSTA_RH>>>".' }
+  }
+
+  const base = await carregarBase(ocorrenciaId)
+  if (!base) return { ok: false, error: 'Ocorrência não encontrada' }
+
+  const junto = anonimizarOcorrencia(`${base.descricao}${SEPARADOR_RESPOSTA_RH}${validado.texto}`, await carregarPessoas())
+  const partes = junto.texto.split(SEPARADOR_RESPOSTA_RH)
+  if (partes.length !== 2) return { ok: false, error: 'Não foi possível preparar o texto para a IA.' }
+
+  const contexto = montarContexto({
+    funcao: base.funcao,
+    dataOcorrencia: base.dataOcorrencia,
+    gravidade: base.gravidade,
+    textoAnonimo: partes[0],
+    historico: base.historico,
+  })
+  return { ok: true, mensagem: montarContextoConsideracoesRH({ contexto, devolutivaAnonima: partes[1] }), nomes: junto.nomes }
+}
+
 export type PreviaRetorno =
   | { success: true; mensagem: string; iaConfigurada: boolean }
   | { success: false; error: string }
@@ -344,6 +369,70 @@ export async function previaRetorno(ocorrenciaId: string, respostaRH: string): P
   const preparada = await prepararMensagemRetorno(ocorrenciaId, respostaRH)
   if (!preparada.ok) return { success: false, error: preparada.error }
   return { success: true, mensagem: preparada.mensagem, iaConfigurada: iaConfigurada() }
+}
+
+export type PreviaConsideracoesRH =
+  | { success: true; mensagem: string; iaConfigurada: boolean }
+  | { success: false; error: string }
+
+// Prévia das considerações ao RH: mostra o texto exato que iria à IA. Nada é enviado.
+export async function previaConsideracoesRH(ocorrenciaId: string, devolutivaFinal: string): Promise<PreviaConsideracoesRH> {
+  const guard = await requireRole(['admin', 'coordenador'])
+  if (!guard.success) return { success: false, error: guard.error }
+
+  const preparada = await prepararMensagemConsideracoesRH(ocorrenciaId, devolutivaFinal)
+  if (!preparada.ok) return { success: false, error: preparada.error }
+  return { success: true, mensagem: preparada.mensagem, iaConfigurada: iaConfigurada() }
+}
+
+export type ResultadoConsideracoesRH =
+  | { success: true; analiseId: string; consideracoes: string }
+  | { success: false; error: string }
+
+export async function gerarConsideracoesRH(ocorrenciaId: string, devolutivaFinal: string): Promise<ResultadoConsideracoesRH> {
+  const guard = await requireRole(['admin', 'coordenador'])
+  if (!guard.success) return { success: false, error: guard.error }
+  const { auth } = guard
+
+  if (!iaConfigurada()) return { success: false, error: 'A IA não está configurada neste ambiente (falta ANTHROPIC_API_KEY).' }
+  if (!dentroDoLimite(auth.user.id)) {
+    return { success: false, error: 'Muitas análises em pouco tempo. Aguarde alguns minutos.' }
+  }
+
+  const preparada = await prepararMensagemConsideracoesRH(ocorrenciaId, devolutivaFinal)
+  if (!preparada.ok) return { success: false, error: preparada.error }
+  const { mensagem, nomes } = preparada
+
+  const auditoriaId = await abrirAuditoria({
+    ocorrenciaId,
+    tipo: 'consideracoes_rh',
+    userId: auth.user.id,
+    textoEnviado: mensagem,
+    mapa: nomes,
+  })
+  if (!auditoriaId) {
+    return { success: false, error: 'Não foi possível registrar a auditoria. Nada foi enviado à IA.' }
+  }
+
+  try {
+    const resp = await chamarFerramenta(PROMPT_CONSIDERACOES_RH, FERRAMENTA_CONSIDERACOES_RH, mensagem, opcoesIA())
+    const resultado = lerConsideracoesRH(resp.entrada)
+    if (!resultado) {
+      await falharAuditoria(auditoriaId, 'Resposta da IA fora do formato', resp)
+      return { success: false, error: 'A IA devolveu uma resposta fora do formato. Tente de novo.' }
+    }
+
+    await fecharAuditoria(auditoriaId, resp, resultado)
+    return {
+      success: true,
+      analiseId: auditoriaId,
+      consideracoes: restaurarNomes(resultado.consideracoes_rh, nomes),
+    }
+  } catch (e) {
+    const erro = mensagemErroIA(e)
+    await falharAuditoria(auditoriaId, erro)
+    return { success: false, error: erro }
+  }
 }
 
 export async function rascunharDevolutivaRetorno(ocorrenciaId: string, respostaRH: string): Promise<ResultadoRetorno> {
@@ -454,7 +543,7 @@ export async function decidirAnalise(
 export type AnaliseHistorico = {
   id: string
   created_at: string
-  tipo: 'analise' | 'devolutiva_retorno'
+  tipo: 'analise' | 'devolutiva_retorno' | 'consideracoes_rh'
   decisao: 'pendente' | 'aprovada' | 'reprovada'
   categoria: string | null
 }
