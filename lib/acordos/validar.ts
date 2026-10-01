@@ -1,4 +1,5 @@
-import type { Achado, CamposAcordo, FuncionarioCalc, NivelAchado } from './tipos'
+import type { Achado, CamposAcordo, FuncionarioCalc, MapaAusencias, NivelAchado } from './tipos'
+import { conflitosDeAusencia } from './ausencias'
 import { addMeses, diaSemanaDe, fmtDataBR, hhmmParaMin, mesDe, minParaHHMM } from './tempo'
 import { saidaDoDia, totalSemanalMin } from './horario-do-turno'
 import { JORNADA_SEMANAL_MIN, MAX_ACRESCIMO_DIA_MIN, MAX_JORNADA_DIA_MIN, PRAZO_MAXIMO_MESES, regimeElegivel } from './regras'
@@ -31,7 +32,10 @@ export function camposFaltando(c: CamposAcordo): string[] {
   return faltas
 }
 
-export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriados: MapaFeriados = new Map()): Achado[] {
+/** Situações cobertas pela projeção de ausências: com ela carregada, o status de hoje não vira aviso por si só. */
+const STATUS_PROJETADOS = ['atestado', 'ferias', 'afastado', 'faltante']
+
+export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriados: MapaFeriados = new Map(), ausencias?: MapaAusencias): Achado[] {
   const out: Achado[] = []
   const add = (nivel: NivelAchado, codigo: string, mensagem: string, funcionarioId?: string) =>
     out.push({ nivel, codigo, mensagem, funcionarioId })
@@ -41,7 +45,12 @@ export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriado
     if (!regimeElegivel(f.regime)) {
       add('erro', 'REGIME_NAO_ELEGIVEL', `${f.nome}: a escala ${f.regime} não é elegível a acordo de compensação.`, f.id)
     }
-    if (f.status !== 'ativo') add('aviso', 'STATUS', `${f.nome} está com status "${f.status}".`, f.id)
+    if (f.status !== 'ativo' && !(ausencias && STATUS_PROJETADOS.includes(f.status))) {
+      add('aviso', 'STATUS', `${f.nome} está com status "${f.status}".`, f.id)
+    }
+    // ausência registrada (atestado, afastamento, férias) que cai numa data do acordo: vale para qualquer template
+    const conflitos = ausencias ? conflitosDeAusencia(c, f, ausencias[f.id] ?? []) : []
+    if (conflitos.length) add('aviso', 'AUSENCIA_NA_DATA', `${f.nome}: ${conflitos.join('; ')}. Confira se ele estará presente.`, f.id)
     if (f.semTurno) add('aviso', 'SEM_TURNO', `${f.nome}: sem horário cadastrado; usando o padrão 5x2 de 44h.`, f.id)
     if (regimeElegivel(f.regime) && !f.semTurno) {
       const semanal = totalSemanalMin(f.semana)

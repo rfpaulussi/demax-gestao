@@ -3,15 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { X } from 'lucide-react'
-import { buscarFuncionariosPorPostos, criarAcordo } from '@/app/(admin)/acordos/actions'
+import { buscarAusenciasParaAcordo, buscarFuncionariosPorPostos, criarAcordo } from '@/app/(admin)/acordos/actions'
 import type { AcordoCompensacao, AcordoPostoItem, FuncionarioParaAcordo } from '@/app/(admin)/acordos/actions'
 import { montarTextosAcordo } from '@/lib/acordos/montar'
 import { AcordoPdfDoc } from './acordo-pdf'
 import { PedidoIa } from './pedido-ia'
 import type { RespostaInterpretacao } from '@/app/(admin)/acordos/ia-actions'
 import { calendarioParaMapa, type CalendarioLinha } from '@/lib/calendario/mapa'
-import { DIAS_SEMANA, type Achado, type FuncionarioCalc, type TemplateId } from '@/lib/acordos/tipos'
+import { DIAS_SEMANA, type Achado, type FuncionarioCalc, type MapaAusencias, type TemplateId } from '@/lib/acordos/tipos'
 import { agruparPorJornada, resumoCalculo } from '@/lib/acordos/movimentos'
+import { todasAsDatasDoAcordo } from '@/lib/acordos/ausencias'
 import { gerarObjeto, TEMPLATES } from '@/lib/acordos/templates'
 import { camposFaltando, temErro, validarAcordo } from '@/lib/acordos/validar'
 import { assinaturaSemana, juntarRotulos, saidaDoDia } from '@/lib/acordos/horario-do-turno'
@@ -195,7 +196,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
       setFuncs(res)
       const citados = selecaoIA.current
       selecaoIA.current = null
-      const padrao = res.filter(x => x.elegivel && (x.status === 'ativo' || x.status === 'ferias'))
+      const padrao = res.filter(x => x.elegivel)
       // funcionários citados no pedido da IA; sem citação, o posto todo
       const escolhidos = citados && citados.length ? res.filter(x => citados.includes(x.id)) : padrao
       setSelectedIds(new Set(escolhidos.map(x => x.id)))
@@ -228,6 +229,22 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
   const campos = useMemo(() => montarCampos(template, f, selectedIds), [template, f, selectedIds])
   const grupos = useMemo(() => agruparPorJornada(campos, calc), [campos, calc])
 
+  // Projeção de atestado/afastamento/férias contra todas as datas do acordo (qualquer situação). undefined = ainda sem dados.
+  const [ausencias, setAusencias] = useState<MapaAusencias | undefined>(undefined)
+  const chaveAusencias = useMemo(() => {
+    const datas = todasAsDatasDoAcordo(campos, calc)
+    return datas.length ? `${calc.map(x => x.id).sort().join(',')}|${datas[0]}|${datas[datas.length - 1]}` : ''
+  }, [campos, calc])
+  useEffect(() => {
+    if (!chaveAusencias) { setAusencias(undefined); return }
+    let ativo = true
+    const [ids, de, ate] = chaveAusencias.split('|')
+    const t = setTimeout(() => {
+      buscarAusenciasParaAcordo(ids.split(','), de, ate).then(r => { if (ativo) setAusencias(r ?? undefined) })
+    }, 400)
+    return () => { ativo = false; clearTimeout(t) }
+  }, [chaveAusencias])
+
   // Título automático enquanto o usuário não digitar nele
   const postoNome = postos.find(p => p.id === postosSel[0])?.nome
   const tituloAuto = situacaoEscolhida ? tituloSugerido(template, campos, postoNome) : ''
@@ -240,17 +257,17 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
   )
 
   const achados: Achado[] = useMemo(() => {
-    if (grupos.length === 0) return validarAcordo(campos, [], feriados)
+    if (grupos.length === 0) return validarAcordo(campos, [], feriados, ausencias)
     const vistos = new Set<string>()
     const out: Achado[] = []
     for (const g of grupos) {
-      for (const a of validarAcordo(campos, g, feriados)) {
+      for (const a of validarAcordo(campos, g, feriados, ausencias)) {
         const chave = `${a.codigo}|${a.funcionarioId ?? ''}|${a.mensagem}`
         if (!vistos.has(chave)) { vistos.add(chave); out.push(a) }
       }
     }
     return out
-  }, [campos, grupos, feriados])
+  }, [campos, grupos, feriados, ausencias])
 
   // Dias de ajuste sugeridos automaticamente enquanto o usuário não editar a lista à mão
   const sugestaoDias = useMemo(

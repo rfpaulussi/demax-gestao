@@ -15,7 +15,7 @@ import { montarTextosAcordo, type TurnoHorario } from '@/lib/acordos/montar'
 import { validarAcordo } from '@/lib/acordos/validar'
 import { participantesValidos } from '@/lib/acordos/participantes-validos'
 import { nomesRecentesDistintos } from '@/lib/acordos/resumo'
-import type { CamposAcordo, FuncionarioCalc, SemanaTurno } from '@/lib/acordos/tipos'
+import type { Ausencia, CamposAcordo, FuncionarioCalc, MapaAusencias, SemanaTurno } from '@/lib/acordos/tipos'
 import { carregarCalendario } from '@/lib/calendario/mogi'
 import { calendarioParaMapa } from '@/lib/calendario/mapa'
 
@@ -470,4 +470,49 @@ export async function editarAcordo(
   if (error) return { error: error.message }
   revalidatePath('/acordos')
   return {}
+}
+
+/**
+ * Atestados, afastamentos e férias dos funcionários que cruzam o período [de, ate] (datas ISO) do acordo.
+ * Leitura com a sessão do usuário (RLS). Erro → null: o modal segue sem a projeção.
+ */
+export async function buscarAusenciasParaAcordo(
+  funcionarioIds: string[], de: string, ate: string,
+): Promise<MapaAusencias | null> {
+  if (!Array.isArray(funcionarioIds) || !dataReal(de) || !dataReal(ate) || funcionarioIds.length === 0) return {}
+  const supabase = createClient() as AnyClient
+  const out: MapaAusencias = {}
+  const push = (id: string, a: Ausencia) => { (out[id] ??= []).push(a) }
+  try {
+    const atestados = await emLotes<{ funcionario_id: string; data_inicio: string; data_fim: string }>(funcionarioIds, async lote => {
+      const { data, error } = await supabase.from('atestados').select('funcionario_id, data_inicio, data_fim')
+        .in('funcionario_id', lote).lte('data_inicio', ate).gte('data_fim', de)
+      if (error) throw error
+      return data ?? []
+    })
+    for (const a of atestados) push(a.funcionario_id, { tipo: 'atestado', inicio: a.data_inicio, fim: a.data_fim })
+
+    const afast = await emLotes<{ funcionario_id: string; data_inicio: string; data_fim_prevista: string | null; data_fim_real: string | null }>(funcionarioIds, async lote => {
+      const { data, error } = await supabase.from('afastamentos').select('funcionario_id, data_inicio, data_fim_prevista, data_fim_real')
+        .in('funcionario_id', lote).lte('data_inicio', ate)
+      if (error) throw error
+      return data ?? []
+    })
+    for (const a of afast) {
+      const fim = a.data_fim_real ?? a.data_fim_prevista ?? '9999-12-31' // sem previsão de volta: segue afastado
+      if (fim >= de) push(a.funcionario_id, { tipo: 'afastamento', inicio: a.data_inicio, fim })
+    }
+
+    const ferias = await emLotes<{ funcionario_id: string; data_inicio: string | null; data_fim: string | null }>(funcionarioIds, async lote => {
+      const { data, error } = await supabase.from('ferias').select('funcionario_id, data_inicio, data_fim')
+        .in('funcionario_id', lote).in('status', ['agendado', 'aprovado', 'em_curso', 'concluido'])
+        .lte('data_inicio', ate).gte('data_fim', de)
+      if (error) throw error
+      return data ?? []
+    })
+    for (const f of ferias) if (f.data_inicio && f.data_fim) push(f.funcionario_id, { tipo: 'ferias', inicio: f.data_inicio, fim: f.data_fim })
+  } catch {
+    return null
+  }
+  return out
 }

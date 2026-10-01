@@ -67,3 +67,11 @@ export interface Achado {
   mensagem: string
   funcionarioId?: string
 }
+
+/** Ausência já registrada de um funcionário (atestado, afastamento ou férias), projetada contra as datas do acordo. */
+export interface Ausencia {
+  tipo: 'atestado' | 'afastamento' | 'ferias'
+  inicio: string
+  fim: string
+}
+export type MapaAusencias = Record<string, Ausencia[]>

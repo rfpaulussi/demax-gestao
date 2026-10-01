@@ -14,7 +14,8 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
 }
 
 const semAcento = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-const entra = (f: FuncionarioParaAcordo) => f.elegivel && (f.status === 'ativo' || f.status === 'ferias')
+// Todo elegível entra: atestado, afastamento e férias são conferidos contra as datas do acordo (aviso por funcionário), não travam a escolha
+const entra = (f: FuncionarioParaAcordo) => f.elegivel
 
 interface Props {
   postos: AcordoPostoItem[]
@@ -73,7 +74,6 @@ export function PassoFuncionarios({
         <span className="min-w-0 flex-1 text-sm text-gray-800">
           {x.nome}
           {!x.elegivel && <span className="block text-xs text-red-600">{x.motivo_inelegivel ?? 'Escala não elegível a acordo de compensação'}</span>}
-          {x.elegivel && !entra(x) && <span className="block text-xs text-gray-500">Status atual: {x.status}. Não vem marcado, mas pode incluir (útil quando as datas são futuras e ele já terá voltado).</span>}
           {x.elegivel && x.sem_turno && <span className="block text-xs text-amber-700">Sem horário cadastrado. Usando o padrão 5x2 de 44h.</span>}
         </span>
         {x.funcao && <span className="hidden shrink-0 text-xs text-gray-400 sm:inline">{x.funcao}</span>}
