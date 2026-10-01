@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type InputHTMLAttributes } from 'react'
+import { useEffect, useState, type InputHTMLAttributes } from 'react'
 import { parseHora } from '@/lib/acordos/colar'
 
 interface Props extends Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type'> {
@@ -15,6 +15,9 @@ interface Props extends Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'o
 export function HoraInput({ value, onChange, className = '', placeholder = '8:00', ...rest }: Props) {
   const [rascunho, setRascunho] = useState<string | null>(null)
   const [invalido, setInvalido] = useState(false)
+
+  // valor trocado por fora (colagem, planilha, botão de período): descarta o que estava sendo digitado
+  useEffect(() => { setRascunho(null); setInvalido(false) }, [value])
 
   function confirmar() {
     if (rascunho === null) return

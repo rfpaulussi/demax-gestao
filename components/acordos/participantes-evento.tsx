@@ -70,7 +70,7 @@ const rotuloCls = 'rounded px-1.5 py-0.5 text-[10px] font-bold uppercase trackin
 export function ParticipantesEvento({ funcionarios, participantes, onChange, feriados, ultimoDiaTrabalhado, erro }: Props) {
   const [texto, setTexto] = useState('')
   const [problemas, setProblemas] = useState<string[]>([])
-  const [aplicadas, setAplicadas] = useState<number | null>(null)
+  const [aplicadas, setAplicadas] = useState<{ lidos: number; alterados: number; origem: string } | null>(null)
   const arquivoRef = useRef<HTMLInputElement>(null)
 
   // atalhos de período: os já usados na lista (1 clique repete), completados com os comuns
@@ -91,11 +91,13 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
   const de = (id: string) => participantes[id] ?? VAZIO
   const mudar = (id: string, p: Partial<ParticipanteEvento>) => onChange({ ...participantes, [id]: { ...de(id), ...p } })
 
-  function aplicarColagem(t: string = texto) {
+  function aplicarColagem(t: string = texto, origem = 'texto colado') {
     const r = interpretarPlanilha(t, funcionarios)
+    // quantos funcionários ficaram com dados diferentes do que já estava na tela (deixa claro se a leitura trouxe algo novo)
+    const alterados = Object.entries(r.participantes).filter(([id, p]) => JSON.stringify(participantes[id]) !== JSON.stringify(p)).length
     onChange({ ...participantes, ...r.participantes })
     setProblemas(r.problemas)
-    setAplicadas(Object.keys(r.participantes).length)
+    setAplicadas({ lidos: Object.keys(r.participantes).length, alterados, origem })
   }
 
   async function enviarArquivo(e: ChangeEvent<HTMLInputElement>) {
@@ -105,7 +107,8 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
     try {
       const t = await planilhaParaTexto(arquivo)
       setTexto(t)
-      aplicarColagem(t)
+      // data de gravação do arquivo: mostra na hora se o Excel enviado é a versão salva mais recente
+      aplicarColagem(t, `${arquivo.name} (salvo em ${new Date(arquivo.lastModified).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })})`)
     } catch {
       setProblemas(['Não foi possível ler o arquivo. Envie um .xlsx ou .xls, ou cole as linhas no campo.'])
       setAplicadas(null)
@@ -138,7 +141,14 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
           <button type="button" onClick={() => baixarModelo(funcionarios, participantes)} className="text-xs font-medium text-slate-600 underline hover:text-slate-900">
             Baixar planilha com os funcionários (Excel)
           </button>
-          {aplicadas !== null && <span className="text-xs text-slate-600">{aplicadas} funcionário(s) preenchido(s)</span>}
+          {aplicadas !== null && (
+            <span className="text-xs text-slate-600">
+              {aplicadas.lidos} funcionário(s) lido(s) de {aplicadas.origem}:{' '}
+              {aplicadas.alterados > 0
+                ? <strong className="text-emerald-700">{aplicadas.alterados} com dados novos ou alterados</strong>
+                : <strong className="text-amber-700">nada mudou em relação ao que já estava na tela (confira se salvou o Excel)</strong>}
+            </span>
+          )}
         </div>
         {problemas.length > 0 && (
           <ul className="list-disc space-y-0.5 pl-5 text-xs font-medium text-amber-700">
