@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { lerAnalise, lerRetorno, CATEGORIAS, URGENCIAS, NIVEIS_RECOMENDADOS } from './schema'
+import { lerAnalise, lerRetorno, lerConsideracoesRH, CATEGORIAS, URGENCIAS, NIVEIS_RECOMENDADOS } from './schema'
 
 const valida = {
   categoria: 'saude',
@@ -94,5 +94,22 @@ describe('lerRetorno', () => {
   it('recusa devolutiva vazia ou entrada inválida', () => {
     expect(lerRetorno({ devolutiva_supervisor: '  ', pontos_de_atencao: [] })).toBeNull()
     expect(lerRetorno(null)).toBeNull()
+  })
+})
+
+describe('lerConsideracoesRH', () => {
+  it('aceita considerações válidas', () => {
+    const r = lerConsideracoesRH({ consideracoes_rh: 'Algum texto de considerações.' })
+    expect(r).not.toBeNull()
+    expect(r?.consideracoes_rh).toBe('Algum texto de considerações.')
+  })
+
+  it('recusa texto vazio', () => {
+    expect(lerConsideracoesRH({ consideracoes_rh: '' })).toBeNull()
+  })
+
+  it('recusa quando não é objeto', () => {
+    expect(lerConsideracoesRH(null)).toBeNull()
+    expect(lerConsideracoesRH([])).toBeNull()
   })
 })
