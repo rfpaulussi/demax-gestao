@@ -6,6 +6,7 @@ import { CheckCircle2, FileText, Pencil, Trash2, Plus } from 'lucide-react'
 import { pdf } from '@react-pdf/renderer'
 import type { AcordoCompensacao, AcordoPostoItem } from '@/app/(admin)/acordos/actions'
 import { excluirAcordo, marcarEntregueRH, editarAcordo } from '@/app/(admin)/acordos/actions'
+import { nomeArquivoAcordo } from '@/lib/acordos/nome-arquivo'
 import { AcordoPdfDoc } from './acordo-pdf'
 import { ModalNovoAcordo } from './modal-novo-acordo'
 import type { CalendarioLinha } from '@/lib/calendario/mapa'
@@ -179,7 +180,7 @@ export function AcordosClient({ acordos, postos, calendario, nomesRecentes, iaDi
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `acordo-compensacao-${acordo.titulo.toLowerCase().replace(/\s+/g, '-')}.pdf`
+      a.download = nomeArquivoAcordo(acordo)
       a.click()
       URL.revokeObjectURL(url)
     } finally {

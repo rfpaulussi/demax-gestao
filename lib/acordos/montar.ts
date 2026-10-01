@@ -26,14 +26,28 @@ export function montarTextosAcordo(campos: CamposAcordo, funcs: FuncionarioCalc[
 
   // Revezamento: cada grupo (mesma data de folga) abre o parágrafo com os nomes dele
   const revezamento = !!campos.folgasPorFuncionario || !!campos.participantes
-  const objetoPorFunc = new Map<string, string>()
+  const textoDoGrupo: string[] = []
+  const grupoDoFunc = new Map<string, number>()
   const objetosDosGrupos: string[] = []
-  for (const g of grupos) {
+  for (let gi = 0; gi < grupos.length; gi++) {
+    const g = grupos[gi]
     const texto = gerarObjeto(campos, resumoCalculo(campos, g))
     if (!texto.ok) return { ok: false, erro: texto.erro }
-    const objeto = revezamento ? `${juntarRotulos(g.map(f => f.nome))} ${texto.texto}` : texto.texto
-    objetosDosGrupos.push(objeto)
-    for (const f of g) objetoPorFunc.set(f.id, objeto)
+    textoDoGrupo.push(texto.texto)
+    objetosDosGrupos.push(revezamento ? `${juntarRotulos(g.map(f => f.nome))} ${texto.texto}` : texto.texto)
+    for (const f of g) grupoDoFunc.set(f.id, gi)
+  }
+
+  /** Parágrafo de um turno: um trecho por grupo que tem gente nele, com só os nomes que são daquele turno. */
+  const objetoDoTurno = (membros: FuncionarioCalc[]): string => {
+    const porGrupo = new Map<number, FuncionarioCalc[]>()
+    for (const f of membros) {
+      const gi = grupoDoFunc.get(f.id)!
+      porGrupo.set(gi, [...(porGrupo.get(gi) ?? []), f])
+    }
+    const trechos = Array.from(porGrupo.entries()).map(([gi, fs]) =>
+      (revezamento ? `${juntarRotulos(fs.map(f => f.nome))} ${textoDoGrupo[gi]}` : textoDoGrupo[gi]).replace(/\.$/, ''))
+    return `${Array.from(new Set(trechos)).join('; e os funcionários ')}.`
   }
 
   const porSemana = new Map<string, FuncionarioCalc[]>()
@@ -46,8 +60,8 @@ export function montarTextosAcordo(campos: CamposAcordo, funcs: FuncionarioCalc[
     label: gruposDeTurno.length === 1 ? 'Turno Único' : `Turno ${String.fromCharCode(65 + i)}`,
     horario: semanaParaTexto(g[0].semana),
     funcionario_ids: g.map(f => f.id),
-    // um turno pode ter grupos de datas diferentes no revezamento: junta os textos distintos, na ordem
-    objeto: Array.from(new Set(g.map(f => objetoPorFunc.get(f.id)!))).join('; e os funcionários '),
+    // um turno pode ter grupos de datas diferentes no revezamento: um trecho por grupo, só com os nomes do turno
+    objeto: objetoDoTurno(g),
   }))
 
   // descricao_acordo: um texto só quando todos os grupos coincidem; senão, um trecho por grupo com os turnos dele

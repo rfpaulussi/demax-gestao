@@ -13,6 +13,7 @@ import { agruparPorJornada, construirMovimentos } from '@/lib/acordos/movimentos
 import { TEMPLATES } from '@/lib/acordos/templates'
 import { montarTextosAcordo, type TurnoHorario } from '@/lib/acordos/montar'
 import { validarAcordo } from '@/lib/acordos/validar'
+import { participantesValidos } from '@/lib/acordos/participantes-validos'
 import { nomesRecentesDistintos } from '@/lib/acordos/resumo'
 import type { CamposAcordo, FuncionarioCalc, SemanaTurno } from '@/lib/acordos/tipos'
 import { carregarCalendario } from '@/lib/calendario/mogi'
@@ -149,19 +150,6 @@ function dataReal(iso: unknown): iso is string {
   const [a, m, d] = iso.split('-').map(Number)
   const dt = new Date(Date.UTC(a, m - 1, d))
   return dt.getUTCFullYear() === a && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d
-}
-
-const HHMM = /^([01]d|2[0-3]):[0-5]d$/
-
-/** `participantes` (T5 em dias inteiros) vem do navegador: só T5, formato certo e ao menos uma folga por pessoa. */
-function participantesValidos(c: CamposAcordo): boolean {
-  const p = c.participantes
-  if (p === undefined) return true
-  if (c.template !== 'T5' || typeof p !== 'object' || p === null || Array.isArray(p)) return false
-  return Object.values(p).every(x =>
-    !!x && typeof x.inicio === 'string' && typeof x.fim === 'string' && HHMM.test(x.inicio) && HHMM.test(x.fim)
-    && Array.isArray(x.folgas) && x.folgas.length >= 1 && x.folgas.length <= 10,
-  )
 }
 
 function datasDeParticipantes(c: CamposAcordo): string[] {

@@ -4,7 +4,7 @@ import { agruparPorJornada, construirMovimentos, resumoCalculo, saldoMin } from 
 import { validarAcordo } from './validar'
 import { montarTextosAcordo } from './montar'
 import { gerarObjeto } from './templates'
-import { func } from './__fixtures__'
+import { func, T_5X2_540 as T_OUTRO } from './__fixtures__'
 
 // Eleições: domingo 04/10/2026; meio período = 1 dia de folga, dia todo = 2 dias.
 const base: CamposAcordo = {
@@ -71,5 +71,53 @@ describe('T5 com participantes (folga em dias inteiros)', () => {
   it('sem participantes o T5 antigo continua igual', () => {
     const c: CamposAcordo = { template: 'T5', dataEvento: '2026-06-27', nomeEvento: 'X', minutosOrigem: 60, dataFolga: '2026-06-29', datasAjuste: [] }
     expect(saldoMin(construirMovimentos(c, [func('a')]))).toBe(0)
+  })
+})
+
+import { participantesValidos } from './participantes-validos'
+
+describe('participantesValidos (checagem do servidor)', () => {
+  const ok = (p: CamposAcordo['participantes'], template: CamposAcordo['template'] = 'T5') =>
+    participantesValidos({ template, datasAjuste: [], participantes: p })
+
+  it('aceita horários HH:MM e 1+ folgas', () => {
+    expect(ok({ a: { inicio: '08:00', fim: '12:30', folgas: ['2026-12-23'] } })).toBe(true)
+    expect(ok({ a: { inicio: '13:30', fim: '18:00', folgas: ['2026-12-28', '2026-12-29'] } })).toBe(true)
+    expect(ok(undefined)).toBe(true)
+  })
+
+  it('recusa horário fora do formato, sem folga, ou em outro template', () => {
+    expect(ok({ a: { inicio: '8:00', fim: '12:30', folgas: ['2026-12-23'] } })).toBe(false)
+    expect(ok({ a: { inicio: '24:00', fim: '12:30', folgas: ['2026-12-23'] } })).toBe(false)
+    expect(ok({ a: { inicio: '08:00', fim: '12:30', folgas: [] } })).toBe(false)
+    expect(ok({ a: { inicio: '08:00', fim: '12:30', folgas: ['2026-12-23'] } }, 'T3')).toBe(false)
+  })
+})
+
+describe('montarTextosAcordo por turno', () => {
+  it('cada turno cita só os nomes do turno e não deixa ".;"', () => {
+    const a = func('a'), c = func('c')
+    const campos: CamposAcordo = {
+      template: 'T5', dataEvento: '2026-10-04', nomeEvento: 'Eleições', datasAjuste: [], prazoLimite: '2027-01-05',
+      participantes: {
+        a: { inicio: '08:00', fim: '12:00', folgas: ['2026-12-28'] },
+        b: { inicio: '08:00', fim: '12:00', folgas: ['2026-12-28'] },
+        c: { inicio: '13:00', fim: '17:00', folgas: ['2026-12-29'] },
+      },
+    }
+    // turnos diferentes: a e c no turno padrão, b em outro horário
+    const outro = func('b', T_OUTRO)
+    const r = montarTextosAcordo(campos, [a, outro, c])
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    for (const h of r.horarios) expect(h.objeto).not.toMatch(/\.;/)
+    const turnoDeB = r.horarios.find(h => h.funcionario_ids.includes('b'))!
+    expect(turnoDeB.objeto).toContain('Func b')
+    expect(turnoDeB.objeto).not.toContain('Func a')
+    expect(turnoDeB.objeto?.endsWith('.')).toBe(true)
+    const turnoDeAeC = r.horarios.find(h => h.funcionario_ids.includes('a'))!
+    expect(turnoDeAeC.objeto).toContain('Func a')
+    expect(turnoDeAeC.objeto).toContain('; e os funcionários Func c')
+    expect(turnoDeAeC.objeto).not.toContain('Func b')
   })
 })
