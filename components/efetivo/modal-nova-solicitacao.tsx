@@ -9,6 +9,7 @@ import {
   solicitarRetornoAfastamento,
   solicitarRescisaoIndireta,
   solicitarMudancaHorario,
+  consultarSolicitacaoEmAnalise,
 } from '@/app/(admin)/efetivo/actions'
 import { calcularImpactoPosto } from '@/app/(admin)/efetivo/impacto'
 import { listarTurnosDoPosto, listarTurnosJovemAprendiz } from '@/app/(admin)/efetivo/horario/actions'
@@ -109,6 +110,16 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  // Aviso antecipado: já existe pedido em análise que bloqueia este tipo
+  const [emAnalise, setEmAnalise] = useState<string | null>(null)
+  useEffect(() => {
+    setEmAnalise(null)
+    if (!tipo || !open) return
+    let cancelado = false
+    consultarSolicitacaoEmAnalise(funcionario.id, tipo).then(r => { if (!cancelado) setEmAnalise(r?.mensagem ?? null) })
+    return () => { cancelado = true }
+  }, [tipo, open, funcionario.id])
 
   // Reset ao mudar tipo
   useEffect(() => {
@@ -712,7 +723,13 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
               </div>
             )}
 
-            {erro && (
+            {emAnalise && (
+              <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+                {emAnalise}
+              </p>
+            )}
+
+            {erro && !emAnalise && (
               <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
                 {erro}
               </p>
@@ -729,7 +746,7 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
               </button>
               <button
                 type="submit"
-                disabled={pending || !tipo}
+                disabled={pending || !tipo || !!emAnalise}
                 className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
               >
                 {pending ? 'Enviando...' : 'Enviar Solicitação'}

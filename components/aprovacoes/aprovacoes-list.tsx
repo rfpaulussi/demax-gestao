@@ -15,6 +15,8 @@ import type { TipoSolicitacao } from '@/types'
 export type SolicitacaoPendente = {
   id: string
   tipo: TipoSolicitacao
+  status?: 'pendente' | 'aprovada' | 'rejeitada'
+  observacao_admin?: string | null
   motivo: string | null
   dados_antes: Record<string, unknown> | null
   dados_depois: Record<string, unknown> | null
@@ -25,7 +27,9 @@ export type SolicitacaoPendente = {
 
 // ─── card ─────────────────────────────────────────────────────────────────────
 
-function SolicitacaoCard({ sol, canApprove, impacto, funcoes }: { sol: SolicitacaoPendente; canApprove: boolean; impacto?: ImpactoResult; funcoes: FuncaoOpt[] }) {
+function SolicitacaoCard({ sol, canApprove: podeAprovar, impacto, funcoes }: { sol: SolicitacaoPendente; canApprove: boolean; impacto?: ImpactoResult; funcoes: FuncaoOpt[] }) {
+  const decidida = !!sol.status && sol.status !== 'pendente'
+  const canApprove = podeAprovar && !decidida
   const [isPending, startTransition] = useTransition()
   const [rejeitando, setRejeitando] = useState(false)
   const [motivo, setMotivo] = useState('')
@@ -76,7 +80,15 @@ function SolicitacaoCard({ sol, canApprove, impacto, funcoes }: { sol: Solicitac
         <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset', badge.className)}>
           {badge.label}
         </span>
-        <span className="shrink-0 text-[10px] text-gray-400">
+        <span className="flex shrink-0 items-center gap-1.5 text-[10px] text-gray-400">
+          {decidida && (
+            <span className={cn(
+              'rounded-full px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
+              sol.status === 'aprovada' ? 'bg-green-50 text-green-700 ring-green-200' : 'bg-red-50 text-red-700 ring-red-200',
+            )}>
+              {sol.status === 'aprovada' ? 'Aprovada' : 'Rejeitada'}
+            </span>
+          )}
           {sol.created_at ? fmtData(sol.created_at) : ''}
         </span>
       </div>
@@ -111,6 +123,10 @@ function SolicitacaoCard({ sol, canApprove, impacto, funcoes }: { sol: Solicitac
       >
         Ver detalhes
       </button>
+
+      {sol.status === 'rejeitada' && sol.observacao_admin && (
+        <p className="mb-2 rounded border border-red-100 bg-red-50 px-2 py-1 text-xs text-red-700">Motivo da rejeição: {sol.observacao_admin}</p>
+      )}
 
       {erro && (
         <p className="mb-2 rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-600">{erro}</p>

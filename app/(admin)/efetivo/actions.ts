@@ -8,6 +8,7 @@ import { aplicarMudancaHorario } from '@/app/(admin)/efetivo/horario/actions'
 import { removerFaltasCobertas } from '@/lib/faltas-conflito'
 import { existeAfastamentoAberto, fecharAfastamentosVencidos } from '@/lib/afastamentos'
 import { buscarAtestadoSobreposto, mensagemSobreposicao } from '@/lib/atestados/sobreposicao'
+import { buscarSolicitacaoEmAnalise, mensagemEmAnalise, mensagemSolicitacaoEmAnalise } from '@/lib/solicitacoes/duplicidade'
 
 // ─── execução direta ──────────────────────────────────────────────────────────
 
@@ -33,28 +34,6 @@ async function supervisorTemAcessoAoFuncionario(
     .eq('ativo', true)
     .maybeSingle()
   return !!cfg
-}
-
-const TIPOS_QUE_ALTERAM_HORARIO = ['transferencia', 'mudanca_funcao', 'retorno_afastamento', 'mudanca_horario'] as const
-
-/**
- * Impede 2 solicitações pendentes simultâneas do mesmo funcionário entre os 4 tipos que
- * podem mexer em horarios_funcionarios (via aplicarMudancaHorario na aprovação) — evita
- * que a segunda aprovação feche, com data quebrada, o registro que a primeira acabou de abrir.
- */
-async function existeSolicitacaoConcorrentePendente(
-  supabase: ReturnType<typeof createClient>,
-  funcionarioId: string,
-): Promise<boolean> {
-  const { data } = await supabase
-    .from('solicitacoes')
-    .select('id')
-    .eq('funcionario_id', funcionarioId)
-    .eq('status', 'pendente')
-    .in('tipo', TIPOS_QUE_ALTERAM_HORARIO as unknown as string[])
-    .limit(1)
-    .maybeSingle()
-  return !!data
 }
 
 export async function registrarAtestado(formData: FormData) {
@@ -244,6 +223,17 @@ export async function registrarFerias(formData: FormData) {
 
 // ─── solicitações (requerem aprovação do admin) ───────────────────────────────
 
+/** Aviso antecipado no modal: já tem pedido em análise que bloquearia este tipo? */
+export async function consultarSolicitacaoEmAnalise(
+  funcionarioId: string,
+  tipo: string,
+): Promise<{ mensagem: string } | null> {
+  const auth = await getUser()
+  if (!auth) return null
+  const s = await buscarSolicitacaoEmAnalise(funcionarioId, tipo)
+  return s ? { mensagem: mensagemEmAnalise(s) } : null
+}
+
 type ActionResult = { success: true } | { success: false; error: string }
 
 export async function solicitarDesligamento(formData: FormData): Promise<ActionResult> {
@@ -255,6 +245,9 @@ export async function solicitarDesligamento(formData: FormData): Promise<ActionR
   const dataDesligamento = formData.get('data_desligamento') as string
   const motivo           = formData.get('motivo') as string
   const tipoDesligamento = (formData.get('tipo_desligamento') as string) || null
+
+  const emAnalise = await mensagemSolicitacaoEmAnalise(funcionarioId, 'desligamento')
+  if (emAnalise) return { success: false, error: emAnalise }
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -297,9 +290,8 @@ export async function solicitarTransferencia(formData: FormData): Promise<Action
 
   if (!postoDestinoId) return { success: false, error: 'Selecione o posto destino' }
 
-  if (await existeSolicitacaoConcorrentePendente(supabase, funcionarioId)) {
-    return { success: false, error: 'Já existe uma solicitação pendente para este funcionário que altera o horário — aguarde a aprovação antes de enviar outra.' }
-  }
+  const emAnalise = await mensagemSolicitacaoEmAnalise(funcionarioId, 'transferencia')
+  if (emAnalise) return { success: false, error: emAnalise }
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -364,9 +356,8 @@ export async function solicitarMudancaFuncao(formData: FormData): Promise<Action
   const turnoDestinoId  = (formData.get('turno_destino_id') as string) || null
   const diaCursoDestino = formData.get('dia_curso_destino') ? Number(formData.get('dia_curso_destino')) : null
 
-  if (await existeSolicitacaoConcorrentePendente(supabase, funcionarioId)) {
-    return { success: false, error: 'Já existe uma solicitação pendente para este funcionário que altera o horário — aguarde a aprovação antes de enviar outra.' }
-  }
+  const emAnalise = await mensagemSolicitacaoEmAnalise(funcionarioId, 'mudanca_funcao')
+  if (emAnalise) return { success: false, error: emAnalise }
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -454,6 +445,9 @@ export async function solicitarAfastamento(fd: FormData): Promise<ActionResult> 
   if (MOTIVOS_MEDICOS_INSS.includes(motivo) && auth.perfil.role !== 'admin') {
     return { success: false, error: 'Afastamento por INSS só pode ser solicitado pelo administrador — lance o atestado normalmente.' }
   }
+
+  const emAnalise = await mensagemSolicitacaoEmAnalise(funcionario_id, 'afastamento')
+  if (emAnalise) return { success: false, error: emAnalise }
 
   // Calcular retorno a partir dos dias se não foi informado manualmente
   if (!data_retorno_prevista && diasStr) {
@@ -547,9 +541,8 @@ export async function solicitarRetornoAfastamento(fd: FormData): Promise<ActionR
   const turnoDestinoId    = (fd.get('turno_destino_id') as string) || null
   const diaCursoDestino   = fd.get('dia_curso_destino') ? Number(fd.get('dia_curso_destino')) : null
 
-  if (await existeSolicitacaoConcorrentePendente(supabase, funcionario_id)) {
-    return { success: false, error: 'Já existe uma solicitação pendente para este funcionário que altera o horário — aguarde a aprovação antes de enviar outra.' }
-  }
+  const emAnalise = await mensagemSolicitacaoEmAnalise(funcionario_id, 'retorno_afastamento')
+  if (emAnalise) return { success: false, error: emAnalise }
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -611,6 +604,9 @@ export async function solicitarRescisaoIndireta(fd: FormData): Promise<ActionRes
   if (!data_parou_trabalhar) {
     return { success: false, error: 'Data em que parou de trabalhar é obrigatória' }
   }
+
+  const emAnalise = await mensagemSolicitacaoEmAnalise(funcionario_id, 'rescisao_indireta')
+  if (emAnalise) return { success: false, error: emAnalise }
 
   const { data: func } = await supabase
     .from('funcionarios')
@@ -909,9 +905,8 @@ export async function solicitarMudancaHorario(formData: FormData): Promise<Actio
 
   if (!turnoDestinoId) return { success: false, error: 'Selecione o turno de destino' }
 
-  if (await existeSolicitacaoConcorrentePendente(supabase, funcionarioId)) {
-    return { success: false, error: 'Já existe uma solicitação pendente para este funcionário que altera o horário — aguarde a aprovação antes de enviar outra.' }
-  }
+  const emAnalise = await mensagemSolicitacaoEmAnalise(funcionarioId, 'mudanca_horario')
+  if (emAnalise) return { success: false, error: emAnalise }
 
   const { data: vigente } = await supabase
     .from('horarios_funcionarios')

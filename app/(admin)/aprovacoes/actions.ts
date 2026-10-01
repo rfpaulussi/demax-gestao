@@ -11,6 +11,7 @@ import { registrarAtestado } from '@/app/(admin)/efetivo/actions'
 import { cidFormatoValido } from '@/lib/auditoria-atestados/cid-formato'
 import { buscarAtestadoSobreposto, mensagemSobreposicao } from '@/lib/atestados/sobreposicao'
 import { FUNCAO_JOVEM_APRENDIZ, precisaNovoTurno } from '@/lib/turnos/escala'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { removerFaltasCobertas } from '@/lib/faltas-conflito'
 import { existeAfastamentoAberto, fecharAfastamentosVencidos, fecharAfastamentosNoDesligamento } from '@/lib/afastamentos'
 
@@ -64,7 +65,8 @@ export type SolicitacaoRow = {
   dados_antes: Record<string, unknown> | null
   dados_depois: Record<string, unknown> | null
   created_at: string | null
-  funcionarios: { nome: string; cpf: string | null } | null
+  supervisor_id: string | null
+  funcionarios: { nome: string; cpf: string | null; postos?: { id: string; nome: string; secretaria: string | null } | null } | null
   perfis: { nome: string | null; email: string | null } | null
 }
 
@@ -88,14 +90,14 @@ async function assertAdmin(): Promise<AdminGuard> {
 // ─── buscarSolicitacoes ────────────────────────────────────────────────────────
 
 const SOL_SELECT_COM_CPF = `
-  id, funcionario_id, tipo, status, motivo, observacao_admin, dados_antes, dados_depois, created_at,
-  funcionarios!funcionario_id ( nome, cpf ),
+  id, funcionario_id, tipo, status, motivo, observacao_admin, dados_antes, dados_depois, created_at, supervisor_id,
+  funcionarios!funcionario_id ( nome, cpf, postos!posto_id ( id, nome, secretaria ) ),
   perfis!supervisor_id ( nome, email )
 `
 
 const SOL_SELECT_SEM_CPF = `
-  id, funcionario_id, tipo, status, motivo, observacao_admin, dados_antes, dados_depois, created_at,
-  funcionarios!funcionario_id ( nome ),
+  id, funcionario_id, tipo, status, motivo, observacao_admin, dados_antes, dados_depois, created_at, supervisor_id,
+  funcionarios!funcionario_id ( nome, postos!posto_id ( id, nome, secretaria ) ),
   perfis!supervisor_id ( nome, email )
 `
 
@@ -109,17 +111,20 @@ export async function buscarSolicitacoes(
   const podeVerCpf = auth.perfil.role === 'admin' || auth.perfil.role === 'coordenador'
   const supabase = createClient()
 
-  let query = supabase
-    .from('solicitacoes')
-    .select(podeVerCpf ? SOL_SELECT_COM_CPF : SOL_SELECT_SEM_CPF)
-    .order('created_at', { ascending: false })
+  // Pagina além do limite de 1000 linhas do PostgREST (aprovadas acumulam).
+  const rows = (await fetchAllRows((from, to) => {
+    let query = supabase
+      .from('solicitacoes')
+      .select(podeVerCpf ? SOL_SELECT_COM_CPF : SOL_SELECT_SEM_CPF)
+      .order('created_at', { ascending: false })
+      .order('id')
+      .range(from, to)
 
-  if (filtros.tipo)          query = query.eq('tipo', filtros.tipo as unknown as 'desligamento')
-  if (filtros.status)        query = query.eq('status', filtros.status)
-  if (filtros.supervisor_id) query = query.eq('supervisor_id', filtros.supervisor_id)
-
-  const { data } = await query
-  const rows = (data ?? []) as unknown as SolicitacaoRow[]
+    if (filtros.tipo)          query = query.eq('tipo', filtros.tipo as unknown as 'desligamento')
+    if (filtros.status)        query = query.eq('status', filtros.status)
+    if (filtros.supervisor_id) query = query.eq('supervisor_id', filtros.supervisor_id)
+    return query
+  })) as unknown as SolicitacaoRow[]
 
   // Para roles sem acesso ao CPF completo, garantimos que nenhum dado vaze
   if (!podeVerCpf) {

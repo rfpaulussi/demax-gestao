@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
-import { solicitarDesligamento } from '@/app/(admin)/efetivo/actions'
+import { solicitarDesligamento, consultarSolicitacaoEmAnalise } from '@/app/(admin)/efetivo/actions'
 import type { FuncionarioRow } from './funcionarios-table'
 
 interface Props {
@@ -69,6 +69,15 @@ export const MOTIVOS_POR_TIPO: Record<TipoDesligamento, { value: string; label: 
 export function ModalDesligar({ funcionario, open, onClose }: Props) {
   const [pending, setPending] = useState(false)
   const [tipo, setTipo]       = useState<TipoDesligamento | ''>('')
+  const [erro, setErro]       = useState<string | null>(null)
+  const [emAnalise, setEmAnalise] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    let cancelado = false
+    consultarSolicitacaoEmAnalise(funcionario.id, 'desligamento').then(r => { if (!cancelado) setEmAnalise(r?.mensagem ?? null) })
+    return () => { cancelado = true }
+  }, [open, funcionario.id])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -76,8 +85,10 @@ export function ModalDesligar({ funcionario, open, onClose }: Props) {
     const data = new FormData(form)
     data.set('funcionario_id', funcionario.id)
     setPending(true)
+    setErro(null)
     try {
-      await solicitarDesligamento(data)
+      const result = await solicitarDesligamento(data)
+      if (!result.success) { setErro(result.error); return }
       form.reset()
       setTipo('')
       onClose()
@@ -143,11 +154,17 @@ export function ModalDesligar({ funcionario, open, onClose }: Props) {
               </div>
             )}
 
+            {(emAnalise || erro) && (
+              <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+                {emAnalise ?? erro}
+              </p>
+            )}
+
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={onClose} className="rounded px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100">
                 Cancelar
               </button>
-              <button type="submit" disabled={pending} className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
+              <button type="submit" disabled={pending || !!emAnalise} className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
                 {pending ? 'Enviando...' : 'Enviar Solicitação'}
               </button>
             </div>
