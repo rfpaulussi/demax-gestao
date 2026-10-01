@@ -16,7 +16,7 @@ const normaliza = (t: string) => semAcento(t).toLowerCase().replace(/[^a-z0-9 ]/
 const HORA = String.raw`(\d{1,2})(?:[:h](\d{2}))?h?`
 const RE_HORARIO = new RegExp(String.raw`${HORA}\s*(?:às|as|a|-|–|—)\s*${HORA}`, 'i')
 // Célula só com horário (colunas Início/Fim): '8', '8:30', '8h30', '0830', '1230'
-const RE_CELULA_HORA = /^(\d{1,2})(?:[:h.](\d{2}))?h?$|^(\d{2})(\d{2})$/i
+const RE_CELULA_HORA = /^(\d{1,2})(?:[:h.](\d{2}))?h?$|^(\d{1,2})(\d{2})$/i
 const RE_DATA = /(\d{1,2})\/(\d{1,2})\/(\d{4}|\d{2})/g
 const RE_DATA_SEM_ANO = /\d{1,2}\/\d{1,2}(?!\/?\d)/
 
@@ -24,8 +24,8 @@ function hhmm(h: number, m: number): string | null {
   return h >= 0 && h <= 23 && m >= 0 && m <= 59 ? `${p2(h)}:${p2(m)}` : null
 }
 
-/** '8' → 08:00; '8:30'/'8h30'/'0830' → 08:30; inválido → null. */
-function horaDaCelula(cel: string): string | null {
+/** '8' → 08:00; '8:15'/'8h15'/'0815'/'815' → 08:15; inválido → null. */
+export function parseHora(cel: string): string | null {
   const m = RE_CELULA_HORA.exec(cel.trim())
   if (!m) return null
   return m[3] !== undefined ? hhmm(Number(m[3]), Number(m[4])) : hhmm(Number(m[1]), Number(m[2] ?? 0))
@@ -69,7 +69,7 @@ function acharPeriodo(linha: string, celulaDoNome?: number): { inicio: string; f
   const horas: { i: number; v: string }[] = []
   celulas.forEach((cel, i) => {
     if (i === celulaDoNome) return
-    const v = horaDaCelula(cel)
+    const v = parseHora(cel)
     if (v) horas.push({ i, v })
   })
   if (horas.length < 2) return null

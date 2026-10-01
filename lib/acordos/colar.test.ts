@@ -46,3 +46,13 @@ describe('interpretarPlanilha', () => {
     expect(r.problemas).toHaveLength(4)
   })
 })
+
+import { parseHora } from './colar'
+
+describe('parseHora', () => {
+  it('aceita 8, 8:15, 9, 815, 0830, 8h30, 18 e recusa lixo', () => {
+    expect(['8', '8:15', '9', '815', '0830', '8h30', '18', '12:30h', '1800'].map(parseHora))
+      .toEqual(['08:00', '08:15', '09:00', '08:15', '08:30', '08:30', '18:00', '12:30', '18:00'])
+    expect(['', '25', '8:75', 'abc', '99:99'].map(parseHora)).toEqual([null, null, null, null, null])
+  })
+})

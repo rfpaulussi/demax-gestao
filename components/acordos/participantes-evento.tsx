@@ -1,10 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import type { ParticipanteEvento } from '@/lib/acordos/tipos'
 import type { MapaFeriados } from '@/lib/acordos/validar'
 import { interpretarPlanilha } from '@/lib/acordos/colar'
-import { HoraSelect } from './hora-select'
+import { HoraInput } from './hora-input'
+import { planilhaParaTexto } from '@/lib/acordos/planilha-arquivo'
 import { INPUT_CLS, INPUT_ERRO_CLS } from './passo'
 
 interface Props {
@@ -65,6 +66,7 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
   const [texto, setTexto] = useState('')
   const [problemas, setProblemas] = useState<string[]>([])
   const [aplicadas, setAplicadas] = useState<number | null>(null)
+  const arquivoRef = useRef<HTMLInputElement>(null)
 
   // atalhos de período: os já usados na lista (1 clique repete), completados com os comuns
   const periodos = useMemo(() => {
@@ -84,11 +86,25 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
   const de = (id: string) => participantes[id] ?? VAZIO
   const mudar = (id: string, p: Partial<ParticipanteEvento>) => onChange({ ...participantes, [id]: { ...de(id), ...p } })
 
-  function aplicarColagem() {
-    const r = interpretarPlanilha(texto, funcionarios)
+  function aplicarColagem(t: string = texto) {
+    const r = interpretarPlanilha(t, funcionarios)
     onChange({ ...participantes, ...r.participantes })
     setProblemas(r.problemas)
     setAplicadas(Object.keys(r.participantes).length)
+  }
+
+  async function enviarArquivo(e: ChangeEvent<HTMLInputElement>) {
+    const arquivo = e.target.files?.[0]
+    e.target.value = '' // permite enviar o mesmo arquivo de novo
+    if (!arquivo) return
+    try {
+      const t = await planilhaParaTexto(arquivo)
+      setTexto(t)
+      aplicarColagem(t)
+    } catch {
+      setProblemas(['Não foi possível ler o arquivo. Envie um .xlsx ou .xls, ou cole as linhas no campo.'])
+      setAplicadas(null)
+    }
   }
 
   return (
@@ -96,7 +112,7 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
       <div className="space-y-1.5 rounded-lg border border-dashed border-gray-300 bg-white p-3">
         <label htmlFor="colar-planilha" className="text-xs font-semibold text-slate-500">Colar da planilha</label>
         <p className="text-[11px] text-gray-400">
-          Colunas: Funcionário, Início, Fim, Folga 1, Folga 2. Horário só com número (8, 12:30, 1800) e data com ano (23/12/2026).
+          Colunas: Funcionário, Início, Fim, Folga 1, Folga 2. Horário do jeito que for (8, 8:15, 9, 12:30, 1800) e data com ano (23/12/2026).
         </p>
         <textarea
           id="colar-planilha"
@@ -107,8 +123,12 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
           className={`${INPUT_CLS} font-mono text-xs`}
         />
         <div className="flex flex-wrap items-center gap-3">
-          <button type="button" onClick={aplicarColagem} disabled={!texto.trim()} className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-40">
+          <button type="button" onClick={() => aplicarColagem()} disabled={!texto.trim()} className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-40">
             Aplicar
+          </button>
+          <input ref={arquivoRef} type="file" accept=".xlsx,.xls" onChange={enviarArquivo} className="hidden" aria-label="Enviar planilha Excel" />
+          <button type="button" onClick={() => arquivoRef.current?.click()} className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            Enviar planilha (.xlsx)
           </button>
           <button type="button" onClick={() => baixarModelo(funcionarios, participantes)} className="text-xs font-medium text-slate-600 underline hover:text-slate-900">
             Baixar planilha com os funcionários (Excel)
@@ -145,9 +165,9 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`${rotuloCls} bg-blue-100 text-blue-800`}>Início</span>
-                <HoraSelect aria-label={`Início de ${fn.nome}`} value={p.inicio} onChange={v => mudar(fn.id, { inicio: v })} className={`!w-[5.5rem] ${faltaPeriodo ? INPUT_ERRO_CLS : INPUT_CLS}`} />
+                <HoraInput aria-label={`Início de ${fn.nome}`} value={p.inicio} onChange={v => mudar(fn.id, { inicio: v })} className={`!w-20 ${faltaPeriodo ? INPUT_ERRO_CLS : INPUT_CLS}`} />
                 <span className={`${rotuloCls} bg-orange-100 text-orange-800`}>Fim</span>
-                <HoraSelect aria-label={`Fim de ${fn.nome}`} value={p.fim} onChange={v => mudar(fn.id, { fim: v })} className={`!w-[5.5rem] ${faltaPeriodo ? INPUT_ERRO_CLS : INPUT_CLS}`} />
+                <HoraInput aria-label={`Fim de ${fn.nome}`} value={p.fim} onChange={v => mudar(fn.id, { fim: v })} className={`!w-20 ${faltaPeriodo ? INPUT_ERRO_CLS : INPUT_CLS}`} />
                 <span className={`ml-1 ${rotuloCls} bg-emerald-100 text-emerald-800`}>Folga</span>
                 {p.folgas.map((d, i) => (
                   <span key={i} className="inline-flex items-center gap-1">

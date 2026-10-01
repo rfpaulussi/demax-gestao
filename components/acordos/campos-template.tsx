@@ -11,7 +11,7 @@ import { fmtHM, motivoDoCalendario, rotuloAtalhoCalendario } from '@/lib/acordos
 import { Campo, INPUT_CLS, INPUT_ERRO_CLS, SubPasso } from './passo'
 import { MotivoChips } from './motivo-chips'
 import { DiasChips } from './dias-chips'
-import { HoraSelect } from './hora-select'
+import { HoraInput } from './hora-input'
 import { ParticipantesEvento } from './participantes-evento'
 import { FolgasRevezamento, SeletorModoFolga, type FuncionarioFolga } from './folgas-revezamento'
 
@@ -130,11 +130,11 @@ export function CamposTemplate({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="campo-periodoInicio" className="mb-1 block text-xs font-semibold text-slate-500">Das</label>
-            <HoraSelect id="campo-periodoInicio" value={f.periodoInicio} onChange={v => set('periodoInicio', v)} className={cls('horas')} />
+            <HoraInput id="campo-periodoInicio" value={f.periodoInicio} onChange={v => set('periodoInicio', v)} className={cls('horas')} />
           </div>
           <div>
             <label htmlFor="campo-periodoFim" className="mb-1 block text-xs font-semibold text-slate-500">Às</label>
-            <HoraSelect id="campo-periodoFim" value={f.periodoFim} onChange={v => set('periodoFim', v)} className={cls('horas')} />
+            <HoraInput id="campo-periodoFim" value={f.periodoFim} onChange={v => set('periodoFim', v)} className={cls('horas')} />
           </div>
         </div>
       ) : (
@@ -362,7 +362,7 @@ export function CamposTemplate({
               ajuda={dicaDispensa || 'Cada funcionário é comparado ao horário de saída do próprio turno. ex: 12:00'}
               erro={erros.horaDispensa}
             >
-              <HoraSelect id="campo-horaDispensa" value={f.horaDispensa} onChange={v => set('horaDispensa', v)} className={`max-w-[10rem] ${cls('horaDispensa')}`} />
+              <HoraInput id="campo-horaDispensa" value={f.horaDispensa} onChange={v => set('horaDispensa', v)} className={`max-w-[10rem] ${cls('horaDispensa')}`} />
             </Campo>
           </SubPasso>
           <SubPasso letra={proxima()} titulo="Motivo">{blocoMotivo(true)}</SubPasso>
