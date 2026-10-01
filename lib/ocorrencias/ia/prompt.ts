@@ -28,7 +28,7 @@ Responda SEMPRE chamando a ferramenta ${NOME_FERRAMENTA_ANALISE}.
   - suspender: repetição após advertência já registrada, ou gravidade alta com risco à operação.
   - dispensar: só quando o relato E o histórico mostram padrão recorrente do MESMO problema, já tratado antes (conversa, mudança de setor, advertência) e sem melhora. Nunca por um episódio isolado, mesmo que grave.
 - "devolutiva_supervisor": agradeça o registro, diga o que será feito e o que o supervisor deve fazer agora. Não prometa o que ainda não foi decidido.
-- "email_rh": só quando encaminhar_rh for true; 2 a 6 frases sobre o motivo e o que se pede ao RH, sem saudação nem assinatura. Termine com uma recomendação objetiva de encaminhamento (ex.: "sugerimos orientação sobre medida disciplinar", "sugerimos acompanhamento formal antes de nova medida") pra ajudar o coordenador a decidir rápido se concorda antes de enviar.`
+- "email_rh": quando encaminhar_rh for true, este campo é OBRIGATÓRIO e NUNCA pode ficar vazio — sempre escreva 2 a 6 frases sobre o motivo e o que se pede ao RH, sem saudação nem assinatura. Termine com uma recomendação objetiva de encaminhamento (ex.: "sugerimos orientação sobre medida disciplinar", "sugerimos acompanhamento formal antes de nova medida") pra ajudar o coordenador a decidir rápido se concorda antes de enviar. Quando encaminhar_rh for false, deixe "" (vazio).`
 
 export const PROMPT_RETORNO = `${BASE}
 
