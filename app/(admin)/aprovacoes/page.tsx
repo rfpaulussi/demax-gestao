@@ -222,6 +222,7 @@ export default async function AprovacoesPage({ searchParams }: { searchParams: S
         canApprove={canApprove}
         impactos={impactos}
         funcoes={funcoes}
+        exportar={!isSupervisor}
       />
     </div>
   )

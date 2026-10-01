@@ -706,9 +706,12 @@ export async function rejeitarSolicitacao(id: string, motivo: string): Promise<A
 
   const { data: sol } = await supabase
     .from('solicitacoes')
-    .select('funcionario_id, tipo')
+    .select('funcionario_id, tipo, status')
     .eq('id', id)
     .single()
+
+  if (!sol) return { success: false, error: 'Solicitação não encontrada' }
+  if (sol.status !== 'pendente') return { success: false, error: 'Solicitação já processada' }
 
   const { error } = await supabase
     .from('solicitacoes')
@@ -719,6 +722,7 @@ export async function rejeitarSolicitacao(id: string, motivo: string): Promise<A
       observacao_admin: motivo,
     })
     .eq('id', id)
+    .eq('status', 'pendente')
 
   if (error) return { success: false, error: error.message }
 
@@ -736,4 +740,46 @@ export async function rejeitarSolicitacao(id: string, motivo: string): Promise<A
 
   revalidatePath('/aprovacoes')
   return { success: true }
+}
+
+// ─── Ações em lote ────────────────────────────────────────────────────────────
+
+const LIMITE_LOTE = 50
+
+export type ResultadoLote = {
+  ok: number
+  falhas: { id: string; error: string }[]
+}
+
+/** Aprova uma a uma (a ordem importa: o impacto no posto muda a cada aprovação). Não segue redirect_url. */
+export async function aprovarEmLote(ids: string[]): Promise<ResultadoLote | { success: false; error: string }> {
+  const guard = await assertAdmin()
+  if (!guard.success) return guard
+  if (ids.length === 0) return { ok: 0, falhas: [] }
+  if (ids.length > LIMITE_LOTE) return { success: false, error: `Máximo de ${LIMITE_LOTE} solicitações por lote` }
+
+  const resultado: ResultadoLote = { ok: 0, falhas: [] }
+  for (const id of ids) {
+    const r = await aprovarSolicitacao(id)
+    if (r.success) resultado.ok++
+    else resultado.falhas.push({ id, error: r.error })
+  }
+  revalidatePath('/aprovacoes')
+  return resultado
+}
+
+export async function rejeitarEmLote(ids: string[], motivo: string): Promise<ResultadoLote | { success: false; error: string }> {
+  const guard = await assertAdmin()
+  if (!guard.success) return guard
+  if (!motivo.trim()) return { success: false, error: 'Motivo da rejeição é obrigatório' }
+  if (ids.length > LIMITE_LOTE) return { success: false, error: `Máximo de ${LIMITE_LOTE} solicitações por lote` }
+
+  const resultado: ResultadoLote = { ok: 0, falhas: [] }
+  for (const id of ids) {
+    const r = await rejeitarSolicitacao(id, motivo)
+    if (r.success) resultado.ok++
+    else resultado.falhas.push({ id, error: r.error })
+  }
+  revalidatePath('/aprovacoes')
+  return resultado
 }
