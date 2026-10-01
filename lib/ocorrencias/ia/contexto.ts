@@ -31,3 +31,7 @@ export function montarContexto(d: DadosContexto): string {
 export function montarContextoRetorno(p: { contexto: string; respostaRhAnonima: string }): string {
   return [p.contexto, '', 'Resposta do RH:', p.respostaRhAnonima].join('\n')
 }
+
+export function montarContextoConsideracoesRH(p: { contexto: string; devolutivaAnonima: string }): string {
+  return [p.contexto, '', 'Devolutiva que o coordenador escreveu ao supervisor:', p.devolutivaAnonima].join('\n')
+}
