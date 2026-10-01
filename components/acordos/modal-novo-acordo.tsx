@@ -421,7 +421,8 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
     funcionarios: okDe('funcionarios'),
     dados: situacaoEscolhida && okDe('datas') && okDe('motivo'),
   }
-  const abertoPasso = (id: PassoId) => abertoManual[id] ?? !completoPasso[id]
+  // "Onde e quem?" não fecha sozinho (dá para marcar vários postos e ajustar funcionários); só no "Concluir seleção"
+  const abertoPasso = (id: PassoId) => abertoManual[id] ?? (id === 'funcionarios' ? true : !completoPasso[id])
   const alternarPasso = (id: PassoId) => setAbertoManual(prev => ({ ...prev, [id]: !abertoPasso(id) }))
 
   function irPara(id: ItemChecklistId) {
@@ -618,6 +619,17 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
                   loading={loadingFuncs}
                   erro={erroFuncionarios}
                 />
+                {okDe('funcionarios') && (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setAbertoManual(prev => ({ ...prev, funcionarios: false }))}
+                      className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-700"
+                    >
+                      Concluir seleção
+                    </button>
+                  </div>
+                )}
               </Passo>
             ) : (
               <PassoResumo id="passo-funcionarios" numero={2} titulo="Onde e quem?" resumo={resumoFuncionarios} onEditar={() => alternarPasso('funcionarios')} />

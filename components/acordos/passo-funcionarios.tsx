@@ -73,7 +73,7 @@ export function PassoFuncionarios({
         <span className="min-w-0 flex-1 text-sm text-gray-800">
           {x.nome}
           {!x.elegivel && <span className="block text-xs text-red-600">{x.motivo_inelegivel ?? 'Escala não elegível a acordo de compensação'}</span>}
-          {x.elegivel && !entra(x) && <span className="block text-xs text-gray-500">Fora por padrão (status {x.status}). Marque para incluir mesmo assim.</span>}
+          {x.elegivel && !entra(x) && <span className="block text-xs text-gray-500">Status atual: {x.status}. Não vem marcado, mas pode incluir (útil quando as datas são futuras e ele já terá voltado).</span>}
           {x.elegivel && x.sem_turno && <span className="block text-xs text-amber-700">Sem horário cadastrado. Usando o padrão 5x2 de 44h.</span>}
         </span>
         {x.funcao && <span className="hidden shrink-0 text-xs text-gray-400 sm:inline">{x.funcao}</span>}
@@ -140,7 +140,7 @@ export function PassoFuncionarios({
             </div>
 
             {totalNaoIncluidos > 0 && (
-              <details className="rounded-xl border border-gray-200">
+              <details open className="rounded-xl border border-gray-200">
                 <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-600">Não incluídos ({totalNaoIncluidos})</summary>
                 <div className="divide-y divide-gray-50 border-t border-gray-100">{naoIncluidos.map(linha)}</div>
               </details>
