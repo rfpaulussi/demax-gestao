@@ -18,8 +18,8 @@ interface Props {
 
 const VAZIO: ParticipanteEvento = { inicio: '', fim: '', folgas: [''] }
 
-/** Períodos oferecidos enquanto poucos estão preenchidos na lista. */
-const PERIODOS_PADRAO: [string, string][] = [['08:00', '12:30'], ['13:30', '18:00'], ['08:00', '18:00']]
+/** Períodos sempre oferecidos (além dos que já foram preenchidos na lista). */
+const PERIODOS_PADRAO: [string, string][] = [['07:00', '12:00'], ['13:00', '17:00'], ['08:00', '13:00'], ['13:00', '18:00']]
 
 const brData = (iso: string) => (iso ? iso.split('-').reverse().join('/') : '')
 const horaPlanilha = (hhmm: string) => (hhmm ? hhmm.replace(/^0/, '') : '')
@@ -75,7 +75,7 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
       const p = participantes[f.id]
       if (p?.inicio && p?.fim) usados.set(`${p.inicio}|${p.fim}`, [p.inicio, p.fim])
     }
-    for (const d of PERIODOS_PADRAO) if (usados.size < 3) usados.set(`${d[0]}|${d[1]}`, d)
+    for (const d of PERIODOS_PADRAO) usados.set(`${d[0]}|${d[1]}`, d)
     return Array.from(usados.values()).sort((a, b) => (a[0] + a[1]).localeCompare(b[0] + b[1]))
   }, [funcionarios, participantes])
 
