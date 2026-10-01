@@ -43,7 +43,8 @@ describe('interpretarPlanilha', () => {
     const r = interpretarPlanilha(
       'Fulano de Tal\t8\t12\t22/12/2026\nAmanda Gonçalves\t22/12/2026\nAmanda Gonçalves\t8\t12\nAmanda Gonçalves\t8\t12\t31/02/2026', fs)
     expect(r.participantes).toEqual({})
-    expect(r.problemas).toHaveLength(4)
+    expect(r.problemas).toHaveLength(3)
+    expect(r.naoEncontrados).toEqual(['Fulano de Tal'])
   })
 })
 
@@ -76,5 +77,15 @@ describe('planilha base com linhas em branco e comparação com a seleção', ()
 
   it('nada lido: não sugere desmarcar ninguém', () => {
     expect(compararPlanilhaComSelecao({}, fs, []).foraDaPlanilha).toEqual([])
+  })
+})
+
+describe('nomes que não são dos postos escolhidos', () => {
+  it('ficam à parte (não são problema) e o rótulo mostra só os textos: escola e nome', () => {
+    const r = interpretarPlanilha(
+      'Escola X\tBeltrana de Tal\t8\t12\t22/12/2026\nEscola X\tAmanda Gonçalves\t8\t12\t22/12/2026', fs)
+    expect(r.problemas).toEqual([])
+    expect(r.naoEncontrados).toEqual(['Escola X — Beltrana de Tal'])
+    expect(Object.keys(r.participantes)).toEqual(['1'])
   })
 })

@@ -80,6 +80,7 @@ const rotuloCls = 'rounded px-1.5 py-0.5 text-[10px] font-bold uppercase trackin
 export function ParticipantesEvento({ funcionarios, participantes, onChange, feriados, ultimoDiaTrabalhado, erro, candidatos = [], onMarcar, onDesmarcar }: Props) {
   const [texto, setTexto] = useState('')
   const [problemas, setProblemas] = useState<string[]>([])
+  const [naoEncontrados, setNaoEncontrados] = useState<string[]>([])
   const [aplicadas, setAplicadas] = useState<{ lidos: number; alterados: number; origem: string } | null>(null)
   const arquivoRef = useRef<HTMLInputElement>(null)
   // depois de ler a planilha: quem está nela e desmarcado / quem está marcado e não está nela (o supervisor decide)
@@ -110,6 +111,7 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
     const alterados = Object.entries(r.participantes).filter(([id, p]) => JSON.stringify(participantes[id]) !== JSON.stringify(p)).length
     onChange({ ...participantes, ...r.participantes })
     setProblemas(r.problemas)
+    setNaoEncontrados(r.naoEncontrados)
     setAplicadas({ lidos: Object.keys(r.participantes).length, alterados, origem })
     const s = compararPlanilhaComSelecao(r.participantes, funcionarios, candidatos)
     setSugestao(s.marcarEsses.length || s.foraDaPlanilha.length ? s : null)
@@ -192,6 +194,19 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
               </button>
             </div>
           </div>
+        )}
+        {naoEncontrados.length > 0 && (
+          <details open={naoEncontrados.length <= 4} className="rounded-lg border border-amber-200 bg-amber-50 text-xs text-amber-900">
+            <summary className="cursor-pointer px-2.5 py-1.5 font-semibold">
+              {naoEncontrados.length} linha(s) da planilha não são de ninguém dos postos escolhidos
+            </summary>
+            <div className="space-y-1 border-t border-amber-200 px-2.5 py-1.5">
+              <p>Normal se a planilha tiver outras escolas: escolha também esses postos ou use o arquivo da escola. Se for o seu posto, confira o nome no cadastro.</p>
+              <ul className="list-disc space-y-0.5 pl-4">
+                {naoEncontrados.map((n, i) => <li key={i}>{n}</li>)}
+              </ul>
+            </div>
+          </details>
         )}
         {problemas.length > 0 && (
           <ul className="list-disc space-y-0.5 pl-5 text-xs font-medium text-amber-700">

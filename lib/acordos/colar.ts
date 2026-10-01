@@ -4,8 +4,10 @@ export interface FuncionarioNome { id: string; nome: string }
 
 export interface ResultadoColagem {
   participantes: Record<string, ParticipanteEvento>
-  /** Linhas com problema (funcionário não encontrado, sem horário ou sem data de folga), já com o motivo. */
+  /** Linhas com problema (sem horário, sem data de folga, nome ambíguo), já com o motivo. */
   problemas: string[]
+  /** Linhas cujo nome não bate com ninguém dos postos escolhidos (normal quando a planilha tem outras escolas). */
+  naoEncontrados: string[]
 }
 
 const p2 = (n: number) => String(n).padStart(2, '0')
@@ -36,6 +38,12 @@ function isoDaFolga(dia: number, mes: number, ano: number): string | null {
   const dt = new Date(Date.UTC(y, mes - 1, dia))
   if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mes - 1 || dt.getUTCDate() !== dia) return null
   return `${y}-${p2(mes)}-${p2(dia)}`
+}
+
+/** Rótulo curto de uma linha sem correspondência: só as células de texto (sem horário nem data), separadas por " — ". */
+function rotuloDaLinha(linha: string): string {
+  const textos = linha.split('\t').map(c => c.trim()).filter(c => c && !/^[\d\s:/.h-]+$/i.test(c))
+  return (textos.length ? textos.join(' — ') : linha.replace(/\s+/g, ' ').trim()).slice(0, 90)
 }
 
 function acharFuncionario(linha: string, funcionarios: FuncionarioNome[]): { f?: FuncionarioNome; ambiguo?: boolean; celula?: number } {
@@ -101,12 +109,17 @@ export function compararPlanilhaComSelecao(
 export function interpretarPlanilha(texto: string, funcionarios: FuncionarioNome[]): ResultadoColagem {
   const participantes: Record<string, ParticipanteEvento> = {}
   const problemas: string[] = []
+  const naoEncontrados: string[] = []
   for (const linhaBruta of texto.split(/\r?\n/)) {
     const linha = linhaBruta.replace(/\s+$/, '')
     if (!linha.trim()) continue
     const rotulo = linha.replace(/\s+/g, ' ').trim().slice(0, 60)
     const { f, ambiguo, celula } = acharFuncionario(linha, funcionarios)
-    if (!f) { problemas.push(`${rotulo}: ${ambiguo ? 'nome bate com mais de um funcionário' : 'funcionário não encontrado nos postos escolhidos'}.`); continue }
+    if (!f) {
+      if (ambiguo) problemas.push(`${rotulo}: nome bate com mais de um funcionário.`)
+      else naoEncontrados.push(rotuloDaLinha(linha))
+      continue
+    }
     // só o nome, sem horário nem folga (linha da planilha base deixada em branco): ignora, o funcionário não está trabalhando
     if (celula !== undefined && !/\d/.test(linha.split('\t').filter((_, i) => i !== celula).join(' '))) continue
     const per = acharPeriodo(linha, celula)
@@ -125,5 +138,5 @@ export function interpretarPlanilha(texto: string, funcionarios: FuncionarioNome
     if (ruim || folgas.length === 0) { problemas.push(`${f.nome}: data de folga inválida ou ausente.`); continue }
     participantes[f.id] = { inicio: per.inicio, fim: per.fim, folgas: Array.from(new Set(folgas)).sort() }
   }
-  return { participantes, problemas }
+  return { participantes, problemas, naoEncontrados }
 }
