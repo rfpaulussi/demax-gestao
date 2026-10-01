@@ -46,6 +46,9 @@ async function baixarModelo(funcionarios: { id: string; nome: string }[], partic
   ], 'acordo-folga-dias-inteiros.xlsx')
 }
 
+/** '07:00' → '7', '08:30' → '8:30', '13:00' → '13' (rótulo curto do botão). */
+const horaCurta = (hhmm: string) => hhmm.replace(/^0/, '').replace(/:00$/, '')
+
 const chipCls = (ativo: boolean) =>
   `rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
     ativo ? 'border-blue-500 bg-blue-50 text-blue-700 ring-1 ring-blue-500' : 'border-gray-200 bg-white text-slate-600 hover:border-gray-300 hover:bg-slate-50'
@@ -158,7 +161,7 @@ export function ParticipantesEvento({ funcionarios, participantes, onChange, fer
                 <div className="flex flex-wrap gap-1" role="group" aria-label={`Período de ${fn.nome}`}>
                   {periodos.map(([i, f]) => (
                     <button key={`${i}|${f}`} type="button" onClick={() => mudar(fn.id, { inicio: i, fim: f })} className={chipCls(p.inicio === i && p.fim === f)}>
-                      {i}–{f}
+                      {horaCurta(i)}–{horaCurta(f)}
                     </button>
                   ))}
                 </div>
