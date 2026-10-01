@@ -94,12 +94,15 @@ export function ConversaOcorrencia({
       )}
 
       <form onSubmit={handleEnviar} className="space-y-2">
+        <p className="text-xs text-gray-500">
+          Conversa entre a gestão e o supervisor que registrou. Não é enviada ao RH. Quem recebe é avisado por sino e e-mail, sem o texto da mensagem.
+        </p>
         <textarea
           value={texto}
           onChange={e => setTexto(e.target.value)}
           rows={2}
           maxLength={MAX_COMENTARIO}
-          placeholder="Escreva uma resposta…"
+          placeholder="Escreva ao supervisor / à gestão…"
           className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400"
         />
         {erro && <p className="text-xs text-red-500">{erro}</p>}

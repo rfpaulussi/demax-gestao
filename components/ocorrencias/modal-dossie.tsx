@@ -288,7 +288,7 @@ export function ModalDossie({
                             {canWrite && ehOcorrencia && item.status === 'aberta' && (
                               <button
                                 disabled={isPending}
-                                onClick={() => handleStatusUpdate(item.id, 'em_analise')}
+                                title="Marca que a gestão começou a tratar esta ocorrência. Não envia nada a ninguém." onClick={() => handleStatusUpdate(item.id, 'em_analise')}
                                 className="rounded-lg bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 hover:bg-amber-200 disabled:opacity-50"
                               >
                                 Em Análise
@@ -297,7 +297,7 @@ export function ModalDossie({
                             {canWrite && ehOcorrencia && item.status === 'em_analise' && (
                               <button
                                 disabled={isPending}
-                                onClick={() => { setEncerrandoId(item.id); setParecer('') }}
+                                title="Conclui a ocorrência. Exige um parecer final, que fica registrado na conversa." onClick={() => { setEncerrandoId(item.id); setParecer('') }}
                                 className="rounded-lg bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700 hover:bg-green-200 disabled:opacity-50"
                               >
                                 Encerrar
@@ -311,7 +311,7 @@ export function ModalDossie({
                                   </span>
                                   <button
                                     disabled={isPending}
-                                    onClick={() => { setRetornoId(item.id); setRetornoTexto('') }}
+                                    title="Cole aqui a resposta que o RH enviou por e-mail. Fica como nota interna; o supervisor não vê." onClick={() => { setRetornoId(item.id); setRetornoTexto('') }}
                                     className="rounded-lg bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
                                   >
                                     Registrar retorno do RH
@@ -320,7 +320,7 @@ export function ModalDossie({
                               ) : (
                                 <button
                                   disabled={isPending}
-                                  onClick={() => setEncaminharId(item.id)}
+                                  title="Envia por e-mail ao RH esta ocorrência e o histórico resumido (sem CPF, salário, PCD ou CID). Você revisa o texto antes. O RH responde por e-mail, fora do sistema." onClick={() => setEncaminharId(item.id)}
                                   className="rounded-lg bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
                                 >
                                   Encaminhar ao RH
@@ -331,7 +331,7 @@ export function ModalDossie({
                               <>
                                 <button
                                   disabled={isPending}
-                                  onClick={() => setAnaliseIA({ id: item.id, modo: 'analise' })}
+                                  title="A IA sugere categoria, urgência, nível de medida e passos. Você vê antes o texto anonimizado que será enviado, e decide se aprova." onClick={() => setAnaliseIA({ id: item.id, modo: 'analise' })}
                                   className="rounded-lg bg-purple-50 px-2 py-0.5 text-xs font-semibold text-purple-700 hover:bg-purple-100 disabled:opacity-50"
                                 >
                                   Analisar com IA
@@ -339,7 +339,7 @@ export function ModalDossie({
                                 {item.com_rh_desde && (
                                   <button
                                     disabled={isPending}
-                                    onClick={() => setAnaliseIA({ id: item.id, modo: 'retorno' })}
+                                    title="A IA propõe o texto da resposta ao supervisor, com base no retorno do RH já registrado. Você edita antes de enviar na conversa." onClick={() => setAnaliseIA({ id: item.id, modo: 'retorno' })}
                                     className="rounded-lg bg-purple-50 px-2 py-0.5 text-xs font-semibold text-purple-700 hover:bg-purple-100 disabled:opacity-50"
                                   >
                                     Rascunhar devolutiva do retorno
@@ -365,7 +365,7 @@ export function ModalDossie({
                         {ehGestao && retornoId === item.id && (
                           <div className="space-y-2 border-t border-gray-50 bg-indigo-50/50 px-4 py-3">
                             <label className="text-xs font-semibold uppercase tracking-widest text-gray-500">
-                              Retorno do RH (nota interna, o supervisor não vê)
+                              Retorno do RH: resposta que o RH enviou por e-mail (nota interna, o supervisor não vê)
                             </label>
                             <textarea
                               value={retornoTexto}
