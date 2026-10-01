@@ -399,12 +399,22 @@ export function AcordosClient({ acordos, postos, calendario, nomesRecentes, iaDi
         />
       )}
 
-      {editando && (
+      {editando && (editando.editavel_completo ? (
+        <ModalNovoAcordo
+          edicaoId={editando.id}
+          postos={postos}
+          calendario={calendario}
+          nomesRecentes={nomesRecentes}
+          iaDisponivel={iaDisponivel}
+          onClose={() => setEditando(null)}
+        />
+      ) : (
+        // acordo antigo, sem template nem formulário guardado: só o editor simples (título, data, tipo e texto)
         <ModalEditarAcordo
           acordo={editando}
           onClose={() => setEditando(null)}
         />
-      )}
+      ))}
 
       {excluindo && (
         <ConfirmarExclusaoDialog

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { X } from 'lucide-react'
-import { buscarAusenciasParaAcordo, buscarFuncionariosPorPostos, criarAcordo } from '@/app/(admin)/acordos/actions'
+import { atualizarAcordo, buscarAusenciasParaAcordo, buscarFuncionariosPorPostos, carregarAcordoParaEdicao, criarAcordo, type AcordoParaEdicao } from '@/app/(admin)/acordos/actions'
 import type { AcordoCompensacao, AcordoPostoItem, FuncionarioParaAcordo } from '@/app/(admin)/acordos/actions'
 import { montarTextosAcordo } from '@/lib/acordos/montar'
 import { AcordoPdfDoc } from './acordo-pdf'
@@ -13,6 +13,7 @@ import { calendarioParaMapa, type CalendarioLinha } from '@/lib/calendario/mapa'
 import { DIAS_SEMANA, type Achado, type FuncionarioCalc, type MapaAusencias, type TemplateId } from '@/lib/acordos/tipos'
 import { agruparPorJornada, resumoCalculo } from '@/lib/acordos/movimentos'
 import { todasAsDatasDoAcordo } from '@/lib/acordos/ausencias'
+import { camposParaForm } from '@/lib/acordos/campos-form'
 import { gerarObjeto, TEMPLATES } from '@/lib/acordos/templates'
 import { camposFaltando, temErro, validarAcordo } from '@/lib/acordos/validar'
 import { assinaturaSemana, juntarRotulos, saidaDoDia } from '@/lib/acordos/horario-do-turno'
@@ -77,9 +78,11 @@ interface Props {
   /** A IA está configurada neste ambiente (mostra o campo "Descrever o pedido"). */
   iaDisponivel: boolean
   onClose: () => void
+  /** Id de um acordo existente: reabre o formulário completo preenchido para editar. */
+  edicaoId?: string
 }
 
-export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponivel, onClose }: Props) {
+export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponivel, onClose, edicaoId }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
 
@@ -104,6 +107,12 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
   const [prazoRevelado, setPrazoRevelado] = useState(false)
   // prazo limite acompanha a última data do acordo enquanto o tick "Preencher automaticamente" estiver marcado
   const [prazoAuto, setPrazoAuto] = useState(true)
+  // edição de um acordo existente
+  const [carregandoEdicao, setCarregandoEdicao] = useState(!!edicaoId)
+  const [erroEdicao, setErroEdicao] = useState('')
+  const [infoEdicao, setInfoEdicao] = useState<AcordoParaEdicao | null>(null)
+  const [textoManualAtivo, setTextoManualAtivo] = useState(false)
+  const [textoManual, setTextoManual] = useState('')
   const [gerandoRascunho, setGerandoRascunho] = useState(false)
   // Pedido interpretado pela IA: quantidade de dias pedida e funcionários citados (aplicados quando a lista do posto chega)
   const [quantidadeIA, setQuantidadeIA] = useState<number | null>(null)
@@ -180,6 +189,33 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
       if (chave) tocar(chave)
     }
   }
+
+  // Edição: carrega o acordo e preenche o formulário inteiro
+  useEffect(() => {
+    if (!edicaoId) return
+    let ativo = true
+    carregarAcordoParaEdicao(edicaoId).then(res => {
+      if (!ativo) return
+      if ('error' in res) { setErroEdicao(res.error); setCarregandoEdicao(false); return }
+      setInfoEdicao(res)
+      setTitulo(res.titulo)
+      setTituloManual(true)
+      setTipo(res.tipo)
+      selecaoIA.current = res.funcionarioIds // aplicada quando a lista dos postos chega
+      setPostosSel(res.postoIds)
+      setTemplate(res.campos.template)
+      setSituacaoEscolhida(true)
+      setGrupoAberto(false)
+      setF(camposParaForm(res.campos))
+      setDiasManual(true)
+      setPrazoAuto(false)
+      setPrazoRevelado(true)
+      setDataDoc(res.data_documento)
+      if (res.reconstruido) setTentou(true) // acordo antigo: já mostra o que falta completar
+      setCarregandoEdicao(false)
+    })
+    return () => { ativo = false }
+  }, [edicaoId])
 
   // Carrega funcionários automaticamente ao escolher o(s) posto(s)
   useEffect(() => {
@@ -521,8 +557,25 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
       return
     }
     setErroServidor('')
+    if (edicaoId && infoEdicao?.entregue_rh && !window.confirm('Este acordo já foi entregue ao RH. Editar mesmo assim?')) return
     startTransition(async () => {
       const postosObj = postos.filter(p => postosSel.includes(p.id))
+      if (edicaoId) {
+        const r = await atualizarAcordo(edicaoId, {
+          titulo: tituloAtual.trim(),
+          tipo,
+          postos: postosObj,
+          funcionarioIds: selecionados.map(x => x.id),
+          data_documento: dataDoc,
+          campos,
+          descricaoManual: textoManualAtivo ? textoManual : null,
+          confirmarEntregue: !!infoEdicao?.entregue_rh,
+        })
+        if ('error' in r) { setErroServidor(r.error); return }
+        router.refresh()
+        onClose()
+        return
+      }
       const res = await criarAcordo({
         titulo: tituloAtual.trim(),
         tipo,
@@ -556,13 +609,34 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
       : `${selecionados.length} func.`
   const resumoDados = conta ?? 'Dados preenchidos'
 
+  if (edicaoId && (carregandoEdicao || erroEdicao)) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+        <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl">
+          {erroEdicao ? (
+            <>
+              <p className="text-sm font-medium text-red-600">{erroEdicao}</p>
+              <button type="button" onClick={onClose} className="mt-4 rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100">Fechar</button>
+            </>
+          ) : (
+            <p className="text-sm text-slate-600">Carregando o acordo…</p>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div ref={scrollRef} className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overflow-x-hidden bg-black/50 px-4 py-8">
       <div className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl">
         <div className="sticky top-0 z-10 flex items-start justify-between gap-3 rounded-t-2xl bg-slate-900 px-6 py-5">
           <div>
-            <h2 className="text-base font-bold text-white">Novo Acordo de Compensação</h2>
-            <p className="mt-0.5 text-xs text-slate-400">Responda os passos; o texto é gerado a partir dos campos e o PDF sai após salvar</p>
+            <h2 className="text-base font-bold text-white">{edicaoId ? 'Editar Acordo de Compensação' : 'Novo Acordo de Compensação'}</h2>
+            <p className="mt-0.5 text-xs text-slate-400">
+              {edicaoId
+                ? 'Altere o que for preciso; ao salvar, o texto, os turnos do PDF e os movimentos são refeitos'
+                : 'Responda os passos; o texto é gerado a partir dos campos e o PDF sai após salvar'}
+            </p>
           </div>
           <button
             type="button"
@@ -577,7 +651,18 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
 
         <div className="grid gap-4 rounded-b-2xl bg-slate-50 p-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
           <div className="space-y-4">
-            <PedidoIa disponivel={iaDisponivel} onAplicar={aplicarPedidoIA} />
+            {!edicaoId && <PedidoIa disponivel={iaDisponivel} onAplicar={aplicarPedidoIA} />}
+            {edicaoId && infoEdicao?.reconstruido && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                <p className="font-semibold">Acordo antigo: reconstruímos os dados a partir dos movimentos.</p>
+                <p className="mt-0.5">Confira as datas{infoEdicao.faltando.length ? ` e complete: ${infoEdicao.faltando.join(', ')}` : ''}.</p>
+              </div>
+            )}
+            {edicaoId && infoEdicao?.entregue_rh && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+                Este acordo já foi entregue ao RH. Ao salvar, o documento muda: entregue a nova versão.
+              </div>
+            )}
 
             <section id="passo-topo" className="scroll-mt-4 space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
               <div>
@@ -693,6 +778,42 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
                 sugerido={prazoSugerido}
               />
             )}
+            {edicaoId && situacaoEscolhida && (
+              <section className="space-y-2 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={textoManualAtivo}
+                    onChange={e => {
+                      const on = e.target.checked
+                      setTextoManualAtivo(on)
+                      if (on && !textoManual) {
+                        const t = montarTextosAcordo(campos, calc)
+                        setTextoManual(t.ok ? t.descricao : infoEdicao?.descricao_acordo ?? '')
+                      }
+                    }}
+                    className="accent-slate-900"
+                  />
+                  Editar o texto do acordo manualmente
+                </label>
+                {textoManualAtivo ? (
+                  <>
+                    <textarea
+                      value={textoManual}
+                      onChange={e => setTextoManual(e.target.value)}
+                      rows={6}
+                      aria-label="Texto do acordo"
+                      className="w-full resize-y rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                    />
+                    <p className="text-xs text-amber-700">
+                      O texto deixa de acompanhar os campos e o PDF usa um parágrafo único. Os movimentos continuam saindo dos campos acima.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-gray-400">Desmarcado: o texto é gerado dos campos acima.</p>
+                )}
+              </section>
+            )}
             {situacaoEscolhida && !prazoMostrado && !prazoRevelado && (
               <button type="button" onClick={() => setPrazoRevelado(true)} className="text-xs font-medium text-slate-500 underline hover:text-slate-800">
                 Definir prazo limite (opcional)
@@ -723,6 +844,8 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
             onZerar={resetarFormulario}
             podeRascunho={situacaoEscolhida && !erroReal && textos.length > 0 && textos.every(x => !!x.texto)}
             gerandoRascunho={gerandoRascunho}
+            rotuloSalvar={edicaoId ? 'Salvar alterações' : undefined}
+            semZerar={!!edicaoId}
           />
         </div>
       </div>

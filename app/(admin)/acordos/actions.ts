@@ -14,10 +14,14 @@ import { TEMPLATES } from '@/lib/acordos/templates'
 import { montarTextosAcordo, type TurnoHorario } from '@/lib/acordos/montar'
 import { validarAcordo } from '@/lib/acordos/validar'
 import { participantesValidos } from '@/lib/acordos/participantes-validos'
+import { reconstruirCampos } from '@/lib/acordos/campos-form'
+import { planejarSincronizacao, type MovExistente } from '@/lib/acordos/sincronizar'
 import { nomesRecentesDistintos } from '@/lib/acordos/resumo'
 import type { Ausencia, CamposAcordo, FuncionarioCalc, MapaAusencias, SemanaTurno } from '@/lib/acordos/tipos'
 import { carregarCalendario } from '@/lib/calendario/mogi'
 import { calendarioParaMapa } from '@/lib/calendario/mapa'
+
+const TEMPLATES_VALIDOS = ['T1', 'T2', 'T3', 'T4', 'T5']
 
 export interface AcordoPostoItem {
   id: string
@@ -74,6 +78,8 @@ export interface AcordoCompensacao {
   created_at: string
   entregue_rh: boolean
   entregue_em: string | null
+  /** O acordo tem formulário guardado ou template para reabrir completo no "Editar" (senão, editor simples). */
+  editavel_completo?: boolean
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -138,6 +144,7 @@ export async function listarAcordos(filters?: {
       created_at:      r.created_at,
       entregue_rh:     r.entregue_rh ?? false,
       entregue_em:     r.entregue_em ?? null,
+      editavel_completo: !!r.campos || TEMPLATES_VALIDOS.includes(r.template_id),
     } as AcordoCompensacao
   })
 }
@@ -174,16 +181,25 @@ function anosDoAcordo(c: CamposAcordo): number[] {
   return Array.from(new Set(datas.map(d => Number(d.slice(0, 4)))))
 }
 
-export async function criarAcordo(dados: {
+type DadosAcordo = {
   titulo: string
   tipo: 'individual' | 'coletivo'
   postos: AcordoPostoItem[]
   funcionarioIds: string[]
   data_documento: string
   campos: CamposAcordo
-}): Promise<{ id: string } | { error: string }> {
-  const guard = await requireRole(['admin', 'coordenador', 'supervisor'])
-  if (!guard.success) return { error: guard.error }
+}
+
+interface AcordoPreparado {
+  funcs: FuncionarioParaAcordo[]
+  postos: AcordoPostoItem[]
+  horarios: TurnoHorario[]
+  descricao: string
+  movimentos: { funcionario_id: string; data: string; minutos: number; papel: 'origem' | 'quitacao' }[]
+}
+
+/** Validações, textos, postos e movimentos de um acordo: o mesmo caminho para criar e para editar. */
+async function prepararAcordo(dados: DadosAcordo): Promise<AcordoPreparado | { error: string }> {
   if (!dados.titulo.trim()) return { error: 'Informe o título do acordo.' }
   if (!Array.isArray(dados.postos) || !dados.postos.length) return { error: 'Selecione ao menos um posto.' }
   if (dados.tipo !== 'individual' && dados.tipo !== 'coletivo') return { error: 'Tipo de acordo inválido.' }
@@ -252,37 +268,47 @@ export async function criarAcordo(dados: {
   }))
   if (postos.length === 0) return { error: 'Postos dos funcionários não encontrados.' }
 
+  const movimentos = construirMovimentos(dados.campos, calc).map(m => ({
+    funcionario_id: m.funcionarioId, data: m.data, minutos: m.minutos, papel: m.papel,
+  }))
+  return { funcs, postos, horarios, descricao, movimentos }
+}
+
+const colunaAusente = (msg: string, coluna: string) => REGEX_MIGRATION.test(msg) && msg.includes(coluna)
+
+export async function criarAcordo(dados: DadosAcordo): Promise<{ id: string } | { error: string }> {
+  const guard = await requireRole(['admin', 'coordenador', 'supervisor'])
+  if (!guard.success) return { error: guard.error }
+  const prep = await prepararAcordo(dados)
+  if ('error' in prep) return { error: prep.error }
+  const { funcs, postos, horarios, descricao } = prep
+
   const admin = createAdminClient() as AnyClient
-  const { data, error } = await admin
-    .from('acordos_compensacao')
-    .insert({
-      titulo: dados.titulo.trim(),
-      tipo: dados.tipo,
-      subtipo: TEMPLATES[dados.campos.template].subtipo,
-      postos,
-      funcionarios: funcs.map(f => ({ id: f.id, nome: f.nome, funcao: f.funcao, status: f.status })),
-      horario_semana: { _v: 2, turnos: horarios },
-      descricao_acordo: descricao,
-      data_documento: dados.data_documento,
-      criado_por: guard.auth.user.id,
-      evento_data: dados.campos.dataEvento ?? null,
-      evento_nome: dados.campos.nomeEvento?.trim() || null,
-      template_id: dados.campos.template,
-      prazo_limite: dados.campos.prazoLimite ?? null,
-      origem: 'manual',
-    })
-    .select('id')
-    .single()
+  const linha = {
+    titulo: dados.titulo.trim(),
+    tipo: dados.tipo,
+    subtipo: TEMPLATES[dados.campos.template].subtipo,
+    postos,
+    funcionarios: funcs.map(f => ({ id: f.id, nome: f.nome, funcao: f.funcao, status: f.status })),
+    horario_semana: { _v: 2, turnos: horarios },
+    descricao_acordo: descricao,
+    data_documento: dados.data_documento,
+    criado_por: guard.auth.user.id,
+    evento_data: dados.campos.dataEvento ?? null,
+    evento_nome: dados.campos.nomeEvento?.trim() || null,
+    template_id: dados.campos.template,
+    prazo_limite: dados.campos.prazoLimite ?? null,
+    origem: 'manual',
+  }
+  // `campos` (formulário guardado, para editar depois) depende da migration 20261001; sem ela grava sem essa coluna
+  let res = await admin.from('acordos_compensacao').insert({ ...linha, campos: dados.campos }).select('id').single()
+  if (res.error && colunaAusente(res.error.message, 'campos')) {
+    res = await admin.from('acordos_compensacao').insert(linha).select('id').single()
+  }
+  const { data, error } = res
   if (error) return { error: REGEX_MIGRATION.test(error.message) ? MSG_MIGRATION : error.message }
 
-  const movimentos = construirMovimentos(dados.campos, calc).map(m => ({
-    acordo_id: data.id,
-    funcionario_id: m.funcionarioId,
-    data: m.data,
-    minutos: m.minutos,
-    papel: m.papel,
-  }))
-  const { error: errMov } = await admin.from('acordo_movimentos').insert(movimentos)
+  const { error: errMov } = await admin.from('acordo_movimentos').insert(prep.movimentos.map(m => ({ acordo_id: data.id, ...m })))
   if (errMov) {
     const { error: errDel } = await admin.from('acordos_compensacao').delete().eq('id', data.id)
     if (errDel) {
@@ -515,4 +541,139 @@ export async function buscarAusenciasParaAcordo(
     return null
   }
   return out
+}
+
+// ─── Edição do acordo (reabre o formulário completo) ─────────────────────────
+
+export interface AcordoParaEdicao {
+  id: string
+  titulo: string
+  tipo: 'individual' | 'coletivo'
+  data_documento: string
+  campos: CamposAcordo
+  /** true: acordo antigo, formulário reconstruído a partir dos movimentos (pode faltar dado). */
+  reconstruido: boolean
+  faltando: string[]
+  postoIds: string[]
+  funcionarioIds: string[]
+  entregue_rh: boolean
+  descricao_acordo: string
+}
+
+
+/** Dados para reabrir o acordo no formulário: o formulário guardado, ou o reconstruído dos movimentos (acordos antigos). */
+export async function carregarAcordoParaEdicao(id: string): Promise<AcordoParaEdicao | { error: string }> {
+  const guard = await requireRole(['admin', 'coordenador', 'supervisor'])
+  if (!guard.success) return { error: guard.error }
+  const supabase = createClient() as AnyClient
+  const { data: row, error } = await supabase.from('acordos_compensacao').select('*').eq('id', id).maybeSingle()
+  if (error) return { error: 'Não foi possível carregar o acordo.' }
+  if (!row) return { error: 'Acordo não encontrado ou sem acesso.' }
+
+  const funcionarioIds = ((row.funcionarios ?? []) as { id: string }[]).map(f => f.id)
+  const postoIds = ((row.postos ?? []) as { id: string }[]).map(p => p.id)
+  const base = {
+    id: row.id as string,
+    titulo: row.titulo as string,
+    tipo: row.tipo as 'individual' | 'coletivo',
+    data_documento: String(row.data_documento).slice(0, 10),
+    postoIds,
+    funcionarioIds,
+    entregue_rh: !!row.entregue_rh,
+    descricao_acordo: row.descricao_acordo as string,
+  }
+
+  const guardado = row.campos as CamposAcordo | null
+  if (guardado && TEMPLATES_VALIDOS.includes(guardado.template)) {
+    return { ...base, campos: guardado, reconstruido: false, faltando: [] }
+  }
+  if (!TEMPLATES_VALIDOS.includes(row.template_id)) return { error: 'Este acordo é antigo e não tem dados estruturados para editar.' }
+  const { data: movs, error: errMov } = await supabase
+    .from('acordo_movimentos').select('funcionario_id, data, minutos, papel').eq('acordo_id', id)
+  if (errMov) return { error: 'Não foi possível carregar os movimentos do acordo.' }
+  const { campos, faltando } = reconstruirCampos(
+    row.template_id,
+    { evento_data: row.evento_data, evento_nome: row.evento_nome, prazo_limite: row.prazo_limite },
+    (movs ?? []).map((m: { funcionario_id: string; data: string; minutos: number; papel: 'origem' | 'quitacao' }) => ({ ...m, data: String(m.data).slice(0, 10) })),
+  )
+  return { ...base, campos, reconstruido: true, faltando }
+}
+
+/**
+ * Salva a edição: revalida tudo como na criação, regenera textos e turnos e sincroniza os movimentos.
+ * Movimentos já cumpridos/verificados não são apagados nem alterados: se a edição mexeria neles, nada é salvo.
+ */
+export async function atualizarAcordo(
+  id: string,
+  dados: DadosAcordo & { descricaoManual?: string | null; confirmarEntregue?: boolean },
+): Promise<{ ok: true } | { error: string; precisaConfirmar?: boolean }> {
+  const guard = await requireRole(['admin', 'coordenador', 'supervisor'])
+  if (!guard.success) return { error: guard.error }
+
+  const admin = createAdminClient() as AnyClient
+  // acesso: o acordo precisa ser visível para a sessão (RLS) antes de editar com o service role
+  const { data: visivel } = await (createClient() as AnyClient).from('acordos_compensacao').select('id').eq('id', id).maybeSingle()
+  if (!visivel) return { error: 'Acordo não encontrado ou sem acesso.' }
+  const { data: atual, error: errAtual } = await admin.from('acordos_compensacao').select('entregue_rh').eq('id', id).maybeSingle()
+  if (errAtual || !atual) return { error: 'Acordo não encontrado.' }
+  if (atual.entregue_rh && !dados.confirmarEntregue) {
+    return { error: 'Este acordo já foi entregue ao RH. Confirme para editar.', precisaConfirmar: true }
+  }
+  if (dados.descricaoManual !== undefined && dados.descricaoManual !== null && !dados.descricaoManual.trim()) {
+    return { error: 'O texto manual do acordo não pode ficar vazio.' }
+  }
+
+  const prep = await prepararAcordo(dados)
+  if ('error' in prep) return { error: prep.error }
+  const { funcs, postos, horarios, descricao } = prep
+
+  // ── movimentos: sincroniza sem tocar no que já foi cumprido ──
+  const { data: existentesDb, error: errEx } = await admin
+    .from('acordo_movimentos').select('id, funcionario_id, data, minutos, papel, status').eq('acordo_id', id)
+  if (errEx) return { error: 'Não foi possível ler os movimentos do acordo.' }
+  const { apagar, atualizar, inserir: novosMov, travados } = planejarSincronizacao((existentesDb ?? []) as MovExistente[], prep.movimentos)
+  if (travados.length) {
+    return { error: `A edição mudaria movimentos já cumpridos ou verificados (${travados.slice(0, 5).join(', ')}). Ajuste esses dias pelo controle do acordo.` }
+  }
+  const inserir = novosMov.map(m => ({ acordo_id: id, ...m }))
+
+  if (inserir.length) {
+    const { error } = await admin.from('acordo_movimentos').insert(inserir)
+    if (error) return { error: `Não foi possível gravar os movimentos: ${error.message}` }
+  }
+  for (const u of atualizar) {
+    const { error } = await admin.from('acordo_movimentos').update({ minutos: u.minutos }).eq('id', u.id)
+    if (error) return { error: `Não foi possível atualizar os movimentos: ${error.message}` }
+  }
+  if (apagar.length) {
+    const { error } = await admin.from('acordo_movimentos').delete().in('id', apagar)
+    if (error) return { error: `Não foi possível remover movimentos antigos: ${error.message}` }
+  }
+
+  // texto manual: vale como está e os parágrafos por turno saem (o PDF usa o parágrafo único)
+  const manual = dados.descricaoManual?.trim()
+  const turnos = manual ? horarios.map(({ objeto, ...resto }) => { void objeto; return resto }) : horarios
+  const linha = {
+    titulo: dados.titulo.trim(),
+    tipo: dados.tipo,
+    subtipo: TEMPLATES[dados.campos.template].subtipo,
+    postos,
+    funcionarios: funcs.map(f => ({ id: f.id, nome: f.nome, funcao: f.funcao, status: f.status })),
+    horario_semana: { _v: 2, turnos },
+    descricao_acordo: manual || descricao,
+    data_documento: dados.data_documento,
+    evento_data: dados.campos.dataEvento ?? null,
+    evento_nome: dados.campos.nomeEvento?.trim() || null,
+    template_id: dados.campos.template,
+    prazo_limite: dados.campos.prazoLimite ?? null,
+  }
+  const extras = { campos: dados.campos, editado_em: new Date().toISOString(), editado_por: guard.auth.user.id }
+  let { error } = await admin.from('acordos_compensacao').update({ ...linha, ...extras }).eq('id', id)
+  if (error && (colunaAusente(error.message, 'campos') || colunaAusente(error.message, 'editado'))) {
+    ;({ error } = await admin.from('acordos_compensacao').update(linha).eq('id', id))
+  }
+  if (error) return { error: error.message }
+
+  revalidatePath('/acordos')
+  return { ok: true }
 }
