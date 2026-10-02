@@ -10,6 +10,7 @@ import {
   solicitarRescisaoIndireta,
   solicitarMudancaHorario,
   consultarSolicitacaoEmAnalise,
+  assinaturaSupervisorLogado,
 } from '@/app/(admin)/efetivo/actions'
 import { calcularImpactoPosto } from '@/app/(admin)/efetivo/impacto'
 import { listarTurnosDoPosto, listarTurnosJovemAprendiz } from '@/app/(admin)/efetivo/horario/actions'
@@ -76,6 +77,12 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
   const [tipoDeslig, setTipoDeslig] = useState<TipoDesligamento | ''>('')
   const [causaPedido, setCausaPedido] = useState<CausaComunicado | ''>('')
   const formRef = useRef<HTMLFormElement>(null)
+
+  // Assinatura (apelido) do supervisor logado, impressa no campo SUPERVISOR do documento.
+  const [assinatura, setAssinatura] = useState<string | null>(null)
+  useEffect(() => {
+    if (open) assinaturaSupervisorLogado().then(setAssinatura)
+  }, [open])
 
   // Compartilhar o PDF (WhatsApp etc.) só aparece onde o aparelho/navegador suporta (celulares).
   const [podeCompartilhar, setPodeCompartilhar] = useState(false)
@@ -279,6 +286,7 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
           registro: funcionario.registro,
           funcao: funcionario.funcoes?.nome ?? null,
           dataAdmissao: funcionario.data_admissao,
+          assinaturaSupervisor: assinatura,
           dataDesligamento: (fd.get('data_desligamento') as string) || null,
           causa: causaPedido,
           motivo: ((fd.get('motivo_texto') as string) ?? '').trim() || null,

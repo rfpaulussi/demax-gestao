@@ -12,6 +12,8 @@ export type DadosComunicadoDesligamento = {
   dataDesligamento: string | null
   causa: CausaComunicado | null
   motivo: string | null
+  /** Apelido do supervisor que gerou o documento; sai no campo SUPERVISOR com a data. */
+  assinaturaSupervisor?: string | null
   /** Padrão do formulário: uniforme devolvido = Sim. */
   uniformeDevolvido?: boolean
 }
@@ -95,6 +97,7 @@ function SimNao({ sim, nao, prefixo }: { sim: boolean; nao: boolean; prefixo?: s
 
 function ComunicadoDocument({ dados }: { dados: DadosComunicadoDesligamento }) {
   const uniforme = dados.uniformeDevolvido ?? true
+  const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
   const causa = dados.causa
 
   return (
@@ -178,7 +181,14 @@ function ComunicadoDocument({ dados }: { dados: DadosComunicadoDesligamento }) {
           <View style={s.row}>
             <Cel w={W.A} h={H.assinatura} />
             <Cel w={W.BC} h={H.assinatura} />
-            <Cel w={W.D} h={H.assinatura} />
+            <Cel w={W.D} h={H.assinatura} style={{ alignItems: 'center' }}>
+              {dados.assinaturaSupervisor ? (
+                <>
+                  <Text style={{ fontFamily: 'Times-BoldItalic', fontSize: 14 }}>{dados.assinaturaSupervisor}</Text>
+                  <Text style={{ fontFamily: SERIF, fontSize: 8, marginTop: 1 }}>{hoje}</Text>
+                </>
+              ) : null}
+            </Cel>
             <Cel w={W.E} h={H.assinatura} />
             <Cel w={W.F} h={H.assinatura} />
           </View>

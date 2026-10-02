@@ -8,7 +8,15 @@ import { aplicarMudancaHorario } from '@/app/(admin)/efetivo/horario/actions'
 import { removerFaltasCobertas } from '@/lib/faltas-conflito'
 import { existeAfastamentoAberto, fecharAfastamentosVencidos } from '@/lib/afastamentos'
 import { buscarAtestadoSobreposto, mensagemSobreposicao } from '@/lib/atestados/sobreposicao'
+import { assinaturaAbreviada } from '@/lib/desligamentos/assinatura'
 import { buscarSolicitacaoEmAnalise, mensagemEmAnalise, mensagemSolicitacaoEmAnalise } from '@/lib/solicitacoes/duplicidade'
+
+/** Assinatura (apelido) do supervisor logado, para o comunicado impresso; null para os demais perfis. */
+export async function assinaturaSupervisorLogado(): Promise<string | null> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role !== 'supervisor') return null
+  return assinaturaAbreviada(auth.perfil.nome)
+}
 
 // ─── execução direta ──────────────────────────────────────────────────────────
 
