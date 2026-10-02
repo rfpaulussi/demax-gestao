@@ -109,7 +109,7 @@ function ComunicadoDocument({ dados }: { dados: DadosComunicadoDesligamento }) {
           <View style={s.row}>
             <Cel w={W.A} h={H.titulo}>
               {/* eslint-disable-next-line jsx-a11y/alt-text */}
-              <Image src="/logo-demax.png" style={s.logo} />
+              <Image src="/logo-demax.jpg" style={s.logo} />
             </Cel>
             <Cel w={W.BD} h={H.titulo} style={{ alignItems: 'center' }}>
               <Text style={[s.center, { fontFamily: SERIF_BOLD, fontSize: 11 }]}>COMUNICAÇÃO DE DESLIGAMENTO</Text>

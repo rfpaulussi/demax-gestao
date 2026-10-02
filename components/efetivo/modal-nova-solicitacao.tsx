@@ -265,7 +265,7 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
       start(async () => {
         try {
           const { downloadComunicadoDesligamentoPDF } = await import('@/components/ocorrencias/comunicado-desligamento-pdf')
-          await downloadComunicadoDesligamentoPDF({
+          const gerar = downloadComunicadoDesligamentoPDF({
             nome: funcionario.nome,
             registro: funcionario.registro,
             funcao: funcionario.funcoes?.nome ?? null,
@@ -274,6 +274,10 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
             causa: causaPedido,
             motivo: ((fdPedido.get('motivo_texto') as string) ?? '').trim() || null,
           })
+          await Promise.race([
+            gerar,
+            new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 20_000)),
+          ])
           handleClose()
         } catch {
           setErro('Erro ao gerar o documento')
