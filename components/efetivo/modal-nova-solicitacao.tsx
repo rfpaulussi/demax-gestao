@@ -17,7 +17,8 @@ import { FUNCAO_JOVEM_APRENDIZ, formatarResumoTurno, precisaNovoTurno } from '@/
 import type { ImpactoResult } from '@/app/(admin)/efetivo/impacto'
 import { PostoImpactPanel } from '@/components/posto-impact-panel'
 import type { FuncionarioRow } from './funcionarios-table'
-import { TIPOS_DESLIGAMENTO, MOTIVOS_POR_TIPO, type TipoDesligamento } from './modal-desligar'
+import { CamposDesligamento } from './campos-desligamento'
+import { calcularStatusExperiencia } from '@/lib/experiencia'
 
 type TurnoOpcao = {
   id: string
@@ -69,7 +70,7 @@ const inputClass =
 export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClose }: Props) {
   const tiposDisponiveis = TIPOS_POR_STATUS[funcionario.status ?? ''] ?? TIPOS_POR_STATUS.default!
   const [tipo, setTipo]         = useState<TipoSolicitacao | ''>('')
-  const [tipoDeslig, setTipoDeslig] = useState<TipoDesligamento | ''>('')
+  const emExperiencia = calcularStatusExperiencia(funcionario.data_admissao, funcionario.periodo_experiencia).emExperiencia
   const [erro, setErro]         = useState<string | null>(null)
   const [pending, start]  = useTransition()
 
@@ -232,7 +233,6 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
   function handleClose() {
     if (pending) return
     setTipo('')
-    setTipoDeslig('')
     setErro(null)
     setPostoSearch(''); setPostoOpen(false); setPostoSelecionado(null)
     setMudarFuncao(false)
@@ -317,40 +317,7 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
             </div>
 
             {/* desligamento */}
-            {tipo === 'desligamento' && (
-              <>
-                <div>
-                  <label className={labelClass}>Data de Desligamento</label>
-                  <input type="date" name="data_desligamento" required className={inputClass} />
-                </div>
-                <div>
-                  <label className={labelClass}>Tipo de Desligamento</label>
-                  <select
-                    name="tipo_desligamento"
-                    required
-                    value={tipoDeslig}
-                    onChange={e => { setTipoDeslig(e.target.value as TipoDesligamento | '') }}
-                    className={inputClass}
-                  >
-                    <option value="">Selecione o tipo...</option>
-                    {TIPOS_DESLIGAMENTO.map(t => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                  </select>
-                </div>
-                {tipoDeslig && (
-                  <div>
-                    <label className={labelClass}>Motivação</label>
-                    <select name="motivo" required className={inputClass}>
-                      <option value="">Selecione a motivação...</option>
-                      {MOTIVOS_POR_TIPO[tipoDeslig].map(m => (
-                        <option key={m.value} value={m.value}>{m.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </>
-            )}
+            {tipo === 'desligamento' && <CamposDesligamento emExperiencia={emExperiencia} />}
 
             {/* transferencia */}
             {tipo === 'transferencia' && (

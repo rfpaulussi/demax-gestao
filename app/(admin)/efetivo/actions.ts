@@ -9,6 +9,7 @@ import { removerFaltasCobertas } from '@/lib/faltas-conflito'
 import { existeAfastamentoAberto, fecharAfastamentosVencidos } from '@/lib/afastamentos'
 import { buscarAtestadoSobreposto, mensagemSobreposicao } from '@/lib/atestados/sobreposicao'
 import { buscarSolicitacaoEmAnalise, mensagemEmAnalise, mensagemSolicitacaoEmAnalise } from '@/lib/solicitacoes/duplicidade'
+import { exigeAviso } from '@/lib/desligamentos/comunicado'
 
 // ─── execução direta ──────────────────────────────────────────────────────────
 
@@ -245,6 +246,12 @@ export async function solicitarDesligamento(formData: FormData): Promise<ActionR
   const dataDesligamento = formData.get('data_desligamento') as string
   const motivo           = formData.get('motivo') as string
   const tipoDesligamento = (formData.get('tipo_desligamento') as string) || null
+  const motivoTexto      = ((formData.get('motivo_texto') as string) ?? '').trim() || null
+  const aviso            = (formData.get('aviso') as string) || null
+
+  if (exigeAviso(tipoDesligamento, motivo) && aviso !== 'trabalhado' && aviso !== 'indenizado') {
+    return { success: false, error: 'Informe se o aviso prévio é trabalhado ou indenizado' }
+  }
 
   const emAnalise = await mensagemSolicitacaoEmAnalise(funcionarioId, 'desligamento')
   if (emAnalise) return { success: false, error: emAnalise }
@@ -265,7 +272,13 @@ export async function solicitarDesligamento(formData: FormData): Promise<ActionR
       posto_id: func?.posto_id ?? null,
       funcao_id: func?.funcao_id ?? null,
     },
-    dados_depois: { data_desligamento: dataDesligamento, motivo, tipo_desligamento: tipoDesligamento },
+    dados_depois: {
+      data_desligamento: dataDesligamento,
+      motivo,
+      tipo_desligamento: tipoDesligamento,
+      motivo_texto: motivoTexto,
+      aviso: exigeAviso(tipoDesligamento, motivo) ? aviso : null,
+    },
     motivo,
   })
 

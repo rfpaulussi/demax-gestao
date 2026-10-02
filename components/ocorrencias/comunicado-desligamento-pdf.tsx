@@ -1,179 +1,198 @@
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
+import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer'
+import type { Style } from '@react-pdf/types'
+import type { ReactNode } from 'react'
+import { CONTRATO_COMUNICADO, type CausaComunicado } from '@/lib/desligamentos/comunicado'
 
 export type DadosComunicadoDesligamento = {
   nome: string
   registro: string | null
   funcao: string | null
   dataAdmissao: string | null
+  /** Data em que o aviso começa (ou o desligamento acontece). */
+  dataDesligamento: string | null
+  causa: CausaComunicado | null
+  motivo: string | null
+  /** Padrão do formulário: uniforme devolvido = Sim. */
+  uniformeDevolvido?: boolean
 }
 
+// Grade copiada do anexo "COMUNICADO DE DESLIGAMENTO.xlsx" (A4 paisagem, colunas A–F em pt).
+const COL = { A: 126, B: 61.5, C: 141.75, D: 129, E: 102, F: 137.25 }
+const W = {
+  A: COL.A,
+  BC: COL.B + COL.C,
+  BD: COL.B + COL.C + COL.D,
+  BF: COL.B + COL.C + COL.D + COL.E + COL.F,
+  D: COL.D,
+  E: COL.E,
+  EF: COL.E + COL.F,
+  DF: COL.D + COL.E + COL.F,
+  DE: COL.D + COL.E,
+  F: COL.F,
+  total: COL.A + COL.B + COL.C + COL.D + COL.E + COL.F,
+}
+const BORDER = 0.75
+const SERIF = 'Times-Roman'
+const SERIF_BOLD = 'Times-Bold'
+
 const s = StyleSheet.create({
-  page:            { fontFamily: 'Helvetica', fontSize: 10, padding: 40, color: '#111827' },
-  headerRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12, paddingBottom: 12, borderBottomWidth: 2, borderBottomColor: '#111827' },
-  companyName:     { fontSize: 20, fontFamily: 'Helvetica-Bold', letterSpacing: 3 },
-  companySubtitle: { fontSize: 8, color: '#6b7280', marginTop: 2 },
-  regBlock:        { alignItems: 'flex-end' },
-  regLabel:        { fontSize: 7, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: 1 },
-  regValue:        { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#111827' },
-  title:           { textAlign: 'center', fontSize: 13, fontFamily: 'Helvetica-Bold', letterSpacing: 1, marginVertical: 14, borderWidth: 1, borderColor: '#111827', paddingVertical: 7, paddingHorizontal: 12 },
-  section:         { marginBottom: 14 },
-  sectionTitle:    { fontSize: 8, fontFamily: 'Helvetica-Bold', letterSpacing: 1, color: '#6b7280', marginBottom: 6, paddingBottom: 3, borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
-  row:             { flexDirection: 'row', marginBottom: 8 },
-  cell:            { flex: 1 },
-  label:           { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
-  value:           { fontSize: 10, color: '#111827' },
-  blank:           { fontSize: 10, color: '#9ca3af', borderBottomWidth: 1, borderBottomColor: '#d1d5db', paddingBottom: 2, minHeight: 14 },
-  causaGrid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  causaItem:       { flexDirection: 'row', alignItems: 'center', width: '48%', marginBottom: 6 },
-  checkbox:        { width: 10, height: 10, borderWidth: 1, borderColor: '#111827', marginRight: 6 },
-  causaLabel:      { fontSize: 9, color: '#111827' },
-  motivoBox:       { borderWidth: 1, borderColor: '#d1d5db', minHeight: 40, marginTop: 4, padding: 6 },
-  sigGrid:         { flexDirection: 'row', marginTop: 24, gap: 8 },
-  sigBox:          { flex: 1, borderTopWidth: 1, borderTopColor: '#9ca3af', paddingTop: 6 },
-  sigRole:         { fontSize: 7, color: '#6b7280', textAlign: 'center' },
-  footer:          { position: 'absolute', bottom: 20, left: 40, right: 40, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 6 },
-  footerText:      { fontSize: 7, color: '#9ca3af' },
+  page:   { padding: 28, justifyContent: 'center', alignItems: 'center', fontFamily: SERIF, color: '#000' },
+  table:  { width: W.total, borderTopWidth: BORDER, borderLeftWidth: BORDER, borderColor: '#000' },
+  row:    { flexDirection: 'row' },
+  cell:   { borderRightWidth: BORDER, borderBottomWidth: BORDER, borderColor: '#000', justifyContent: 'center', paddingHorizontal: 4 },
+  bold10: { fontFamily: SERIF_BOLD, fontSize: 10 },
+  bold9:  { fontFamily: SERIF_BOLD, fontSize: 9 },
+  val10:  { fontFamily: SERIF, fontSize: 10 },
+  center: { textAlign: 'center' },
+  box:    { width: 21.6, height: 14.4, borderWidth: BORDER, borderColor: '#000', alignItems: 'center', justifyContent: 'center' },
+  boxX:   { fontFamily: SERIF_BOLD, fontSize: 11, marginTop: -1 },
+  logo:   { position: 'absolute', left: 5.4, top: 3, width: 34.8, height: 30.6 },
 })
 
-const CAUSAS = [
-  'Pedido de Demissão',
-  'Reprova na Experiência',
-  'Dispensa sem Justa Causa Indenizado',
-  'Dispensa com Justa Causa',
-  'Dispensa sem Justa Causa Trabalhado',
-  'Falecimento',
-]
+const H = { topo: 33.75, titulo: 36, linha: 26.1, motivo: 52.2, assinatura: 43.5, papeis: 18.75 }
 
 function fmt(iso: string | null): string {
-  if (!iso) return '—'
+  if (!iso) return ''
   const [y, m, d] = iso.split('T')[0].split('-')
   return `${d}/${m}/${y}`
 }
 
+function Caixa({ marcada }: { marcada: boolean }) {
+  return (
+    <View style={s.box}>
+      {marcada ? <Text style={s.boxX}>X</Text> : null}
+    </View>
+  )
+}
+
+function Cel({ w, h, children, style }: { w: number; h: number; children?: ReactNode; style?: Style }) {
+  return <View style={[s.cell, { width: w, height: h }, style ?? {}]}>{children}</View>
+}
+
+/** Item "TEXTO [caixa]" das linhas de CAUSA — a caixa fica à direita, como no anexo. */
+function CausaItem({ w, label, marcada, recuo }: { w: number; label: string; marcada: boolean; recuo: number }) {
+  return (
+    <Cel w={w} h={H.linha} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Text style={[s.bold9, { fontSize: 7.5, flex: 1 }]}>{label}</Text>
+      <View style={{ marginRight: recuo }}><Caixa marcada={marcada} /></View>
+    </Cel>
+  )
+}
+
+/** "SIM [ ]   NÃO [ ]" centralizado. */
+function SimNao({ sim, nao, prefixo }: { sim: boolean; nao: boolean; prefixo?: string }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+      {prefixo ? <Text style={[s.bold10, { marginRight: 14 }]}>{prefixo}</Text> : null}
+      <Text style={s.bold10}>SIM</Text><Caixa marcada={sim} />
+      <Text style={[s.bold10, { marginLeft: 14 }]}>NÃO</Text><Caixa marcada={nao} />
+    </View>
+  )
+}
+
 function ComunicadoDocument({ dados }: { dados: DadosComunicadoDesligamento }) {
-  const emitidoEm = fmt(new Date().toISOString())
+  const uniforme = dados.uniformeDevolvido ?? true
+  const causa = dados.causa
 
   return (
     <Document>
-      <Page size="A4" style={s.page}>
+      <Page size="A4" orientation="landscape" style={s.page}>
+        <View style={s.table}>
 
-        {/* Cabeçalho */}
-        <View style={s.headerRow}>
-          <View>
-            <Text style={s.companyName}>DEMAX</Text>
-            <Text style={s.companySubtitle}>Serviços e Comércio LTDA</Text>
-          </View>
-          <View style={s.regBlock}>
-            <Text style={s.regLabel}>Recursos Humanos</Text>
-            <Text style={s.regValue}>Comunicação</Text>
-          </View>
-        </View>
+          {/* linha 1 — respiro do topo */}
+          <View style={{ height: H.topo, borderRightWidth: BORDER, borderColor: '#000' }} />
 
-        <Text style={s.title}>COMUNICAÇÃO DE DESLIGAMENTO</Text>
-
-        {/* Colaborador */}
-        <View style={s.section}>
+          {/* linha 2 — logo, título, RH */}
           <View style={s.row}>
-            <View style={[s.cell, { flex: 2 }]}>
-              <Text style={s.label}>Nome</Text>
-              <Text style={s.value}>{dados.nome}</Text>
-            </View>
-            <View style={s.cell}>
-              <Text style={s.label}>RE</Text>
-              <Text style={s.value}>{dados.registro ?? '—'}</Text>
-            </View>
+            <Cel w={W.A} h={H.titulo}>
+              {/* eslint-disable-next-line jsx-a11y/alt-text */}
+              <Image src="/logo-demax.png" style={s.logo} />
+            </Cel>
+            <Cel w={W.BD} h={H.titulo} style={{ alignItems: 'center' }}>
+              <Text style={[s.center, { fontFamily: SERIF_BOLD, fontSize: 11 }]}>COMUNICAÇÃO DE DESLIGAMENTO</Text>
+            </Cel>
+            <Cel w={W.EF} h={H.titulo} style={{ alignItems: 'center' }}>
+              <Text style={[s.center, { fontFamily: SERIF_BOLD, fontSize: 11 }]}>RECURSOS HUMANOS</Text>
+            </Cel>
           </View>
-          <View style={s.row}>
-            <View style={s.cell}>
-              <Text style={s.label}>Função</Text>
-              <Text style={s.value}>{dados.funcao ?? '—'}</Text>
-            </View>
-            <View style={s.cell}>
-              <Text style={s.label}>Contrato</Text>
-              <Text style={s.blank}> </Text>
-            </View>
-          </View>
-        </View>
 
-        {/* Causa */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>CAUSA</Text>
-          <View style={s.causaGrid}>
-            {CAUSAS.map(c => (
-              <View key={c} style={s.causaItem}>
-                <View style={s.checkbox} />
-                <Text style={s.causaLabel}>{c}</Text>
+          {/* linha 3 — nome / RE */}
+          <View style={s.row}>
+            <Cel w={W.A} h={H.linha}><Text style={s.bold10}>NOME:</Text></Cel>
+            <Cel w={W.BD} h={H.linha}><Text style={s.val10}>{dados.nome}</Text></Cel>
+            <Cel w={W.E} h={H.linha}><Text style={s.bold10}>RE:</Text></Cel>
+            <Cel w={W.F} h={H.linha}><Text style={s.val10}>{dados.registro ?? ''}</Text></Cel>
+          </View>
+
+          {/* linha 4 — função / contrato */}
+          <View style={s.row}>
+            <Cel w={W.A} h={H.linha}><Text style={s.bold10}>FUNÇÃO:</Text></Cel>
+            <Cel w={W.BC} h={H.linha}><Text style={s.val10}>{dados.funcao ?? ''}</Text></Cel>
+            <Cel w={W.D} h={H.linha}><Text style={s.bold10}>CONTRATO:</Text></Cel>
+            <Cel w={W.EF} h={H.linha}><Text style={s.val10}>{CONTRATO_COMUNICADO}</Text></Cel>
+          </View>
+
+          {/* linhas 5–7 — causa */}
+          <View style={s.row}>
+            <Cel w={W.A} h={H.linha * 3}><Text style={s.bold9}>CAUSA:</Text></Cel>
+            <View>
+              <View style={s.row}>
+                <CausaItem w={W.BC} label="PEDIDO DE DEMISSÃO" marcada={causa === 'pedido_demissao'} recuo={5} />
+                <CausaItem w={W.DF} label="REPROVA NA EXPERIÊNCIA" marcada={causa === 'reprova_experiencia'} recuo={63} />
               </View>
-            ))}
-          </View>
-        </View>
-
-        {/* Motivo */}
-        <View style={s.section}>
-          <Text style={s.sectionTitle}>MOTIVO(S)</Text>
-          <View style={s.motivoBox} />
-        </View>
-
-        {/* Uniforme / exame */}
-        <View style={s.section}>
-          <View style={s.row}>
-            <View style={s.cell}>
-              <Text style={s.label}>Devolução de Uniforme</Text>
-              <View style={{ flexDirection: 'row', gap: 12, marginTop: 2 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View style={s.checkbox} /><Text style={s.causaLabel}>Sim</Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View style={s.checkbox} /><Text style={s.causaLabel}>Não</Text>
-                </View>
+              <View style={s.row}>
+                <CausaItem w={W.BC} label="DISPENSA SEM JUSTA CAUSA INDENIZADO" marcada={causa === 'sem_justa_causa_indenizado'} recuo={5} />
+                <CausaItem w={W.DF} label="DISPENSA COM JUSTA CAUSA" marcada={causa === 'com_justa_causa'} recuo={63} />
+              </View>
+              <View style={s.row}>
+                <CausaItem w={W.BC} label="DISPENSA SEM JUSTA CAUSA TRABALHADO" marcada={causa === 'sem_justa_causa_trabalhado'} recuo={5} />
+                <CausaItem w={W.DF} label="FALECIMENTO" marcada={causa === 'falecimento'} recuo={63} />
               </View>
             </View>
-            <View style={s.cell}>
-              <Text style={s.label}>Exame Demissional</Text>
-              <Text style={s.blank}>____/____/____</Text>
-            </View>
           </View>
+
+          {/* linhas 8–9 — motivo(s) */}
           <View style={s.row}>
-            <View style={s.cell}>
-              <Text style={s.label}>Data de Admissão</Text>
-              <Text style={s.value}>{fmt(dados.dataAdmissao)}</Text>
-            </View>
-            <View style={s.cell}>
-              <Text style={s.label}>Data de Desligamento</Text>
-              <Text style={s.blank}>____/____/____</Text>
-            </View>
+            <Cel w={W.A} h={H.motivo}><Text style={s.bold9}>MOTIVO (s):</Text></Cel>
+            <Cel w={W.BF} h={H.motivo}><Text style={s.val10}>{dados.motivo ?? ''}</Text></Cel>
           </View>
+
+          {/* linha 10 — uniforme / exame / admissão */}
           <View style={s.row}>
-            <View style={s.cell}>
-              <Text style={s.label}>Será Substituído</Text>
-              <View style={{ flexDirection: 'row', gap: 12, marginTop: 2 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View style={s.checkbox} /><Text style={s.causaLabel}>Sim</Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View style={s.checkbox} /><Text style={s.causaLabel}>Não</Text>
-                </View>
-              </View>
-            </View>
-            <View style={s.cell} />
+            <Cel w={W.A} h={H.linha} style={{ alignItems: 'center' }}><Text style={s.bold10}>DEVOLUÇÃO:</Text></Cel>
+            <Cel w={W.BC} h={H.linha}><SimNao sim={uniforme} nao={!uniforme} prefixo="UNIFORME" /></Cel>
+            <Cel w={W.D} h={H.linha}><Text style={[s.bold10, { fontSize: 9 }]}>EXAME: ____/____/____</Text></Cel>
+            <Cel w={W.E} h={H.linha}><Text style={s.bold10}>DATA ADMISSÃO:</Text></Cel>
+            <Cel w={W.F} h={H.linha} style={{ alignItems: 'center' }}><Text style={s.bold10}>{fmt(dados.dataAdmissao)}</Text></Cel>
           </View>
-        </View>
 
-        {/* Assinaturas */}
-        <View style={s.sigGrid} wrap={false}>
-          {['Diretoria', 'Coordenador', 'Supervisor', 'RH', 'Gerente Operacional'].map(papel => (
-            <View key={papel} style={s.sigBox}>
-              <Text style={s.sigRole}>{papel}</Text>
-            </View>
-          ))}
-        </View>
+          {/* linha 11 — substituído / data de desligamento */}
+          <View style={s.row}>
+            <Cel w={W.A} h={H.linha}><Text style={s.bold10}>SERÁ SUBSTITUIDO:</Text></Cel>
+            <Cel w={W.BC} h={H.linha}><SimNao sim={false} nao={false} /></Cel>
+            <Cel w={W.DE} h={H.linha}><Text style={s.bold10}>DATA DESLIGAMENTO:</Text></Cel>
+            <Cel w={W.F} h={H.linha} style={{ alignItems: 'center' }}><Text style={s.bold10}>{fmt(dados.dataDesligamento)}</Text></Cel>
+          </View>
 
-        {/* Rodapé */}
-        <View style={s.footer} fixed>
-          <Text style={s.footerText}>DEMAX Serviços e Comércio LTDA</Text>
-          <Text style={s.footerText}>Emitido em {emitidoEm}</Text>
-        </View>
+          {/* linha 12 — espaço de assinatura */}
+          <View style={s.row}>
+            <Cel w={W.A} h={H.assinatura} />
+            <Cel w={W.BC} h={H.assinatura} />
+            <Cel w={W.D} h={H.assinatura} />
+            <Cel w={W.E} h={H.assinatura} />
+            <Cel w={W.F} h={H.assinatura} />
+          </View>
 
+          {/* linha 13 — cargos */}
+          <View style={s.row}>
+            <Cel w={W.A} h={H.papeis} style={{ alignItems: 'center' }}><Text style={s.bold9}>DIRETORIA</Text></Cel>
+            <Cel w={W.BC} h={H.papeis} style={{ alignItems: 'center' }}><Text style={s.bold9}>COORDENADOR</Text></Cel>
+            <Cel w={W.D} h={H.papeis} style={{ alignItems: 'center' }}><Text style={s.bold9}>SUPERVISOR</Text></Cel>
+            <Cel w={W.E} h={H.papeis} style={{ alignItems: 'center' }}><Text style={s.bold9}>RH</Text></Cel>
+            <Cel w={W.F} h={H.papeis} style={{ alignItems: 'center' }}><Text style={[s.bold9, { fontSize: 8 }]}>GERENTE OPERACIONAL</Text></Cel>
+          </View>
+
+        </View>
       </Page>
     </Document>
   )

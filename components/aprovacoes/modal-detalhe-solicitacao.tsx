@@ -1,7 +1,9 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
+import { buscarDadosBaseComunicado } from '@/app/(admin)/aprovacoes/actions'
+import { causaDoDesligamento } from '@/lib/desligamentos/comunicado'
 import { cn } from '@/lib/utils'
 import { PostoImpactPanel } from '@/components/posto-impact-panel'
 import { camposDaSolicitacao, fmtData, badgeDaSolicitacao } from './campos-solicitacao'
@@ -57,6 +59,33 @@ export function ModalDetalheSolicitacao({
 
   function val(chave: string, fallback: unknown = ''): string {
     return overrides[chave] ?? (depois[chave] != null ? String(depois[chave]) : String(fallback))
+  }
+
+  const [gerandoComunicado, setGerandoComunicado] = useState(false)
+  const [erroComunicado, setErroComunicado] = useState<string | null>(null)
+
+  /** Gera o comunicado já preenchido; usa as correções do admin (tipo/motivo/data) quando houver. */
+  async function handleComunicado() {
+    setGerandoComunicado(true)
+    setErroComunicado(null)
+    try {
+      const base = await buscarDadosBaseComunicado(sol.id)
+      if (!base) { setErroComunicado('Não foi possível carregar os dados do funcionário'); return }
+      const tipoD = val('tipo_desligamento')
+      const mot = val('motivo')
+      const labelMotivo = MOTIVOS_POR_TIPO[tipoD as TipoDesligamento]?.find(m => m.value === mot)?.label ?? null
+      const { downloadComunicadoDesligamentoPDF } = await import('@/components/ocorrencias/comunicado-desligamento-pdf')
+      await downloadComunicadoDesligamentoPDF({
+        ...base,
+        dataDesligamento: val('data_desligamento').slice(0, 10) || null,
+        causa: causaDoDesligamento(tipoD, mot, val('aviso') || null),
+        motivo: val('motivo_texto').trim() || labelMotivo,
+      })
+    } catch {
+      setErroComunicado('Erro ao gerar o comunicado')
+    } finally {
+      setGerandoComunicado(false)
+    }
   }
 
   const isAdmissao    = editando && sol.tipo === 'admissao'
@@ -206,6 +235,20 @@ export function ModalDetalheSolicitacao({
 
           {erro && (
             <p className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{erro}</p>
+          )}
+
+          {sol.tipo === 'desligamento' && (
+            <div className="mb-3">
+              <button
+                type="button"
+                onClick={handleComunicado}
+                disabled={gerandoComunicado}
+                className="w-full rounded-lg bg-amber-500 py-2 text-sm font-semibold text-slate-900 transition-colors hover:bg-amber-400 disabled:opacity-50"
+              >
+                {gerandoComunicado ? 'Gerando…' : 'Imprimir comunicado de desligamento'}
+              </button>
+              {erroComunicado && <p className="mt-1 text-xs text-red-600">{erroComunicado}</p>}
+            </div>
           )}
 
           {canApprove && (!rejeitando ? (
