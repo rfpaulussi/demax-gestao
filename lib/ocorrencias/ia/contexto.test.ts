@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { montarContexto, montarContextoRetorno, type DadosContexto } from './contexto'
+import { montarContexto, montarContextoRetorno, montarContextoConsideracoesRH, type DadosContexto } from './contexto'
 
 const base: DadosContexto = {
   funcao: 'Servente',
@@ -50,5 +50,14 @@ describe('montarContextoRetorno', () => {
     expect(m).toContain('CONTEXTO')
     expect(m).toContain('Resposta do RH:')
     expect(m).toContain('Orientar consulta médica.')
+  })
+})
+
+describe('montarContextoConsideracoesRH', () => {
+  it('junta o contexto e a devolutiva anonimizada do coordenador ao supervisor', () => {
+    const m = montarContextoConsideracoesRH({ contexto: 'CONTEXTO', devolutivaAnonima: 'Reforçar orientação ao supervisor.' })
+    expect(m).toContain('CONTEXTO')
+    expect(m).toContain('Devolutiva que o coordenador escreveu ao supervisor:')
+    expect(m).toContain('Reforçar orientação ao supervisor.')
   })
 })

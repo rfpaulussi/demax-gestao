@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { lerAnalise, lerRetorno, CATEGORIAS, URGENCIAS, NIVEIS_RECOMENDADOS } from './schema'
+import { lerAnalise, lerRetorno, lerConsideracoesRH, CATEGORIAS, URGENCIAS, NIVEIS_RECOMENDADOS } from './schema'
 
 const valida = {
   categoria: 'saude',
@@ -10,7 +10,6 @@ const valida = {
   encaminhar_rh: true,
   motivo_rh: 'Recorrência de episódios de saúde.',
   devolutiva_supervisor: 'Obrigado pelo registro. Vamos acompanhar.',
-  email_rh: 'Solicito orientação sobre o acompanhamento.',
   alertas: ['Cita dado de saúde'],
 }
 
@@ -55,10 +54,9 @@ describe('lerAnalise', () => {
     expect(r?.resolucao_sugerida).toEqual(['ok'])
   })
 
-  it('zera email_rh e motivo quando não é para encaminhar', () => {
-    const r = lerAnalise({ ...valida, encaminhar_rh: false, email_rh: 'texto que não deveria ficar', motivo_rh: '' })
+  it('zera motivo quando não é para encaminhar', () => {
+    const r = lerAnalise({ ...valida, encaminhar_rh: false, motivo_rh: '' })
     expect(r?.encaminhar_rh).toBe(false)
-    expect(r?.email_rh).toBe('')
     expect(r?.motivo_rh).toBeNull()
   })
 
@@ -96,5 +94,22 @@ describe('lerRetorno', () => {
   it('recusa devolutiva vazia ou entrada inválida', () => {
     expect(lerRetorno({ devolutiva_supervisor: '  ', pontos_de_atencao: [] })).toBeNull()
     expect(lerRetorno(null)).toBeNull()
+  })
+})
+
+describe('lerConsideracoesRH', () => {
+  it('aceita considerações válidas', () => {
+    const r = lerConsideracoesRH({ consideracoes_rh: 'Algum texto de considerações.' })
+    expect(r).not.toBeNull()
+    expect(r?.consideracoes_rh).toBe('Algum texto de considerações.')
+  })
+
+  it('recusa texto vazio', () => {
+    expect(lerConsideracoesRH({ consideracoes_rh: '' })).toBeNull()
+  })
+
+  it('recusa quando não é objeto', () => {
+    expect(lerConsideracoesRH(null)).toBeNull()
+    expect(lerConsideracoesRH([])).toBeNull()
   })
 })
