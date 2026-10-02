@@ -436,8 +436,12 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
                     className={inputClass}
                   >
                     <option value="">Selecione a causa...</option>
-                    {CAUSAS_COMUNICADO.map(c => (
-                      <option key={c.value} value={c.value}>{c.label}</option>
+                    {Array.from(new Set(CAUSAS_COMUNICADO.map(c => c.grupo))).map(grupo => (
+                      <optgroup key={grupo} label={grupo}>
+                        {CAUSAS_COMUNICADO.filter(c => c.grupo === grupo).map(c => (
+                          <option key={c.value} value={c.value}>{c.emoji} {c.label}</option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                   {emExperiencia && (
@@ -446,6 +450,7 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
                 </div>
                 <div>
                   <label className={labelClass}>Data de Desligamento</label>
+                  <p className="mb-1 text-xs text-blue-600">📅 Data em que pretende iniciar o aviso</p>
                   <input type="date" name="data_desligamento" className={inputClass} />
                 </div>
                 <div>
