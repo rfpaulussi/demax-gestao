@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, Image, StyleSheet } from '@react-pdf/renderer'
+import { Document, Page, Text, View, Image, StyleSheet, Font } from '@react-pdf/renderer'
 import type { Style } from '@react-pdf/types'
 import type { ReactNode } from 'react'
 import { CONTRATO_COMUNICADO, type CausaComunicado } from '@/lib/desligamentos/comunicado'
@@ -31,6 +31,9 @@ const W = {
   F: COL.F,
   total: COL.A + COL.B + COL.C + COL.D + COL.E + COL.F,
 }
+// sem hifenização: o texto longo das causas quebra só entre palavras, como no Excel
+Font.registerHyphenationCallback(word => [word])
+
 const BORDER = 0.75
 const SERIF = 'Times-Roman'
 const SERIF_BOLD = 'Times-Bold'
@@ -73,7 +76,7 @@ function Cel({ w, h, children, style }: { w: number; h: number; children?: React
 function CausaItem({ w, label, marcada, recuo }: { w: number; label: string; marcada: boolean; recuo: number }) {
   return (
     <Cel w={w} h={H.linha} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-      <Text style={[s.bold9, { fontSize: 7.5, flex: 1 }]}>{label}</Text>
+      <Text style={[s.bold9, { fontSize: 8.5, flex: 1, paddingRight: 4 }]}>{label}</Text>
       <View style={{ marginRight: recuo }}><Caixa marcada={marcada} /></View>
     </Cel>
   )
@@ -84,8 +87,8 @@ function SimNao({ sim, nao, prefixo }: { sim: boolean; nao: boolean; prefixo?: s
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
       {prefixo ? <Text style={[s.bold10, { marginRight: 14 }]}>{prefixo}</Text> : null}
-      <Text style={s.bold10}>SIM</Text><Caixa marcada={sim} />
-      <Text style={[s.bold10, { marginLeft: 14 }]}>NÃO</Text><Caixa marcada={nao} />
+      <Caixa marcada={sim} /><Text style={s.bold10}>SIM</Text>
+      <View style={{ marginLeft: 14 }}><Caixa marcada={nao} /></View><Text style={s.bold10}>NÃO</Text>
     </View>
   )
 }
@@ -137,15 +140,15 @@ function ComunicadoDocument({ dados }: { dados: DadosComunicadoDesligamento }) {
             <Cel w={W.A} h={H.linha * 3}><Text style={s.bold9}>CAUSA:</Text></Cel>
             <View>
               <View style={s.row}>
-                <CausaItem w={W.BC} label="PEDIDO DE DEMISSÃO" marcada={causa === 'pedido_demissao'} recuo={5} />
+                <CausaItem w={W.BC} label="PEDIDO DE DEMISSÃO" marcada={causa === 'pedido_demissao'} recuo={18} />
                 <CausaItem w={W.DF} label="REPROVA NA EXPERIÊNCIA" marcada={causa === 'reprova_experiencia'} recuo={63} />
               </View>
               <View style={s.row}>
-                <CausaItem w={W.BC} label="DISPENSA SEM JUSTA CAUSA INDENIZADO" marcada={causa === 'sem_justa_causa_indenizado'} recuo={5} />
+                <CausaItem w={W.BC} label="DISPENSA SEM JUSTA CAUSA INDENIZADO" marcada={causa === 'sem_justa_causa_indenizado'} recuo={18} />
                 <CausaItem w={W.DF} label="DISPENSA COM JUSTA CAUSA" marcada={causa === 'com_justa_causa'} recuo={63} />
               </View>
               <View style={s.row}>
-                <CausaItem w={W.BC} label="DISPENSA SEM JUSTA CAUSA TRABALHADO" marcada={causa === 'sem_justa_causa_trabalhado'} recuo={5} />
+                <CausaItem w={W.BC} label="DISPENSA SEM JUSTA CAUSA TRABALHADO" marcada={causa === 'sem_justa_causa_trabalhado'} recuo={18} />
                 <CausaItem w={W.DF} label="FALECIMENTO" marcada={causa === 'falecimento'} recuo={63} />
               </View>
             </View>

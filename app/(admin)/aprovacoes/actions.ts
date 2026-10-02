@@ -137,38 +137,6 @@ export async function buscarSolicitacoes(
   return rows
 }
 
-export type DadosBaseComunicado = {
-  nome: string
-  registro: string | null
-  funcao: string | null
-  dataAdmissao: string | null
-}
-
-/** Dados do funcionário para o comunicado de desligamento impresso da solicitação.
- *  A solicitação é lida com o client normal (RLS barra quem não deve ver); o cadastro e a função,
- *  com o admin client, porque supervisor pode não enxergar `funcoes`. */
-export async function buscarDadosBaseComunicado(solicitacaoId: string): Promise<DadosBaseComunicado | null> {
-  const auth = await getUser()
-  if (!auth) return null
-
-  const { data: sol } = await createClient()
-    .from('solicitacoes')
-    .select('funcionario_id, tipo')
-    .eq('id', solicitacaoId)
-    .maybeSingle()
-  if (!sol?.funcionario_id || sol.tipo !== 'desligamento') return null
-
-  const { data: func } = await createAdminClient()
-    .from('funcionarios')
-    .select('nome, registro, data_admissao, funcoes!funcao_id(nome)')
-    .eq('id', sol.funcionario_id)
-    .maybeSingle()
-  if (!func) return null
-
-  const f = func as unknown as { nome: string; registro: string | null; data_admissao: string | null; funcoes: { nome: string } | null }
-  return { nome: f.nome, registro: f.registro, funcao: f.funcoes?.nome ?? null, dataAdmissao: f.data_admissao }
-}
-
 /** CID vindo da auditoria SESMT que ainda não está em cid_referencia: cadastra (sem descrição) na
  *  aprovação — a coluna atestados.cid_codigo tem FK pra essa tabela. */
 async function garantirCidNaReferencia(admin: ReturnType<typeof createAdminClient>, codigo: string | null | undefined): Promise<string | null> {

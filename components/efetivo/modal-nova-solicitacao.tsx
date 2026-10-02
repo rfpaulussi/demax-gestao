@@ -17,7 +17,8 @@ import { FUNCAO_JOVEM_APRENDIZ, formatarResumoTurno, precisaNovoTurno } from '@/
 import type { ImpactoResult } from '@/app/(admin)/efetivo/impacto'
 import { PostoImpactPanel } from '@/components/posto-impact-panel'
 import type { FuncionarioRow } from './funcionarios-table'
-import { CamposDesligamento } from './campos-desligamento'
+import { TIPOS_DESLIGAMENTO, MOTIVOS_POR_TIPO, type TipoDesligamento } from './modal-desligar'
+import { CAUSAS_COMUNICADO, type CausaComunicado } from '@/lib/desligamentos/comunicado'
 import { calcularStatusExperiencia } from '@/lib/experiencia'
 
 type TurnoOpcao = {
@@ -33,6 +34,7 @@ type TurnoOpcao = {
 
 type TipoSolicitacao =
   | 'desligamento'
+  | 'pedido_desligamento'
   | 'transferencia'
   | 'mudanca_funcao'
   | 'retorno_afastamento'
@@ -49,6 +51,7 @@ interface Props {
 
 const TIPO_LABELS: Record<TipoSolicitacao, string> = {
   desligamento:        '🔴 Desligamento',
+  pedido_desligamento: '🖨️ Pedido de Desligamento (documento para imprimir)',
   transferencia:       '🔀 Transferência',
   mudanca_funcao:      '🔄 Mudança de Função',
   retorno_afastamento: '🔙 Retorno de Afastamento',
@@ -57,9 +60,9 @@ const TIPO_LABELS: Record<TipoSolicitacao, string> = {
 }
 
 const TIPOS_POR_STATUS: Partial<Record<string, TipoSolicitacao[]>> = {
-  ativo:    ['transferencia', 'mudanca_funcao', 'mudanca_horario', 'desligamento', 'rescisao_indireta'],
-  afastado: ['retorno_afastamento', 'desligamento'],
-  default:  ['desligamento'],
+  ativo:    ['transferencia', 'mudanca_funcao', 'mudanca_horario', 'desligamento', 'pedido_desligamento', 'rescisao_indireta'],
+  afastado: ['retorno_afastamento', 'desligamento', 'pedido_desligamento'],
+  default:  ['desligamento', 'pedido_desligamento'],
 }
 
 
@@ -70,7 +73,14 @@ const inputClass =
 export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClose }: Props) {
   const tiposDisponiveis = TIPOS_POR_STATUS[funcionario.status ?? ''] ?? TIPOS_POR_STATUS.default!
   const [tipo, setTipo]         = useState<TipoSolicitacao | ''>('')
+  const [tipoDeslig, setTipoDeslig] = useState<TipoDesligamento | ''>('')
+  const [causaPedido, setCausaPedido] = useState<CausaComunicado | ''>('')
+
+  // Pedido de Desligamento: em período de experiência, já sugere a causa "Reprova na Experiência".
   const emExperiencia = calcularStatusExperiencia(funcionario.data_admissao, funcionario.periodo_experiencia).emExperiencia
+  useEffect(() => {
+    if (tipo === 'pedido_desligamento') setCausaPedido(emExperiencia ? 'reprova_experiencia' : '')
+  }, [tipo, emExperiencia])
   const [erro, setErro]         = useState<string | null>(null)
   const [pending, start]  = useTransition()
 
@@ -116,7 +126,7 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
   const [emAnalise, setEmAnalise] = useState<string | null>(null)
   useEffect(() => {
     setEmAnalise(null)
-    if (!tipo || !open) return
+    if (!tipo || !open || tipo === 'pedido_desligamento') return
     let cancelado = false
     consultarSolicitacaoEmAnalise(funcionario.id, tipo).then(r => { if (!cancelado) setEmAnalise(r?.mensagem ?? null) })
     return () => { cancelado = true }
@@ -233,6 +243,8 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
   function handleClose() {
     if (pending) return
     setTipo('')
+    setTipoDeslig('')
+    setCausaPedido('')
     setErro(null)
     setPostoSearch(''); setPostoOpen(false); setPostoSelecionado(null)
     setMudarFuncao(false)
@@ -247,6 +259,28 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
     e.preventDefault()
     if (!tipo) return
     setErro(null)
+    if (tipo === 'pedido_desligamento') {
+      const fdPedido = new FormData(e.currentTarget)
+      if (!causaPedido) { setErro('Selecione a causa'); return }
+      start(async () => {
+        try {
+          const { downloadComunicadoDesligamentoPDF } = await import('@/components/ocorrencias/comunicado-desligamento-pdf')
+          await downloadComunicadoDesligamentoPDF({
+            nome: funcionario.nome,
+            registro: funcionario.registro,
+            funcao: funcionario.funcoes?.nome ?? null,
+            dataAdmissao: funcionario.data_admissao,
+            dataDesligamento: (fdPedido.get('data_desligamento') as string) || null,
+            causa: causaPedido,
+            motivo: ((fdPedido.get('motivo_texto') as string) ?? '').trim() || null,
+          })
+          handleClose()
+        } catch {
+          setErro('Erro ao gerar o documento')
+        }
+      })
+      return
+    }
     if (tipo === 'transferencia' && !postoSelecionado) {
       setErro('Selecione o posto destino')
       return
@@ -295,7 +329,9 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
           <p className="mb-4 text-sm text-gray-400">{funcionario.nome}</p>
 
           <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-            Esta solicitação será enviada para aprovação do administrador antes de ser efetivada.
+            {tipo === 'pedido_desligamento'
+              ? 'Este pedido é apenas um documento para impressão — nada é registrado nem alterado no sistema.'
+              : 'Esta solicitação será enviada para aprovação do administrador antes de ser efetivada.'}
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -317,7 +353,72 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
             </div>
 
             {/* desligamento */}
-            {tipo === 'desligamento' && <CamposDesligamento emExperiencia={emExperiencia} />}
+            {tipo === 'desligamento' && (
+              <>
+                <div>
+                  <label className={labelClass}>Data de Desligamento</label>
+                  <input type="date" name="data_desligamento" required className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Tipo de Desligamento</label>
+                  <select
+                    name="tipo_desligamento"
+                    required
+                    value={tipoDeslig}
+                    onChange={e => { setTipoDeslig(e.target.value as TipoDesligamento | '') }}
+                    className={inputClass}
+                  >
+                    <option value="">Selecione o tipo...</option>
+                    {TIPOS_DESLIGAMENTO.map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+                {tipoDeslig && (
+                  <div>
+                    <label className={labelClass}>Motivação</label>
+                    <select name="motivo" required className={inputClass}>
+                      <option value="">Selecione a motivação...</option>
+                      {MOTIVOS_POR_TIPO[tipoDeslig].map(m => (
+                        <option key={m.value} value={m.value}>{m.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* pedido de desligamento (só documento) */}
+            {tipo === 'pedido_desligamento' && (
+              <>
+                <div>
+                  <label className={labelClass}>Causa</label>
+                  <select
+                    name="causa"
+                    required
+                    value={causaPedido}
+                    onChange={e => setCausaPedido(e.target.value as CausaComunicado | '')}
+                    className={inputClass}
+                  >
+                    <option value="">Selecione a causa...</option>
+                    {CAUSAS_COMUNICADO.map(c => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+                  {emExperiencia && (
+                    <p className="mt-1 text-xs text-purple-600">Funcionário em período de experiência — sugerido: Reprova na Experiência.</p>
+                  )}
+                </div>
+                <div>
+                  <label className={labelClass}>Data de Desligamento</label>
+                  <input type="date" name="data_desligamento" className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Motivo(s)</label>
+                  <textarea name="motivo_texto" rows={3} placeholder="Descreva o motivo..." className={inputClass} />
+                </div>
+              </>
+            )}
 
             {/* transferencia */}
             {tipo === 'transferencia' && (
@@ -716,7 +817,9 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
                 disabled={pending || !tipo || !!emAnalise}
                 className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
               >
-                {pending ? 'Enviando...' : 'Enviar Solicitação'}
+                {tipo === 'pedido_desligamento'
+                  ? (pending ? 'Gerando...' : 'Gerar Documento')
+                  : (pending ? 'Enviando...' : 'Enviar Solicitação')}
               </button>
             </div>
           </form>

@@ -10,8 +10,7 @@ import { diasComRH } from '@/lib/ocorrencias/encaminhar-rh'
 import { ModalNovaOcorrencia } from './modal-nova-ocorrencia'
 import { ConversaOcorrencia } from './conversa-ocorrencia'
 import { downloadDossiePDF } from './dossie-pdf'
-import { ModalSolicitarDesligamento } from './modal-solicitar-desligamento'
-import { calcularStatusExperiencia } from '@/lib/experiencia'
+import { downloadComunicadoDesligamentoPDF } from './comunicado-desligamento-pdf'
 
 function maskCPF(cpf: string | null): string {
   if (!cpf) return '—'
@@ -70,7 +69,7 @@ export function ModalDossie({
   const [filtroTipo, setFiltroTipo] = useState<TimelineTipo | ''>('')
   const [novaOpen, setNovaOpen]     = useState(false)
   const [loadingPdf, setLoadingPdf] = useState(false)
-  const [desligamentoOpen, setDesligamentoOpen] = useState(false)
+  const [loadingComunicado, setLoadingComunicado] = useState(false)
   const [conversasAbertas, setConversasAbertas] = useState<Set<string>>(new Set())
   const [encerrandoId, setEncerrandoId]         = useState<string | null>(null)
   const [parecer, setParecer]                   = useState('')
@@ -145,6 +144,26 @@ export function ModalDossie({
     }
   }
 
+  async function handleBaixarComunicado() {
+    if (!dossie) return
+    setLoadingComunicado(true)
+    try {
+      await downloadComunicadoDesligamentoPDF({
+        nome: dossie.funcionario.nome,
+        registro: dossie.funcionario.registro,
+        // dossiê não carrega função hoje — o PDF já deixa esse campo em branco, igual "Contrato".
+        funcao: null,
+        dataAdmissao: dossie.funcionario.dataAdmissao,
+        // sem pedido por trás: causa, motivo e data ficam para preencher à mão
+        dataDesligamento: null,
+        causa: null,
+        motivo: null,
+      })
+    } finally {
+      setLoadingComunicado(false)
+    }
+  }
+
   const timelineFiltrada = dossie
     ? (filtroTipo ? dossie.timeline.filter(t => t.tipo === filtroTipo) : dossie.timeline)
     : []
@@ -216,10 +235,11 @@ export function ModalDossie({
                   </button>
                   {ehGestao && (
                     <button
-                      onClick={() => setDesligamentoOpen(true)}
+                      disabled={loadingComunicado}
+                      onClick={handleBaixarComunicado}
                       className="h-8 rounded-lg bg-red-50 px-3 text-xs font-semibold uppercase tracking-widest text-red-700 hover:bg-red-100 disabled:opacity-50"
                     >
-                      Solicitar Desligamento
+                      {loadingComunicado ? 'Gerando…' : 'Comunicado de Desligamento'}
                     </button>
                   )}
                   {canWrite && (
@@ -454,15 +474,6 @@ export function ModalDossie({
                   funcionarioNome={dossie.funcionario.nome}
                   supervisores={supervisores}
                   onCreated={carregar}
-                />
-              )}
-
-              {ehGestao && desligamentoOpen && (
-                <ModalSolicitarDesligamento
-                  funcionarioId={dossie.funcionario.id}
-                  funcionarioNome={dossie.funcionario.nome}
-                  emExperiencia={calcularStatusExperiencia(dossie.funcionario.dataAdmissao, dossie.funcionario.periodoExperiencia).emExperiencia}
-                  onClose={() => setDesligamentoOpen(false)}
                 />
               )}
             </>

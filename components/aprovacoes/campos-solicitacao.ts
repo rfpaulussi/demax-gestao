@@ -74,8 +74,6 @@ export function camposDaSolicitacao(tipo: TipoSolicitacao, dadosAntes: Dados, da
       campos.push({ label: 'Data de Desligamento', valor: fmtData(depois.data_desligamento) })
       if (depois.tipo_desligamento) campos.push({ label: 'Tipo de Desligamento', valor: labelTipoDesligamento(depois.tipo_desligamento) })
       campos.push({ label: 'Motivação', valor: labelMotivoDesligamento(depois.tipo_desligamento, depois.motivo) })
-      if (depois.aviso) campos.push({ label: 'Aviso Prévio', valor: depois.aviso === 'trabalhado' ? 'Trabalhado' : 'Indenizado' })
-      if (depois.motivo_texto) campos.push({ label: 'Motivo(s)', valor: str(depois.motivo_texto) })
       break
 
     case 'transferencia':
