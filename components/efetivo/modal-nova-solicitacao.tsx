@@ -75,6 +75,18 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
   const [tipo, setTipo]         = useState<TipoSolicitacao | ''>('')
   const [tipoDeslig, setTipoDeslig] = useState<TipoDesligamento | ''>('')
   const [causaPedido, setCausaPedido] = useState<CausaComunicado | ''>('')
+  const formRef = useRef<HTMLFormElement>(null)
+
+  // Compartilhar o PDF (WhatsApp etc.) só aparece onde o aparelho/navegador suporta (celulares).
+  const [podeCompartilhar, setPodeCompartilhar] = useState(false)
+  useEffect(() => {
+    try {
+      setPodeCompartilhar(
+        typeof navigator.canShare === 'function' &&
+        navigator.canShare({ files: [new File([''], 'a.pdf', { type: 'application/pdf' })] }),
+      )
+    } catch { setPodeCompartilhar(false) }
+  }, [])
 
   // Pedido de Desligamento: em período de experiência, já sugere a causa "Reprova na Experiência".
   const emExperiencia = calcularStatusExperiencia(funcionario.data_admissao, funcionario.periodo_experiencia).emExperiencia
@@ -255,34 +267,45 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
     onClose()
   }
 
+  /** Pedido de Desligamento: só gera o PDF (baixar ou compartilhar); não grava nada. */
+  function gerarPedido(fd: FormData, modo: 'baixar' | 'compartilhar') {
+    if (!causaPedido) { setErro('Selecione a causa'); return }
+    setErro(null)
+    start(async () => {
+      try {
+        const pdf = await import('@/components/ocorrencias/comunicado-desligamento-pdf')
+        const dados = {
+          nome: funcionario.nome,
+          registro: funcionario.registro,
+          funcao: funcionario.funcoes?.nome ?? null,
+          dataAdmissao: funcionario.data_admissao,
+          dataDesligamento: (fd.get('data_desligamento') as string) || null,
+          causa: causaPedido,
+          motivo: ((fd.get('motivo_texto') as string) ?? '').trim() || null,
+        }
+        if (modo === 'compartilhar') {
+          // sem timeout: a folha de compartilhamento fica aberta enquanto a pessoa escolhe o destino
+          if (await pdf.compartilharComunicadoDesligamentoPDF(dados)) handleClose()
+          return
+        }
+        // se a geração travar (ex.: bloqueio do navegador), não deixa o botão preso em 'Gerando...'
+        await Promise.race([
+          pdf.downloadComunicadoDesligamentoPDF(dados),
+          new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 20_000)),
+        ])
+        handleClose()
+      } catch {
+        setErro(modo === 'compartilhar' ? 'Não foi possível compartilhar o documento' : 'Erro ao gerar o documento')
+      }
+    })
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!tipo) return
     setErro(null)
     if (tipo === 'pedido_desligamento') {
-      const fdPedido = new FormData(e.currentTarget)
-      if (!causaPedido) { setErro('Selecione a causa'); return }
-      start(async () => {
-        try {
-          const { downloadComunicadoDesligamentoPDF } = await import('@/components/ocorrencias/comunicado-desligamento-pdf')
-          const gerar = downloadComunicadoDesligamentoPDF({
-            nome: funcionario.nome,
-            registro: funcionario.registro,
-            funcao: funcionario.funcoes?.nome ?? null,
-            dataAdmissao: funcionario.data_admissao,
-            dataDesligamento: (fdPedido.get('data_desligamento') as string) || null,
-            causa: causaPedido,
-            motivo: ((fdPedido.get('motivo_texto') as string) ?? '').trim() || null,
-          })
-          await Promise.race([
-            gerar,
-            new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 20_000)),
-          ])
-          handleClose()
-        } catch {
-          setErro('Erro ao gerar o documento')
-        }
-      })
+      gerarPedido(new FormData(e.currentTarget), 'baixar')
       return
     }
     if (tipo === 'transferencia' && !postoSelecionado) {
@@ -338,7 +361,7 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
               : 'Esta solicitação será enviada para aprovação do administrador antes de ser efetivada.'}
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
             {/* tipo */}
             <div>
               <label className={labelClass}>Tipo</label>
@@ -816,6 +839,16 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
               >
                 Cancelar
               </button>
+              {tipo === 'pedido_desligamento' && podeCompartilhar && (
+                <button
+                  type="button"
+                  onClick={() => formRef.current && gerarPedido(new FormData(formRef.current), 'compartilhar')}
+                  disabled={pending}
+                  className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  📤 Compartilhar
+                </button>
+              )}
               <button
                 type="submit"
                 disabled={pending || !tipo || !!emAnalise}

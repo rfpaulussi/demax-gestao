@@ -85,10 +85,10 @@ function CausaItem({ w, label, marcada, recuo }: { w: number; label: string; mar
 /** "SIM [ ]   NÃO [ ]" centralizado. */
 function SimNao({ sim, nao, prefixo }: { sim: boolean; nao: boolean; prefixo?: string }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-      {prefixo ? <Text style={[s.bold10, { marginRight: 14 }]}>{prefixo}</Text> : null}
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+      {prefixo ? <Text style={[s.bold10, { marginRight: 10 }]}>{prefixo}</Text> : null}
       <Caixa marcada={sim} /><Text style={s.bold10}>SIM</Text>
-      <View style={{ marginLeft: 14 }}><Caixa marcada={nao} /></View><Text style={s.bold10}>NÃO</Text>
+      <View style={{ marginLeft: 10 }}><Caixa marcada={nao} /></View><Text style={s.bold10}>NÃO</Text>
     </View>
   )
 }
@@ -101,9 +101,6 @@ function ComunicadoDocument({ dados }: { dados: DadosComunicadoDesligamento }) {
     <Document>
       <Page size="A4" orientation="landscape" style={s.page}>
         <View style={s.table}>
-
-          {/* linha 1 — respiro do topo */}
-          <View style={{ height: H.topo, borderRightWidth: BORDER, borderColor: '#000' }} />
 
           {/* linha 2 — logo, título, RH */}
           <View style={s.row}>
@@ -201,19 +198,38 @@ function ComunicadoDocument({ dados }: { dados: DadosComunicadoDesligamento }) {
   )
 }
 
-export async function downloadComunicadoDesligamentoPDF(dados: DadosComunicadoDesligamento): Promise<void> {
+async function gerarComunicadoBlob(dados: DadosComunicadoDesligamento): Promise<{ blob: Blob; nomeArquivo: string }> {
   const { pdf } = await import('@react-pdf/renderer')
   const blob = await pdf(<ComunicadoDocument dados={dados} />).toBlob()
-  const url = URL.createObjectURL(blob)
   const nomeSanitizado = dados.nome
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '')
   const data = new Date().toISOString().split('T')[0]
+  return { blob, nomeArquivo: `comunicado_desligamento_${nomeSanitizado}_${data}.pdf` }
+}
+
+export async function downloadComunicadoDesligamentoPDF(dados: DadosComunicadoDesligamento): Promise<void> {
+  const { blob, nomeArquivo } = await gerarComunicadoBlob(dados)
+  const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `comunicado_desligamento_${nomeSanitizado}_${data}.pdf`
+  a.download = nomeArquivo
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
   setTimeout(() => URL.revokeObjectURL(url), 10000)
+}
+
+/** Abre a folha de compartilhamento do aparelho (WhatsApp, e-mail…) com o PDF anexado.
+ *  Retorna false se a pessoa cancelou o compartilhamento. */
+export async function compartilharComunicadoDesligamentoPDF(dados: DadosComunicadoDesligamento): Promise<boolean> {
+  const { blob, nomeArquivo } = await gerarComunicadoBlob(dados)
+  const arquivo = new File([blob], nomeArquivo, { type: 'application/pdf' })
+  try {
+    await navigator.share({ files: [arquivo], title: `Comunicado de desligamento — ${dados.nome}` })
+    return true
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return false
+    throw e
+  }
 }
