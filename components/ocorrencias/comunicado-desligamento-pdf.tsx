@@ -97,7 +97,9 @@ function SimNao({ sim, nao, prefixo }: { sim: boolean; nao: boolean; prefixo?: s
 
 function ComunicadoDocument({ dados }: { dados: DadosComunicadoDesligamento }) {
   const uniforme = dados.uniformeDevolvido ?? true
-  const hoje = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+  const agora = new Date()
+  const hoje = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) + ' ' +
+    agora.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
   const causa = dados.causa
 
   return (
