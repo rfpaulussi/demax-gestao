@@ -37,7 +37,16 @@ interface Props {
   onClose: () => void
   supervisores?: Supervisor[]
   cids?: CidOpt[]
+  isSupervisor?: boolean
   onSuccess?: (msg: string) => void
+}
+
+const MAX_DIAS_SUPERVISOR = 7
+
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  d.setDate(d.getDate() + n)
+  return d.toISOString().split('T')[0]
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -92,7 +101,7 @@ const inputCls   = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm t
 
 // ─── component ────────────────────────────────────────────────────────────────
 
-export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = [], onSuccess }: Props) {
+export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = [], isSupervisor = false, onSuccess }: Props) {
   // substituto
   const [busca, setBusca]                     = useState('')
   const [resultadosBusca, setResultadosBusca] = useState<Funcionario[]>([])
@@ -314,6 +323,7 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = []
   const supervisorAtual = supervisores.find(s => s.id === supervisorId)
   const tipoMotivoBadge = tipoMotivo ? TIPO_MOTIVO_INFO[tipoMotivo] : null
   const needsCid = showAtestadoBanner && registrarAtestado && !cidCodigo
+  const excedePrazo = isSupervisor && diasCobertura !== null && diasCobertura > MAX_DIAS_SUPERVISOR
 
   return (
     <Dialog.Root open={open} onOpenChange={isOpen => { if (!isOpen) handleClose() }}>
@@ -330,6 +340,17 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = []
           </div>
 
           <form onSubmit={handleSubmit} className="p-4 space-y-4">
+            {isSupervisor && (
+              <div className="rounded-lg border-2 border-red-400 bg-red-50 px-4 py-3 text-sm text-red-800">
+                <p className="font-bold uppercase tracking-wide">⚠️ Prazo máximo: {MAX_DIAS_SUPERVISOR} dias</p>
+                <p className="mt-1">
+                  A cobertura temporária <strong>não pode ultrapassar {MAX_DIAS_SUPERVISOR} dias</strong>. Ao fim do prazo o funcionário
+                  volta automaticamente ao posto de origem. Se o prazo precisar se estender, é preciso{' '}
+                  <strong>registrar uma nova cobertura</strong>.
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
 
               {/* ── COLUNA ESQUERDA: SUBSTITUTO ── */}
@@ -644,13 +665,20 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = []
                       <div className="flex-1">
                         <label className={fieldLabel}>Data Fim</label>
                         <p className="mb-1 text-[10px] text-gray-400 -mt-0.5">Período da cobertura</p>
-                        <input type="date" required value={dataFim} onChange={e => setDataFim(e.target.value)} className={inputCls} />
+                        <input type="date" required value={dataFim} onChange={e => setDataFim(e.target.value)}
+                          min={dataInicio || undefined}
+                          max={isSupervisor && dataInicio ? addDays(dataInicio, MAX_DIAS_SUPERVISOR - 1) : undefined}
+                          className={inputCls} />
                       </div>
                     )}
                   </div>
                   {diasCobertura !== null && (
-                    <span className="inline-flex rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+                    <span className={cn(
+                      'inline-flex rounded-full px-3 py-1 text-xs font-semibold',
+                      excedePrazo ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700',
+                    )}>
                       {diasCobertura} dia{diasCobertura !== 1 ? 's' : ''}
+                      {excedePrazo && ` — acima do limite de ${MAX_DIAS_SUPERVISOR}`}
                     </span>
                   )}
                 </div>
@@ -725,8 +753,12 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = []
               </button>
               <button
                 type="submit"
-                disabled={pending || !substituto || !postoId || !tipoMotivo || needsCid}
-                title={needsCid ? 'Selecione o CID para registrar o atestado' : undefined}
+                disabled={pending || !substituto || !postoId || !tipoMotivo || needsCid || excedePrazo}
+                title={
+                  excedePrazo ? `Cobertura não pode passar de ${MAX_DIAS_SUPERVISOR} dias`
+                  : needsCid ? 'Selecione o CID para registrar o atestado'
+                  : undefined
+                }
                 className="flex h-9 items-center gap-2 rounded-lg bg-slate-900 px-4 text-xs font-semibold uppercase tracking-widest text-white hover:bg-slate-700 disabled:opacity-50"
               >
                 <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">

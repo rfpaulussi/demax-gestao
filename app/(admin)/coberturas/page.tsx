@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getUser } from '@/lib/auth/get-user'
 import { buscarTodosSupervisores, encerrarCoberturasVencidas } from './actions'
 import { CoberturasList } from '@/components/coberturas/coberturas-list'
 import type { CoberturaRow } from '@/components/coberturas/coberturas-list'
@@ -53,6 +54,7 @@ export default async function CoberturasPage() {
   await encerrarCoberturasVencidas()
 
   const supabase = createClient()
+  const auth = await getUser()
 
   const [{ data: ativasRaw }, { data: encerradasRaw }, supervisores, { data: cidsRaw }] = await Promise.all([
     supabase
@@ -164,6 +166,7 @@ export default async function CoberturasPage() {
         historico={historico}
         supervisores={supervisores}
         cids={cids}
+        role={auth?.perfil.role ?? undefined}
         faltasStatus={faltasStatus}
       />
     </div>

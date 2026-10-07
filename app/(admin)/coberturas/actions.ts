@@ -19,11 +19,26 @@ type ActionResult = { success: true } | { success: false; error: string }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyClient = { from: (table: string) => any }
 
-async function assertAuth(): Promise<{ success: true; userId: string } | { success: false; error: string }> {
+/** Cobertura exige perfil com escrita: admin, coordenador ou supervisor (viewer é só leitura). */
+async function assertEscrita(): Promise<
+  { success: true; userId: string; role: string } | { success: false; error: string }
+> {
   const auth = await getUser()
   if (!auth) return { success: false, error: 'Não autenticado' }
-  return { success: true, userId: auth.user.id }
+  const role = auth.perfil.role as string
+  if (!['admin', 'coordenador', 'supervisor'].includes(role)) {
+    return { success: false, error: 'Sem permissão para gerenciar coberturas' }
+  }
+  return { success: true, userId: auth.user.id, role }
 }
+
+/** Data de hoje (YYYY-MM-DD) no fuso de Brasília — toISOString() usa UTC e virava o dia às 21h. */
+function hojeBR(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+}
+
+/** Prazo máximo de uma cobertura aberta por supervisor (dias corridos, início e fim inclusos). */
+const MAX_DIAS_COBERTURA_SUPERVISOR = 7
 
 /**
  * Um funcionário "ausente" de uma cobertura pode ter uma ausência própria ainda em
@@ -61,7 +76,7 @@ function fmtDateBR(iso: string | null | undefined): string {
 }
 
 export async function registrarCobertura(formData: FormData): Promise<RegisterResult> {
-  const guard = await assertAuth()
+  const guard = await assertEscrita()
   if (!guard.success) return guard
 
   const supabase      = createClient()
@@ -88,13 +103,49 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
     return { success: false, error: 'Campos obrigatórios faltando' }
   }
 
+  if (dataPrevRetorno && dataPrevRetorno < dataInicio) {
+    return { success: false, error: 'A data fim não pode ser anterior à data início' }
+  }
+
+  if (guard.role === 'supervisor') {
+    if (!dataPrevRetorno) {
+      return { success: false, error: 'Informe a data fim: a cobertura precisa ter prazo para o funcionário retornar ao posto de origem' }
+    }
+    const dias = Math.round(
+      (new Date(dataPrevRetorno + 'T12:00:00').getTime() - new Date(dataInicio + 'T12:00:00').getTime()) / 86_400_000,
+    ) + 1
+    if (dias > MAX_DIAS_COBERTURA_SUPERVISOR) {
+      return {
+        success: false,
+        error: `Cobertura temporária não pode passar de ${MAX_DIAS_COBERTURA_SUPERVISOR} dias (informado: ${dias}). Registre um período menor e, se precisar estender, faça uma nova cobertura.`,
+      }
+    }
+  }
+
   const { data: substituto } = await supabase
     .from('funcionarios')
     .select('posto_id')
     .eq('id', substitutoId)
     .single()
 
-  const postoOrigemId = substituto?.posto_id ?? null
+  // Sem posto de origem o funcionário não teria para onde voltar ao fim da cobertura
+  // (e, para supervisor, o RLS só devolve funcionários dos seus próprios postos).
+  if (!substituto?.posto_id) {
+    return { success: false, error: 'Funcionário não encontrado ou sem posto de origem — não é possível cobrir sem ter para onde retornar' }
+  }
+
+  // Já coberto em outro posto: o "posto de origem" seria o de uma cobertura anterior
+  // e o retorno automático levaria o funcionário ao lugar errado.
+  const { count: coberturasAtivas } = await (adminSupabase as unknown as AnyClient)
+    .from('coberturas_temporarias')
+    .select('id', { count: 'exact', head: true })
+    .eq('funcionario_id', substitutoId)
+    .eq('status', 'ativa')
+  if ((coberturasAtivas ?? 0) > 0) {
+    return { success: false, error: 'Este funcionário já está em uma cobertura ativa. Encerre-a antes de criar outra.' }
+  }
+
+  const postoOrigemId = substituto.posto_id
   const urgencia      = calcUrgencia(dataPrevRetorno)
 
   const { data: cobData, error } = await (adminSupabase as unknown as AnyClient)
@@ -303,11 +354,11 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
 }
 
 export async function encerrarCobertura(id: string): Promise<ActionResult> {
-  const guard = await assertAuth()
+  const guard = await assertEscrita()
   if (!guard.success) return guard
 
   const supabase = createClient()
-  const hoje = new Date().toISOString().split('T')[0]
+  const hoje = hojeBR()
 
   const { data: cob, error: fetchError } = await (supabase as unknown as AnyClient)
     .from('coberturas_temporarias')
@@ -368,7 +419,7 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
 
 export async function encerrarCoberturasVencidas(): Promise<{ encerradas: number }> {
   const supabase = createAdminClient()
-  const hoje = new Date().toISOString().split('T')[0]
+  const hoje = hojeBR()
 
   const { data: vencidas } = await (supabase as unknown as AnyClient)
     .from('coberturas_temporarias')
@@ -381,6 +432,19 @@ export async function encerrarCoberturasVencidas(): Promise<{ encerradas: number
   const ausentesParaVerificar = new Set<string>()
 
   for (const cob of vencidas) {
+    // Devolve o funcionário ao posto de origem ANTES de encerrar: se falhar, a cobertura
+    // continua 'ativa' e a próxima execução (cron diário ou abertura de /coberturas, /efetivo) tenta de novo.
+    if (cob.posto_origem_id && cob.funcionario_id) {
+      const { error: errPosto } = await supabase
+        .from('funcionarios')
+        .update({ posto_id: cob.posto_origem_id })
+        .eq('id', cob.funcionario_id)
+      if (errPosto) {
+        console.error('[coberturas] encerrarCoberturasVencidas: restaurar posto', cob.funcionario_id, ':', errPosto.message)
+        continue
+      }
+    }
+
     const { error: errEnc } = await supabase
       .from('coberturas_temporarias')
       .update({ status: 'encerrada', data_retorno_real: hoje })
@@ -391,11 +455,6 @@ export async function encerrarCoberturasVencidas(): Promise<{ encerradas: number
     }
 
     if (cob.posto_origem_id && cob.funcionario_id) {
-      const { error: errPosto } = await supabase
-        .from('funcionarios')
-        .update({ posto_id: cob.posto_origem_id })
-        .eq('id', cob.funcionario_id)
-      if (errPosto) console.error('[coberturas] encerrarCoberturasVencidas: restaurar posto', cob.funcionario_id, ':', errPosto.message)
 
       const { error: errHist } = await supabase.from('historico_funcionarios').insert({
         funcionario_id:   cob.funcionario_id,

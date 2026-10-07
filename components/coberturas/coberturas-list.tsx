@@ -202,7 +202,9 @@ export function CoberturasList({
   supervisores = [],
   cids = [],
   faltasStatus = {},
+  role,
 }: {
+  role?: string
   coberturas: CoberturaRow[]
   historico?: CoberturaRow[]
   supervisores?: { id: string; nome: string }[]
@@ -242,10 +244,12 @@ export function CoberturasList({
         <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
           {coberturas.length} cobertura{coberturas.length !== 1 ? 's' : ''} ativa{coberturas.length !== 1 ? 's' : ''}
         </p>
-        <Button size="sm" onClick={() => setNovaOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Nova Cobertura
-        </Button>
+        {role !== 'viewer' && (
+          <Button size="sm" onClick={() => setNovaOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Nova Cobertura
+          </Button>
+        )}
       </div>
 
       {/* Urgência filter pills */}
@@ -336,6 +340,7 @@ export function CoberturasList({
         onClose={() => setNovaOpen(false)}
         supervisores={supervisores}
         cids={cids}
+        isSupervisor={role === 'supervisor'}
         onSuccess={msg => { setNovaOpen(false); setToastMsg(msg) }}
       />
 
