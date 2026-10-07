@@ -203,7 +203,7 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
   let atestadoMsg: string | undefined
 
   if (ausenteId) {
-    const { data: escalaDestino } = await supabase
+    const { data: escalaDestino } = await adminSupabase
       .from('config_escalas_postos')
       .select('regime')
       .eq('posto_id', postoDestinoId)
@@ -216,7 +216,7 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
 
     if (isAtestado && registrarAtestado) {
       // Check existing afastamento overlapping this period
-      const { data: existingAfast } = await supabase
+      const { data: existingAfast } = await adminSupabase
         .from('afastamentos')
         .select('id')
         .eq('funcionario_id', ausenteId)
@@ -293,7 +293,7 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
       }
 
       if (lancarFalta && coberturaId) {
-        const { data: existingFalta } = await (supabase as unknown as AnyClient)
+        const { data: existingFalta } = await (adminSupabase as unknown as AnyClient)
           .from('faltas')
           .select('id')
           .eq('cobertura_id', coberturaId)
@@ -303,9 +303,9 @@ export async function registrarCobertura(formData: FormData): Promise<RegisterRe
 
         if (existingFalta) {
           faltaMsg = `Falta de ${ausenteNome} já estava registrada.`
-        } else if (await existeAtestadoNoPeriodo(supabase, ausenteId, dataInicio, fimEfetivoFalta)) {
+        } else if (await existeAtestadoNoPeriodo(adminSupabase, ausenteId, dataInicio, fimEfetivoFalta)) {
           faltaMsg = `⚠ Falta de ${ausenteNome} não registrada: já existe atestado cobrindo esse período — falta e atestado não coexistem.`
-        } else if (await existeAfastamentoNoPeriodo(supabase, ausenteId, dataInicio, fimEfetivoFalta)) {
+        } else if (await existeAfastamentoNoPeriodo(adminSupabase, ausenteId, dataInicio, fimEfetivoFalta)) {
           faltaMsg = `⚠ Falta de ${ausenteNome} não registrada: ela já está afastada nesse período — falta e afastamento não coexistem.`
         } else {
           const { error: errFalta } = await (adminSupabase as unknown as AnyClient)
@@ -396,7 +396,7 @@ export async function encerrarCobertura(id: string): Promise<ActionResult> {
   }
 
   if (cob.funcionario_ausente_id) {
-    const { count } = await (supabase as unknown as AnyClient)
+    const { count } = await (adminSupabase as unknown as AnyClient)
       .from('coberturas_temporarias')
       .select('id', { count: 'exact', head: true })
       .eq('funcionario_ausente_id', cob.funcionario_ausente_id)
@@ -503,8 +503,11 @@ export async function encerrarCoberturasVencidas(): Promise<{ encerradas: number
 export async function buscarFuncionariosAtivosNoPostoSemAfastamento(
   postoId: string
 ): Promise<{ id: string; nome: string; funcao: string | null }[]> {
-  const supabase = createClient()
-  const hoje = new Date().toISOString().split('T')[0]
+  // Admin client: ao cobrir o posto de OUTRO supervisor, o RLS esconderia a equipe daquele posto.
+  const guard = await assertEscrita()
+  if (!guard.success) return []
+  const supabase = createAdminClient()
+  const hoje = hojeBR()
 
   const { data: rawFuncs } = await supabase
     .from('funcionarios')
