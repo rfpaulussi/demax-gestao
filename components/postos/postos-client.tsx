@@ -608,6 +608,9 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                                 Recebendo cobertura
                               </span>
                             )}
+                            {p.cobertura_detalhes.map((d, i) => (
+                              <span key={i} className="w-full text-xs text-teal-700">{d}</span>
+                            ))}
                           </div>
                         </td>
                       </tr>

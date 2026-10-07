@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUser } from '@/lib/auth/get-user'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { buscarTodosSupervisores, encerrarCoberturasVencidas } from './actions'
 import { CoberturasList } from '@/components/coberturas/coberturas-list'
 import type { CoberturaRow } from '@/components/coberturas/coberturas-list'
@@ -43,7 +44,7 @@ function calcUrgKey(dataPrevRetorno: string | null): 'red' | 'orange' | 'purple'
 // ─── page ─────────────────────────────────────────────────────────────────────
 
 const COB_SELECT = `
-  id, motivo, tipo_motivo, funcionario_ausente_id,
+  id, motivo, tipo_motivo, funcionario_ausente_id, funcionario_id, posto_origem_id, posto_destino_id,
   data_inicio, data_prev_retorno, data_retorno_real, urgencia, status,
   funcionarios!funcionario_id ( id, nome, posto_id ),
   posto_destino:postos!posto_destino_id ( id, nome, secretaria ),
@@ -74,28 +75,55 @@ export default async function CoberturasPage() {
 
   const cids = (cidsRaw ?? []) as { codigo: string; descricao: string }[]
 
-  // Enrich with ausente nomes via separate query (funcionario_ausente_id may lack FK for PostgREST join)
-  type AtivaRaw = { funcionario_ausente_id?: string | null; [k: string]: unknown }
-  const ativasArr = (ativasRaw ?? []) as unknown as AtivaRaw[]
-  const ausenteIds = Array.from(new Set(ativasArr.filter(c => c.funcionario_ausente_id).map(c => c.funcionario_ausente_id!)))
-  const ausenteNomeMap: Record<string, string> = {}
-  if (ausenteIds.length > 0) {
-    const { data: ausenteData } = await supabase.from('funcionarios').select('id, nome').in('id', ausenteIds)
-    for (const f of (ausenteData ?? []) as { id: string; nome: string }[]) {
-      ausenteNomeMap[f.id] = f.nome
-    }
+  // Enriquecimento via client admin: com o funcionário emprestado, o RLS de supervisor
+  // (filtrado por posto) esconde o substituto, o ausente e o posto do outro supervisor,
+  // e o card ficaria com "—". Os nomes são resolvidos aqui, sem expor mais nada além deles.
+  type AtivaRaw = {
+    funcionario_ausente_id?: string | null
+    funcionario_id?: string | null
+    posto_origem_id?: string | null
+    posto_destino_id?: string | null
+    funcionarios?: { id: string; nome: string; posto_id: string | null } | null
+    posto_destino?: { id: string; nome: string; secretaria: string | null } | null
+    posto_origem?: { id: string; nome: string; secretaria: string | null } | null
+    [k: string]: unknown
   }
-
-  const coberturas = ativasArr.map(c => ({
-    ...c,
-    ausente_nome: c.funcionario_ausente_id ? (ausenteNomeMap[c.funcionario_ausente_id] ?? null) : null,
-  })) as unknown as CoberturaRow[]
-
+  const ativasArr    = (ativasRaw ?? []) as unknown as AtivaRaw[]
   const historicoArr = (encerradasRaw ?? []) as unknown as AtivaRaw[]
-  const historico = historicoArr.map(c => ({
+  const todas = [...ativasArr, ...historicoArr]
+  const admin = createAdminClient() as unknown as AnyQ
+
+  const funcIds = Array.from(new Set([
+    ...ativasArr.map(c => c.funcionario_ausente_id),
+    ...todas.filter(c => !c.funcionarios).map(c => c.funcionario_id),
+  ].filter((x): x is string => Boolean(x))))
+  const postoIdsFalta = Array.from(new Set(todas.flatMap(c => [
+    c.posto_destino ? null : c.posto_destino_id,
+    c.posto_origem  ? null : c.posto_origem_id,
+  ]).filter((x): x is string => Boolean(x))))
+
+  const [{ data: funcData }, { data: postoData }] = await Promise.all([
+    funcIds.length > 0 ? admin.from('funcionarios').select('id, nome, posto_id').in('id', funcIds) : Promise.resolve({ data: [] }),
+    postoIdsFalta.length > 0 ? admin.from('postos').select('id, nome, secretaria').in('id', postoIdsFalta) : Promise.resolve({ data: [] }),
+  ])
+  const funcMap  = new Map<string, { id: string; nome: string; posto_id: string | null }>(
+    ((funcData ?? []) as { id: string; nome: string; posto_id: string | null }[]).map(f => [f.id, f]))
+  const postoMap = new Map<string, { id: string; nome: string; secretaria: string | null }>(
+    ((postoData ?? []) as { id: string; nome: string; secretaria: string | null }[]).map(p => [p.id, p]))
+
+  const ausenteNomeMap: Record<string, string> = {}
+  for (const [id, f] of Array.from(funcMap.entries())) ausenteNomeMap[id] = f.nome
+
+  const completar = (c: AtivaRaw) => ({
     ...c,
+    funcionarios: c.funcionarios ?? (c.funcionario_id ? funcMap.get(c.funcionario_id) ?? null : null),
+    posto_destino: c.posto_destino ?? (c.posto_destino_id ? postoMap.get(c.posto_destino_id) ?? null : null),
+    posto_origem:  c.posto_origem  ?? (c.posto_origem_id  ? postoMap.get(c.posto_origem_id)  ?? null : null),
     ausente_nome: c.funcionario_ausente_id ? (ausenteNomeMap[c.funcionario_ausente_id] ?? null) : null,
-  })) as unknown as CoberturaRow[]
+  })
+
+  const coberturas = ativasArr.map(completar) as unknown as CoberturaRow[]
+  const historico  = historicoArr.map(completar) as unknown as CoberturaRow[]
 
   // ─── Build faltasStatus map for active coberturas ─────────────────────────
 

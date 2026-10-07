@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { createClient } from '@/lib/supabase/client'
-import { registrarCobertura } from '@/app/(admin)/coberturas/actions'
+import { registrarCobertura, buscarPostosPorSupervisor } from '@/app/(admin)/coberturas/actions'
 import { cn } from '@/lib/utils'
 
 interface Funcionario {
@@ -169,40 +169,23 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = []
   useEffect(() => { setAtestadoDataInicio(dataInicioAusencia) }, [dataInicioAusencia])
   useEffect(() => { setAtestadoDataFim(dataFimAusencia) }, [dataFimAusencia])
 
-  // Contagem de postos por supervisor
+  // Postos de todos os supervisores (via server action: o RLS do browser só mostraria os do próprio supervisor)
+  const [postosPorSupervisor, setPostosPorSupervisor] = useState<Record<string, Posto[]>>({})
   useEffect(() => {
     if (!open) return
-    const supabase = createClient()
-    supabase
-      .from('config_supervisores_postos')
-      .select('supervisor_id')
-      .then(({ data }) => {
-        const counts: Record<string, number> = {}
-        for (const r of data ?? []) counts[r.supervisor_id] = (counts[r.supervisor_id] ?? 0) + 1
-        setSupervisorCounts(counts)
-      })
+    buscarPostosPorSupervisor().then(map => {
+      setPostosPorSupervisor(map)
+      const counts: Record<string, number> = {}
+      for (const [id, lista] of Object.entries(map)) counts[id] = lista.length
+      setSupervisorCounts(counts)
+    })
   }, [open])
 
   // Postos do supervisor selecionado
   useEffect(() => {
-    if (!supervisorId) {
-      setPostos([]); setPostoId(''); setPostoSearch(''); setPostoSelecionado(null); setSecretaria('')
-      return
-    }
-    const supabase = createClient()
-    supabase
-      .from('config_supervisores_postos')
-      .select('posto_id, postos(id, nome, secretaria)')
-      .eq('supervisor_id', supervisorId)
-      .then(({ data }) => {
-        type RawRow = { postos: { id: string; nome: string; secretaria: string | null } | null }
-        const lista: Posto[] = ((data ?? []) as unknown as RawRow[])
-          .filter(r => r.postos != null)
-          .map(r => ({ id: r.postos!.id, nome: r.postos!.nome, secretaria: r.postos!.secretaria }))
-        setPostos(lista)
-        setPostoId(''); setPostoSearch(''); setPostoSelecionado(null); setSecretaria('')
-      })
-  }, [supervisorId])
+    setPostos(supervisorId ? (postosPorSupervisor[supervisorId] ?? []) : [])
+    setPostoId(''); setPostoSearch(''); setPostoSelecionado(null); setSecretaria('')
+  }, [supervisorId, postosPorSupervisor])
 
   // Funcionários do posto destino
   useEffect(() => {

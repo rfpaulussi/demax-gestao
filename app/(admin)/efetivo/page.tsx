@@ -2,6 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import { EfetivoClient } from '@/components/efetivo/efetivo-client'
+import { EmprestimosBanner } from '@/components/efetivo/emprestimos-banner'
+import { buscarEmprestimosAtivos, postoIdsDoSupervisor } from '@/lib/coberturas-emprestimos'
 import type { FuncionarioRow } from '@/components/efetivo/funcionarios-table'
 import { processarRetornosAtestado } from '@/lib/processar-retornos'
 import { encerrarCoberturasVencidas } from '@/app/(admin)/coberturas/actions'
@@ -234,6 +236,14 @@ export default async function EfetivoPage() {
     if (c.funcionario_ausente_id) coberturaAusentes[c.funcionario_ausente_id] = true
   }
 
+  // Empréstimos entre postos/supervisores. Supervisor vê os que ele cedeu (origem) e os que recebeu (destino).
+  const isSupervisor = auth?.perfil.role === 'supervisor'
+  const postosDoSupervisor = isSupervisor && auth ? await postoIdsDoSupervisor(supabase as unknown as AnyQ, auth.user.id) : null
+  const emprestimosTodos = await buscarEmprestimosAtivos(postosDoSupervisor)
+  const emprestimos = isSupervisor
+    ? emprestimosTodos.filter(e => e.posto_origem_id && postosDoSupervisor?.includes(e.posto_origem_id))
+    : emprestimosTodos
+
   // Eventos dos últimos 90 dias para o score de risco — mesmo padrão de
   // faltasRaw/coberturasHoje acima: busca sem filtro de funcionario_id
   // (evita URL enorme com ~1500 UUIDs) e agrupa em Maps.
@@ -322,6 +332,11 @@ export default async function EfetivoPage() {
         <CounterCard label="Em Férias"    value={emFerias}   topColor="border-t-orange-500" />
         <CounterCard label="Em Processo"  value={emProcesso} topColor="border-t-purple-500" />
       </div>
+
+      <EmprestimosBanner
+        emprestimos={emprestimos}
+        titulo={isSupervisor ? 'Funcionários seus emprestados a outros postos' : 'Funcionários em cobertura em outro posto'}
+      />
 
       {/* Filters + Table (client-side) */}
       <EfetivoClient

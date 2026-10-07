@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { getUser } from '@/lib/auth/get-user'
+import { buscarEmprestimosAtivos } from '@/lib/coberturas-emprestimos'
 import { FUNCOES_FORA_DO_EFETIVO } from '@/lib/constants'
 
 type ActionResult = { success: true } | { success: false; error: string }
@@ -94,6 +95,7 @@ export type PostoRow = {
   supervisor_nome: string | null
   cobertura_como_origem: boolean
   cobertura_como_destino: boolean
+  cobertura_detalhes: string[]
   funcionarios: PostoFuncionario[]
 }
 
@@ -264,6 +266,25 @@ export async function getPostosData(): Promise<PostoRow[]> {
     if (c.posto_destino_id) coberturaDestinoIds.add(c.posto_destino_id)
   }
 
+  // Detalhe de quem saiu/entrou (nomes via admin: o RLS de supervisor esconde o posto e o funcionário do outro lado)
+  const detalhes = new Map<string, string[]>()
+  const addDetalhe = (postoId: string | null, txt: string) => {
+    if (!postoId) return
+    const l = detalhes.get(postoId) ?? []
+    l.push(txt)
+    detalhes.set(postoId, l)
+  }
+  const fmtRetorno = (iso: string | null) => {
+    if (!iso) return 'sem data de retorno'
+    const [y, m, d] = iso.split('T')[0].split('-')
+    return `retorna em ${d}/${m}/${y}`
+  }
+  for (const e of await buscarEmprestimosAtivos(null)) {
+    const sup = e.supervisor_destino_nome ? ` (${e.supervisor_destino_nome})` : ''
+    addDetalhe(e.posto_origem_id,  `Cedeu ${e.funcionario_nome} para ${e.posto_destino_nome ?? '—'}${sup} — ${fmtRetorno(e.data_prev_retorno)}`)
+    addDetalhe(e.posto_destino_id, `Recebeu ${e.funcionario_nome} de ${e.posto_origem_nome ?? '—'} — ${fmtRetorno(e.data_prev_retorno)}`)
+  }
+
   return (postos ?? []).map(p => ({
     id: p.id,
     nome: p.nome,
@@ -277,6 +298,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
     supervisor_nome: supervisorMap.get(p.id) ?? null,
     cobertura_como_origem:  coberturaOrigemIds.has(p.id),
     cobertura_como_destino: coberturaDestinoIds.has(p.id),
+    cobertura_detalhes: detalhes.get(p.id) ?? [],
     funcionarios: funcionariosPorPosto.get(p.id) ?? [],
   }))
 }

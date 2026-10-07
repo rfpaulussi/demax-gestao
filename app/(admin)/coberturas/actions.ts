@@ -544,9 +544,32 @@ export async function buscarFuncionariosAtivosNoPostoSemAfastamento(
     .map(f => ({ id: f.id, nome: f.nome, funcao: f.funcoes?.nome ?? null }))
 }
 
+/** Postos ativos de cada supervisor (id do supervisor → postos). Admin client pelo mesmo motivo de buscarTodosSupervisores. */
+export async function buscarPostosPorSupervisor(): Promise<
+  Record<string, { id: string; nome: string; secretaria: string | null }[]>
+> {
+  const guard = await assertEscrita()
+  if (!guard.success) return {}
+  const { data } = await (createAdminClient() as unknown as AnyClient)
+    .from('config_supervisores_postos')
+    .select('supervisor_id, postos(id, nome, secretaria, ativo)')
+    .eq('ativo', true)
+  type Row = { supervisor_id: string; postos: { id: string; nome: string; secretaria: string | null; ativo: boolean | null } | null }
+  const out: Record<string, { id: string; nome: string; secretaria: string | null }[]> = {}
+  for (const r of (data ?? []) as Row[]) {
+    if (!r.postos || r.postos.ativo === false) continue
+    ;(out[r.supervisor_id] ??= []).push({ id: r.postos.id, nome: r.postos.nome, secretaria: r.postos.secretaria })
+  }
+  for (const k of Object.keys(out)) out[k].sort((a, b) => a.nome.localeCompare(b.nome))
+  return out
+}
+
 export async function buscarTodosSupervisores(): Promise<{ id: string; nome: string }[]> {
-  const supabase = createClient()
-  const { data } = await supabase
+  // Admin client: o RLS de perfis só deixa o supervisor ler o próprio perfil, e ele precisa
+  // enxergar os demais supervisores para emprestar funcionário a outro.
+  const auth = await getUser()
+  if (!auth) return []
+  const { data } = await createAdminClient()
     .from('perfis')
     .select('id, nome')
     .eq('role', 'supervisor')
