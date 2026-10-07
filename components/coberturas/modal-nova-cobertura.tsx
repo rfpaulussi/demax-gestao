@@ -340,17 +340,6 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = []
           </div>
 
           <form onSubmit={handleSubmit} className="p-4 space-y-4">
-            {isSupervisor && (
-              <div className="rounded-lg border-2 border-red-400 bg-red-50 px-4 py-3 text-sm text-red-800">
-                <p className="font-bold uppercase tracking-wide">⚠️ Prazo máximo: {MAX_DIAS_SUPERVISOR} dias</p>
-                <p className="mt-1">
-                  A cobertura temporária <strong>não pode ultrapassar {MAX_DIAS_SUPERVISOR} dias</strong>. Ao fim do prazo o funcionário
-                  volta automaticamente ao posto de origem. Se o prazo precisar se estender, é preciso{' '}
-                  <strong>registrar uma nova cobertura</strong>.
-                </p>
-              </div>
-            )}
-
             <div className="grid grid-cols-2 gap-4">
 
               {/* ── COLUNA ESQUERDA: SUBSTITUTO ── */}
@@ -417,6 +406,16 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = []
                     </button>
                   </div>
                 )}
+
+                {/* Aviso de prazo — todos os perfis */}
+                <div className="rounded-lg border-2 border-red-400 bg-red-50 px-4 py-3 text-sm text-red-800">
+                  <p className="font-bold uppercase tracking-wide">⚠️ Prazo máximo: {MAX_DIAS_SUPERVISOR} dias</p>
+                  <p className="mt-1">
+                    A cobertura temporária <strong>não pode ultrapassar {MAX_DIAS_SUPERVISOR} dias</strong>. Ao fim do prazo o
+                    funcionário volta automaticamente ao posto de origem. Se o prazo precisar se estender, é preciso{' '}
+                    <strong>registrar uma nova cobertura</strong>.
+                  </p>
+                </div>
 
                 {/* Badge tipo motivo */}
                 {tipoMotivoBadge && (
