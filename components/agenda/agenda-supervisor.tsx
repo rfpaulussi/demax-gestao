@@ -9,6 +9,8 @@ import { ModalBloco, type SlotAberto } from './modal-bloco'
 import { ResumoSemana } from './resumo-semana'
 import { Sugestoes } from './sugestoes'
 import { Comentarios } from './comentarios'
+import { CheckinPainel } from './checkin-painel'
+import { AbaMapa } from './aba-mapa'
 
 export function AgendaSupervisor({
   dados,
@@ -21,7 +23,8 @@ export function AgendaSupervisor({
 }) {
   const [slot, setSlot] = useState<SlotAberto | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
-  const { semanaInicio, semana, blocos, tipos, postos, sugestoes, comentarios, podeEditar, supervisor } = dados
+  const [aba, setAba] = useState<'agenda' | 'mapa'>('agenda')
+  const { semanaInicio, semana, blocos, tipos, postos, sugestoes, comentarios, podeEditar, supervisor, checkinsHoje, geoDisponivel } = dados
   const dias = diasDaSemana(semanaInicio)
   const publicada = semana.status === 'publicada'
 
@@ -61,14 +64,36 @@ export function AgendaSupervisor({
         voltarHref={modoGestao ? `/agenda${semanaInicio ? `?semana=${semanaInicio}` : ''}` : undefined}
       />
 
-      {publicada && podeEditar && (
+      <div className="flex gap-1 rounded-xl bg-slate-100 p-1 sm:w-fit">
+        {([
+          { id: 'agenda', label: '🗓️ Agenda' },
+          { id: 'mapa', label: '🗺️ Mapa de visitas' },
+        ] as const).map(t => (
+          <button
+            key={t.id} type="button" onClick={() => setAba(t.id)}
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition sm:flex-none ${
+              aba === t.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {aba === 'mapa' && <AbaMapa semanaInicio={semanaInicio} supervisorId={supervisor.id} dias={dias} />}
+
+      {aba === 'agenda' && podeEditar && dias.includes(hoje) && (
+        <CheckinPainel hoje={hoje} blocos={blocos} tipos={tipos} postos={postos} checkins={checkinsHoje} geoDisponivel={geoDisponivel} />
+      )}
+
+      {aba === 'agenda' && publicada && podeEditar && (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
           🔒 Agenda publicada. Qualquer alteração exige um motivo e fica registrada na linha do tempo.
         </p>
       )}
-      {aviso && <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800">{aviso}</p>}
+      {aba === 'agenda' && aviso && <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800">{aviso}</p>}
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
+      <div className={`grid gap-5 xl:grid-cols-[1fr_340px] ${aba === 'agenda' ? '' : 'hidden'}`}>
         <GradeSemanal
           dias={dias}
           blocos={blocos}

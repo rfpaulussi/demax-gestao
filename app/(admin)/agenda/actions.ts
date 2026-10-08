@@ -5,6 +5,8 @@ import { getUser } from '@/lib/auth/get-user'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { addDias, diasEntre, ehData, hojeBR, segundaDe } from '@/lib/agenda/datas'
 import { CORES_FOCO, type Periodo } from '@/lib/agenda/tema'
+import { postosDoSupervisor, type PostoOpt } from '@/lib/agenda/postos'
+import { dataBR, montarVisitas, type BlocoPlan, type CheckinRaw, type PostoGeo } from '@/lib/agenda/visitas'
 
 // As tabelas agenda_* ainda não estão em types/database.ts.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -16,7 +18,7 @@ const db = () => createAdminClient() as unknown as AnyClient
 export type Resultado = { ok: true } | { ok: false; erro: string }
 
 export type TipoFoco = { id: string; nome: string; cor: string; icone: string; ativo: boolean; ordem: number }
-export type PostoOpt = { id: string; nome: string; secretaria: string | null }
+export type { PostoOpt }
 
 export type BlocoView = {
   id: string
@@ -55,6 +57,18 @@ export type AgendaDados = {
   sugestoes: Sugestao[]
   comentarios: ComentarioView[]
   podeEditar: boolean
+  checkinsHoje: CheckinHoje[]
+  geoDisponivel: boolean
+}
+
+export type CheckinHoje = {
+  id: string
+  posto_id: string
+  tipo: 'entrada' | 'saida'
+  created_at: string
+  dentro_raio: boolean
+  baixa_precisao: boolean
+  distancia_m: number | null
 }
 
 export type CardSupervisor = {
@@ -67,6 +81,7 @@ export type CardSupervisor = {
   totalPostos: number
   replanejamentos: number
   comentarios: number
+  cumprimento: number | null // % de visitas devidas com check-in; null = sem base
 }
 
 const PERIODOS_VALIDOS: Periodo[] = ['manha', 'tarde', 'noite']
@@ -74,37 +89,6 @@ const ROTULO_PERIODO: Record<Periodo, string> = { manha: 'manhã', tarde: 'tarde
 
 function ehGestao(role: string | null | undefined) {
   return role === 'admin' || role === 'coordenador'
-}
-
-// ─── Postos do supervisor (próprios + emprestados ativos) ─────────────────────
-
-async function postosDoSupervisor(supervisorId: string): Promise<PostoOpt[]> {
-  const admin = db()
-  const hoje = hojeBR()
-
-  const [{ data: cfg }, { data: emp }] = await Promise.all([
-    admin
-      .from('config_supervisores_postos')
-      .select('posto_id, postos(id, nome, secretaria, ativo)')
-      .eq('supervisor_id', supervisorId)
-      .eq('ativo', true),
-    admin
-      .from('coberturas_temporarias')
-      .select('posto_destino_id, postos:posto_destino_id(id, nome, secretaria, ativo)')
-      .eq('supervisor_destino_id', supervisorId)
-      .eq('status', 'ativa')
-      .lte('data_inicio', hoje),
-  ])
-
-  type P = { id: string; nome: string; secretaria: string | null; ativo: boolean | null }
-  const mapa = new Map<string, PostoOpt>()
-  for (const r of (cfg ?? []) as { postos: P | null }[]) {
-    if (r.postos && r.postos.ativo !== false) mapa.set(r.postos.id, { id: r.postos.id, nome: r.postos.nome, secretaria: r.postos.secretaria })
-  }
-  for (const r of (emp ?? []) as { postos: P | null }[]) {
-    if (r.postos && r.postos.ativo !== false) mapa.set(r.postos.id, { id: r.postos.id, nome: r.postos.nome, secretaria: r.postos.secretaria })
-  }
-  return Array.from(mapa.values()).sort((a, b) => a.nome.localeCompare(b.nome))
 }
 
 // ─── Leitura ──────────────────────────────────────────────────────────────────
@@ -181,6 +165,21 @@ export async function carregarAgenda(
   const usados = new Set(blocos.map(b => b.tipo_foco_id))
   const tipos = tiposTodos.filter(t => t.ativo || usados.has(t.id))
 
+  // Check-ins do dia (só o próprio supervisor). Falha = migração 20261012 ainda não aplicada.
+  let checkinsHoje: CheckinHoje[] = []
+  let geoDisponivel = false
+  if (ehDono) {
+    const hoje = hojeBR()
+    const { data: cks, error: cksErr } = await admin
+      .from('agenda_checkins')
+      .select('id, posto_id, tipo, created_at, dentro_raio, baixa_precisao, distancia_m')
+      .eq('supervisor_id', supervisorId)
+      .gte('created_at', `${addDias(hoje, -1)}T00:00:00Z`)
+      .order('created_at', { ascending: true })
+    geoDisponivel = !cksErr
+    checkinsHoje = ((cks ?? []) as CheckinHoje[]).filter(c => dataBR(c.created_at) === hoje)
+  }
+
   return {
     ok: true,
     dados: {
@@ -197,6 +196,8 @@ export async function carregarAgenda(
       sugestoes,
       comentarios,
       podeEditar: ehDono,
+      checkinsHoje,
+      geoDisponivel,
     },
   }
 }
@@ -288,6 +289,24 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
     blocos = (data ?? []) as BlRaw[]
   }
 
+  // Check-ins da semana (vazio se a migração 20261012 ainda não foi aplicada).
+  const fimSemana = addDias(semanaInicio, 6)
+  const hojeStr = hojeBR()
+  const cksPorSup = new Map<string, CheckinRaw[]>()
+  if (semIds.length > 0) {
+    const { data: cks } = await admin
+      .from('agenda_checkins')
+      .select('id, supervisor_id, posto_id, tipo, latitude, longitude, precisao_m, distancia_m, dentro_raio, baixa_precisao, justificativa, created_at')
+      .gte('created_at', `${addDias(semanaInicio, -1)}T00:00:00Z`)
+      .lte('created_at', `${addDias(fimSemana, 1)}T23:59:59Z`)
+    for (const c of (cks ?? []) as CheckinRaw[]) {
+      const d = dataBR(c.created_at)
+      if (d < semanaInicio || d > fimSemana) continue
+      cksPorSup.set(c.supervisor_id, [...(cksPorSup.get(c.supervisor_id) ?? []), c])
+    }
+  }
+  const nomeTipo = new Map(tipos.map(t => [t.id, t.nome]))
+
   const cards: CardSupervisor[] = ((sups ?? []) as { id: string; nome: string | null }[]).map(s => {
     const sem = semPorSup.get(s.id)
     const meus = sem ? blocos.filter(b => b.semana_id === sem.id) : []
@@ -297,6 +316,20 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
       slots[`${b.data}|${b.periodo}`] = corPorTipo.get(b.tipo_foco_id) ?? 'slate'
       b.agenda_blocos_postos.forEach(p => postosSet.add(p.posto_id))
     }
+    const planos: BlocoPlan[] = meus.flatMap(b =>
+      b.agenda_blocos_postos.map(p => ({
+        data: b.data,
+        periodo: b.periodo as Periodo,
+        foco: nomeTipo.get(b.tipo_foco_id) ?? '',
+        posto_id: p.posto_id,
+      })),
+    )
+    const { stats } = montarVisitas({
+      planos,
+      checkins: cksPorSup.get(s.id) ?? [],
+      postos: new Map<string, PostoGeo>(),
+      hoje: hojeStr,
+    })
     return {
       id: s.id,
       nome: s.nome ?? 'Supervisor',
@@ -307,6 +340,7 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
       totalPostos: totalPorSup.get(s.id) ?? 0,
       replanejamentos: meus.filter(b => b.replanejado).length,
       comentarios: sem?.agenda_comentarios.length ?? 0,
+      cumprimento: stats.pct,
     }
   })
 

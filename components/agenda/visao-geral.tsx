@@ -43,6 +43,9 @@ export function VisaoGeral({
           <p className="text-sm text-slate-500">Planejamento semanal de visitas e focos de supervisão.</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/agenda/locais" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            📍 Localização dos postos
+          </Link>
           {ehAdmin && (
             <Link href="/agenda/tipos" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
               ⚙️ Tipos de foco
@@ -114,6 +117,21 @@ export function VisaoGeral({
                     </div>
                   ))}
                 </div>
+
+                {c.cumprimento !== null && (
+                  <div className="mt-3">
+                    <div className="mb-1 flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                      <span>📍 Cumprimento das visitas</span>
+                      <span className={c.cumprimento >= 80 ? 'text-emerald-600' : c.cumprimento >= 50 ? 'text-amber-600' : 'text-rose-600'}>{c.cumprimento}%</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className={`h-full rounded-full ${c.cumprimento >= 80 ? 'bg-emerald-500' : c.cumprimento >= 50 ? 'bg-amber-400' : 'bg-rose-500'}`}
+                        style={{ width: `${c.cumprimento}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-3 flex items-center gap-3 text-[11px] text-slate-500">
                   <span><b className="text-slate-800">{c.postosDistintos}</b>/{c.totalPostos} postos planejados</span>
