@@ -33,6 +33,10 @@ function hora(iso: string | null) {
   return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }).format(new Date(iso))
 }
 
+function esc(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+}
+
 function duracao(min: number | null) {
   if (min === null) return null
   return min < 60 ? `${min} min` : `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`
@@ -83,22 +87,23 @@ export default function MapaAgenda({ dados, dias }: { dados: MapaDados; dias: st
       if (v.lat_posto != null && v.lng_posto != null) {
         L.circle([v.lat_posto, v.lng_posto], {
           radius: v.raio_m, color: cor, weight: 2, dashArray: '6 6', fillColor: cor, fillOpacity: 0.1,
-        }).bindTooltip(v.posto_nome).addTo(g)
+        }).bindTooltip(esc(v.posto_nome)).addTo(g)
         pontos.push([v.lat_posto, v.lng_posto])
         posRef.current.set(v.key, [v.lat_posto, v.lng_posto])
         if (v.status === 'falta' || v.status === 'agendado') {
           L.marker([v.lat_posto, v.lng_posto], { icon: pino(cor, v.status === 'falta' ? '!' : '·') })
-            .bindTooltip(`${v.posto_nome} — ${ROTULO[v.status]}`)
+            .bindTooltip(`${esc(v.posto_nome)} — ${ROTULO[v.status]}`)
             .addTo(g)
         }
       }
       if (v.lat_real != null && v.lng_real != null) {
         const detalhes = [
-          `<b>${v.posto_nome}</b>`,
+          `<b>${esc(v.posto_nome)}</b>`,
           `${hora(v.entrada_em)}${v.saida_em ? ` – ${hora(v.saida_em)}` : ''}`,
           v.distancia_m != null ? `${formatarDistancia(v.distancia_m)} do posto` : '',
           v.baixa_precisao ? 'GPS impreciso' : '',
-          v.justificativa ? `“${v.justificativa}”` : '',
+          v.justificativa ? `“${esc(v.justificativa)}”` : '',
+          ...v.fotos.map(u => `<a href="${u}" target="_blank" rel="noopener noreferrer"><img src="${u}" alt="Foto do check-in" style="width:150px;border-radius:8px;margin-top:4px"/></a>`),
         ].filter(Boolean).join('<br/>')
         L.marker([v.lat_real, v.lng_real], { icon: pino(cor, String(v.ordem ?? '')) }).bindPopup(detalhes).addTo(g)
         pontos.push([v.lat_real, v.lng_real])
@@ -208,6 +213,18 @@ export default function MapaAgenda({ dados, dias }: { dados: MapaDados; dias: st
                         </span>
                         {v.focos.length > 0 && <span className="block truncate text-[11px] text-slate-400">{v.focos.join(' · ')}</span>}
                         {v.justificativa && <span className="mt-0.5 block text-[11px] italic text-amber-700">“{v.justificativa}”</span>}
+                        {v.fotos.length > 0 && (
+                          <span className="mt-1.5 flex gap-1.5">
+                            {v.fotos.map((url, i) => (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                key={i} src={url} alt={`Foto ${i === 0 ? 'da chegada' : 'da saída'} em ${v.posto_nome}`}
+                                onClick={e => { e.stopPropagation(); window.open(url, '_blank', 'noopener,noreferrer') }}
+                                className="h-12 w-12 cursor-zoom-in rounded-lg object-cover ring-1 ring-slate-200"
+                              />
+                            ))}
+                          </span>
+                        )}
                       </span>
                     </button>
                   </li>

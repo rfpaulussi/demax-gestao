@@ -69,6 +69,7 @@ export type CheckinHoje = {
   dentro_raio: boolean
   baixa_precisao: boolean
   distancia_m: number | null
+  tem_foto: boolean
 }
 
 export type CardSupervisor = {
@@ -172,14 +173,22 @@ export async function carregarAgenda(
   let geoDisponivel = false
   if (ehDono) {
     const hoje = hojeBR()
-    const { data: cks, error: cksErr } = await admin
-      .from('agenda_checkins')
-      .select('id, posto_id, tipo, created_at, dentro_raio, baixa_precisao, distancia_m')
-      .eq('supervisor_id', supervisorId)
-      .gte('created_at', `${addDias(hoje, -1)}T00:00:00Z`)
-      .order('created_at', { ascending: true })
+    const buscar = (cols: string) =>
+      admin
+        .from('agenda_checkins')
+        .select(cols)
+        .eq('supervisor_id', supervisorId)
+        .gte('created_at', `${addDias(hoje, -1)}T00:00:00Z`)
+        .order('created_at', { ascending: true })
+    const base = 'id, posto_id, tipo, created_at, dentro_raio, baixa_precisao, distancia_m'
+    // foto_path só existe após a migração 20261013; sem ela, segue sem fotos.
+    let { data: cks, error: cksErr } = await buscar(`${base}, foto_path`)
+    if (cksErr) ({ data: cks, error: cksErr } = await buscar(base))
     geoDisponivel = !cksErr
-    checkinsHoje = ((cks ?? []) as CheckinHoje[]).filter(c => dataBR(c.created_at) === hoje)
+    type CkRaw = Omit<CheckinHoje, 'tem_foto'> & { foto_path?: string | null }
+    checkinsHoje = ((cks ?? []) as CkRaw[])
+      .filter(c => dataBR(c.created_at) === hoje)
+      .map(({ foto_path, ...c }) => ({ ...c, tem_foto: !!foto_path }))
   }
 
   return {

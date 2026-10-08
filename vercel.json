@@ -1,5 +1,6 @@
 {
   "crons": [
-    { "path": "/api/cron/snapshot-diario", "schedule": "0 6 * * *" }
+    { "path": "/api/cron/snapshot-diario", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/limpar-fotos-agenda", "schedule": "30 6 * * *" }
   ]
 }

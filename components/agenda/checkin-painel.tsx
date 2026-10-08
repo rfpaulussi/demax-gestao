@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, CheckCircle2, Clock, LogIn, LogOut, MapPinOff, Navigation, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, Camera, CheckCircle2, Clock, LogIn, LogOut, MapPinOff, Navigation, ShieldCheck } from 'lucide-react'
 import { formatarDistancia } from '@/lib/agenda/geo'
 import { diaMes } from '@/lib/agenda/datas'
 import { PERIODOS } from '@/lib/agenda/tema'
-import { registrarCheckin } from '@/app/(admin)/agenda/geo-actions'
+import { anexarFotoCheckin, registrarCheckin } from '@/app/(admin)/agenda/geo-actions'
+import { comprimirImagem } from '@/lib/agenda/imagem'
 import type { BlocoView, CheckinHoje, PostoOpt, TipoFoco } from '@/app/(admin)/agenda/actions'
 
 type Coords = { lat: number; lng: number; precisao: number | null }
@@ -54,6 +55,7 @@ export function CheckinPainel({
   const [aviso, setAviso] = useState<string | null>(null)
   const [pend, setPend] = useState<Pendente | null>(null)
   const [just, setJust] = useState('')
+  const [fotoBusy, setFotoBusy] = useState<string | null>(null)
 
   const nomeTipo = new Map(tipos.map(t => [t.id, `${t.icone} ${t.nome}`]))
   const plan = new Map<string, { periodos: string[]; focos: string[] }>()
@@ -76,6 +78,43 @@ export function CheckinPainel({
     return { entrada, saida }
   }
   const concluidos = planejados.filter(p => situacao(p.id).entrada).length
+
+  async function enviarFoto(postoId: string, checkinId: string, file: File | undefined) {
+    if (!file) return
+    setErro(null)
+    setFotoBusy(checkinId)
+    try {
+      const blob = await comprimirImagem(file)
+      const fd = new FormData()
+      fd.append('checkinId', checkinId)
+      fd.append('foto', new File([blob], 'foto.jpg', { type: 'image/jpeg' }))
+      const r = await anexarFotoCheckin(fd)
+      if (!r.ok) setErro({ postoId, texto: r.erro })
+      else {
+        setAviso('📷 Foto anexada (fica guardada por 90 dias).')
+        router.refresh()
+      }
+    } catch (e) {
+      setErro({ postoId, texto: e instanceof Error ? e.message : 'Falha ao enviar a foto.' })
+    } finally {
+      setFotoBusy(null)
+    }
+  }
+
+  function botaoFoto(postoId: string, ck: CheckinHoje, rotulo: string) {
+    if (ck.tem_foto) {
+      return <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700"><Camera className="h-3 w-3" /> foto da {rotulo} anexada</span>
+    }
+    return (
+      <label className="flex w-fit cursor-pointer items-center gap-1 rounded-md bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50">
+        <Camera className="h-3 w-3" /> {fotoBusy === ck.id ? 'Enviando…' : `Foto da ${rotulo} (opcional)`}
+        <input
+          type="file" accept="image/*" capture="environment" className="hidden" disabled={!!fotoBusy}
+          onChange={e => { void enviarFoto(postoId, ck.id, e.target.files?.[0]); e.target.value = '' }}
+        />
+      </label>
+    )
+  }
 
   async function acionar(postoId: string, tipo: 'entrada' | 'saida', coordsPrev?: Coords, justificativa?: string) {
     setErro(null)
@@ -133,6 +172,12 @@ export function CheckinPainel({
                 {saida && ` · saiu às ${hora(saida.created_at)}`}
               </p>
             )}
+            {entrada && (
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {botaoFoto(posto.id, entrada, 'chegada')}
+                {saida && botaoFoto(posto.id, saida, 'saída')}
+              </div>
+            )}
           </div>
 
           {!posto.tem_local ? (
@@ -189,7 +234,7 @@ export function CheckinPainel({
           </p>
         </div>
         <span className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-medium">
-          <ShieldCheck className="h-3.5 w-3.5" /> localização lida só quando você toca no botão
+          <ShieldCheck className="h-3.5 w-3.5" /> GPS lido só ao tocar no botão · fotos apagadas após 90 dias
         </span>
       </div>
 

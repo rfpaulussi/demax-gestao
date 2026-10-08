@@ -13,6 +13,7 @@ export type CheckinRaw = {
   baixa_precisao: boolean
   justificativa: string | null
   created_at: string
+  foto_path?: string | null
 }
 
 export type BlocoPlan = {
@@ -52,6 +53,7 @@ export type VisitaView = {
   lat_real: number | null
   lng_real: number | null
   ordem: number | null
+  fotos: string[]
 }
 
 export type MapaStats = {
@@ -131,6 +133,7 @@ export function montarVisitas(args: {
       lat_real: entrada?.latitude ?? null,
       lng_real: entrada?.longitude ?? null,
       ordem: null,
+      fotos: [entrada?.foto_path, saida?.foto_path].filter((f): f is string => !!f),
     }
   }
 

@@ -106,7 +106,7 @@ export async function salvarLocalPosto(input: {
 // ─── Check-in (supervisor) ────────────────────────────────────────────────────
 
 export type ResultadoCheckin =
-  | { ok: true; dentro: boolean; baixaPrecisao: boolean; distancia: number }
+  | { ok: true; dentro: boolean; baixaPrecisao: boolean; distancia: number; checkinId: string }
   | { ok: false; erro: string; precisaJustificar?: boolean; distancia?: number; raio?: number }
 
 export async function registrarCheckin(input: {
@@ -180,23 +180,69 @@ export async function registrarCheckin(input: {
     .limit(1)
   const blocoId = ((blocosDia ?? []) as { id: string }[])[0]?.id ?? null
 
-  const { error } = await admin.from('agenda_checkins').insert({
-    supervisor_id: auth.perfil.id,
-    posto_id: input.postoId,
-    bloco_id: blocoId,
-    tipo: input.tipo,
-    latitude: input.latitude,
-    longitude: input.longitude,
-    precisao_m: input.precisaoM,
-    distancia_m: Math.round(distancia),
-    dentro_raio: dentro,
-    baixa_precisao: baixa,
-    justificativa: justificativa || null,
-  })
+  const { data: criado, error } = await admin
+    .from('agenda_checkins')
+    .insert({
+      supervisor_id: auth.perfil.id,
+      posto_id: input.postoId,
+      bloco_id: blocoId,
+      tipo: input.tipo,
+      latitude: input.latitude,
+      longitude: input.longitude,
+      precisao_m: input.precisaoM,
+      distancia_m: Math.round(distancia),
+      dentro_raio: dentro,
+      baixa_precisao: baixa,
+      justificativa: justificativa || null,
+    })
+    .select('id')
+    .single()
   if (error) return { ok: false, erro: error.message }
 
   revalidatePath('/agenda')
-  return { ok: true, dentro, baixaPrecisao: baixa, distancia }
+  return { ok: true, dentro, baixaPrecisao: baixa, distancia, checkinId: criado.id as string }
+}
+
+// ─── Foto do check-in (opcional, temporária: apagada após 90 dias) ────────────
+
+const BUCKET_FOTOS = 'agenda-checkins'
+const MAX_FOTO_BYTES = 700_000
+
+export async function anexarFotoCheckin(formData: FormData): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role !== 'supervisor' || auth.perfil.ativo === false) {
+    return { ok: false, erro: 'Somente o supervisor do check-in pode anexar foto' }
+  }
+
+  const checkinId = String(formData.get('checkinId') ?? '')
+  const arquivo = formData.get('foto')
+  if (!checkinId || !(arquivo instanceof Blob)) return { ok: false, erro: 'Dados inválidos' }
+  if (arquivo.type !== 'image/jpeg') return { ok: false, erro: 'Formato inválido (use JPEG)' }
+  if (arquivo.size === 0 || arquivo.size > MAX_FOTO_BYTES) return { ok: false, erro: 'Foto muito grande' }
+
+  const admin = db()
+  const { data: ck, error: ckErr } = await admin
+    .from('agenda_checkins')
+    .select('id, supervisor_id, foto_path, created_at')
+    .eq('id', checkinId)
+    .maybeSingle()
+  if (ckErr) return { ok: false, erro: 'Recurso indisponível: aplique a migração 20261013_agenda_fotos.sql no Supabase Studio.' }
+  if (!ck || ck.supervisor_id !== auth.perfil.id) return { ok: false, erro: 'Check-in não encontrado' }
+  if (ck.foto_path) return { ok: false, erro: 'Este check-in já tem foto' }
+  if (Date.now() - Date.parse(ck.created_at) > 24 * 3_600_000) return { ok: false, erro: 'Prazo para anexar foto expirou (24 h)' }
+
+  const caminho = `${auth.perfil.id}/${checkinId}.jpg`
+  const bytes = new Uint8Array(await arquivo.arrayBuffer())
+  const { error: upErr } = await createAdminClient().storage
+    .from(BUCKET_FOTOS)
+    .upload(caminho, bytes, { contentType: 'image/jpeg', upsert: true })
+  if (upErr) return { ok: false, erro: 'Falha ao enviar a foto. Tente novamente.' }
+
+  const { error } = await admin.from('agenda_checkins').update({ foto_path: caminho }).eq('id', checkinId)
+  if (error) return { ok: false, erro: error.message }
+
+  revalidatePath('/agenda')
+  return { ok: true }
 }
 
 // ─── Mapa planejado × realizado ───────────────────────────────────────────────
@@ -249,13 +295,18 @@ export async function carregarMapa(
     )
   }
 
-  const { data: cksRaw, error: cksErr } = await admin
-    .from('agenda_checkins')
-    .select('id, supervisor_id, posto_id, tipo, latitude, longitude, precisao_m, distancia_m, dentro_raio, baixa_precisao, justificativa, created_at')
-    .eq('supervisor_id', supervisorId)
-    .gte('created_at', `${addDias(semanaInicio, -1)}T00:00:00Z`)
-    .lte('created_at', `${addDias(fim, 1)}T23:59:59Z`)
-    .order('created_at', { ascending: true })
+  const colunas = 'id, supervisor_id, posto_id, tipo, latitude, longitude, precisao_m, distancia_m, dentro_raio, baixa_precisao, justificativa, created_at'
+  const buscarCheckins = (cols: string) =>
+    admin
+      .from('agenda_checkins')
+      .select(cols)
+      .eq('supervisor_id', supervisorId)
+      .gte('created_at', `${addDias(semanaInicio, -1)}T00:00:00Z`)
+      .lte('created_at', `${addDias(fim, 1)}T23:59:59Z`)
+      .order('created_at', { ascending: true })
+  // Com foto_path; se a migração 20261013 ainda não rodou, cai para o select sem a coluna.
+  let { data: cksRaw, error: cksErr } = await buscarCheckins(`${colunas}, foto_path`)
+  if (cksErr) ({ data: cksRaw, error: cksErr } = await buscarCheckins(colunas))
   if (cksErr) return { ok: false, erro: MSG_MIGRACAO }
   const checkins = ((cksRaw ?? []) as CheckinRaw[]).filter(c => {
     const d = dataBR(c.created_at)
@@ -270,6 +321,16 @@ export async function carregarMapa(
   }
 
   const { visitas, stats } = montarVisitas({ planos, checkins, postos, hoje: hojeBR() })
+
+  // Fotos: troca o caminho no bucket privado por URL assinada (1 h).
+  const caminhos = Array.from(new Set(visitas.flatMap(v => v.fotos)))
+  if (caminhos.length > 0) {
+    const { data: urls } = await createAdminClient().storage.from(BUCKET_FOTOS).createSignedUrls(caminhos, 3600)
+    const porCaminho = new Map<string, string>()
+    for (const u of urls ?? []) if (u.path && u.signedUrl) porCaminho.set(u.path, u.signedUrl)
+    for (const v of visitas) v.fotos = v.fotos.map(c => porCaminho.get(c)).filter((u): u is string => !!u)
+  }
+
   const semLocal = Array.from(postos.values())
     .filter(p => p.latitude == null || p.longitude == null)
     .map(p => p.nome)

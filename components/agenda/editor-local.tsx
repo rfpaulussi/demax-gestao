@@ -79,7 +79,7 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
     for (const p of postos) {
       if (p.latitude == null || p.longitude == null || p.id === selId) continue
       L.circleMarker([p.latitude, p.longitude], { radius: 6, color: '#047857', weight: 2, fillColor: '#34d399', fillOpacity: 0.9 })
-        .bindTooltip(p.nome)
+        .bindTooltip(p.nome.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"))
         .addTo(g)
     }
   }, [postos, selId])
