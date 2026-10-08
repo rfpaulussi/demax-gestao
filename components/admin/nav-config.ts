@@ -35,6 +35,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/pendencias-horario', label: 'Horários Pendentes' },
       { href: '/insalubridade', label: 'Cobertura Insalubre' },
       { href: '/ocorrencias',   label: 'Ocorrências'   },
+      { href: '/agenda',        label: 'Agenda Semanal', allowedRoles: ['admin', 'coordenador', 'supervisor'] },
       { href: '/acordos',       label: 'Acordos'        },
       { href: '/ajuda',         label: 'Ajuda'          },
     ],
