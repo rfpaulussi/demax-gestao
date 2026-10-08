@@ -11,6 +11,7 @@ import { Sugestoes } from './sugestoes'
 import { Comentarios } from './comentarios'
 import { CheckinPainel } from './checkin-painel'
 import { AbaMapa } from './aba-mapa'
+import { BotaoPdfSemana } from './botao-pdf'
 
 export function AgendaSupervisor({
   dados,
@@ -64,6 +65,7 @@ export function AgendaSupervisor({
         voltarHref={modoGestao ? `/agenda${semanaInicio ? `?semana=${semanaInicio}` : ''}` : undefined}
       />
 
+      <div className="flex flex-wrap items-center gap-3">
       <div className="flex gap-1 rounded-xl bg-slate-100 p-1 sm:w-fit">
         {([
           { id: 'agenda', label: '🗓️ Agenda' },
@@ -78,6 +80,14 @@ export function AgendaSupervisor({
             {t.label}
           </button>
         ))}
+      </div>
+        <BotaoPdfSemana
+          supervisorId={supervisor.id}
+          supervisorNome={supervisor.nome}
+          semanaInicio={semanaInicio}
+          publicada={publicada}
+          blocos={blocos}
+        />
       </div>
 
       {aba === 'mapa' && <AbaMapa semanaInicio={semanaInicio} supervisorId={supervisor.id} dias={dias} />}

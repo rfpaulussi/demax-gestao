@@ -1,7 +1,7 @@
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, MessageCircle, RefreshCw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MessageCircle, RefreshCw, Siren } from 'lucide-react'
 import { PERIODOS, TOTAL_SLOTS, temaDe } from '@/lib/agenda/tema'
-import { addDias, diasDaSemana, rotuloSemana } from '@/lib/agenda/datas'
+import { addDias, diasDaSemana, hojeBR, rotuloSemana } from '@/lib/agenda/datas'
 import type { CardSupervisor, TipoFoco } from '@/app/(admin)/agenda/actions'
 
 const STATUS = {
@@ -26,7 +26,19 @@ export function VisaoGeral({
   ehAdmin: boolean
 }) {
   const dias = diasDaSemana(semanaInicio)
-  const n = (s: CardSupervisor['status']) => cards.filter(c => c.status === s).length
+  const hoje = hojeBR()
+  const semanaJaComecou = semanaInicio <= hoje
+
+  const alertas: { id: string; nome: string; texto: string; nivel: 'alto' | 'medio' }[] = []
+  for (const c of cards) {
+    if (c.status === 'sem_agenda' && semanaJaComecou) alertas.push({ id: c.id, nome: c.nome, texto: 'não montou a agenda desta semana', nivel: 'alto' })
+    else if (c.status === 'rascunho' && semanaJaComecou) alertas.push({ id: c.id, nome: c.nome, texto: 'agenda ainda em rascunho (não publicada)', nivel: 'medio' })
+    if (c.faltas > 0) alertas.push({ id: c.id, nome: c.nome, texto: `${c.faltas} visita(s) planejada(s) sem check-in`, nivel: 'alto' })
+    if (c.foraRaio > 0) alertas.push({ id: c.id, nome: c.nome, texto: `${c.foraRaio} check-in(s) fora do raio ou com GPS impreciso`, nivel: 'medio' })
+  }
+  alertas.sort((a, b) => (a.nivel === b.nivel ? a.nome.localeCompare(b.nome) : a.nivel === 'alto' ? -1 : 1))
+
+  const n =(s: CardSupervisor['status']) => cards.filter(c => c.status === s).length
 
   const kpis = [
     { label: 'Supervisores', valor: cards.length, topo: 'border-t-blue-500' },
@@ -67,6 +79,30 @@ export function VisaoGeral({
           </div>
         ))}
       </div>
+
+      {alertas.length > 0 && (
+        <div className="rounded-2xl border border-rose-200 border-t-4 border-t-rose-500 bg-white p-4 shadow-sm">
+          <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-rose-600">
+            <Siren className="h-4 w-4" /> Alertas da semana
+            <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px]">{alertas.length}</span>
+          </p>
+          <ul className="grid gap-1.5 md:grid-cols-2">
+            {alertas.map((a, i) => (
+              <li key={i}>
+                <Link
+                  href={`/agenda?supervisor=${a.id}&semana=${semanaInicio}`}
+                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition hover:brightness-95 ${
+                    a.nivel === 'alto' ? 'bg-rose-50 text-rose-800' : 'bg-amber-50 text-amber-800'
+                  }`}
+                >
+                  <span className="font-bold">{a.nome}</span>
+                  <span className="text-xs">{a.texto}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-xl bg-white px-4 py-2.5 shadow-sm ring-1 ring-slate-200">
         {tipos.filter(t => t.ativo).map(t => (

@@ -82,6 +82,8 @@ export type CardSupervisor = {
   replanejamentos: number
   comentarios: number
   cumprimento: number | null // % de visitas devidas com check-in; null = sem base
+  faltas: number // visitas planejadas já vencidas sem check-in
+  foraRaio: number // check-ins fora do raio ou com GPS impreciso
 }
 
 const PERIODOS_VALIDOS: Periodo[] = ['manha', 'tarde', 'noite']
@@ -341,6 +343,8 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
       replanejamentos: meus.filter(b => b.replanejado).length,
       comentarios: sem?.agenda_comentarios.length ?? 0,
       cumprimento: stats.pct,
+      faltas: stats.faltas,
+      foraRaio: stats.foraRaio,
     }
   })
 
