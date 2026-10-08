@@ -64,6 +64,7 @@ export type CardSupervisor = {
   slots: Record<string, string> // "data|periodo" -> cor do foco
   blocos: number
   postosDistintos: number
+  totalPostos: number
   replanejamentos: number
   comentarios: number
 }
@@ -257,14 +258,19 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
   const semanaInicio = segundaDe(ehData(semanaParam) ? semanaParam : hojeBR())
   const admin = db()
 
-  const [{ data: sups }, { data: semanas }, { data: tiposRaw }] = await Promise.all([
+  const [{ data: sups }, { data: semanas }, { data: tiposRaw }, { data: vinculos }] = await Promise.all([
     admin.from('perfis').select('id, nome').eq('role', 'supervisor').eq('ativo', true).order('nome'),
     admin
       .from('agenda_semanas')
       .select('id, supervisor_id, status, agenda_comentarios(id)')
       .eq('semana_inicio', semanaInicio),
     admin.from('agenda_tipos_foco').select('*').order('ordem'),
+    admin.from('config_supervisores_postos').select('supervisor_id, postos(ativo)').eq('ativo', true),
   ])
+  const totalPorSup = new Map<string, number>()
+  for (const v of (vinculos ?? []) as { supervisor_id: string; postos: { ativo: boolean | null } | null }[]) {
+    if (v.postos && v.postos.ativo !== false) totalPorSup.set(v.supervisor_id, (totalPorSup.get(v.supervisor_id) ?? 0) + 1)
+  }
   const tipos = (tiposRaw ?? []) as TipoFoco[]
   const corPorTipo = new Map(tipos.map(t => [t.id, t.cor]))
 
@@ -298,6 +304,7 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
       slots,
       blocos: meus.length,
       postosDistintos: postosSet.size,
+      totalPostos: totalPorSup.get(s.id) ?? 0,
       replanejamentos: meus.filter(b => b.replanejado).length,
       comentarios: sem?.agenda_comentarios.length ?? 0,
     }

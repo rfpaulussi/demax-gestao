@@ -116,7 +116,7 @@ export function VisaoGeral({
                 </div>
 
                 <div className="mt-3 flex items-center gap-3 text-[11px] text-slate-500">
-                  <span><b className="text-slate-800">{c.postosDistintos}</b> postos</span>
+                  <span><b className="text-slate-800">{c.postosDistintos}</b>/{c.totalPostos} postos planejados</span>
                   {c.replanejamentos > 0 && (
                     <span className="flex items-center gap-1 text-amber-600"><RefreshCw className="h-3 w-3" /> {c.replanejamentos}</span>
                   )}
