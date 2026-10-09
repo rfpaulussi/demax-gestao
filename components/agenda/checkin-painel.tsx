@@ -19,13 +19,26 @@ function hora(iso: string) {
   return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }).format(new Date(iso))
 }
 
+/** Instrução de como liberar a localização, conforme o aparelho de quem está usando. */
+function mensagemLocalizacaoBloqueada(): string {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+  const ios = /iPhone|iPad|iPod/i.test(ua)
+  if (ios && /CriOS/i.test(ua)) {
+    return 'Localização bloqueada. No iPhone: Ajustes → Privacidade e Segurança → Serviços de Localização → Chrome → "Ao Usar o App". Depois volte e tente de novo.'
+  }
+  if (ios) {
+    return 'Localização bloqueada. No iPhone: toque em "aA" ao lado do endereço → Ajustes do Site → Localização → Permitir. Confira também Ajustes → Privacidade e Segurança → Serviços de Localização (ligado).'
+  }
+  return 'Localização bloqueada. No Android: toque no cadeado ao lado do endereço → Permissões → Localização → Permitir. Confira também se o GPS do celular está ligado. Depois tente de novo.'
+}
+
 function lerPosicao(): Promise<Coords> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error('Seu aparelho não oferece localização.'))
     navigator.geolocation.getCurrentPosition(
       p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, precisao: p.coords.accuracy ?? null }),
       e => reject(new Error(
-        e.code === 1 ? 'Localização bloqueada. Toque no cadeado ao lado do endereço do site → Permissões → Localização → Permitir. Confira também se o GPS do celular está ligado e tente de novo.'
+        e.code === 1 ? mensagemLocalizacaoBloqueada()
         : e.code === 3 ? 'Demorou demais para obter o GPS. Vá para um local aberto e tente de novo.'
         : 'Não foi possível obter sua localização.',
       )),
