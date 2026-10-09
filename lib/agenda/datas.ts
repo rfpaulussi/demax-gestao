@@ -31,9 +31,15 @@ export function ehData(s: string | undefined | null): s is string {
   return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(parse(s).getTime())
 }
 
-/** Seg–Sáb da semana. */
+/** Dias úteis da semana (seg–sex). Supervisores não trabalham aos sábados. */
 export function diasDaSemana(segunda: string): string[] {
-  return Array.from({ length: 6 }, (_, i) => addDias(segunda, i))
+  return Array.from({ length: 5 }, (_, i) => addDias(segunda, i))
+}
+
+/** true para segunda a sexta. */
+export function ehDiaUtil(data: string): boolean {
+  const dow = parse(data).getUTCDay()
+  return dow >= 1 && dow <= 5
 }
 
 export function diaMes(d: string): string {
@@ -46,7 +52,7 @@ export function numeroDia(d: string): number {
 }
 
 export function rotuloSemana(segunda: string): string {
-  return `${diaMes(segunda)} – ${diaMes(addDias(segunda, 5))}`
+  return `${diaMes(segunda)} – ${diaMes(addDias(segunda, 4))}`
 }
 
 export function diasEntre(a: string, b: string): number {

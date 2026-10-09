@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Copy, Send } from 'lucide-react'
-import { TOTAL_SLOTS, temaDe } from '@/lib/agenda/tema'
+import { slotsDaSemana, temaDe } from '@/lib/agenda/tema'
 import { addDias, rotuloSemana } from '@/lib/agenda/datas'
 import { copiarSemanaAnterior, publicarSemana } from '@/app/(admin)/agenda/actions'
 import type { BlocoView, TipoFoco } from '@/app/(admin)/agenda/actions'
@@ -36,6 +36,7 @@ export function ResumoSemana({
   blocos,
   tipos,
   podeEditar,
+  diasFeriado,
   hrefSemana,
   voltarHref,
 }: {
@@ -46,6 +47,7 @@ export function ResumoSemana({
   blocos: BlocoView[]
   tipos: TipoFoco[]
   podeEditar: boolean
+  diasFeriado: number // dias de feriado de lei na semana (reduzem a meta de visitas)
   hrefSemana: (semana: string) => string
   voltarHref?: string
 }) {
@@ -98,10 +100,10 @@ export function ResumoSemana({
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-5">
-        <Anel pct={blocos.length / TOTAL_SLOTS} />
+        <Anel pct={Math.min(1, blocos.length / Math.max(1, slotsDaSemana(diasFeriado)))} />
 
         <div className="grid grid-cols-3 gap-4 text-center">
-          <div><p className="text-2xl font-black">{blocos.length}<span className="text-sm text-white/50">/{TOTAL_SLOTS}</span></p><p className="text-[10px] uppercase tracking-widest text-white/60">Blocos</p></div>
+          <div><p className="text-2xl font-black">{blocos.length}<span className="text-sm text-white/50">/{slotsDaSemana(diasFeriado)}</span></p><p className="text-[10px] uppercase tracking-widest text-white/60">Blocos</p></div>
           <div><p className="text-2xl font-black">{postosDistintos}</p><p className="text-[10px] uppercase tracking-widest text-white/60">Postos</p></div>
           <div><p className={`text-2xl font-black ${replan ? 'text-amber-300' : ''}`}>{replan}</p><p className="text-[10px] uppercase tracking-widest text-white/60">Replanej.</p></div>
         </div>

@@ -47,6 +47,22 @@ export function slotsVisiveis(maiorOrdemUsada: number): number {
   return Math.min(SLOTS_MAX, Math.max(SLOTS_MIN, maiorOrdemUsada + 1))
 }
 
-export const DIAS_CURTOS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+export const DIAS_CURTOS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
 
-export const TOTAL_SLOTS = 6 * PERIODOS.length * SLOTS_MIN
+/** Dias úteis exibidos por semana (seg–sex). */
+export const DIAS_UTEIS = 5
+
+/** Feriado ou ponto facultativo de Mogi das Cruzes num dia da agenda. */
+export type FeriadoDia = {
+  nome: string
+  tipo: 'nacional' | 'estadual' | 'municipal' | 'facultativo'
+  ate_hora: string | null
+}
+
+/** Visitas mínimas por semana inteira (sem descontar feriados). */
+export const TOTAL_SLOTS = DIAS_UTEIS * PERIODOS.length * SLOTS_MIN
+
+/** Visitas mínimas da semana descontando os dias de feriado de lei. */
+export function slotsDaSemana(feriadosDeLei: number): number {
+  return Math.max(0, DIAS_UTEIS - feriadosDeLei) * PERIODOS.length * SLOTS_MIN
+}

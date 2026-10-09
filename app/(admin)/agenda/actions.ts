@@ -3,8 +3,9 @@
 import { revalidatePath } from 'next/cache'
 import { getUser } from '@/lib/auth/get-user'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { addDias, diasEntre, ehData, hojeBR, segundaDe } from '@/lib/agenda/datas'
-import { CORES_FOCO, SLOTS_MAX, type Periodo } from '@/lib/agenda/tema'
+import { addDias, diasEntre, ehData, ehDiaUtil, hojeBR, segundaDe } from '@/lib/agenda/datas'
+import { ehFeriadoDeLei, feriadosDaSemana } from '@/lib/agenda/feriados'
+import { CORES_FOCO, SLOTS_MAX, type FeriadoDia, type Periodo } from '@/lib/agenda/tema'
 import { postosDoSupervisor, type PostoOpt } from '@/lib/agenda/postos'
 import { dataBR, montarVisitas, type BlocoPlan, type CheckinRaw, type PostoGeo } from '@/lib/agenda/visitas'
 
@@ -58,6 +59,7 @@ export type AgendaDados = {
   sugestoes: Sugestao[]
   comentarios: ComentarioView[]
   podeEditar: boolean
+  feriados: Record<string, FeriadoDia> // feriados/pontos facultativos de Mogi nos 5 dias úteis
   ehDono: boolean // check-in/foto continuam exclusivos do supervisor
   checkinsHoje: CheckinHoje[]
   geoDisponivel: boolean
@@ -213,6 +215,7 @@ export async function carregarAgenda(
       sugestoes,
       comentarios,
       podeEditar,
+      feriados: await feriadosDaSemana(semanaInicio),
       ehDono,
       checkinsHoje,
       geoDisponivel,
@@ -228,7 +231,7 @@ async function calcularSugestoes(
 ): Promise<Sugestao[]> {
   if (postos.length === 0) return []
   const admin = db()
-  const fimSemana = addDias(semanaInicio, 5)
+  const fimSemana = addDias(semanaInicio, 4)
 
   const { data: semanas } = await admin
     .from('agenda_semanas')
@@ -270,9 +273,10 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
   semanaInicio: string
   cards: CardSupervisor[]
   tipos: TipoFoco[]
+  feriados: Record<string, FeriadoDia>
 }> {
   const auth = await getUser()
-  if (!auth || !ehGestao(auth.perfil.role)) return { semanaInicio: segundaDe(hojeBR()), cards: [], tipos: [] }
+  if (!auth || !ehGestao(auth.perfil.role)) return { semanaInicio: segundaDe(hojeBR()), cards: [], tipos: [], feriados: {} }
 
   const semanaInicio = segundaDe(ehData(semanaParam) ? semanaParam : hojeBR())
   const admin = db()
@@ -375,7 +379,7 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
     }
   })
 
-  return { semanaInicio, cards, tipos }
+  return { semanaInicio, cards, tipos, feriados: await feriadosDaSemana(semanaInicio) }
 }
 
 // ─── Escrita (supervisor dono ou gestão em nome dele) ─────────────────────────
@@ -446,8 +450,12 @@ export async function salvarBloco(input: {
   if ('erro' in ctx) return { ok: false, erro: ctx.erro }
   const { auth, admin, semana, alvoId, sufixo } = ctx
 
-  if (!ehData(input.data) || segundaDe(input.data) !== input.semanaInicio || input.data === addDias(input.semanaInicio, 6)) {
-    return { ok: false, erro: 'Data fora da semana (seg–sáb)' }
+  if (!ehData(input.data) || segundaDe(input.data) !== input.semanaInicio || !ehDiaUtil(input.data)) {
+    return { ok: false, erro: 'Data fora da semana útil (segunda a sexta)' }
+  }
+  const feriadoDia = (await feriadosDaSemana(input.semanaInicio))[input.data]
+  if (ehFeriadoDeLei(feriadoDia)) {
+    return { ok: false, erro: `${feriadoDia.nome} é feriado em Mogi das Cruzes: não é possível planejar visitas neste dia.` }
   }
   if (!PERIODOS_VALIDOS.includes(input.periodo)) return { ok: false, erro: 'Período inválido' }
   if (!Number.isInteger(input.ordem) || input.ordem < 1 || input.ordem > SLOTS_MAX) return { ok: false, erro: 'Posição inválida' }
@@ -601,8 +609,12 @@ export async function copiarSemanaAnterior(semanaInicio: string, supervisorId?: 
   const tiposAtivos = new Set(((ativos ?? []) as { id: string }[]).map(t => t.id))
   const postosOk = new Set(permitidos.map(p => p.id))
 
+  const feriadosNovaSemana = await feriadosDaSemana(semanaInicio)
   for (const b of lista) {
     if (!tiposAtivos.has(b.tipo_foco_id)) continue
+    const destino = addDias(b.data, 7)
+    // Não copia para sábado/domingo nem para feriado de lei.
+    if (!ehDiaUtil(destino) || ehFeriadoDeLei(feriadosNovaSemana[destino])) continue
     const { data: novo, error } = await admin
       .from('agenda_blocos')
       .insert({

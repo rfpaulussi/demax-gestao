@@ -1,7 +1,7 @@
 'use client'
 
 import { MessageSquareText, Plus, RefreshCw, Sun, Sunset } from 'lucide-react'
-import { DIAS_CURTOS, PERIODOS, slotsVisiveis, temaDe, type Periodo } from '@/lib/agenda/tema'
+import { DIAS_CURTOS, PERIODOS, slotsVisiveis, temaDe, type FeriadoDia, type Periodo } from '@/lib/agenda/tema'
 import { numeroDia } from '@/lib/agenda/datas'
 import type { BlocoView, TipoFoco } from '@/app/(admin)/agenda/actions'
 
@@ -13,6 +13,7 @@ export function GradeSemanal({
   tipos,
   hoje,
   podeEditar,
+  feriados,
   onSlot,
 }: {
   dias: string[]
@@ -20,21 +21,26 @@ export function GradeSemanal({
   tipos: TipoFoco[]
   hoje: string
   podeEditar: boolean
+  feriados: Record<string, FeriadoDia>
   onSlot: (data: string, periodo: Periodo, ordem: number, bloco: BlocoView | null) => void
 }) {
   const tiposMap = new Map(tipos.map(t => [t.id, t]))
   const porSlot = new Map(blocos.map(b => [`${b.data}|${b.periodo}|${b.ordem}`, b]))
 
   return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
       {dias.map((data, i) => {
         const ehHoje = data === hoje
         const passado = data < hoje
+        const fer = feriados[data]
+        const bloqueado = !!fer && fer.tipo !== 'facultativo'
+        const temBlocos = blocos.some(b => b.data === data)
+        const semPlanejar = bloqueado && !temBlocos
         return (
           <div
             key={data}
             className={`flex flex-col gap-2 rounded-2xl p-2 ${
-              ehHoje ? 'bg-emerald-50 ring-2 ring-emerald-400/70' : 'bg-white ring-1 ring-slate-200'
+              ehHoje ? 'bg-emerald-50 ring-2 ring-emerald-400/70' : bloqueado ? 'bg-rose-50/60 ring-1 ring-rose-200' : 'bg-white ring-1 ring-slate-200'
             } shadow-sm`}
           >
             <div className="flex items-center justify-between px-1.5 pt-1 md:flex-col md:items-start md:gap-0.5">
@@ -49,7 +55,22 @@ export function GradeSemanal({
               </span>
             </div>
 
-            {PERIODOS.map(p => {
+            {fer && (
+              <p className={`rounded-lg px-2 py-1 text-[11px] font-semibold leading-tight ${
+                bloqueado ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-800'
+              }`}>
+                {bloqueado ? '🎉 Feriado' : '⚠️ Ponto facultativo'} · {fer.nome}
+                {fer.ate_hora ? ` (até ${fer.ate_hora})` : ''}
+              </p>
+            )}
+
+            {semPlanejar && (
+              <div className="flex min-h-[120px] flex-1 items-center justify-center rounded-xl border-2 border-dashed border-rose-200 p-3 text-center text-xs font-medium text-rose-400">
+                Sem expediente.<br />Não há visitas neste dia.
+              </div>
+            )}
+
+            {(semPlanejar ? [] : PERIODOS).map(p => {
               const Icone = ICONE_PERIODO[p.id]
               const doPeriodo = blocos.filter(b => b.data === data && b.periodo === p.id)
               const maior = doPeriodo.reduce((m, b) => Math.max(m, b.ordem), 0)
@@ -73,7 +94,7 @@ export function GradeSemanal({
                         <button
                           key={ordem}
                           type="button"
-                          disabled={!podeEditar}
+                          disabled={!podeEditar || bloqueado}
                           onClick={() => onSlot(data, p.id, ordem, null)}
                           className="group flex min-h-[52px] w-full items-center justify-between rounded-xl border-2 border-dashed border-slate-200 px-2.5 py-1.5 text-left transition enabled:hover:border-slate-400 enabled:hover:bg-slate-50 disabled:cursor-default"
                         >

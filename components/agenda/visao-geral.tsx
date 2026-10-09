@@ -1,8 +1,9 @@
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight, MessageCircle, RefreshCw, Siren } from 'lucide-react'
-import { PERIODOS, SLOTS_MIN, TOTAL_SLOTS, temaDe } from '@/lib/agenda/tema'
-import { addDias, diasDaSemana, hojeBR, rotuloSemana } from '@/lib/agenda/datas'
+import { PERIODOS, SLOTS_MIN, slotsDaSemana, temaDe } from '@/lib/agenda/tema'
+import { addDias, diaMes, diasDaSemana, hojeBR, rotuloSemana } from '@/lib/agenda/datas'
 import type { CardSupervisor, TipoFoco } from '@/app/(admin)/agenda/actions'
+import type { FeriadoDia } from '@/lib/agenda/tema'
 
 const STATUS = {
   publicada:  { label: 'Publicada',  badge: 'bg-emerald-100 text-emerald-700', topo: 'border-t-emerald-500' },
@@ -18,16 +19,20 @@ export function VisaoGeral({
   semanaInicio,
   cards,
   tipos,
+  feriados,
   ehAdmin,
 }: {
   semanaInicio: string
   cards: CardSupervisor[]
   tipos: TipoFoco[]
+  feriados: Record<string, FeriadoDia>
   ehAdmin: boolean
 }) {
   const dias = diasDaSemana(semanaInicio)
   const hoje = hojeBR()
   const semanaJaComecou = semanaInicio <= hoje
+  const feriadosDeLei = dias.filter(d => feriados[d] && feriados[d].tipo !== 'facultativo')
+  const metaSemana = slotsDaSemana(feriadosDeLei.length)
 
   const alertas: { id: string; nome: string; texto: string; nivel: 'alto' | 'medio' }[] = []
   for (const c of cards) {
@@ -105,6 +110,18 @@ export function VisaoGeral({
         </div>
       )}
 
+      {Object.keys(feriados).length > 0 && (
+        <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-800">
+          🎉 Nesta semana:{' '}
+          {dias.filter(d => feriados[d]).map(d => (
+            <span key={d} className="mr-3 inline-block">
+              <b>{diaMes(d)}</b> — {feriados[d].nome}{' '}
+              <span className="text-xs">({feriados[d].tipo === 'facultativo' ? 'ponto facultativo' : 'feriado, sem expediente'})</span>
+            </span>
+          ))}
+        </p>
+      )}
+
       <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-xl bg-white px-4 py-2.5 shadow-sm ring-1 ring-slate-200">
         {tipos.filter(t => t.ativo).map(t => (
           <span key={t.id} className="flex items-center gap-1.5 text-xs text-slate-600">
@@ -134,13 +151,13 @@ export function VisaoGeral({
                     <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${st.badge}`}>{st.label}</span>
                   </div>
                   <p className="text-right text-xl font-black text-slate-900">
-                    {c.blocos}<span className="text-xs font-semibold text-slate-400">/{TOTAL_SLOTS}</span>
+                    {c.blocos}<span className="text-xs font-semibold text-slate-400">/{metaSemana}</span>
                   </p>
                 </div>
 
-                <div className="mt-3 grid grid-cols-6 gap-1">
+                <div className="mt-3 grid grid-cols-5 gap-1">
                   {dias.map(d => (
-                    <div key={d} className="flex flex-col gap-1">
+                    <div key={d} className={`flex flex-col gap-1 rounded-md ${feriados[d] && feriados[d].tipo !== 'facultativo' ? 'bg-rose-100/70 p-0.5' : ''}`} title={feriados[d]?.nome}>
                       {PERIODOS.flatMap(p =>
                         Array.from({ length: SLOTS_MIN }, (_, k) => {
                           const cor = c.slots[`${d}|${p.id}|${k + 1}`]

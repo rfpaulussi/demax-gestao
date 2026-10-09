@@ -33,10 +33,10 @@ export default async function AgendaPage({
   }
 
   if (gestao && !searchParams.supervisor) {
-    const { semanaInicio, cards, tipos } = await carregarVisaoGeral(searchParams.semana)
+    const { semanaInicio, cards, tipos, feriados } = await carregarVisaoGeral(searchParams.semana)
     return (
       <div className="p-6">
-        <VisaoGeral semanaInicio={semanaInicio} cards={cards} tipos={tipos} ehAdmin={role === 'admin'} />
+        <VisaoGeral semanaInicio={semanaInicio} cards={cards} tipos={tipos} feriados={feriados} ehAdmin={role === 'admin'} />
       </div>
     )
   }

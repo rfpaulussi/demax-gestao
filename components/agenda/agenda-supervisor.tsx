@@ -25,7 +25,7 @@ export function AgendaSupervisor({
   const [slot, setSlot] = useState<SlotAberto | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [aba, setAba] = useState<'agenda' | 'mapa'>('agenda')
-  const { semanaInicio, semana, blocos, tipos, postos, sugestoes, comentarios, podeEditar, ehDono, supervisor, checkinsHoje, geoDisponivel } = dados
+  const { semanaInicio, semana, blocos, tipos, postos, sugestoes, comentarios, podeEditar, ehDono, supervisor, checkinsHoje, geoDisponivel, feriados } = dados
   const dias = diasDaSemana(semanaInicio)
   const publicada = semana.status === 'publicada'
 
@@ -42,6 +42,7 @@ export function AgendaSupervisor({
     const ocupados = new Set(blocos.map(b => `${b.data}|${b.periodo}|${b.ordem}`))
     for (const data of dias) {
       if (data < hoje) continue
+      if (feriados[data] && feriados[data].tipo !== 'facultativo') continue // feriado de lei: sem expediente
       for (const p of PERIODOS) {
         for (let ordem = 1; ordem <= SLOTS_MAX; ordem++) {
           if (!ocupados.has(`${data}|${p.id}|${ordem}`)) {
@@ -64,6 +65,7 @@ export function AgendaSupervisor({
         blocos={blocos}
         tipos={tipos}
         podeEditar={podeEditar}
+        diasFeriado={dias.filter(d => feriados[d] && feriados[d].tipo !== 'facultativo').length}
         hrefSemana={hrefSemana}
         voltarHref={modoGestao ? `/agenda${semanaInicio ? `?semana=${semanaInicio}` : ''}` : undefined}
       />
@@ -119,6 +121,7 @@ export function AgendaSupervisor({
           tipos={tipos}
           hoje={hoje}
           podeEditar={podeEditar}
+          feriados={feriados}
           onSlot={(data, periodo, ordem, bloco) => setSlot({ data, periodo, ordem, bloco })}
         />
 
