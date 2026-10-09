@@ -6,7 +6,7 @@ import { AlertTriangle, Camera, CheckCircle2, Clock, LogIn, LogOut, MapPinOff, N
 import { formatarDistancia } from '@/lib/agenda/geo'
 import { diaMes } from '@/lib/agenda/datas'
 import { PERIODOS } from '@/lib/agenda/tema'
-import { anexarFotoCheckin, registrarCheckin } from '@/app/(admin)/agenda/geo-actions'
+import { anexarFotoCheckin, marcarLocalPosto, registrarCheckin } from '@/app/(admin)/agenda/geo-actions'
 import { comprimirImagem } from '@/lib/agenda/imagem'
 import type { BlocoView, CheckinHoje, PostoOpt, TipoFoco } from '@/app/(admin)/agenda/actions'
 
@@ -80,6 +80,23 @@ export function CheckinPainel({
     return { entrada, saida }
   }
   const concluidos = planejados.filter(p => situacao(p.id).entrada).length
+
+  async function marcarLocal(postoId: string) {
+    setErro(null)
+    setAviso(null)
+    setBusy(postoId)
+    try {
+      const coords = await lerPosicao()
+      const r = await marcarLocalPosto({ postoId, latitude: coords.lat, longitude: coords.lng, precisaoM: coords.precisao })
+      if (!r.ok) return setErro({ postoId, texto: r.erro })
+      setAviso('📍 Local do posto registrado pelo seu GPS (a coordenação vai conferir). Agora você já pode fazer o check-in.')
+      router.refresh()
+    } catch (e) {
+      setErro({ postoId, texto: e instanceof Error ? e.message : 'Falha ao obter a localização.' })
+    } finally {
+      setBusy(null)
+    }
+  }
 
   async function enviarFoto(postoId: string, checkinId: string, file: File | undefined) {
     if (!file) return
@@ -188,9 +205,10 @@ export function CheckinPainel({
           </div>
 
           {!posto.tem_local ? (
-            <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
-              <MapPinOff className="h-3 w-3" /> sem localização
-            </span>
+            <button type="button" disabled={!!busy} onClick={() => marcarLocal(posto.id)}
+              className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-900 transition hover:bg-amber-400 disabled:opacity-50">
+              <MapPinOff className="h-4 w-4" /> {carregando ? 'Localizando…' : 'Marcar local aqui'}
+            </button>
           ) : !entrada ? (
             <button type="button" disabled={!!busy} onClick={() => acionar(posto.id, 'entrada')}
               className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50">
@@ -205,6 +223,19 @@ export function CheckinPainel({
             <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700">concluído</span>
           )}
         </div>
+
+        {!posto.tem_local && (
+          <p className="mt-2 text-[11px] text-slate-500">
+            Este posto ainda não tem localização. Estando no posto, toque em <b>Marcar local aqui</b>: o GPS registra o ponto e a coordenação confere depois.
+          </p>
+        )}
+
+        {posto.tem_local && posto.a_conferir && !entrada && (
+          <button type="button" disabled={!!busy} onClick={() => marcarLocal(posto.id)}
+            className="mt-2 text-[11px] font-semibold text-slate-500 underline decoration-dotted hover:text-slate-800 disabled:opacity-50">
+            O ponto deste posto está impreciso? Marcar o local exato aqui
+          </button>
+        )}
 
         {precisaJust && (
           <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3">

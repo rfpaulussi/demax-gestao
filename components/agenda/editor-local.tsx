@@ -251,8 +251,8 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
 
           {selecionado && selecionado.latitude != null && !selecionado.geo_confirmado && (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              📍 Coordenada <b>importada automaticamente</b>
-              {selecionado.geo_precisao === 'alta' ? ' (prédio/equipamento)' : selecionado.geo_precisao === 'media' ? ' (meio da rua — pode estar a algumas dezenas de metros)' : ' (rua aproximada)'}.
+              📍 Coordenada <b>{selecionado.geo_precisao === 'gps' ? 'marcada em campo' : 'importada automaticamente'}</b>
+              {selecionado.geo_precisao === 'gps' ? ' (marcada pelo GPS de um supervisor no local — em geral a mais exata)' : selecionado.geo_precisao === 'alta' ? ' (prédio/equipamento)' : selecionado.geo_precisao === 'media' ? ' (meio da rua — pode estar a algumas dezenas de metros)' : ' (rua aproximada)'}.
               Confira o pino no mapa, ajuste se preciso e clique em <b>Confirmar localização</b>.
             </p>
           )}

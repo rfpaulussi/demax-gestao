@@ -115,6 +115,70 @@ export async function salvarLocalPosto(input: {
   return { ok: true }
 }
 
+// ─── Supervisor marca o local do posto pelo GPS (fica "a conferir") ──────────────
+
+const PRECISAO_MARCAR_M = 80 // para marcar um local o GPS precisa ser bom
+const DISTANCIA_MAX_ENDERECO_M = 3000 // ponto marcado muito longe do endereço importado = provável engano
+
+export async function marcarLocalPosto(input: {
+  postoId: string
+  latitude: number
+  longitude: number
+  precisaoM: number | null
+}): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role !== 'supervisor' || auth.perfil.ativo === false) {
+    return { ok: false, erro: 'Somente supervisores marcam o local pelo GPS' }
+  }
+  if (!coordenadaValida(input.latitude, input.longitude)) return { ok: false, erro: 'Localização inválida' }
+  if (input.precisaoM == null || input.precisaoM > PRECISAO_MARCAR_M) {
+    return {
+      ok: false,
+      erro: `GPS impreciso (±${input.precisaoM == null ? '?' : Math.round(input.precisaoM)} m). Vá para uma área aberta, aguarde alguns segundos e tente de novo.`,
+    }
+  }
+
+  const permitidos = await postosDoSupervisor(auth.perfil.id)
+  if (!permitidos.some(p => p.id === input.postoId)) return { ok: false, erro: 'Posto não pertence ao supervisor' }
+
+  const admin = db()
+  const { data: posto, error: pErr } = await admin
+    .from('postos')
+    .select('id, latitude, longitude, geo_confirmado')
+    .eq('id', input.postoId)
+    .maybeSingle()
+  if (pErr) return { ok: false, erro: 'Recurso indisponível: aplique as migrações 20261016 e 20261017 no Supabase Studio.' }
+  if (!posto) return { ok: false, erro: 'Posto não encontrado' }
+
+  const temLocal = posto.latitude != null && posto.longitude != null
+  if (temLocal && posto.geo_confirmado !== false) {
+    return { ok: false, erro: 'Este posto já tem localização confirmada pela coordenação.' }
+  }
+  if (temLocal) {
+    const d = distanciaM(input.latitude, input.longitude, posto.latitude, posto.longitude)
+    if (d > DISTANCIA_MAX_ENDERECO_M) {
+      return { ok: false, erro: `Você está a ${(d / 1000).toFixed(1).replace('.', ',')} km do endereço cadastrado deste posto. Confirme que está no posto certo ou avise a coordenação.` }
+    }
+  }
+
+  const { error } = await admin
+    .from('postos')
+    .update({
+      latitude: input.latitude,
+      longitude: input.longitude,
+      geo_confirmado: false, // a coordenação confere e confirma depois
+      geo_precisao: 'gps',
+      geo_marcado_por: auth.perfil.id,
+      geo_marcado_em: new Date().toISOString(),
+    })
+    .eq('id', input.postoId)
+  if (error) return { ok: false, erro: 'Recurso indisponível: aplique as migrações 20261016 e 20261017 no Supabase Studio.' }
+
+  revalidatePath('/agenda')
+  revalidatePath('/agenda/locais')
+  return { ok: true }
+}
+
 // ─── Check-in (supervisor) ────────────────────────────────────────────────────
 
 export type ResultadoCheckin =
