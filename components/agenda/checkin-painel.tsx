@@ -25,7 +25,7 @@ function lerPosicao(): Promise<Coords> {
     navigator.geolocation.getCurrentPosition(
       p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, precisao: p.coords.accuracy ?? null }),
       e => reject(new Error(
-        e.code === 1 ? 'Permissão de localização negada. Libere o acesso à localização no navegador.'
+        e.code === 1 ? 'Localização bloqueada. Toque no cadeado ao lado do endereço do site → Permissões → Localização → Permitir. Confira também se o GPS do celular está ligado e tente de novo.'
         : e.code === 3 ? 'Demorou demais para obter o GPS. Vá para um local aberto e tente de novo.'
         : 'Não foi possível obter sua localização.',
       )),
@@ -230,13 +230,6 @@ export function CheckinPainel({
           </p>
         )}
 
-        {posto.tem_local && posto.a_conferir && !entrada && (
-          <button type="button" disabled={!!busy} onClick={() => marcarLocal(posto.id)}
-            className="mt-2 text-[11px] font-semibold text-slate-500 underline decoration-dotted hover:text-slate-800 disabled:opacity-50">
-            O ponto deste posto está impreciso? Marcar o local exato aqui
-          </button>
-        )}
-
         {precisaJust && (
           <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3">
             <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-amber-800">
@@ -253,6 +246,13 @@ export function CheckinPainel({
               </button>
               <button type="button" onClick={() => { setPend(null); setJust('') }} className="rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-white">Cancelar</button>
             </div>
+            {posto.a_conferir && (
+              <button type="button" disabled={!!busy}
+                onClick={async () => { await marcarLocal(posto.id); setPend(null); setJust('') }}
+                className="mt-3 w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-left text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50">
+                📍 O ponto cadastrado deste posto está errado? Estou no posto — marcar o local exato aqui
+              </button>
+            )}
           </div>
         )}
 
