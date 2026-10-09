@@ -19,6 +19,7 @@ export type SlotAberto = {
 export function ModalBloco({
   slot,
   semanaInicio,
+  supervisorId,
   tipos,
   postos,
   publicada,
@@ -26,6 +27,7 @@ export function ModalBloco({
 }: {
   slot: SlotAberto | null
   semanaInicio: string
+  supervisorId: string
   tipos: TipoFoco[]
   postos: PostoOpt[]
   publicada: boolean
@@ -38,6 +40,7 @@ export function ModalBloco({
           key={`${slot.data}|${slot.periodo}|${slot.bloco?.id ?? 'novo'}`}
           slot={slot}
           semanaInicio={semanaInicio}
+          supervisorId={supervisorId}
           tipos={tipos}
           postos={postos}
           publicada={publicada}
@@ -49,10 +52,11 @@ export function ModalBloco({
 }
 
 function Conteudo({
-  slot, semanaInicio, tipos, postos, publicada, onClose,
+  slot, semanaInicio, supervisorId, tipos, postos, publicada, onClose,
 }: {
   slot: SlotAberto
   semanaInicio: string
+  supervisorId: string
   tipos: TipoFoco[]
   postos: PostoOpt[]
   publicada: boolean
@@ -90,7 +94,7 @@ function Conteudo({
     start(async () => {
       const r = await salvarBloco({
         semanaInicio, data: slot.data, periodo: slot.periodo,
-        tipoFocoId: tipoId, postoIds: Array.from(sel), observacao: obs, motivo,
+        tipoFocoId: tipoId, postoIds: Array.from(sel), observacao: obs, motivo, supervisorId,
       })
       if (!r.ok) return setErro(r.erro)
       router.refresh()
@@ -102,7 +106,7 @@ function Conteudo({
     if (!slot.bloco) return
     setErro(null)
     start(async () => {
-      const r = await removerBloco({ semanaInicio, blocoId: slot.bloco!.id, motivo })
+      const r = await removerBloco({ semanaInicio, blocoId: slot.bloco!.id, motivo, supervisorId })
       if (!r.ok) return setErro(r.erro)
       router.refresh()
       onClose()

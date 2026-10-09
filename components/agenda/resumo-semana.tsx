@@ -29,6 +29,7 @@ function Anel({ pct }: { pct: number }) {
 }
 
 export function ResumoSemana({
+  supervisorId,
   supervisorNome,
   semanaInicio,
   status,
@@ -38,6 +39,7 @@ export function ResumoSemana({
   hrefSemana,
   voltarHref,
 }: {
+  supervisorId: string
   supervisorNome: string
   semanaInicio: string
   status: 'rascunho' | 'publicada'
@@ -116,7 +118,7 @@ export function ResumoSemana({
               {blocos.length === 0 && (
                 <button
                   type="button" disabled={pending}
-                  onClick={() => rodar(() => copiarSemanaAnterior(semanaInicio))}
+                  onClick={() => rodar(() => copiarSemanaAnterior(semanaInicio, supervisorId))}
                   className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold transition hover:bg-white/20 disabled:opacity-50"
                 >
                   <Copy className="h-3.5 w-3.5" /> Copiar semana anterior
@@ -124,7 +126,7 @@ export function ResumoSemana({
               )}
               <button
                 type="button" disabled={pending || blocos.length === 0}
-                onClick={() => rodar(() => publicarSemana(semanaInicio))}
+                onClick={() => rodar(() => publicarSemana(semanaInicio, supervisorId))}
                 className="flex items-center gap-1.5 rounded-lg bg-emerald-400 px-4 py-2 text-xs font-bold text-slate-900 transition hover:bg-emerald-300 disabled:opacity-40"
               >
                 <Send className="h-3.5 w-3.5" /> {pending ? 'Aguarde…' : 'Publicar agenda'}

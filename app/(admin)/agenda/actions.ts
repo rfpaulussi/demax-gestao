@@ -57,6 +57,7 @@ export type AgendaDados = {
   sugestoes: Sugestao[]
   comentarios: ComentarioView[]
   podeEditar: boolean
+  ehDono: boolean // check-in/foto continuam exclusivos do supervisor
   checkinsHoje: CheckinHoje[]
   geoDisponivel: boolean
 }
@@ -161,8 +162,9 @@ export async function carregarAgenda(
   }
 
   const ehDono = role === 'supervisor' && auth.perfil.id === supervisorId
-  const postos = ehDono ? await postosDoSupervisor(supervisorId) : []
-  const sugestoes = ehDono ? await calcularSugestoes(supervisorId, semanaInicio, postos, blocos) : []
+  const podeEditar = ehDono || ehGestao(role)
+  const postos = podeEditar ? await postosDoSupervisor(supervisorId) : []
+  const sugestoes = podeEditar ? await calcularSugestoes(supervisorId, semanaInicio, postos, blocos) : []
 
   // Tipos desativados só aparecem se ainda usados na semana.
   const usados = new Set(blocos.map(b => b.tipo_foco_id))
@@ -206,7 +208,8 @@ export async function carregarAgenda(
       postos,
       sugestoes,
       comentarios,
-      podeEditar: ehDono,
+      podeEditar,
+      ehDono,
       checkinsHoje,
       geoDisponivel,
     },
@@ -360,21 +363,39 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
   return { semanaInicio, cards, tipos }
 }
 
-// ─── Escrita (somente o supervisor dono) ──────────────────────────────────────
+// ─── Escrita (supervisor dono ou gestão em nome dele) ─────────────────────────
 
-async function contextoDono(semanaInicio: string) {
+/**
+ * Supervisor edita a própria agenda (o supervisorId recebido é ignorado — não dá para
+ * editar a de outro). Admin/coordenador editam a de um supervisor ativo, em nome dele;
+ * nesse caso as notas da linha do tempo levam "(por <gestor>)".
+ */
+async function contextoDono(semanaInicio: string, supervisorId?: string) {
   const auth = await getUser()
   if (!auth) return { erro: 'Não autenticado' } as const
-  if (auth.perfil.role !== 'supervisor' || auth.perfil.ativo === false) {
-    return { erro: 'Somente supervisores montam a própria agenda' } as const
-  }
+  if (auth.perfil.ativo === false) return { erro: 'Usuário inativo' } as const
   if (!ehData(semanaInicio) || segundaDe(semanaInicio) !== semanaInicio) return { erro: 'Semana inválida' } as const
 
   const admin = db()
+  let alvoId: string
+  let porTerceiro = false
+  if (auth.perfil.role === 'supervisor') {
+    alvoId = auth.perfil.id
+  } else if (ehGestao(auth.perfil.role)) {
+    if (!supervisorId) return { erro: 'Selecione o supervisor' } as const
+    const { data: sup } = await admin.from('perfis').select('id, role, ativo').eq('id', supervisorId).maybeSingle()
+    if (!sup || sup.role !== 'supervisor' || sup.ativo === false) return { erro: 'Supervisor não encontrado' } as const
+    alvoId = sup.id
+    porTerceiro = true
+  } else {
+    return { erro: 'Sem permissão para editar a agenda' } as const
+  }
+  const sufixo = porTerceiro ? ` (por ${auth.perfil.nome ?? 'gestão'})` : ''
+
   const { data: existente } = await admin
     .from('agenda_semanas')
     .select('id, status')
-    .eq('supervisor_id', auth.perfil.id)
+    .eq('supervisor_id', alvoId)
     .eq('semana_inicio', semanaInicio)
     .maybeSingle()
 
@@ -382,13 +403,13 @@ async function contextoDono(semanaInicio: string) {
   if (!semana) {
     const { data: criada, error } = await admin
       .from('agenda_semanas')
-      .insert({ supervisor_id: auth.perfil.id, semana_inicio: semanaInicio })
+      .insert({ supervisor_id: alvoId, semana_inicio: semanaInicio })
       .select('id, status')
       .single()
     if (error) return { erro: error.message } as const
     semana = criada as { id: string; status: 'rascunho' | 'publicada' }
   }
-  return { auth, admin, semana } as const
+  return { auth, admin, semana, alvoId, sufixo } as const
 }
 
 async function registrarNota(admin: AnyClient, semanaId: string, autorId: string, texto: string) {
@@ -403,10 +424,11 @@ export async function salvarBloco(input: {
   postoIds: string[]
   observacao: string
   motivo?: string
+  supervisorId?: string
 }): Promise<Resultado> {
-  const ctx = await contextoDono(input.semanaInicio)
+  const ctx = await contextoDono(input.semanaInicio, input.supervisorId)
   if ('erro' in ctx) return { ok: false, erro: ctx.erro }
-  const { auth, admin, semana } = ctx
+  const { auth, admin, semana, alvoId, sufixo } = ctx
 
   if (!ehData(input.data) || segundaDe(input.data) !== input.semanaInicio || input.data === addDias(input.semanaInicio, 6)) {
     return { ok: false, erro: 'Data fora da semana (seg–sáb)' }
@@ -420,7 +442,7 @@ export async function salvarBloco(input: {
   const { data: tipo } = await admin.from('agenda_tipos_foco').select('id, nome, ativo').eq('id', input.tipoFocoId).maybeSingle()
   if (!tipo || tipo.ativo === false) return { ok: false, erro: 'Tipo de foco inválido' }
 
-  const permitidos = new Set((await postosDoSupervisor(auth.perfil.id)).map(p => p.id))
+  const permitidos = new Set((await postosDoSupervisor(alvoId)).map(p => p.id))
   const postoIds = Array.from(new Set(input.postoIds))
   if (postoIds.some(id => !permitidos.has(id))) return { ok: false, erro: 'Posto não pertence ao supervisor' }
 
@@ -474,17 +496,17 @@ export async function salvarBloco(input: {
 
   if (publicada) {
     await registrarNota(admin, semana.id, auth.perfil.id,
-      `🔄 Replanejou ${input.data.split('-').reverse().slice(0, 2).join('/')} (${ROTULO_PERIODO[input.periodo]}): ${tipo.nome}. Motivo: ${motivo}`)
+      `🔄 Replanejou ${input.data.split('-').reverse().slice(0, 2).join('/')} (${ROTULO_PERIODO[input.periodo]}): ${tipo.nome}. Motivo: ${motivo}${sufixo}`)
   }
 
   revalidatePath('/agenda')
   return { ok: true }
 }
 
-export async function removerBloco(input: { semanaInicio: string; blocoId: string; motivo?: string }): Promise<Resultado> {
-  const ctx = await contextoDono(input.semanaInicio)
+export async function removerBloco(input: { semanaInicio: string; blocoId: string; motivo?: string; supervisorId?: string }): Promise<Resultado> {
+  const ctx = await contextoDono(input.semanaInicio, input.supervisorId)
   if ('erro' in ctx) return { ok: false, erro: ctx.erro }
-  const { auth, admin, semana } = ctx
+  const { auth, admin, semana, sufixo } = ctx
 
   const motivo = (input.motivo ?? '').trim()
   if (semana.status === 'publicada' && motivo.length < 5) return { ok: false, erro: 'Agenda publicada: informe o motivo' }
@@ -502,16 +524,16 @@ export async function removerBloco(input: { semanaInicio: string; blocoId: strin
 
   if (semana.status === 'publicada') {
     await registrarNota(admin, semana.id, auth.perfil.id,
-      `🗑️ Removeu bloco de ${bloco.data.split('-').reverse().slice(0, 2).join('/')} (${ROTULO_PERIODO[bloco.periodo as Periodo]}). Motivo: ${motivo}`)
+      `🗑️ Removeu bloco de ${bloco.data.split('-').reverse().slice(0, 2).join('/')} (${ROTULO_PERIODO[bloco.periodo as Periodo]}). Motivo: ${motivo}${sufixo}`)
   }
   revalidatePath('/agenda')
   return { ok: true }
 }
 
-export async function publicarSemana(semanaInicio: string): Promise<Resultado> {
-  const ctx = await contextoDono(semanaInicio)
+export async function publicarSemana(semanaInicio: string, supervisorId?: string): Promise<Resultado> {
+  const ctx = await contextoDono(semanaInicio, supervisorId)
   if ('erro' in ctx) return { ok: false, erro: ctx.erro }
-  const { auth, admin, semana } = ctx
+  const { auth, admin, semana, sufixo } = ctx
   if (semana.status === 'publicada') return { ok: false, erro: 'Agenda já publicada' }
 
   const { count } = await admin.from('agenda_blocos').select('id', { count: 'exact', head: true }).eq('semana_id', semana.id)
@@ -523,15 +545,15 @@ export async function publicarSemana(semanaInicio: string): Promise<Resultado> {
     .eq('id', semana.id)
   if (error) return { ok: false, erro: error.message }
 
-  await registrarNota(admin, semana.id, auth.perfil.id, `📢 Agenda publicada com ${count} bloco(s).`)
+  await registrarNota(admin, semana.id, auth.perfil.id, `📢 Agenda publicada com ${count} bloco(s).${sufixo}`)
   revalidatePath('/agenda')
   return { ok: true }
 }
 
-export async function copiarSemanaAnterior(semanaInicio: string): Promise<Resultado> {
-  const ctx = await contextoDono(semanaInicio)
+export async function copiarSemanaAnterior(semanaInicio: string, supervisorId?: string): Promise<Resultado> {
+  const ctx = await contextoDono(semanaInicio, supervisorId)
   if ('erro' in ctx) return { ok: false, erro: ctx.erro }
-  const { auth, admin, semana } = ctx
+  const { admin, semana, alvoId } = ctx
   if (semana.status === 'publicada') return { ok: false, erro: 'Agenda publicada não aceita cópia' }
 
   const { count } = await admin.from('agenda_blocos').select('id', { count: 'exact', head: true }).eq('semana_id', semana.id)
@@ -540,7 +562,7 @@ export async function copiarSemanaAnterior(semanaInicio: string): Promise<Result
   const { data: anterior } = await admin
     .from('agenda_semanas')
     .select('id')
-    .eq('supervisor_id', auth.perfil.id)
+    .eq('supervisor_id', alvoId)
     .eq('semana_inicio', addDias(semanaInicio, -7))
     .maybeSingle()
   if (!anterior) return { ok: false, erro: 'Semana anterior sem agenda' }
@@ -555,7 +577,7 @@ export async function copiarSemanaAnterior(semanaInicio: string): Promise<Result
 
   const [{ data: ativos }, permitidos] = await Promise.all([
     admin.from('agenda_tipos_foco').select('id').eq('ativo', true),
-    postosDoSupervisor(auth.perfil.id),
+    postosDoSupervisor(alvoId),
   ])
   const tiposAtivos = new Set(((ativos ?? []) as { id: string }[]).map(t => t.id))
   const postosOk = new Set(permitidos.map(p => p.id))

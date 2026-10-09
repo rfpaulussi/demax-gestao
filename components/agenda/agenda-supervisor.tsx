@@ -25,7 +25,7 @@ export function AgendaSupervisor({
   const [slot, setSlot] = useState<SlotAberto | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [aba, setAba] = useState<'agenda' | 'mapa'>('agenda')
-  const { semanaInicio, semana, blocos, tipos, postos, sugestoes, comentarios, podeEditar, supervisor, checkinsHoje, geoDisponivel } = dados
+  const { semanaInicio, semana, blocos, tipos, postos, sugestoes, comentarios, podeEditar, ehDono, supervisor, checkinsHoje, geoDisponivel } = dados
   const dias = diasDaSemana(semanaInicio)
   const publicada = semana.status === 'publicada'
 
@@ -55,6 +55,7 @@ export function AgendaSupervisor({
   return (
     <div className="space-y-5">
       <ResumoSemana
+        supervisorId={supervisor.id}
         supervisorNome={supervisor.nome}
         semanaInicio={semanaInicio}
         status={semana.status}
@@ -92,7 +93,13 @@ export function AgendaSupervisor({
 
       {aba === 'mapa' && <AbaMapa semanaInicio={semanaInicio} supervisorId={supervisor.id} dias={dias} />}
 
-      {aba === 'agenda' && podeEditar && dias.includes(hoje) && (
+      {aba === 'agenda' && modoGestao && podeEditar && (
+        <p className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm text-sky-900">
+          ✏️ Você está editando em nome de <b>{supervisor.nome}</b>. Alterações ficam registradas na linha do tempo. Check-in e fotos continuam exclusivos do supervisor.
+        </p>
+      )}
+
+      {aba === 'agenda' && ehDono && dias.includes(hoje) && (
         <CheckinPainel hoje={hoje} blocos={blocos} tipos={tipos} postos={postos} checkins={checkinsHoje} geoDisponivel={geoDisponivel} />
       )}
 
@@ -127,6 +134,7 @@ export function AgendaSupervisor({
       <ModalBloco
         slot={slot}
         semanaInicio={semanaInicio}
+        supervisorId={supervisor.id}
         tipos={tipos.filter(t => t.ativo || slot?.bloco?.tipo_foco_id === t.id)}
         postos={postos}
         publicada={publicada}
