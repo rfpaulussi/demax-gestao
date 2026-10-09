@@ -3,6 +3,7 @@
 export type CorFoco =
   | 'emerald' | 'blue' | 'orange' | 'violet' | 'cyan'
   | 'rose' | 'amber' | 'slate' | 'indigo' | 'pink'
+  | 'red' | 'lime' | 'teal' | 'sky' | 'fuchsia' | 'stone'
 
 export type TemaCor = {
   card: string   // fundo gradiente + borda do bloco
@@ -23,6 +24,12 @@ export const TEMAS: Record<CorFoco, TemaCor> = {
   slate:   { card: 'bg-gradient-to-br from-slate-50 to-slate-200 border-slate-300',       texto: 'text-slate-800',   chip: 'bg-slate-300/70 text-slate-800',     dot: 'bg-slate-500',   ring: 'ring-slate-500' },
   indigo:  { card: 'bg-gradient-to-br from-indigo-50 to-indigo-100 border-indigo-300',    texto: 'text-indigo-900',  chip: 'bg-indigo-200/70 text-indigo-900',   dot: 'bg-indigo-500',  ring: 'ring-indigo-500' },
   pink:    { card: 'bg-gradient-to-br from-pink-50 to-pink-100 border-pink-300',          texto: 'text-pink-900',    chip: 'bg-pink-200/70 text-pink-900',       dot: 'bg-pink-500',    ring: 'ring-pink-500' },
+  red:     { card: 'bg-gradient-to-br from-red-50 to-red-100 border-red-300',             texto: 'text-red-900',     chip: 'bg-red-200/70 text-red-900',         dot: 'bg-red-500',     ring: 'ring-red-500' },
+  lime:    { card: 'bg-gradient-to-br from-lime-50 to-lime-100 border-lime-300',          texto: 'text-lime-900',    chip: 'bg-lime-200/70 text-lime-900',       dot: 'bg-lime-500',    ring: 'ring-lime-500' },
+  teal:    { card: 'bg-gradient-to-br from-teal-50 to-teal-100 border-teal-300',          texto: 'text-teal-900',    chip: 'bg-teal-200/70 text-teal-900',       dot: 'bg-teal-500',    ring: 'ring-teal-500' },
+  sky:     { card: 'bg-gradient-to-br from-sky-50 to-sky-100 border-sky-300',             texto: 'text-sky-900',     chip: 'bg-sky-200/70 text-sky-900',         dot: 'bg-sky-500',     ring: 'ring-sky-500' },
+  fuchsia: { card: 'bg-gradient-to-br from-fuchsia-50 to-fuchsia-100 border-fuchsia-300', texto: 'text-fuchsia-900', chip: 'bg-fuchsia-200/70 text-fuchsia-900', dot: 'bg-fuchsia-500', ring: 'ring-fuchsia-500' },
+  stone:   { card: 'bg-gradient-to-br from-stone-50 to-stone-200 border-stone-300',       texto: 'text-stone-800',   chip: 'bg-stone-300/70 text-stone-800',     dot: 'bg-stone-500',   ring: 'ring-stone-500' },
 }
 
 export const CORES_FOCO = Object.keys(TEMAS) as CorFoco[]
