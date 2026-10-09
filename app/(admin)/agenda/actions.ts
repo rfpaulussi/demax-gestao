@@ -277,11 +277,11 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
       .select('id, supervisor_id, status, agenda_comentarios(id)')
       .eq('semana_inicio', semanaInicio),
     admin.from('agenda_tipos_foco').select('*').order('ordem'),
-    admin.from('config_supervisores_postos').select('supervisor_id, postos(ativo)').eq('ativo', true),
+    admin.from('config_supervisores_postos').select('supervisor_id, postos(ativo, nome)').eq('ativo', true),
   ])
   const totalPorSup = new Map<string, number>()
-  for (const v of (vinculos ?? []) as { supervisor_id: string; postos: { ativo: boolean | null } | null }[]) {
-    if (v.postos && v.postos.ativo !== false) totalPorSup.set(v.supervisor_id, (totalPorSup.get(v.supervisor_id) ?? 0) + 1)
+  for (const v of (vinculos ?? []) as { supervisor_id: string; postos: { ativo: boolean | null; nome: string } | null }[]) {
+    if (v.postos && v.postos.ativo !== false && !/^afastado/i.test(v.postos.nome)) totalPorSup.set(v.supervisor_id, (totalPorSup.get(v.supervisor_id) ?? 0) + 1)
   }
   const tipos = (tiposRaw ?? []) as TipoFoco[]
   const corPorTipo = new Map(tipos.map(t => [t.id, t.cor]))

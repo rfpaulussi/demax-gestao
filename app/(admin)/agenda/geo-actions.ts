@@ -40,6 +40,7 @@ export async function listarLocais(): Promise<{ ok: true; postos: PostoLocal[] }
   const { data, error } = await db()
     .from('postos')
     .select('id, nome, secretaria, latitude, longitude, raio_m, endereco_ref')
+    .not('nome', 'ilike', 'AFASTADO%') // grupos de afastados não são locais físicos
     .eq('ativo', true)
     .order('nome')
   if (error) return { ok: false, erro: MSG_MIGRACAO }

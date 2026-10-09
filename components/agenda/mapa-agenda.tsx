@@ -9,8 +9,8 @@ import { DIAS_CURTOS, PERIODOS } from '@/lib/agenda/tema'
 import type { StatusVisita, VisitaView } from '@/lib/agenda/visitas'
 import type { MapaDados } from '@/app/(admin)/agenda/geo-actions'
 
-const TILES = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
-const ATTR = '&copy; OpenStreetMap &copy; CARTO'
+const TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+const ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 
 const COR: Record<StatusVisita, string> = {
   ok: '#10b981',
@@ -65,7 +65,7 @@ export default function MapaAgenda({ dados, dias }: { dados: MapaDados; dias: st
   useEffect(() => {
     if (!divRef.current || mapRef.current) return
     const map = L.map(divRef.current).setView([-14.2, -51.9], 4)
-    L.tileLayer(TILES, { attribution: ATTR, maxZoom: 19, subdomains: 'abcd' }).addTo(map)
+    L.tileLayer(TILES, { attribution: ATTR, maxZoom: 19 }).addTo(map)
     camadaRef.current = L.layerGroup().addTo(map)
     mapRef.current = map
     return () => {

@@ -15,8 +15,8 @@ const cspDirectives = [
   // Tailwind/shadcn usam atributo style inline em alguns componentes —
   // sem isso, esses estilos inline seriam bloqueados.
   `style-src 'self' 'unsafe-inline'`,
-  // CARTO: tiles do mapa da agenda (Leaflet). Supabase: fotos de check-in via URL assinada.
-  `img-src 'self' data: blob: https://*.basemaps.cartocdn.com ${SUPABASE_URL}`,
+  // OpenStreetMap: tiles do mapa da agenda (Leaflet). Supabase: fotos de check-in via URL assinada.
+  `img-src 'self' data: blob: https://tile.openstreetmap.org ${SUPABASE_URL}`,
   `font-src 'self' data:`,
   // 'data:' necessário: fontkit (usado por @react-pdf/renderer) busca módulo wasm via data: URI.
   `connect-src 'self' data: ${SUPABASE_URL}`,

@@ -8,8 +8,8 @@ import { CheckCircle2, LocateFixed, MapPin, Search, Trash2 } from 'lucide-react'
 import { buscarEndereco, salvarLocalPosto } from '@/app/(admin)/agenda/geo-actions'
 import type { PostoLocal, ResultadoEndereco } from '@/app/(admin)/agenda/geo-actions'
 
-const TILES = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
-const ATTR = '&copy; OpenStreetMap &copy; CARTO'
+const TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+const ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 
 const iconePino = () =>
   L.divIcon({
@@ -59,7 +59,7 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
   useEffect(() => {
     if (!divRef.current || mapRef.current) return
     const map = L.map(divRef.current, { zoomControl: true }).setView([-14.2, -51.9], 4)
-    L.tileLayer(TILES, { attribution: ATTR, maxZoom: 19, subdomains: 'abcd' }).addTo(map)
+    L.tileLayer(TILES, { attribution: ATTR, maxZoom: 19 }).addTo(map)
     outrosRef.current = L.layerGroup().addTo(map)
     map.on('click', (e: L.LeafletMouseEvent) => {
       if (selRef.current) setPos({ lat: e.latlng.lat, lng: e.latlng.lng })

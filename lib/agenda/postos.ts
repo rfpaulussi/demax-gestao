@@ -46,7 +46,8 @@ export async function postosDoSupervisor(supervisorId: string): Promise<PostoOpt
 
   const mapa = new Map<string, PostoOpt>()
   const add = (p: P | null | undefined) => {
-    if (p && p.ativo !== false) {
+    // "AFASTADO - X" agrupa funcionários afastados: não é local físico, não entra na agenda.
+    if (p && p.ativo !== false && !/^afastado/i.test(p.nome)) {
       mapa.set(p.id, { id: p.id, nome: p.nome, secretaria: p.secretaria, tem_local: p.latitude != null && p.longitude != null })
     }
   }
