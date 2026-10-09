@@ -34,7 +34,8 @@ export function VisaoGeral({
     if (c.status === 'sem_agenda' && semanaJaComecou) alertas.push({ id: c.id, nome: c.nome, texto: 'não montou a agenda desta semana', nivel: 'alto' })
     else if (c.status === 'rascunho' && semanaJaComecou) alertas.push({ id: c.id, nome: c.nome, texto: 'agenda ainda em rascunho (não publicada)', nivel: 'medio' })
     if (c.faltas > 0) alertas.push({ id: c.id, nome: c.nome, texto: `${c.faltas} visita(s) planejada(s) sem check-in`, nivel: 'alto' })
-    if (c.foraRaio > 0) alertas.push({ id: c.id, nome: c.nome, texto: `${c.foraRaio} check-in(s) fora do raio ou com GPS impreciso`, nivel: 'medio' })
+    if (c.semFoto > 0) alertas.push({ id: c.id, nome: c.nome, texto: `${c.semFoto} visita(s) sem a foto obrigatória`, nivel: 'alto' })
+    if (c.atencao > 0) alertas.push({ id: c.id, nome: c.nome, texto: `${c.atencao} visita(s) com sinal de atenção (fora do raio, permanência curta, deslocamento improvável…)`, nivel: 'medio' })
   }
   alertas.sort((a, b) => (a.nivel === b.nivel ? a.nome.localeCompare(b.nome) : a.nivel === 'alto' ? -1 : 1))
 

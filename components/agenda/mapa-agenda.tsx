@@ -15,13 +15,15 @@ const ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStree
 const COR: Record<StatusVisita, string> = {
   ok: '#10b981',
   alerta: '#f59e0b',
+  sem_foto: '#f97316',
   falta: '#f43f5e',
   agendado: '#60a5fa',
   extra: '#6b7280',
 }
 const ROTULO: Record<StatusVisita, string> = {
   ok: 'No posto',
-  alerta: 'Fora do raio / impreciso',
+  alerta: 'Atenção',
+  sem_foto: 'Falta foto obrigatória',
   falta: 'Sem check-in',
   agendado: 'Agendado',
   extra: 'Visita extra',
@@ -101,7 +103,7 @@ export default function MapaAgenda({ dados, dias }: { dados: MapaDados; dias: st
           `<b>${esc(v.posto_nome)}</b>`,
           `${hora(v.entrada_em)}${v.saida_em ? ` – ${hora(v.saida_em)}` : ''}`,
           v.distancia_m != null ? `${formatarDistancia(v.distancia_m)} do posto` : '',
-          v.baixa_precisao ? 'GPS impreciso' : '',
+          ...v.alertas.map(a => `⚠️ ${esc(a)}`),
           v.justificativa ? `“${esc(v.justificativa)}”` : '',
           ...v.fotos.map(u => `<a href="${u}" target="_blank" rel="noopener noreferrer"><img src="${u}" alt="Foto do check-in" style="width:150px;border-radius:8px;margin-top:4px"/></a>`),
         ].filter(Boolean).join('<br/>')
@@ -138,8 +140,9 @@ export default function MapaAgenda({ dados, dias }: { dados: MapaDados; dias: st
   const tiles = [
     { label: 'Cumprimento', valor: stats.pct === null ? '—' : `${stats.pct}%`, cor: 'border-t-emerald-500' },
     { label: 'Cumpridas', valor: `${stats.cumpridas}/${stats.planejadas}`, cor: 'border-t-blue-500' },
-    { label: 'Fora do raio', valor: String(stats.foraRaio), cor: 'border-t-amber-400' },
+    { label: 'Com atenção', valor: String(stats.atencao), cor: 'border-t-amber-400' },
     { label: 'Sem check-in', valor: String(stats.faltas), cor: 'border-t-rose-500' },
+    { label: 'Sem foto obrig.', valor: String(stats.semFoto), cor: 'border-t-orange-500' },
     { label: 'Visitas extras', valor: String(stats.extras), cor: 'border-t-slate-400' },
     { label: 'Tempo médio', valor: stats.tempoMedioMin === null ? '—' : duracao(stats.tempoMedioMin) ?? '—', cor: 'border-t-violet-500' },
   ]
@@ -148,7 +151,13 @@ export default function MapaAgenda({ dados, dias }: { dados: MapaDados; dias: st
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      {!stats.oficial && (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          📝 Agenda em <b>rascunho</b>: as visitas aparecem como agendadas, mas só uma agenda <b>publicada</b> conta no cumprimento.
+        </p>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
         {tiles.map(t => (
           <div key={t.label} className={`rounded-xl border border-slate-200 border-t-4 bg-white p-3 shadow-sm ${t.cor}`}>
             <p className="text-2xl font-black text-slate-900">{t.valor}</p>
@@ -212,6 +221,9 @@ export default function MapaAgenda({ dados, dias }: { dados: MapaDados; dias: st
                           {v.distancia_m != null && ` · ${formatarDistancia(v.distancia_m)} do posto`}
                         </span>
                         {v.focos.length > 0 && <span className="block truncate text-[11px] text-slate-400">{v.focos.join(' · ')}</span>}
+                        {v.alertas.map(a => (
+                          <span key={a} className="mt-0.5 block text-[11px] font-medium text-amber-700">⚠️ {a}</span>
+                        ))}
                         {v.justificativa && <span className="mt-0.5 block text-[11px] italic text-amber-700">“{v.justificativa}”</span>}
                         {v.fotos.length > 0 && (
                           <span className="mt-1.5 flex gap-1.5">

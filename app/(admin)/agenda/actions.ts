@@ -17,7 +17,7 @@ const db = () => createAdminClient() as unknown as AnyClient
 
 export type Resultado = { ok: true } | { ok: false; erro: string }
 
-export type TipoFoco = { id: string; nome: string; cor: string; icone: string; ativo: boolean; ordem: number }
+export type TipoFoco = { id: string; nome: string; cor: string; icone: string; ativo: boolean; ordem: number; exige_foto?: boolean }
 export type { PostoOpt }
 
 export type BlocoView = {
@@ -86,7 +86,8 @@ export type CardSupervisor = {
   comentarios: number
   cumprimento: number | null // % de visitas devidas com check-in; null = sem base
   faltas: number // visitas planejadas já vencidas sem check-in
-  foraRaio: number // check-ins fora do raio ou com GPS impreciso
+  atencao: number // visitas com sinal de atenção (fora do raio, permanência curta, deslocamento improvável…)
+  semFoto: number // visitas de foco que exige foto, sem foto
 }
 
 const PERIODOS_VALIDOS: Periodo[] = ['manha', 'tarde']
@@ -310,19 +311,26 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
   const fimSemana = addDias(semanaInicio, 6)
   const hojeStr = hojeBR()
   const cksPorSup = new Map<string, CheckinRaw[]>()
+  const histPorSup = new Map<string, CheckinRaw[]>() // 30 dias antes da semana: só p/ coordenada repetida
   if (semIds.length > 0) {
-    const { data: cks } = await admin
-      .from('agenda_checkins')
-      .select('id, supervisor_id, posto_id, tipo, latitude, longitude, precisao_m, distancia_m, dentro_raio, baixa_precisao, justificativa, created_at')
-      .gte('created_at', `${addDias(semanaInicio, -1)}T00:00:00Z`)
-      .lte('created_at', `${addDias(fimSemana, 1)}T23:59:59Z`)
+    const colunas = 'id, supervisor_id, posto_id, tipo, latitude, longitude, precisao_m, distancia_m, dentro_raio, baixa_precisao, justificativa, created_at'
+    const buscar = (cols: string) =>
+      admin
+        .from('agenda_checkins')
+        .select(cols)
+        .gte('created_at', `${addDias(semanaInicio, -31)}T00:00:00Z`)
+        .lte('created_at', `${addDias(fimSemana, 1)}T23:59:59Z`)
+    // foto_path só existe após a migração 20261013.
+    let { data: cks, error: cksErr } = await buscar(`${colunas}, foto_path`)
+    if (cksErr) ({ data: cks, error: cksErr } = await buscar(colunas))
     for (const c of (cks ?? []) as CheckinRaw[]) {
       const d = dataBR(c.created_at)
-      if (d < semanaInicio || d > fimSemana) continue
-      cksPorSup.set(c.supervisor_id, [...(cksPorSup.get(c.supervisor_id) ?? []), c])
+      const alvo = d >= semanaInicio && d <= fimSemana ? cksPorSup : d < semanaInicio ? histPorSup : null
+      if (alvo) alvo.set(c.supervisor_id, [...(alvo.get(c.supervisor_id) ?? []), c])
     }
   }
   const nomeTipo = new Map(tipos.map(t => [t.id, t.nome]))
+  const exigeFotoTipo = new Map(tipos.map(t => [t.id, !!t.exige_foto]))
 
   const cards: CardSupervisor[] = ((sups ?? []) as { id: string; nome: string | null }[]).map(s => {
     const sem = semPorSup.get(s.id)
@@ -339,13 +347,16 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
         periodo: b.periodo as Periodo,
         foco: nomeTipo.get(b.tipo_foco_id) ?? '',
         posto_id: p.posto_id,
+        exige_foto: exigeFotoTipo.get(b.tipo_foco_id) ?? false,
       })),
     )
     const { stats } = montarVisitas({
       planos,
       checkins: cksPorSup.get(s.id) ?? [],
+      historico: histPorSup.get(s.id) ?? [],
       postos: new Map<string, PostoGeo>(),
       hoje: hojeStr,
+      publicada: sem?.status === 'publicada',
     })
     return {
       id: s.id,
@@ -359,7 +370,8 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
       comentarios: sem?.agenda_comentarios.length ?? 0,
       cumprimento: stats.pct,
       faltas: stats.faltas,
-      foraRaio: stats.foraRaio,
+      atencao: stats.atencao,
+      semFoto: stats.semFoto,
     }
   })
 
@@ -651,6 +663,7 @@ export async function salvarTipoFoco(input: {
   cor: string
   icone: string
   ordem: number
+  exigeFoto: boolean
 }): Promise<Resultado> {
   const auth = await getUser()
   if (!auth || auth.perfil.role !== 'admin') return { ok: false, erro: 'Somente administrador' }
@@ -659,13 +672,17 @@ export async function salvarTipoFoco(input: {
   if (nome.length < 2) return { ok: false, erro: 'Informe o nome' }
   if (!CORES_FOCO.includes(input.cor as (typeof CORES_FOCO)[number])) return { ok: false, erro: 'Cor inválida' }
   const icone = input.icone.trim().slice(0, 8) || '📌'
-  const payload = { nome, cor: input.cor, icone, ordem: Math.trunc(input.ordem) || 0 }
+  const payload = { nome, cor: input.cor, icone, ordem: Math.trunc(input.ordem) || 0, exige_foto: !!input.exigeFoto }
 
   const admin = db()
   const { error } = input.id
     ? await admin.from('agenda_tipos_foco').update(payload).eq('id', input.id)
     : await admin.from('agenda_tipos_foco').insert(payload)
-  if (error) return { ok: false, erro: error.code === '23505' ? 'Já existe um tipo com esse nome' : error.message }
+  if (error) {
+    if (error.code === '23505') return { ok: false, erro: 'Já existe um tipo com esse nome' }
+    if (String(error.message).includes('exige_foto')) return { ok: false, erro: 'Aplique a migração 20261015_agenda_foto_obrigatoria.sql no Supabase Studio.' }
+    return { ok: false, erro: error.message }
+  }
   revalidatePath('/agenda')
   revalidatePath('/agenda/tipos')
   return { ok: true }

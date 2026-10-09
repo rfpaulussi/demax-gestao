@@ -17,13 +17,14 @@ export type AgendaPdfData = {
 
 const SITUACAO: Record<StatusVisita, string> = {
   ok: 'No posto',
-  alerta: 'Fora do raio / impreciso',
+  alerta: 'Atencao',
+  sem_foto: 'Falta foto obrigatoria',
   falta: 'Sem check-in',
   agendado: 'Agendado',
   extra: 'Visita extra',
 }
 const COR: Record<StatusVisita, string> = {
-  ok: '#047857', alerta: '#b45309', falta: '#be123c', agendado: '#2563eb', extra: '#4b5563',
+  ok: '#047857', alerta: '#b45309', sem_foto: '#c2410c', falta: '#be123c', agendado: '#2563eb', extra: '#4b5563',
 }
 const ROTULO_PERIODO = Object.fromEntries(PERIODOS.map(p => [p.id, p.label])) as Record<string, string>
 
@@ -78,8 +79,9 @@ export function AgendaSemanalDoc({ data }: { data: AgendaPdfData }) {
   const kpis = [
     { v: stats.pct === null ? '-' : `${stats.pct}%`, l: 'Cumprimento' },
     { v: `${stats.cumpridas}/${stats.planejadas}`, l: 'Visitas cumpridas' },
-    { v: String(stats.foraRaio), l: 'Fora do raio' },
+    { v: String(stats.atencao), l: 'Com atencao' },
     { v: String(stats.faltas), l: 'Sem check-in' },
+    { v: String(stats.semFoto), l: 'Sem foto obrig.' },
     { v: String(stats.extras), l: 'Visitas extras' },
     { v: stats.tempoMedioMin === null ? '-' : duracao(stats.tempoMedioMin), l: 'Tempo medio' },
   ]
@@ -105,7 +107,7 @@ export function AgendaSemanalDoc({ data }: { data: AgendaPdfData }) {
           <Text style={s.sectionTitle}>I. IDENTIFICACAO</Text>
           <View style={s.row}><Text style={s.label}>Supervisor(a):</Text><Text style={s.value}>{data.supervisorNome}</Text></View>
           <View style={s.row}><Text style={s.label}>Semana:</Text><Text style={s.value}>{data.semanaLabel}</Text></View>
-          <View style={s.row}><Text style={s.label}>Agenda:</Text><Text style={s.value}>{data.publicada ? 'Publicada' : 'Rascunho (nao publicada)'}</Text></View>
+          <View style={s.row}><Text style={s.label}>Agenda:</Text><Text style={s.value}>{data.publicada ? 'Publicada' : 'Rascunho (nao publicada) - visitas nao contam no cumprimento'}</Text></View>
         </View>
 
         <View style={s.section}>
@@ -145,7 +147,7 @@ export function AgendaSemanalDoc({ data }: { data: AgendaPdfData }) {
               </Text>
               <Text style={[s.td, s.cDist]}>{v.distancia_m != null ? formatarDistancia(v.distancia_m) : '-'}</Text>
               <Text style={[s.td, { flex: 1 }]}>
-                {[v.baixa_precisao ? 'GPS impreciso' : '', v.justificativa ? `"${v.justificativa}"` : '', v.tempo_min != null ? `permanencia ${duracao(v.tempo_min)}` : '']
+                {[...v.alertas, v.justificativa ? `Justificativa: "${v.justificativa}"` : '', v.tempo_min != null ? `permanencia ${duracao(v.tempo_min)}` : '']
                   .filter(Boolean).join(' · ')}
               </Text>
             </View>

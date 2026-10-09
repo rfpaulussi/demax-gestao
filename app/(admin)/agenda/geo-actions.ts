@@ -269,7 +269,7 @@ export async function carregarMapa(
 
   const { data: sem } = await admin
     .from('agenda_semanas')
-    .select('id')
+    .select('id, status')
     .eq('supervisor_id', supervisorId)
     .eq('semana_inicio', semanaInicio)
     .maybeSingle()
@@ -277,21 +277,26 @@ export async function carregarMapa(
   type BlRaw = {
     data: string
     periodo: Periodo
-    agenda_tipos_foco: { nome: string } | null
+    agenda_tipos_foco: { nome: string; exige_foto?: boolean } | null
     agenda_blocos_postos: { posto_id: string }[]
   }
   let planos: BlocoPlan[] = []
   if (sem) {
-    const { data: bl } = await admin
-      .from('agenda_blocos')
-      .select('data, periodo, agenda_tipos_foco(nome), agenda_blocos_postos(posto_id)')
-      .eq('semana_id', sem.id)
+    const buscarBlocos = (foco: string) =>
+      admin
+        .from('agenda_blocos')
+        .select(`data, periodo, agenda_tipos_foco(${foco}), agenda_blocos_postos(posto_id)`)
+        .eq('semana_id', sem.id)
+    // exige_foto só existe após a migração 20261015.
+    let { data: bl, error: blErr } = await buscarBlocos('nome, exige_foto')
+    if (blErr) ({ data: bl, error: blErr } = await buscarBlocos('nome'))
     planos = ((bl ?? []) as BlRaw[]).flatMap(b =>
       b.agenda_blocos_postos.map(p => ({
         data: b.data,
         periodo: b.periodo,
         foco: b.agenda_tipos_foco?.nome ?? '',
         posto_id: p.posto_id,
+        exige_foto: !!b.agenda_tipos_foco?.exige_foto,
       })),
     )
   }
@@ -321,7 +326,21 @@ export async function carregarMapa(
     for (const p of (ps ?? []) as PostoGeo[]) postos.set(p.id, { ...p, raio_m: p.raio_m ?? 150 })
   }
 
-  const { visitas, stats } = montarVisitas({ planos, checkins, postos, hoje: hojeBR() })
+  // Histórico (30 dias antes da semana) só para detectar coordenada repetida.
+  const buscarHist = (cols: string) =>
+    admin
+      .from('agenda_checkins')
+      .select(cols)
+      .eq('supervisor_id', supervisorId)
+      .gte('created_at', `${addDias(semanaInicio, -31)}T00:00:00Z`)
+      .lt('created_at', `${addDias(semanaInicio, -1)}T23:59:59Z`)
+  let { data: histRaw, error: histErr } = await buscarHist(`${colunas}, foto_path`)
+  if (histErr) ({ data: histRaw } = await buscarHist(colunas))
+  const historico = ((histRaw ?? []) as CheckinRaw[]).filter(c => dataBR(c.created_at) < semanaInicio)
+
+  const { visitas, stats } = montarVisitas({
+    planos, checkins, historico, postos, hoje: hojeBR(), publicada: sem?.status === 'publicada',
+  })
 
   // Fotos: troca o caminho no bucket privado por URL assinada (1 h).
   const caminhos = Array.from(new Set(visitas.flatMap(v => v.fotos)))

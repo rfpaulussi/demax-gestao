@@ -58,10 +58,12 @@ export function CheckinPainel({
   const [fotoBusy, setFotoBusy] = useState<string | null>(null)
 
   const nomeTipo = new Map(tipos.map(t => [t.id, `${t.icone} ${t.nome}`]))
-  const plan = new Map<string, { periodos: string[]; focos: string[] }>()
+  const exigeFotoTipo = new Map(tipos.map(t => [t.id, !!t.exige_foto]))
+  const plan = new Map<string, { periodos: string[]; focos: string[]; exigeFoto: boolean }>()
   for (const b of blocos.filter(x => x.data === hoje)) {
     for (const p of b.postos) {
-      const g = plan.get(p.id) ?? { periodos: [], focos: [] }
+      const g = plan.get(p.id) ?? { periodos: [], focos: [], exigeFoto: false }
+      if (exigeFotoTipo.get(b.tipo_foco_id)) g.exigeFoto = true
       g.periodos.push(ROTULO_PERIODO[b.periodo])
       const f = nomeTipo.get(b.tipo_foco_id)
       if (f && !g.focos.includes(f)) g.focos.push(f)
@@ -170,6 +172,11 @@ export function CheckinPainel({
                 {!entrada.dentro_raio && ' · fora do raio'}
                 {entrada.baixa_precisao && ' · GPS impreciso'}
                 {saida && ` · saiu às ${hora(saida.created_at)}`}
+              </p>
+            )}
+            {g?.exigeFoto && (
+              <p className={`mt-0.5 text-[11px] font-bold ${entrada && !entrada.tem_foto && !saida?.tem_foto ? 'text-orange-600' : 'text-slate-400'}`}>
+                📷 Foto obrigatória neste foco{entrada && !entrada.tem_foto && !saida?.tem_foto ? ' — anexe para a visita contar' : ''}
               </p>
             )}
             {entrada && (

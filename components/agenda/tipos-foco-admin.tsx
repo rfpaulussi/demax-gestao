@@ -6,8 +6,8 @@ import { CORES_FOCO, TEMAS, temaDe } from '@/lib/agenda/tema'
 import { alternarTipoFoco, salvarTipoFoco } from '@/app/(admin)/agenda/actions'
 import type { TipoFoco } from '@/app/(admin)/agenda/actions'
 
-type Form = { id?: string; nome: string; cor: string; icone: string; ordem: number }
-const VAZIO: Form = { nome: '', cor: 'blue', icone: '📌', ordem: 0 }
+type Form = { id?: string; nome: string; cor: string; icone: string; ordem: number; exigeFoto: boolean }
+const VAZIO: Form = { nome: '', cor: 'blue', icone: '📌', ordem: 0, exigeFoto: false }
 
 export function TiposFocoAdmin({ tipos }: { tipos: TipoFoco[] }) {
   const router = useRouter()
@@ -43,9 +43,9 @@ export function TiposFocoAdmin({ tipos }: { tipos: TipoFoco[] }) {
               <span className="text-2xl">{t.icone}</span>
               <div className="flex-1">
                 <p className="font-bold">{t.nome}</p>
-                <p className="text-[11px] opacity-70">ordem {t.ordem} · {t.ativo ? 'ativo' : 'desativado'}</p>
+                <p className="text-[11px] opacity-70">ordem {t.ordem} · {t.ativo ? 'ativo' : 'desativado'}{t.exige_foto ? ' · 📷 exige foto' : ''}</p>
               </div>
-              <button type="button" onClick={() => setForm({ id: t.id, nome: t.nome, cor: t.cor, icone: t.icone, ordem: t.ordem })}
+              <button type="button" onClick={() => setForm({ id: t.id, nome: t.nome, cor: t.cor, icone: t.icone, ordem: t.ordem, exigeFoto: !!t.exige_foto })}
                 className="rounded-lg bg-white/70 px-3 py-1.5 text-xs font-semibold hover:bg-white">Editar</button>
               <button type="button" disabled={pending} onClick={() => alternar(t)}
                 className="rounded-lg bg-white/70 px-3 py-1.5 text-xs font-semibold hover:bg-white disabled:opacity-50">
@@ -79,6 +79,13 @@ export function TiposFocoAdmin({ tipos }: { tipos: TipoFoco[] }) {
             <input type="number" value={form.ordem} onChange={e => setForm({ ...form, ordem: Number(e.target.value) })}
               className="w-24 rounded-lg border border-slate-200 p-2 text-sm outline-none focus:border-slate-400" />
           </div>
+          <label className="flex items-start gap-2 rounded-lg bg-slate-50 p-2.5 text-sm text-slate-700">
+            <input type="checkbox" checked={form.exigeFoto} onChange={e => setForm({ ...form, exigeFoto: e.target.checked })} className="mt-0.5" />
+            <span>
+              <b>Exige foto</b> para contar como cumprida
+              <span className="block text-xs text-slate-400">Sem foto na chegada ou na saída, a visita fica pendente.</span>
+            </span>
+          </label>
           {erro && <p className="text-sm font-medium text-red-600">{erro}</p>}
           <div className="flex gap-2">
             <button type="button" disabled={pending} onClick={salvar}
