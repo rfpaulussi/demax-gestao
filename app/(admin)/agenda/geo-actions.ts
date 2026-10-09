@@ -334,8 +334,8 @@ export async function carregarMapa(
       .eq('supervisor_id', supervisorId)
       .gte('created_at', `${addDias(semanaInicio, -31)}T00:00:00Z`)
       .lt('created_at', `${addDias(semanaInicio, -1)}T23:59:59Z`)
-  let { data: histRaw, error: histErr } = await buscarHist(`${colunas}, foto_path`)
-  if (histErr) ({ data: histRaw } = await buscarHist(colunas))
+  const comFoto = await buscarHist(`${colunas}, foto_path`)
+  const histRaw = comFoto.error ? (await buscarHist(colunas)).data : comFoto.data
   const historico = ((histRaw ?? []) as CheckinRaw[]).filter(c => dataBR(c.created_at) < semanaInicio)
 
   const { visitas, stats } = montarVisitas({
