@@ -27,6 +27,7 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
   const [selId, setSelId] = useState<string | null>(null)
   const [filtro, setFiltro] = useState('')
   const [soPendentes, setSoPendentes] = useState(false)
+  const [soConferir, setSoConferir] = useState(false)
   const [pos, setPos] = useState<Pos | null>(null)
   const [raio, setRaio] = useState(150)
   const [ref, setRef] = useState('')
@@ -45,15 +46,19 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
 
   const selecionado = postos.find(p => p.id === selId) ?? null
   const localizados = postos.filter(p => p.latitude != null && p.longitude != null).length
-  const pct = postos.length ? localizados / postos.length : 0
+  const aConferir = postos.filter(p => p.latitude != null && !p.geo_confirmado).length
+  const conferidos = localizados - aConferir
+  const pct = postos.length ? conferidos / postos.length : 0
+  const pctAuto = postos.length ? localizados / postos.length : 0
 
   const lista = useMemo(() => {
     const q = filtro.trim().toLowerCase()
     return postos.filter(p => {
       if (soPendentes && p.latitude != null) return false
+      if (soConferir && !(p.latitude != null && !p.geo_confirmado)) return false
       return !q || p.nome.toLowerCase().includes(q) || (p.secretaria ?? '').toLowerCase().includes(q)
     })
-  }, [postos, filtro, soPendentes])
+  }, [postos, filtro, soPendentes, soConferir])
 
   // Inicializa o mapa uma vez.
   useEffect(() => {
@@ -176,12 +181,14 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
             <p className="text-sm text-white/60">Marque o ponto e o raio de cada posto para validar os check-ins dos supervisores.</p>
           </div>
           <div className="text-right">
-            <p className="text-3xl font-black">{localizados}<span className="text-base text-white/50">/{postos.length}</span></p>
-            <p className="text-[10px] uppercase tracking-widest text-white/60">postos localizados</p>
+            <p className="text-3xl font-black">{conferidos}<span className="text-base text-white/50">/{postos.length}</span></p>
+            <p className="text-[10px] uppercase tracking-widest text-white/60">postos conferidos</p>
+            {aConferir > 0 && <p className="mt-0.5 text-[11px] font-semibold text-amber-300">+ {aConferir} importados a conferir</p>}
           </div>
         </div>
-        <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/10">
-          <div className="h-full rounded-full bg-emerald-400 transition-all duration-700" style={{ width: `${pct * 100}%` }} />
+        <div className="relative mt-3 h-2.5 overflow-hidden rounded-full bg-white/10">
+          <div className="absolute inset-y-0 left-0 rounded-full bg-amber-400/70 transition-all duration-700" style={{ width: `${pctAuto * 100}%` }} />
+          <div className="absolute inset-y-0 left-0 rounded-full bg-emerald-400 transition-all duration-700" style={{ width: `${pct * 100}%` }} />
         </div>
       </div>
 
@@ -194,9 +201,14 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
               className="w-full rounded-lg border border-slate-200 py-2 pl-8 pr-3 text-sm outline-none focus:border-slate-400"
             />
           </div>
-          <label className="mb-2 flex items-center gap-2 px-1 text-xs text-slate-500">
-            <input type="checkbox" checked={soPendentes} onChange={e => setSoPendentes(e.target.checked)} /> Só pendentes ({postos.length - localizados})
-          </label>
+          <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 px-1 text-xs text-slate-500">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={soPendentes} onChange={e => { setSoPendentes(e.target.checked); if (e.target.checked) setSoConferir(false) }} /> Sem localização ({postos.length - localizados})
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={soConferir} onChange={e => { setSoConferir(e.target.checked); if (e.target.checked) setSoPendentes(false) }} /> A conferir ({aConferir})
+            </label>
+          </div>
           <ul className="max-h-[520px] space-y-1 overflow-y-auto pr-1">
             {lista.map(p => {
               const ok = p.latitude != null && p.longitude != null
@@ -209,13 +221,13 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
                       ativo ? 'border-emerald-500 bg-emerald-50' : 'border-transparent hover:bg-slate-50'
                     }`}
                   >
-                    {ok ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" /> : <MapPin className="h-4 w-4 shrink-0 text-rose-400" />}
+                    {ok ? <CheckCircle2 className={`h-4 w-4 shrink-0 ${p.geo_confirmado ? 'text-emerald-500' : 'text-amber-400'}`} /> : <MapPin className="h-4 w-4 shrink-0 text-rose-400" />}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold text-slate-800">{p.nome}</span>
                       <span className="block truncate text-[11px] text-slate-400">{p.secretaria ?? 'Sem secretaria'}</span>
                     </span>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${ok ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                      {ok ? `${p.raio_m} m` : 'pendente'}
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${!ok ? 'bg-rose-100 text-rose-700' : p.geo_confirmado ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {!ok ? 'pendente' : p.geo_confirmado ? `${p.raio_m} m` : 'a conferir'}
                     </span>
                   </button>
                 </li>
@@ -236,6 +248,14 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
               </button>
             )}
           </div>
+
+          {selecionado && selecionado.latitude != null && !selecionado.geo_confirmado && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              📍 Coordenada <b>importada automaticamente</b>
+              {selecionado.geo_precisao === 'alta' ? ' (prédio/equipamento)' : selecionado.geo_precisao === 'media' ? ' (meio da rua — pode estar a algumas dezenas de metros)' : ' (rua aproximada)'}.
+              Confira o pino no mapa, ajuste se preciso e clique em <b>Confirmar localização</b>.
+            </p>
+          )}
 
           {selecionado && (
             <div className="relative">
@@ -294,7 +314,7 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
                 </button>
                 <button type="button" disabled={pending || !pos} onClick={() => salvar(false)}
                   className="rounded-lg bg-slate-900 px-6 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-40">
-                  {pending ? 'Salvando…' : 'Salvar localização'}
+                  {pending ? 'Salvando…' : selecionado.latitude != null && !selecionado.geo_confirmado ? 'Confirmar localização' : 'Salvar localização'}
                 </button>
               </div>
             </>

@@ -32,19 +32,30 @@ export type PostoLocal = {
   longitude: number | null
   raio_m: number
   endereco_ref: string | null
+  geo_confirmado: boolean // false = importada automaticamente, ainda não conferida
+  geo_precisao: string | null // alta | media | baixa
 }
 
 export async function listarLocais(): Promise<{ ok: true; postos: PostoLocal[] } | { ok: false; erro: string }> {
   const auth = await getUser()
   if (!auth || !ehGestao(auth.perfil.role)) return { ok: false, erro: 'Sem permissão' }
-  const { data, error } = await db()
-    .from('postos')
-    .select('id, nome, secretaria, latitude, longitude, raio_m, endereco_ref')
-    .not('nome', 'ilike', 'AFASTADO%') // grupos de afastados não são locais físicos
-    .eq('ativo', true)
-    .order('nome')
-  if (error) return { ok: false, erro: MSG_MIGRACAO }
-  return { ok: true, postos: (data ?? []) as PostoLocal[] }
+  const buscar = (cols: string) =>
+    db()
+      .from('postos')
+      .select(cols)
+      .not('nome', 'ilike', 'AFASTADO%') // grupos de afastados não são locais físicos
+      .eq('ativo', true)
+      .order('nome')
+  const base = 'id, nome, secretaria, latitude, longitude, raio_m, endereco_ref'
+  // geo_confirmado/geo_precisao só existem após a migração 20261016.
+  const comConferencia = await buscar(`${base}, geo_confirmado, geo_precisao`)
+  if (!comConferencia.error) return { ok: true, postos: (comConferencia.data ?? []) as PostoLocal[] }
+  const simples = await buscar(base)
+  if (simples.error) return { ok: false, erro: MSG_MIGRACAO }
+  return {
+    ok: true,
+    postos: ((simples.data ?? []) as Omit<PostoLocal, 'geo_confirmado' | 'geo_precisao'>[]).map(p => ({ ...p, geo_confirmado: true, geo_precisao: null })),
+  }
 }
 
 export type ResultadoEndereco = { nome: string; lat: number; lng: number }
@@ -88,15 +99,15 @@ export async function salvarLocalPosto(input: {
   const raio = Math.round(input.raioM)
   if (!(raio >= 30 && raio <= 1000)) return { ok: false, erro: 'Raio deve ficar entre 30 e 1000 m' }
 
-  const { error } = await db()
-    .from('postos')
-    .update({
-      latitude: limpar ? null : input.latitude,
-      longitude: limpar ? null : input.longitude,
-      raio_m: raio,
-      endereco_ref: input.enderecoRef.trim().slice(0, 300) || null,
-    })
-    .eq('id', input.postoId)
+  const campos = {
+    latitude: limpar ? null : input.latitude,
+    longitude: limpar ? null : input.longitude,
+    raio_m: raio,
+    endereco_ref: input.enderecoRef.trim().slice(0, 300) || null,
+  }
+  // Salvar no mapa = conferido por uma pessoa. A coluna só existe após a migração 20261016.
+  let { error } = await db().from('postos').update({ ...campos, geo_confirmado: true, geo_precisao: null }).eq('id', input.postoId)
+  if (error) ({ error } = await db().from('postos').update(campos).eq('id', input.postoId))
   if (error) return { ok: false, erro: error.message }
 
   revalidatePath('/agenda')
