@@ -31,14 +31,22 @@ export function temaDe(cor: string | null | undefined): TemaCor {
   return TEMAS[(cor as CorFoco) ?? 'slate'] ?? TEMAS.slate
 }
 
-export type Periodo = 'manha' | 'tarde' | 'noite'
+export type Periodo = 'manha' | 'tarde'
 
 export const PERIODOS: { id: Periodo; label: string; faixa: string }[] = [
   { id: 'manha', label: 'Manhã', faixa: 'bg-sky-400' },
   { id: 'tarde', label: 'Tarde', faixa: 'bg-orange-400' },
-  { id: 'noite', label: 'Noite', faixa: 'bg-indigo-500' },
 ]
+
+/** Visitas por período: sempre 3 espaços; um 4º/5º aparece conforme os anteriores são preenchidos. */
+export const SLOTS_MIN = 3
+export const SLOTS_MAX = 5
+
+/** Quantos espaços exibir no período, dado o maior nº de ordem já usado. */
+export function slotsVisiveis(maiorOrdemUsada: number): number {
+  return Math.min(SLOTS_MAX, Math.max(SLOTS_MIN, maiorOrdemUsada + 1))
+}
 
 export const DIAS_CURTOS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
-export const TOTAL_SLOTS = 6 * PERIODOS.length
+export const TOTAL_SLOTS = 6 * PERIODOS.length * SLOTS_MIN

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { diasDaSemana } from '@/lib/agenda/datas'
-import { PERIODOS, type Periodo } from '@/lib/agenda/tema'
+import { PERIODOS, SLOTS_MAX, type Periodo } from '@/lib/agenda/tema'
 import type { AgendaDados } from '@/app/(admin)/agenda/actions'
 import { GradeSemanal } from './grade-semanal'
 import { ModalBloco, type SlotAberto } from './modal-bloco'
@@ -39,13 +39,15 @@ export function AgendaSupervisor({
 
   function agendarPosto(postoId: string) {
     setAviso(null)
-    const ocupados = new Set(blocos.map(b => `${b.data}|${b.periodo}`))
+    const ocupados = new Set(blocos.map(b => `${b.data}|${b.periodo}|${b.ordem}`))
     for (const data of dias) {
       if (data < hoje) continue
       for (const p of PERIODOS) {
-        if (!ocupados.has(`${data}|${p.id}`)) {
-          setSlot({ data, periodo: p.id as Periodo, bloco: null, postoInicial: postoId })
-          return
+        for (let ordem = 1; ordem <= SLOTS_MAX; ordem++) {
+          if (!ocupados.has(`${data}|${p.id}|${ordem}`)) {
+            setSlot({ data, periodo: p.id as Periodo, ordem, bloco: null, postoInicial: postoId })
+            return
+          }
         }
       }
     }
@@ -117,7 +119,7 @@ export function AgendaSupervisor({
           tipos={tipos}
           hoje={hoje}
           podeEditar={podeEditar}
-          onSlot={(data, periodo, bloco) => setSlot({ data, periodo, bloco })}
+          onSlot={(data, periodo, ordem, bloco) => setSlot({ data, periodo, ordem, bloco })}
         />
 
         <div className="space-y-5">

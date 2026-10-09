@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight, MessageCircle, RefreshCw, Siren } from 'lucide-react'
-import { PERIODOS, TOTAL_SLOTS, temaDe } from '@/lib/agenda/tema'
+import { PERIODOS, SLOTS_MIN, TOTAL_SLOTS, temaDe } from '@/lib/agenda/tema'
 import { addDias, diasDaSemana, hojeBR, rotuloSemana } from '@/lib/agenda/datas'
 import type { CardSupervisor, TipoFoco } from '@/app/(admin)/agenda/actions'
 
@@ -140,16 +140,18 @@ export function VisaoGeral({
                 <div className="mt-3 grid grid-cols-6 gap-1">
                   {dias.map(d => (
                     <div key={d} className="flex flex-col gap-1">
-                      {PERIODOS.map(p => {
-                        const cor = c.slots[`${d}|${p.id}`]
-                        return (
-                          <span
-                            key={p.id}
-                            title={cor ? undefined : 'Livre'}
-                            className={`h-5 rounded-md ${cor ? temaDe(cor).dot : 'bg-slate-100'}`}
-                          />
-                        )
-                      })}
+                      {PERIODOS.flatMap(p =>
+                        Array.from({ length: SLOTS_MIN }, (_, k) => {
+                          const cor = c.slots[`${d}|${p.id}|${k + 1}`]
+                          return (
+                            <span
+                              key={`${p.id}${k}`}
+                              title={cor ? undefined : 'Livre'}
+                              className={`h-3.5 rounded-md ${cor ? temaDe(cor).dot : 'bg-slate-100'}`}
+                            />
+                          )
+                        }),
+                      )}
                     </div>
                   ))}
                 </div>

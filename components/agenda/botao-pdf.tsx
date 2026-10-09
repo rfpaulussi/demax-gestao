@@ -29,7 +29,7 @@ export function BotaoPdfSemana({
       const r = await carregarMapa(semanaInicio, supervisorId)
       if (!r.ok) return setErro(r.erro)
       const { downloadAgendaSemanalPDF } = await import('./agenda-semanal-pdf')
-      const rotulo = { manha: 'manha', tarde: 'tarde', noite: 'noite' } as const
+      const rotulo = { manha: 'manha', tarde: 'tarde' } as const
       await downloadAgendaSemanalPDF({
         supervisorNome,
         semanaInicio,

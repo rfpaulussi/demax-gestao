@@ -12,6 +12,7 @@ import type { BlocoView, PostoOpt, TipoFoco } from '@/app/(admin)/agenda/actions
 export type SlotAberto = {
   data: string
   periodo: Periodo
+  ordem: number
   bloco: BlocoView | null
   postoInicial?: string
 }
@@ -37,7 +38,7 @@ export function ModalBloco({
     <Dialog open={!!slot} onOpenChange={o => { if (!o) onClose() }}>
       {slot && (
         <Conteudo
-          key={`${slot.data}|${slot.periodo}|${slot.bloco?.id ?? 'novo'}`}
+          key={`${slot.data}|${slot.periodo}|${slot.ordem}|${slot.bloco?.id ?? 'novo'}`}
           slot={slot}
           semanaInicio={semanaInicio}
           supervisorId={supervisorId}
@@ -93,7 +94,7 @@ function Conteudo({
     if (!tipoId) return setErro('Escolha o tipo de foco')
     start(async () => {
       const r = await salvarBloco({
-        semanaInicio, data: slot.data, periodo: slot.periodo,
+        semanaInicio, data: slot.data, periodo: slot.periodo, ordem: slot.ordem,
         tipoFocoId: tipoId, postoIds: Array.from(sel), observacao: obs, motivo, supervisorId,
       })
       if (!r.ok) return setErro(r.erro)
@@ -119,7 +120,7 @@ function Conteudo({
       <div className="flex max-h-[calc(92vh-6px)] flex-col overflow-y-auto">
         <DialogHeader className="px-5 pt-4">
           <DialogTitle className="text-lg font-black text-slate-900">
-            {slot.bloco ? 'Editar bloco' : 'Novo bloco'} · {diaMes(slot.data)} · {periodo.label}
+            {slot.bloco ? 'Editar visita' : 'Nova visita'} · {diaMes(slot.data)} · {periodo.label} · nº {slot.ordem}
           </DialogTitle>
           <DialogDescription>Escolha o foco da visita e os postos que serão atendidos.</DialogDescription>
         </DialogHeader>

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getUser } from '@/lib/auth/get-user'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { addDias, diasEntre, ehData, hojeBR, segundaDe } from '@/lib/agenda/datas'
-import { CORES_FOCO, type Periodo } from '@/lib/agenda/tema'
+import { CORES_FOCO, SLOTS_MAX, type Periodo } from '@/lib/agenda/tema'
 import { postosDoSupervisor, type PostoOpt } from '@/lib/agenda/postos'
 import { dataBR, montarVisitas, type BlocoPlan, type CheckinRaw, type PostoGeo } from '@/lib/agenda/visitas'
 
@@ -24,6 +24,7 @@ export type BlocoView = {
   id: string
   data: string
   periodo: Periodo
+  ordem: number
   tipo_foco_id: string
   observacao: string | null
   replanejado: boolean
@@ -77,7 +78,7 @@ export type CardSupervisor = {
   id: string
   nome: string
   status: 'sem_agenda' | 'rascunho' | 'publicada'
-  slots: Record<string, string> // "data|periodo" -> cor do foco
+  slots: Record<string, string> // "data|periodo|ordem" -> cor do foco
   blocos: number
   postosDistintos: number
   totalPostos: number
@@ -88,8 +89,8 @@ export type CardSupervisor = {
   foraRaio: number // check-ins fora do raio ou com GPS impreciso
 }
 
-const PERIODOS_VALIDOS: Periodo[] = ['manha', 'tarde', 'noite']
-const ROTULO_PERIODO: Record<Periodo, string> = { manha: 'manhã', tarde: 'tarde', noite: 'noite' }
+const PERIODOS_VALIDOS: Periodo[] = ['manha', 'tarde']
+const ROTULO_PERIODO: Record<Periodo, string> = { manha: 'manhã', tarde: 'tarde' }
 
 function ehGestao(role: string | null | undefined) {
   return role === 'admin' || role === 'coordenador'
@@ -138,7 +139,9 @@ export async function carregarAgenda(
     const [{ data: bl }, { data: cm }] = await Promise.all([
       admin
         .from('agenda_blocos')
-        .select('id, data, periodo, tipo_foco_id, observacao, replanejado, motivo_replanejamento, agenda_blocos_postos(postos(id, nome))')
+        .select('id, data, periodo, ordem, tipo_foco_id, observacao, replanejado, motivo_replanejamento, agenda_blocos_postos(postos(id, nome))')
+        .order('periodo')
+        .order('ordem')
         .eq('semana_id', semanaRow.id)
         .order('data'),
       admin
@@ -149,7 +152,7 @@ export async function carregarAgenda(
     ])
     type BlRaw = Omit<BlocoView, 'postos'> & { agenda_blocos_postos: { postos: { id: string; nome: string } | null }[] }
     blocos = ((bl ?? []) as BlRaw[]).map(b => ({
-      id: b.id, data: b.data, periodo: b.periodo, tipo_foco_id: b.tipo_foco_id,
+      id: b.id, data: b.data, periodo: b.periodo, ordem: b.ordem ?? 1, tipo_foco_id: b.tipo_foco_id,
       observacao: b.observacao, replanejado: b.replanejado, motivo_replanejamento: b.motivo_replanejamento,
       postos: b.agenda_blocos_postos.map(p => p.postos).filter((p): p is { id: string; nome: string } => !!p)
         .sort((a, b2) => a.nome.localeCompare(b2.nome)),
@@ -293,12 +296,12 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
   const semPorSup = new Map(((semanas ?? []) as SemRaw[]).map(s => [s.supervisor_id, s]))
   const semIds = Array.from(semPorSup.values()).map(s => s.id)
 
-  type BlRaw = { semana_id: string; data: string; periodo: string; tipo_foco_id: string; replanejado: boolean; agenda_blocos_postos: { posto_id: string }[] }
+  type BlRaw = { semana_id: string; data: string; periodo: string; ordem: number; tipo_foco_id: string; replanejado: boolean; agenda_blocos_postos: { posto_id: string }[] }
   let blocos: BlRaw[] = []
   if (semIds.length > 0) {
     const { data } = await admin
       .from('agenda_blocos')
-      .select('semana_id, data, periodo, tipo_foco_id, replanejado, agenda_blocos_postos(posto_id)')
+      .select('semana_id, data, periodo, ordem, tipo_foco_id, replanejado, agenda_blocos_postos(posto_id)')
       .in('semana_id', semIds)
     blocos = (data ?? []) as BlRaw[]
   }
@@ -327,7 +330,7 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
     const slots: Record<string, string> = {}
     const postosSet = new Set<string>()
     for (const b of meus) {
-      slots[`${b.data}|${b.periodo}`] = corPorTipo.get(b.tipo_foco_id) ?? 'slate'
+      slots[`${b.data}|${b.periodo}|${b.ordem ?? 1}`] = corPorTipo.get(b.tipo_foco_id) ?? 'slate'
       b.agenda_blocos_postos.forEach(p => postosSet.add(p.posto_id))
     }
     const planos: BlocoPlan[] = meus.flatMap(b =>
@@ -420,6 +423,7 @@ export async function salvarBloco(input: {
   semanaInicio: string
   data: string
   periodo: Periodo
+  ordem: number
   tipoFocoId: string
   postoIds: string[]
   observacao: string
@@ -434,6 +438,7 @@ export async function salvarBloco(input: {
     return { ok: false, erro: 'Data fora da semana (seg–sáb)' }
   }
   if (!PERIODOS_VALIDOS.includes(input.periodo)) return { ok: false, erro: 'Período inválido' }
+  if (!Number.isInteger(input.ordem) || input.ordem < 1 || input.ordem > SLOTS_MAX) return { ok: false, erro: 'Posição inválida' }
 
   const publicada = semana.status === 'publicada'
   const motivo = (input.motivo ?? '').trim()
@@ -454,6 +459,7 @@ export async function salvarBloco(input: {
     .eq('semana_id', semana.id)
     .eq('data', input.data)
     .eq('periodo', input.periodo)
+    .eq('ordem', input.ordem)
     .maybeSingle()
 
   let blocoId: string
@@ -476,6 +482,7 @@ export async function salvarBloco(input: {
         semana_id: semana.id,
         data: input.data,
         periodo: input.periodo,
+        ordem: input.ordem,
         tipo_foco_id: input.tipoFocoId,
         observacao,
         replanejado: publicada,
@@ -513,7 +520,7 @@ export async function removerBloco(input: { semanaInicio: string; blocoId: strin
 
   const { data: bloco } = await admin
     .from('agenda_blocos')
-    .select('id, data, periodo')
+    .select('id, data, periodo, ordem')
     .eq('id', input.blocoId)
     .eq('semana_id', semana.id)
     .maybeSingle()
@@ -569,9 +576,9 @@ export async function copiarSemanaAnterior(semanaInicio: string, supervisorId?: 
 
   const { data: origem } = await admin
     .from('agenda_blocos')
-    .select('data, periodo, tipo_foco_id, observacao, agenda_blocos_postos(posto_id)')
+    .select('data, periodo, ordem, tipo_foco_id, observacao, agenda_blocos_postos(posto_id)')
     .eq('semana_id', anterior.id)
-  type Org = { data: string; periodo: Periodo; tipo_foco_id: string; observacao: string | null; agenda_blocos_postos: { posto_id: string }[] }
+  type Org = { data: string; periodo: Periodo; ordem: number; tipo_foco_id: string; observacao: string | null; agenda_blocos_postos: { posto_id: string }[] }
   const lista = (origem ?? []) as Org[]
   if (lista.length === 0) return { ok: false, erro: 'Semana anterior sem blocos' }
 
@@ -590,6 +597,7 @@ export async function copiarSemanaAnterior(semanaInicio: string, supervisorId?: 
         semana_id: semana.id,
         data: addDias(b.data, 7),
         periodo: b.periodo,
+        ordem: b.ordem ?? 1,
         tipo_foco_id: b.tipo_foco_id,
         observacao: b.observacao,
       })
