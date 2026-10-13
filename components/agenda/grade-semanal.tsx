@@ -65,9 +65,9 @@ export function GradeSemanal({
               </p>
             )}
 
-            {ehDiaDaJanela(data) && (
-              <p className="rounded-lg bg-amber-50 px-2 py-1 text-[10px] font-semibold leading-tight text-amber-800 ring-1 ring-amber-200">
-                🕒 Janela de recolhimento de cartão
+            {ehDiaDaJanela(data) && !blocos.some(b => b.data === data && tiposMap.get(b.tipo_foco_id)?.dia_inteiro) && (
+              <p className="rounded-lg border border-dashed border-amber-400 bg-amber-50 px-2 py-1 text-[10px] font-semibold leading-tight text-amber-800">
+                🕒 Janela de recolhimento: marque se for recolher neste dia
               </p>
             )}
 

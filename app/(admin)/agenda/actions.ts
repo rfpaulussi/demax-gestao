@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { addDias, diasEntre, ehData, ehDiaUtil, hojeBR, segundaDe } from '@/lib/agenda/datas'
 import { ehFeriadoDeLei, feriadosDaSemana } from '@/lib/agenda/feriados'
 import { CORES_FOCO, SLOTS_MAX, type FeriadoDia, type Periodo } from '@/lib/agenda/tema'
-import { ehDiaDaJanela, janelaDoMes } from '@/lib/agenda/recolhimento'
+import { ehDiaDaJanela, intervaloDoMes } from '@/lib/agenda/recolhimento'
 import { postosDoSupervisor, type PostoOpt } from '@/lib/agenda/postos'
 import { dataBR, montarVisitas, type BlocoPlan, type CheckinRaw, type PostoGeo } from '@/lib/agenda/visitas'
 
@@ -361,17 +361,17 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
   const nomeTipo = new Map(tipos.map(t => [t.id, t.nome]))
   const exigeFotoTipo = new Map(tipos.map(t => [t.id, !!t.exige_foto]))
 
-  // Recolhimento de cartão: pendente se hoje está na janela e o supervisor não marcou nenhum no mês.
+  // Recolhimento de cartão: pendente se hoje está na janela sugerida e o supervisor não marcou nenhum no mês.
   const idsDiaInteiro = tipos.filter(t => t.dia_inteiro).map(t => t.id)
-  const janela = janelaDoMes(hojeStr)
+  const mes = intervaloDoMes(hojeStr)
   const comRecolhimento = new Set<string>()
   if (ehDiaDaJanela(hojeStr) && idsDiaInteiro.length > 0) {
     const { data: marcados } = await admin
       .from('agenda_blocos')
       .select('data, agenda_semanas!inner(supervisor_id)')
       .in('tipo_foco_id', idsDiaInteiro)
-      .gte('data', janela.inicio)
-      .lte('data', janela.fim)
+      .gte('data', mes.inicio)
+      .lte('data', mes.fim)
     for (const m of (marcados ?? []) as { agenda_semanas: { supervisor_id: string } }[]) comRecolhimento.add(m.agenda_semanas.supervisor_id)
   }
 
@@ -476,25 +476,29 @@ async function registrarNota(admin: AnyClient, semanaId: string, autorId: string
 }
 
 /**
- * Foco de dia inteiro (ex.: recolhimento de cartão): ocupa a mesma posição na manhã e na tarde.
- * Só um desses por dia; outro foco na mesma posição bloqueia. Substitui o próprio bloco ao editar.
+ * Recolhimento de cartão (foco `dia_inteiro`): ocupa a posição escolhida nos períodos marcados
+ * (manhã, tarde ou ambos), deixando o outro período livre. Um recolhimento por período por dia;
+ * outro foco na mesma posição e período bloqueia. Substitui o próprio recolhimento ao editar.
  */
-async function salvarDiaInteiro(
+async function salvarRecolhimento(
   admin: AnyClient,
-  p: { semanaId: string; data: string; ordem: number; tipoId: string; observacao: string | null; publicada: boolean; motivo: string },
+  p: {
+    semanaId: string; data: string; ordem: number; periodos: Periodo[]; tipoId: string
+    observacao: string | null; publicada: boolean; motivo: string
+  },
 ): Promise<Resultado> {
   const { data: doDia } = await admin
     .from('agenda_blocos')
     .select('id, periodo, ordem, tipo_foco_id')
     .eq('semana_id', p.semanaId)
     .eq('data', p.data)
-  const linhas = (doDia ?? []) as { id: string; periodo: string; ordem: number; tipo_foco_id: string }[]
+  const linhas = (doDia ?? []) as { id: string; periodo: Periodo; ordem: number; tipo_foco_id: string }[]
 
-  if (linhas.some(b => b.tipo_foco_id === p.tipoId && b.ordem !== p.ordem)) {
-    return { ok: false, erro: 'Este dia já tem esse foco marcado em outra posição. Remova-o antes.' }
+  if (linhas.some(b => b.tipo_foco_id === p.tipoId && b.ordem !== p.ordem && p.periodos.includes(b.periodo))) {
+    return { ok: false, erro: 'Já há recolhimento marcado neste período deste dia.' }
   }
-  if (linhas.some(b => b.ordem === p.ordem && b.tipo_foco_id !== p.tipoId)) {
-    return { ok: false, erro: `Já há visita na posição ${p.ordem} deste dia (manhã ou tarde). Escolha outra posição.` }
+  if (linhas.some(b => b.tipo_foco_id !== p.tipoId && b.ordem === p.ordem && p.periodos.includes(b.periodo))) {
+    return { ok: false, erro: `Já há visita na posição ${p.ordem} neste período. Escolha outra posição ou período.` }
   }
 
   const substituir = linhas.filter(b => b.ordem === p.ordem && b.tipo_foco_id === p.tipoId).map(b => b.id)
@@ -504,7 +508,7 @@ async function salvarDiaInteiro(
   }
 
   const { error } = await admin.from('agenda_blocos').insert(
-    PERIODOS_VALIDOS.map(periodo => ({
+    p.periodos.map(periodo => ({
       semana_id: p.semanaId,
       data: p.data,
       periodo,
@@ -527,6 +531,7 @@ export async function salvarBloco(input: {
   tipoFocoId: string
   postoIds: string[]
   observacao: string
+  periodos?: Periodo[] // só recolhimento: manhã, tarde ou ambos
   motivo?: string
   supervisorId?: string
 }): Promise<Resultado> {
@@ -574,14 +579,16 @@ export async function salvarBloco(input: {
   const observacao = input.observacao.trim().slice(0, 500) || null
 
   if (tipo.dia_inteiro) {
-    const r = await salvarDiaInteiro(admin, {
-      semanaId: semana.id, data: input.data, ordem: input.ordem, tipoId: tipo.id,
+    const periodosRec = Array.from(new Set(input.periodos?.length ? input.periodos : [input.periodo]))
+    if (!periodosRec.every(p => PERIODOS_VALIDOS.includes(p))) return { ok: false, erro: 'Período inválido' }
+    const r = await salvarRecolhimento(admin, {
+      semanaId: semana.id, data: input.data, ordem: input.ordem, periodos: periodosRec, tipoId: tipo.id,
       observacao, publicada, motivo,
     })
     if (!r.ok) return r
     if (publicada) {
       await registrarNota(admin, semana.id, auth.perfil.id,
-        `🔄 Replanejou ${input.data.split('-').reverse().slice(0, 2).join('/')} (dia inteiro): ${tipo.nome}. Motivo: ${motivo}${sufixo}`)
+        `🔄 Replanejou ${input.data.split('-').reverse().slice(0, 2).join('/')} (${periodosRec.length === 2 ? 'dia inteiro' : ROTULO_PERIODO[periodosRec[0]]}): ${tipo.nome}. Motivo: ${motivo}${sufixo}`)
     }
     revalidatePath('/agenda')
     return { ok: true }
@@ -677,15 +684,19 @@ export async function removerBloco(input: { semanaInicio: string; blocoId: strin
 }
 
 export type ResultadoRecolhimento =
-  | { ok: true; marcados: string[]; semVaga: string[] }
+  | { ok: true; marcados: string[]; ja: string[]; semVaga: string[] }
   | { ok: false; erro: string }
 
 /**
- * Marca o recolhimento (dia inteiro) em todos os dias úteis da janela que caem nesta semana.
- * Pula feriados de lei e dias que já têm recolhimento. Usa a primeira posição livre do dia.
+ * Marca o recolhimento de cartão nos dias úteis do intervalo [dataInicio, dataFim] que caem nesta semana,
+ * nos períodos escolhidos (manhã, tarde ou ambos). Pula feriados de lei e dias que já têm recolhimento
+ * em algum período escolhido. Usa a primeira posição livre do dia nos períodos escolhidos.
  */
 export async function marcarRecolhimentoSemana(input: {
   semanaInicio: string
+  dataInicio: string
+  dataFim: string
+  periodos: Periodo[]
   motivo?: string
   supervisorId?: string
 }): Promise<ResultadoRecolhimento> {
@@ -696,6 +707,12 @@ export async function marcarRecolhimentoSemana(input: {
   const publicada = semana.status === 'publicada'
   const motivo = (input.motivo ?? '').trim()
   if (publicada && motivo.length < 5) return { ok: false, erro: 'Agenda publicada: informe o motivo do replanejamento' }
+
+  const periodos = Array.from(new Set(input.periodos))
+  if (periodos.length === 0 || !periodos.every(p => PERIODOS_VALIDOS.includes(p))) return { ok: false, erro: 'Escolha manhã, tarde ou dia inteiro' }
+  if (!ehData(input.dataInicio) || !ehData(input.dataFim) || input.dataInicio > input.dataFim) {
+    return { ok: false, erro: 'Intervalo de datas inválido' }
+  }
 
   const { data: tipoRaw } = await admin
     .from('agenda_tipos_foco')
@@ -709,28 +726,32 @@ export async function marcarRecolhimentoSemana(input: {
 
   const feriados = await feriadosDaSemana(input.semanaInicio)
   const diasAlvo = Array.from({ length: 5 }, (_, i) => addDias(input.semanaInicio, i))
-    .filter(d => ehDiaDaJanela(d) && !ehFeriadoDeLei(feriados[d]))
+    .filter(d => d >= input.dataInicio && d <= input.dataFim && !ehFeriadoDeLei(feriados[d]))
 
   const { data: blocosRaw } = await admin
     .from('agenda_blocos')
-    .select('data, ordem, tipo_foco_id')
+    .select('data, periodo, ordem, tipo_foco_id')
     .eq('semana_id', semana.id)
-  const blocos = (blocosRaw ?? []) as { data: string; ordem: number; tipo_foco_id: string }[]
+  const blocos = (blocosRaw ?? []) as { data: string; periodo: Periodo; ordem: number; tipo_foco_id: string }[]
 
   const novos: Record<string, unknown>[] = []
   const marcados: string[] = []
+  const ja: string[] = []
   const semVaga: string[] = []
   for (const data of diasAlvo) {
     const doDia = blocos.filter(b => b.data === data)
-    if (doDia.some(b => b.tipo_foco_id === tipoId)) continue // já marcado
-    const ocupados = new Set(doDia.map(b => b.ordem))
+    if (doDia.some(b => b.tipo_foco_id === tipoId && periodos.includes(b.periodo))) {
+      ja.push(data)
+      continue
+    }
+    const ocupados = new Set(doDia.filter(b => periodos.includes(b.periodo)).map(b => b.ordem))
     let ordem = 1
     while (ordem <= SLOTS_MAX && ocupados.has(ordem)) ordem++
     if (ordem > SLOTS_MAX) {
       semVaga.push(data)
       continue
     }
-    for (const periodo of PERIODOS_VALIDOS) {
+    for (const periodo of periodos) {
       novos.push({
         semana_id: semana.id,
         data,
@@ -750,13 +771,14 @@ export async function marcarRecolhimentoSemana(input: {
     if (error) return { ok: false, erro: error.message }
     if (publicada) {
       const lista = marcados.map(d => d.split('-').reverse().slice(0, 2).join('/')).join(', ')
+      const quais = periodos.length === 2 ? 'dia inteiro' : ROTULO_PERIODO[periodos[0]]
       await registrarNota(admin, semana.id, auth.perfil.id,
-        `🔄 Marcou recolhimento de cartão (${lista}). Motivo: ${motivo}${sufixo}`)
+        `🔄 Marcou recolhimento de cartão (${quais}: ${lista}). Motivo: ${motivo}${sufixo}`)
     }
   }
 
   revalidatePath('/agenda')
-  return { ok: true, marcados, semVaga }
+  return { ok: true, marcados, ja, semVaga }
 }
 
 /** Remove o recolhimento (dia inteiro) de todos os dias desta semana. */

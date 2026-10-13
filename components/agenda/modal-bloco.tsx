@@ -15,7 +15,10 @@ export type SlotAberto = {
   ordem: number
   bloco: BlocoView | null
   postoInicial?: string
+  grupoPeriodos?: Periodo[] // períodos já marcados para este mesmo recolhimento (manhã e/ou tarde)
 }
+
+type Escolha = Periodo | 'dia'
 
 export function ModalBloco({
   slot,
@@ -70,6 +73,9 @@ function Conteudo({
     new Set(slot.bloco ? slot.bloco.postos.map(p => p.id) : slot.postoInicial ? [slot.postoInicial] : []),
   )
   const [obs, setObs] = useState(slot.bloco?.observacao ?? '')
+  const [escolha, setEscolha] = useState<Escolha>(
+    slot.grupoPeriodos && slot.grupoPeriodos.length === 2 ? 'dia' : slot.grupoPeriodos?.[0] ?? (slot.bloco ? slot.periodo : 'dia'),
+  )
   const [motivo, setMotivo] = useState('')
   const [busca, setBusca] = useState('')
   const [erro, setErro] = useState<string | null>(null)
@@ -94,7 +100,7 @@ function Conteudo({
   const notaSemPosto = tipoSel?.usa_sede
     ? '🏢 Foco feito na sede/base da administração: o posto é definido automaticamente. No dia, o check-in exige GPS dentro do raio da sede.'
     : tipoSel?.dia_inteiro
-      ? '🕒 Dia inteiro: ocupa a mesma posição na manhã e na tarde. Sem postos e sem check-in: registro manual.'
+      ? '🕒 Recolhimento de cartão: sem postos e sem check-in, registro manual. Escolha o período abaixo.'
       : '📝 Foco sem posto: registro manual, sem check-in.'
 
   function salvar() {
@@ -102,9 +108,12 @@ function Conteudo({
     if (!tipoId) return setErro('Escolha o tipo de foco')
     if (!semPosto && sel.size === 0) return setErro('Escolha ao menos um posto')
     start(async () => {
+      const periodos: Periodo[] | undefined = tipoSel?.dia_inteiro
+        ? (escolha === 'dia' ? ['manha', 'tarde'] : [escolha])
+        : undefined
       const r = await salvarBloco({
         semanaInicio, data: slot.data, periodo: slot.periodo, ordem: slot.ordem,
-        tipoFocoId: tipoId, postoIds: Array.from(sel), observacao: obs, motivo, supervisorId,
+        tipoFocoId: tipoId, postoIds: Array.from(sel), observacao: obs, periodos, motivo, supervisorId,
       })
       if (!r.ok) return setErro(r.erro)
       router.refresh()
@@ -157,6 +166,29 @@ function Conteudo({
               })}
             </div>
           </section>
+
+          {tipoSel?.dia_inteiro && (
+            <section>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">Período do recolhimento</p>
+              <div className="grid grid-cols-3 gap-2">
+                {([['manha', 'Manhã'], ['tarde', 'Tarde'], ['dia', 'Dia inteiro']] as const).map(([id, rotulo]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setEscolha(id)}
+                    className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                      escolha === id ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-400'
+                    }`}
+                  >
+                    {rotulo}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-slate-500">
+                A outra metade do dia fica livre para outro compromisso.
+              </p>
+            </section>
+          )}
 
           {semPosto ? (
             <section className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">

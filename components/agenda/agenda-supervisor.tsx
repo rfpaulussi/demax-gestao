@@ -117,6 +117,7 @@ export function AgendaSupervisor({
 
       {aba === 'agenda' && (
         <RecolhimentoSemana
+          key={semanaInicio}
           semanaInicio={semanaInicio}
           supervisorId={supervisor.id}
           dias={dias}
@@ -136,7 +137,12 @@ export function AgendaSupervisor({
           hoje={hoje}
           podeEditar={podeEditar}
           feriados={feriados}
-          onSlot={(data, periodo, ordem, bloco) => setSlot({ data, periodo, ordem, bloco })}
+          onSlot={(data, periodo, ordem, bloco) => setSlot({
+            data, periodo, ordem, bloco,
+            grupoPeriodos: bloco
+              ? blocos.filter(b => b.data === data && b.ordem === ordem && b.tipo_foco_id === bloco.tipo_foco_id).map(b => b.periodo)
+              : undefined,
+          })}
         />
 
         <div className="space-y-5">
