@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { addDias, diasEntre, ehData, ehDiaUtil, hojeBR, segundaDe } from '@/lib/agenda/datas'
 import { ehFeriadoDeLei, feriadosDaSemana } from '@/lib/agenda/feriados'
 import { CORES_FOCO, SLOTS_MAX, type FeriadoDia, type Periodo } from '@/lib/agenda/tema'
+import { ehDiaDaJanela, janelaDoMes } from '@/lib/agenda/recolhimento'
 import { postosDoSupervisor, type PostoOpt } from '@/lib/agenda/postos'
 import { dataBR, montarVisitas, type BlocoPlan, type CheckinRaw, type PostoGeo } from '@/lib/agenda/visitas'
 
@@ -18,7 +19,10 @@ const db = () => createAdminClient() as unknown as AnyClient
 
 export type Resultado = { ok: true } | { ok: false; erro: string }
 
-export type TipoFoco = { id: string; nome: string; cor: string; icone: string; ativo: boolean; ordem: number; exige_foto?: boolean; sem_posto?: boolean }
+export type TipoFoco = {
+  id: string; nome: string; cor: string; icone: string; ativo: boolean; ordem: number
+  exige_foto?: boolean; sem_posto?: boolean; usa_sede?: boolean; dia_inteiro?: boolean
+}
 export type { PostoOpt }
 
 export type BlocoView = {
@@ -91,6 +95,7 @@ export type CardSupervisor = {
   faltas: number // visitas planejadas já vencidas sem check-in
   atencao: number // visitas com sinal de atenção (fora do raio, permanência curta, deslocamento improvável…)
   semFoto: number // visitas de foco que exige foto, sem foto
+  recolhimentoPendente: boolean // hoje está na janela do recolhimento de cartão e não há recolhimento marcado no mês
 }
 
 const PERIODOS_VALIDOS: Periodo[] = ['manha', 'tarde']
@@ -356,6 +361,20 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
   const nomeTipo = new Map(tipos.map(t => [t.id, t.nome]))
   const exigeFotoTipo = new Map(tipos.map(t => [t.id, !!t.exige_foto]))
 
+  // Recolhimento de cartão: pendente se hoje está na janela e o supervisor não marcou nenhum no mês.
+  const idsDiaInteiro = tipos.filter(t => t.dia_inteiro).map(t => t.id)
+  const janela = janelaDoMes(hojeStr)
+  const comRecolhimento = new Set<string>()
+  if (ehDiaDaJanela(hojeStr) && idsDiaInteiro.length > 0) {
+    const { data: marcados } = await admin
+      .from('agenda_blocos')
+      .select('data, agenda_semanas!inner(supervisor_id)')
+      .in('tipo_foco_id', idsDiaInteiro)
+      .gte('data', janela.inicio)
+      .lte('data', janela.fim)
+    for (const m of (marcados ?? []) as { agenda_semanas: { supervisor_id: string } }[]) comRecolhimento.add(m.agenda_semanas.supervisor_id)
+  }
+
   const cards: CardSupervisor[] = ((sups ?? []) as { id: string; nome: string | null }[]).map(s => {
     const sem = semPorSup.get(s.id)
     const meus = sem ? blocos.filter(b => b.semana_id === sem.id) : []
@@ -396,6 +415,7 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
       faltas: stats.faltas,
       atencao: stats.atencao,
       semFoto: stats.semFoto,
+      recolhimentoPendente: idsDiaInteiro.length > 0 && ehDiaDaJanela(hojeStr) && !comRecolhimento.has(s.id),
     }
   })
 
@@ -455,6 +475,50 @@ async function registrarNota(admin: AnyClient, semanaId: string, autorId: string
   await admin.from('agenda_comentarios').insert({ semana_id: semanaId, autor_id: autorId, texto })
 }
 
+/**
+ * Foco de dia inteiro (ex.: recolhimento de cartão): ocupa a mesma posição na manhã e na tarde.
+ * Só um desses por dia; outro foco na mesma posição bloqueia. Substitui o próprio bloco ao editar.
+ */
+async function salvarDiaInteiro(
+  admin: AnyClient,
+  p: { semanaId: string; data: string; ordem: number; tipoId: string; observacao: string | null; publicada: boolean; motivo: string },
+): Promise<Resultado> {
+  const { data: doDia } = await admin
+    .from('agenda_blocos')
+    .select('id, periodo, ordem, tipo_foco_id')
+    .eq('semana_id', p.semanaId)
+    .eq('data', p.data)
+  const linhas = (doDia ?? []) as { id: string; periodo: string; ordem: number; tipo_foco_id: string }[]
+
+  if (linhas.some(b => b.tipo_foco_id === p.tipoId && b.ordem !== p.ordem)) {
+    return { ok: false, erro: 'Este dia já tem esse foco marcado em outra posição. Remova-o antes.' }
+  }
+  if (linhas.some(b => b.ordem === p.ordem && b.tipo_foco_id !== p.tipoId)) {
+    return { ok: false, erro: `Já há visita na posição ${p.ordem} deste dia (manhã ou tarde). Escolha outra posição.` }
+  }
+
+  const substituir = linhas.filter(b => b.ordem === p.ordem && b.tipo_foco_id === p.tipoId).map(b => b.id)
+  if (substituir.length > 0) {
+    const { error } = await admin.from('agenda_blocos').delete().in('id', substituir)
+    if (error) return { ok: false, erro: error.message }
+  }
+
+  const { error } = await admin.from('agenda_blocos').insert(
+    PERIODOS_VALIDOS.map(periodo => ({
+      semana_id: p.semanaId,
+      data: p.data,
+      periodo,
+      ordem: p.ordem,
+      tipo_foco_id: p.tipoId,
+      observacao: p.observacao,
+      replanejado: p.publicada,
+      motivo_replanejamento: p.publicada ? p.motivo : null,
+    })),
+  )
+  if (error) return { ok: false, erro: error.message }
+  return { ok: true }
+}
+
 export async function salvarBloco(input: {
   semanaInicio: string
   data: string
@@ -484,15 +548,22 @@ export async function salvarBloco(input: {
   const motivo = (input.motivo ?? '').trim()
   if (publicada && motivo.length < 5) return { ok: false, erro: 'Agenda publicada: informe o motivo do replanejamento' }
 
-  const { data: tipo } = await admin.from('agenda_tipos_foco').select('id, nome, ativo, sem_posto').eq('id', input.tipoFocoId).maybeSingle()
+  const { data: tipo } = await admin
+    .from('agenda_tipos_foco')
+    .select('id, nome, ativo, sem_posto, usa_sede, dia_inteiro')
+    .eq('id', input.tipoFocoId)
+    .maybeSingle()
   if (!tipo || tipo.ativo === false) return { ok: false, erro: 'Tipo de foco inválido' }
 
   let postoIds: string[]
-  if (tipo.sem_posto) {
-    // Foco sem posto (check-in sede/base): vincula a sede automaticamente.
+  if (tipo.usa_sede) {
+    // Check-in sede/base: vincula a sede automaticamente.
     const sede = await buscarSede()
     if (!sede) return { ok: false, erro: 'Sede/base não cadastrada: peça à coordenação para marcar o posto SEDE.' }
     postoIds = [sede.id]
+  } else if (tipo.sem_posto) {
+    // Foco sem posto (ex.: recolhimento de cartão, audiência): não vincula posto.
+    postoIds = []
   } else {
     postoIds = Array.from(new Set(input.postoIds))
     if (postoIds.length === 0) return { ok: false, erro: 'Escolha ao menos um posto' }
@@ -501,6 +572,20 @@ export async function salvarBloco(input: {
   }
 
   const observacao = input.observacao.trim().slice(0, 500) || null
+
+  if (tipo.dia_inteiro) {
+    const r = await salvarDiaInteiro(admin, {
+      semanaId: semana.id, data: input.data, ordem: input.ordem, tipoId: tipo.id,
+      observacao, publicada, motivo,
+    })
+    if (!r.ok) return r
+    if (publicada) {
+      await registrarNota(admin, semana.id, auth.perfil.id,
+        `🔄 Replanejou ${input.data.split('-').reverse().slice(0, 2).join('/')} (dia inteiro): ${tipo.nome}. Motivo: ${motivo}${sufixo}`)
+    }
+    revalidatePath('/agenda')
+    return { ok: true }
+  }
 
   const { data: existente } = await admin
     .from('agenda_blocos')
@@ -569,13 +654,18 @@ export async function removerBloco(input: { semanaInicio: string; blocoId: strin
 
   const { data: bloco } = await admin
     .from('agenda_blocos')
-    .select('id, data, periodo, ordem')
+    .select('id, data, periodo, ordem, tipo_foco_id')
     .eq('id', input.blocoId)
     .eq('semana_id', semana.id)
     .maybeSingle()
   if (!bloco) return { ok: false, erro: 'Bloco não encontrado' }
 
-  const { error } = await admin.from('agenda_blocos').delete().eq('id', bloco.id)
+  const { data: tipoBloco } = await admin.from('agenda_tipos_foco').select('dia_inteiro').eq('id', bloco.tipo_foco_id).maybeSingle()
+  // Foco de dia inteiro: remove a manhã e a tarde juntas.
+  const { error } = tipoBloco?.dia_inteiro
+    ? await admin.from('agenda_blocos').delete()
+        .eq('semana_id', semana.id).eq('data', bloco.data).eq('ordem', bloco.ordem).eq('tipo_foco_id', bloco.tipo_foco_id)
+    : await admin.from('agenda_blocos').delete().eq('id', bloco.id)
   if (error) return { ok: false, erro: error.message }
 
   if (semana.status === 'publicada') {
@@ -637,6 +727,9 @@ export async function copiarSemanaAnterior(semanaInicio: string, supervisorId?: 
   ])
   const tiposAtivos = new Set(((ativos ?? []) as { id: string }[]).map(t => t.id))
   const postosOk = new Set(permitidos.map(p => p.id))
+  // O vínculo com a sede (check-in sede/base) é automático: não depende de o posto estar nas coberturas do supervisor.
+  const sedeCopia = await buscarSede()
+  if (sedeCopia) postosOk.add(sedeCopia.id)
 
   const feriadosNovaSemana = await feriadosDaSemana(semanaInicio)
   for (const b of lista) {

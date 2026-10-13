@@ -89,7 +89,13 @@ function Conteudo({
     })
   }
 
-  const semPosto = !!tipos.find(t => t.id === tipoId)?.sem_posto
+  const tipoSel = tipos.find(t => t.id === tipoId)
+  const semPosto = !!tipoSel?.sem_posto
+  const notaSemPosto = tipoSel?.usa_sede
+    ? '🏢 Foco feito na sede/base da administração: o posto é definido automaticamente. No dia, o check-in exige GPS dentro do raio da sede.'
+    : tipoSel?.dia_inteiro
+      ? '🕒 Dia inteiro: ocupa a mesma posição na manhã e na tarde. Sem postos e sem check-in: registro manual.'
+      : '📝 Foco sem posto: registro manual, sem check-in.'
 
   function salvar() {
     setErro(null)
@@ -154,7 +160,7 @@ function Conteudo({
 
           {semPosto ? (
             <section className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-              🏢 Foco feito na sede/base da administração: o posto é definido automaticamente. No dia, o check-in exige GPS dentro do raio da sede.
+              {notaSemPosto}
             </section>
           ) : (
           <section>

@@ -3,6 +3,7 @@
 import { MessageSquareText, Plus, RefreshCw, Sun, Sunset } from 'lucide-react'
 import { DIAS_CURTOS, PERIODOS, slotsVisiveis, temaDe, type FeriadoDia, type Periodo } from '@/lib/agenda/tema'
 import { numeroDia } from '@/lib/agenda/datas'
+import { ehDiaDaJanela } from '@/lib/agenda/recolhimento'
 import type { BlocoView, TipoFoco } from '@/app/(admin)/agenda/actions'
 
 const ICONE_PERIODO = { manha: Sun, tarde: Sunset } as const
@@ -61,6 +62,12 @@ export function GradeSemanal({
               }`}>
                 {bloqueado ? '🎉 Feriado' : '⚠️ Ponto facultativo'} · {fer.nome}
                 {fer.ate_hora ? ` (até ${fer.ate_hora})` : ''}
+              </p>
+            )}
+
+            {ehDiaDaJanela(data) && (
+              <p className="rounded-lg bg-amber-50 px-2 py-1 text-[10px] font-semibold leading-tight text-amber-800 ring-1 ring-amber-200">
+                🕒 Janela de recolhimento de cartão
               </p>
             )}
 
