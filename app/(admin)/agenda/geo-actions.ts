@@ -21,6 +21,7 @@ function ehGestao(role: string | null | undefined) {
 }
 
 const MSG_MIGRACAO = 'Recurso indisponível: aplique a migração 20261012_agenda_checkins.sql no Supabase Studio.'
+const MSG_MIGRACAO_OFFLINE = 'Recurso indisponível: aplique a migração 20261024_agenda_checkin_offline.sql no Supabase Studio.'
 
 // ─── Localização dos postos (admin/coordenador) ───────────────────────────────
 
@@ -319,6 +320,8 @@ export async function registrarCheckin(input: {
   longitude: number
   precisaoM: number | null
   justificativa?: string
+  localId?: string // id gerado no aparelho: reenvio do mesmo check-in não duplica
+  capturadoEm?: string // ISO: momento do GPS (check-in guardado sem sinal)
 }): Promise<ResultadoCheckin> {
   const auth = await getUser()
   if (!auth) return { ok: false, erro: 'Não autenticado' }
@@ -328,7 +331,38 @@ export async function registrarCheckin(input: {
   if (input.tipo !== 'entrada' && input.tipo !== 'saida') return { ok: false, erro: 'Tipo inválido' }
   if (!coordenadaValida(input.latitude, input.longitude)) return { ok: false, erro: 'Localização inválida' }
 
+  // Horário da captura: no check-in offline é o momento do GPS, não o do envio. Aceita até 72 h atrás.
+  const agora = Date.now()
+  let capturado = agora
+  if (input.capturadoEm) {
+    capturado = Date.parse(input.capturadoEm)
+    if (!Number.isFinite(capturado) || capturado > agora + 5 * 60_000 || capturado < agora - 72 * 3_600_000) {
+      return { ok: false, erro: 'Horário do check-in inválido. Refaça o registro.' }
+    }
+  }
+  const momento = new Date(capturado).toISOString()
+  const diaRef = dataBR(momento)
+
   const admin = db()
+  if (input.localId) {
+    // Já gravado (o envio anterior chegou, mas a resposta se perdeu): devolve o mesmo registro.
+    const { data: existente, error: exErr } = await admin
+      .from('agenda_checkins')
+      .select('id, dentro_raio, baixa_precisao, distancia_m')
+      .eq('local_id', input.localId)
+      .maybeSingle()
+    if (exErr) return { ok: false, erro: MSG_MIGRACAO_OFFLINE }
+    if (existente) {
+      return {
+        ok: true,
+        dentro: !!existente.dentro_raio,
+        baixaPrecisao: !!existente.baixa_precisao,
+        distancia: existente.distancia_m ?? 0,
+        checkinId: existente.id as string,
+      }
+    }
+  }
+
   // Sede/base (ADM) não é posto do supervisor: o check-in dela é liberado pelo foco "sem posto" (ver abaixo).
   const { data: sedeRow } = await admin.from('postos').select('id').eq('sede_base', true).maybeSingle()
   const ehSede = sedeRow?.id === input.postoId
@@ -347,7 +381,7 @@ export async function registrarCheckin(input: {
     return { ok: false, erro: 'Este posto ainda não tem localização cadastrada. Peça à coordenação.' }
   }
 
-  // Trava duplo toque / reenvio.
+  // Trava duplo toque / reenvio (compara com o momento da captura).
   const { data: ultimo } = await admin
     .from('agenda_checkins')
     .select('created_at')
@@ -357,7 +391,7 @@ export async function registrarCheckin(input: {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
-  if (ultimo && Date.now() - Date.parse(ultimo.created_at) < 120_000) {
+  if (ultimo && Math.abs(Date.parse(ultimo.created_at) - capturado) < 120_000) {
     return { ok: false, erro: 'Check-in já registrado há instantes.' }
   }
 
@@ -377,12 +411,11 @@ export async function registrarCheckin(input: {
     }
   }
 
-  // Vincula ao bloco planejado do dia (se houver).
-  const hoje = hojeBR()
+  // Vincula ao bloco planejado do dia da captura (se houver).
   const { data: blocosDia } = await admin
     .from('agenda_blocos')
     .select('id, agenda_semanas!inner(supervisor_id), agenda_blocos_postos!inner(posto_id)')
-    .eq('data', hoje)
+    .eq('data', diaRef)
     .eq('agenda_semanas.supervisor_id', auth.perfil.id)
     .eq('agenda_blocos_postos.posto_id', input.postoId)
     .limit(1)
@@ -405,6 +438,8 @@ export async function registrarCheckin(input: {
       dentro_raio: dentro,
       baixa_precisao: baixa,
       justificativa: justificativa || null,
+      created_at: momento,
+      local_id: input.localId ?? null,
     })
     .select('id')
     .single()
