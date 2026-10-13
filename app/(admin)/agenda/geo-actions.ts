@@ -125,7 +125,8 @@ export async function marcarLocalPosto(input: {
   latitude: number
   longitude: number
   precisaoM: number | null
-}): Promise<{ ok: true } | { ok: false; erro: string }> {
+  justificativa?: string
+}): Promise<{ ok: true; proposta?: boolean } | { ok: false; erro: string; precisaJustificar?: boolean; distancia?: number }> {
   const auth = await getUser()
   if (!auth || auth.perfil.role !== 'supervisor' || auth.perfil.ativo === false) {
     return { ok: false, erro: 'Somente supervisores marcam o local pelo GPS' }
@@ -157,7 +158,36 @@ export async function marcarLocalPosto(input: {
   if (temLocal) {
     const d = distanciaM(input.latitude, input.longitude, posto.latitude, posto.longitude)
     if (d > DISTANCIA_MAX_ENDERECO_M) {
-      return { ok: false, erro: `Você está a ${(d / 1000).toFixed(1).replace('.', ',')} km do endereço cadastrado deste posto. Confirme que está no posto certo ou avise a coordenação.` }
+      const justificativa = (input.justificativa ?? '').trim().slice(0, 300)
+      const km = (d / 1000).toFixed(1).replace('.', ',')
+      if (justificativa.length < 5) {
+        return {
+          ok: false,
+          erro: `Você está a ${km} km do endereço cadastrado deste posto. Explique onde está para enviar este ponto à coordenação.`,
+          precisaJustificar: true,
+          distancia: d,
+        }
+      }
+      // Longe demais do endereço: não troca o ponto oficial. Vira proposta pendente para a coordenação.
+      // Uma proposta pendente por posto: a nova substitui a anterior.
+      const { error: limpaErr } = await admin
+        .from('postos_locais_propostos')
+        .delete()
+        .eq('posto_id', posto.id)
+        .eq('status', 'pendente')
+      if (limpaErr) return { ok: false, erro: MSG_MIGRACAO_PROPOSTAS }
+      const { error: propErr } = await admin.from('postos_locais_propostos').insert({
+        posto_id: posto.id,
+        supervisor_id: auth.perfil.id,
+        latitude: input.latitude,
+        longitude: input.longitude,
+        precisao_m: input.precisaoM,
+        distancia_endereco_m: Math.round(d),
+        justificativa,
+      })
+      if (propErr) return { ok: false, erro: MSG_MIGRACAO_PROPOSTAS }
+      revalidatePath('/agenda/locais')
+      return { ok: true, proposta: true }
     }
   }
 
@@ -180,6 +210,103 @@ export async function marcarLocalPosto(input: {
 }
 
 // ─── Check-in (supervisor) ────────────────────────────────────────────────────
+
+// ─── Propostas de local (supervisor marcou longe do endereço cadastrado) ─────────
+
+const MSG_MIGRACAO_PROPOSTAS = 'Recurso indisponível: aplique a migração 20261023_postos_locais_propostos.sql no Supabase Studio.'
+
+export type PropostaLocal = {
+  id: string
+  postoId: string
+  postoNome: string
+  enderecoRef: string | null
+  atual: { latitude: number | null; longitude: number | null }
+  proposto: { latitude: number; longitude: number }
+  distanciaM: number
+  justificativa: string
+  supervisorNome: string | null
+  criadoEm: string
+}
+
+export async function listarPropostasLocais(): Promise<{ ok: true; propostas: PropostaLocal[] } | { ok: false; erro: string }> {
+  const auth = await getUser()
+  if (!auth || !ehGestao(auth.perfil.role)) return { ok: false, erro: 'Sem permissão' }
+  const { data, error } = await db()
+    .from('postos_locais_propostos')
+    .select('id, posto_id, latitude, longitude, distancia_endereco_m, justificativa, created_at, postos(nome, endereco_ref, latitude, longitude), perfis:supervisor_id(nome)')
+    .eq('status', 'pendente')
+    .order('created_at', { ascending: true })
+  if (error) return { ok: false, erro: MSG_MIGRACAO_PROPOSTAS }
+
+  type Raw = {
+    id: string; posto_id: string; latitude: number; longitude: number; distancia_endereco_m: number
+    justificativa: string; created_at: string
+    postos: { nome: string; endereco_ref: string | null; latitude: number | null; longitude: number | null } | null
+    perfis: { nome: string | null } | null
+  }
+  const propostas = ((data ?? []) as Raw[]).map(r => ({
+    id: r.id,
+    postoId: r.posto_id,
+    postoNome: r.postos?.nome ?? 'Posto',
+    enderecoRef: r.postos?.endereco_ref ?? null,
+    atual: { latitude: r.postos?.latitude ?? null, longitude: r.postos?.longitude ?? null },
+    proposto: { latitude: r.latitude, longitude: r.longitude },
+    distanciaM: r.distancia_endereco_m,
+    justificativa: r.justificativa,
+    supervisorNome: r.perfis?.nome ?? null,
+    criadoEm: r.created_at,
+  }))
+  return { ok: true, propostas }
+}
+
+export async function decidirLocalProposto(input: { id: string; aprovar: boolean }): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const auth = await getUser()
+  if (!auth || !ehGestao(auth.perfil.role)) return { ok: false, erro: 'Sem permissão' }
+
+  const admin = db()
+  const { data: prop, error } = await admin
+    .from('postos_locais_propostos')
+    .select('id, posto_id, supervisor_id, latitude, longitude, status')
+    .eq('id', input.id)
+    .maybeSingle()
+  if (error) return { ok: false, erro: MSG_MIGRACAO_PROPOSTAS }
+  if (!prop) return { ok: false, erro: 'Proposta não encontrada' }
+  if (prop.status !== 'pendente') return { ok: false, erro: 'Esta proposta já foi decidida' }
+
+  const agora = new Date().toISOString()
+  if (input.aprovar) {
+    // Aprovada: o local proposto vira o ponto oficial, já conferido pela coordenação.
+    const { error: postoErr } = await admin
+      .from('postos')
+      .update({
+        latitude: prop.latitude,
+        longitude: prop.longitude,
+        geo_confirmado: true,
+        geo_precisao: 'gps',
+        geo_marcado_por: prop.supervisor_id,
+        geo_marcado_em: agora,
+      })
+      .eq('id', prop.posto_id)
+    if (postoErr) return { ok: false, erro: postoErr.message }
+  }
+
+  const { error: decErr } = await admin
+    .from('postos_locais_propostos')
+    .update({ status: input.aprovar ? 'aprovado' : 'rejeitado', decidido_por: auth.perfil.id, decidido_em: agora })
+    .eq('id', prop.id)
+  if (decErr) return { ok: false, erro: decErr.message }
+
+  // Outras propostas pendentes do mesmo posto deixam de valer.
+  await admin
+    .from('postos_locais_propostos')
+    .update({ status: 'rejeitado', decidido_por: auth.perfil.id, decidido_em: agora })
+    .eq('posto_id', prop.posto_id)
+    .eq('status', 'pendente')
+
+  revalidatePath('/agenda')
+  revalidatePath('/agenda/locais')
+  return { ok: true }
+}
 
 export type ResultadoCheckin =
   | { ok: true; dentro: boolean; baixaPrecisao: boolean; distancia: number; checkinId: string }

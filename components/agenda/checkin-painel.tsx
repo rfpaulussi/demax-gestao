@@ -79,6 +79,8 @@ export function CheckinPainel({
   const [aviso, setAviso] = useState<string | null>(null)
   const [pend, setPend] = useState<Pendente | null>(null)
   const [just, setJust] = useState('')
+  const [pendLocal, setPendLocal] = useState<{ postoId: string; coords: Coords; distancia: number } | null>(null)
+  const [justLocal, setJustLocal] = useState('')
   const [fotoBusy, setFotoBusy] = useState<string | null>(null)
   const [pendentesFoto, setPendentesFoto] = useState<Set<string>>(new Set())
   const [erroFila, setErroFila] = useState<string | null>(null)
@@ -158,15 +160,25 @@ export function CheckinPainel({
   }
   const concluidos = planejados.filter(p => situacao(p.id).entrada).length
 
-  async function marcarLocal(postoId: string) {
+  async function marcarLocal(postoId: string, coordsPrev?: Coords, justificativa?: string) {
     setErro(null)
     setAviso(null)
     setBusy(postoId)
     try {
-      const coords = await lerPosicao()
-      const r = await marcarLocalPosto({ postoId, latitude: coords.lat, longitude: coords.lng, precisaoM: coords.precisao })
-      if (!r.ok) return setErro({ postoId, texto: r.erro })
-      setAviso('📍 Local do posto registrado pelo seu GPS (a coordenação vai conferir). Agora você já pode fazer o check-in.')
+      const coords = coordsPrev ?? (await lerPosicao())
+      const r = await marcarLocalPosto({
+        postoId, latitude: coords.lat, longitude: coords.lng, precisaoM: coords.precisao, justificativa,
+      })
+      if (!r.ok) {
+        if (r.precisaJustificar) setPendLocal({ postoId, coords, distancia: r.distancia ?? 0 })
+        else setErro({ postoId, texto: r.erro })
+        return
+      }
+      setPendLocal(null)
+      setJustLocal('')
+      setAviso(r.proposta
+        ? '📨 Local enviado para a coordenação conferir. O ponto oficial do posto continua o mesmo até a aprovação.'
+        : '📍 Local do posto registrado pelo seu GPS (a coordenação vai conferir). Agora você já pode fazer o check-in.')
       router.refresh()
     } catch (e) {
       setErro({ postoId, texto: e instanceof Error ? e.message : 'Falha ao obter a localização.' })
@@ -345,6 +357,25 @@ export function CheckinPainel({
                 📍 O ponto cadastrado deste posto está errado? Estou no posto — marcar o local exato aqui
               </button>
             )}
+          </div>
+        )}
+
+        {pendLocal?.postoId === posto.id && (
+          <div className="mt-3 rounded-lg border border-sky-300 bg-sky-50 p-3">
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-sky-900">
+              <MapPinOff className="h-3.5 w-3.5" />
+              Você está a {formatarDistancia(pendLocal.distancia)} do endereço cadastrado deste posto. Explique onde está para enviar este local à coordenação conferir.
+            </p>
+            <textarea value={justLocal} onChange={e => setJustLocal(e.target.value)} rows={2} placeholder="Ex.: o posto mudou de endereço, o cadastro está errado…"
+              className="w-full resize-none rounded-lg border border-sky-200 bg-white p-2 text-sm outline-none focus:border-sky-400" />
+            <div className="mt-2 flex gap-2">
+              <button type="button" disabled={!!busy || justLocal.trim().length < 5}
+                onClick={() => marcarLocal(posto.id, pendLocal.coords, justLocal)}
+                className="rounded-lg bg-sky-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-sky-500 disabled:opacity-40">
+                Enviar para conferência
+              </button>
+              <button type="button" onClick={() => { setPendLocal(null); setJustLocal('') }} className="rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-white">Cancelar</button>
+            </div>
           </div>
         )}
 

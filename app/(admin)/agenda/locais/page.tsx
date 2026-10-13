@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getUser } from '@/lib/auth/get-user'
-import { listarLocais } from '../geo-actions'
+import { listarLocais, listarPropostasLocais } from '../geo-actions'
 import { LocaisCliente } from '@/components/agenda/locais-cliente'
+import { PropostasLocais } from '@/components/agenda/propostas-locais'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,10 +13,13 @@ export default async function LocaisPage() {
   if (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador') redirect('/agenda')
 
   const r = await listarLocais()
+  const propostas = await listarPropostasLocais()
 
   return (
     <div className="space-y-4 p-6">
       <Link href="/agenda" className="text-xs font-semibold text-slate-500 hover:text-slate-900">← Agenda</Link>
+      {propostas.ok && <PropostasLocais propostas={propostas.propostas} />}
+      {!propostas.ok && <p className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">{propostas.erro}</p>}
       {r.ok ? (
         <LocaisCliente postos={r.postos} />
       ) : (
