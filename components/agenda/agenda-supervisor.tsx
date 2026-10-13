@@ -5,6 +5,7 @@ import { diasDaSemana } from '@/lib/agenda/datas'
 import { PERIODOS, SLOTS_MAX, type Periodo } from '@/lib/agenda/tema'
 import type { AgendaDados } from '@/app/(admin)/agenda/actions'
 import { GradeSemanal } from './grade-semanal'
+import { RecolhimentoSemana } from './recolhimento-semana'
 import { ModalBloco, type SlotAberto } from './modal-bloco'
 import { ResumoSemana } from './resumo-semana'
 import { Sugestoes } from './sugestoes'
@@ -113,6 +114,19 @@ export function AgendaSupervisor({
         </p>
       )}
       {aba === 'agenda' && aviso && <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800">{aviso}</p>}
+
+      {aba === 'agenda' && (
+        <RecolhimentoSemana
+          semanaInicio={semanaInicio}
+          supervisorId={supervisor.id}
+          dias={dias}
+          blocos={blocos}
+          tipos={tipos}
+          feriados={feriados}
+          publicada={publicada}
+          podeEditar={podeEditar}
+        />
+      )}
 
       <div className={`grid gap-5 xl:grid-cols-[1fr_340px] ${aba === 'agenda' ? '' : 'hidden'}`}>
         <GradeSemanal

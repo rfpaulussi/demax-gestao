@@ -676,6 +676,126 @@ export async function removerBloco(input: { semanaInicio: string; blocoId: strin
   return { ok: true }
 }
 
+export type ResultadoRecolhimento =
+  | { ok: true; marcados: string[]; semVaga: string[] }
+  | { ok: false; erro: string }
+
+/**
+ * Marca o recolhimento (dia inteiro) em todos os dias úteis da janela que caem nesta semana.
+ * Pula feriados de lei e dias que já têm recolhimento. Usa a primeira posição livre do dia.
+ */
+export async function marcarRecolhimentoSemana(input: {
+  semanaInicio: string
+  motivo?: string
+  supervisorId?: string
+}): Promise<ResultadoRecolhimento> {
+  const ctx = await contextoDono(input.semanaInicio, input.supervisorId)
+  if ('erro' in ctx) return { ok: false, erro: ctx.erro }
+  const { auth, admin, semana, sufixo } = ctx
+
+  const publicada = semana.status === 'publicada'
+  const motivo = (input.motivo ?? '').trim()
+  if (publicada && motivo.length < 5) return { ok: false, erro: 'Agenda publicada: informe o motivo do replanejamento' }
+
+  const { data: tipoRaw } = await admin
+    .from('agenda_tipos_foco')
+    .select('id')
+    .eq('dia_inteiro', true)
+    .eq('ativo', true)
+    .limit(1)
+    .maybeSingle()
+  const tipoId = (tipoRaw as { id: string } | null)?.id
+  if (!tipoId) return { ok: false, erro: 'Foco de recolhimento não cadastrado ou desativado' }
+
+  const feriados = await feriadosDaSemana(input.semanaInicio)
+  const diasAlvo = Array.from({ length: 5 }, (_, i) => addDias(input.semanaInicio, i))
+    .filter(d => ehDiaDaJanela(d) && !ehFeriadoDeLei(feriados[d]))
+
+  const { data: blocosRaw } = await admin
+    .from('agenda_blocos')
+    .select('data, ordem, tipo_foco_id')
+    .eq('semana_id', semana.id)
+  const blocos = (blocosRaw ?? []) as { data: string; ordem: number; tipo_foco_id: string }[]
+
+  const novos: Record<string, unknown>[] = []
+  const marcados: string[] = []
+  const semVaga: string[] = []
+  for (const data of diasAlvo) {
+    const doDia = blocos.filter(b => b.data === data)
+    if (doDia.some(b => b.tipo_foco_id === tipoId)) continue // já marcado
+    const ocupados = new Set(doDia.map(b => b.ordem))
+    let ordem = 1
+    while (ordem <= SLOTS_MAX && ocupados.has(ordem)) ordem++
+    if (ordem > SLOTS_MAX) {
+      semVaga.push(data)
+      continue
+    }
+    for (const periodo of PERIODOS_VALIDOS) {
+      novos.push({
+        semana_id: semana.id,
+        data,
+        periodo,
+        ordem,
+        tipo_foco_id: tipoId,
+        observacao: null,
+        replanejado: publicada,
+        motivo_replanejamento: publicada ? motivo : null,
+      })
+    }
+    marcados.push(data)
+  }
+
+  if (novos.length > 0) {
+    const { error } = await admin.from('agenda_blocos').insert(novos)
+    if (error) return { ok: false, erro: error.message }
+    if (publicada) {
+      const lista = marcados.map(d => d.split('-').reverse().slice(0, 2).join('/')).join(', ')
+      await registrarNota(admin, semana.id, auth.perfil.id,
+        `🔄 Marcou recolhimento de cartão (${lista}). Motivo: ${motivo}${sufixo}`)
+    }
+  }
+
+  revalidatePath('/agenda')
+  return { ok: true, marcados, semVaga }
+}
+
+/** Remove o recolhimento (dia inteiro) de todos os dias desta semana. */
+export async function removerRecolhimentoSemana(input: {
+  semanaInicio: string
+  motivo?: string
+  supervisorId?: string
+}): Promise<Resultado> {
+  const ctx = await contextoDono(input.semanaInicio, input.supervisorId)
+  if ('erro' in ctx) return { ok: false, erro: ctx.erro }
+  const { auth, admin, semana, sufixo } = ctx
+
+  const publicada = semana.status === 'publicada'
+  const motivo = (input.motivo ?? '').trim()
+  if (publicada && motivo.length < 5) return { ok: false, erro: 'Agenda publicada: informe o motivo' }
+
+  const { data: tiposRaw } = await admin.from('agenda_tipos_foco').select('id').eq('dia_inteiro', true)
+  const ids = ((tiposRaw ?? []) as { id: string }[]).map(t => t.id)
+  if (ids.length === 0) return { ok: true }
+
+  const { data: removidos, error } = await admin
+    .from('agenda_blocos')
+    .delete()
+    .eq('semana_id', semana.id)
+    .in('tipo_foco_id', ids)
+    .select('data')
+  if (error) return { ok: false, erro: error.message }
+
+  if (publicada && (removidos ?? []).length > 0) {
+    const lista = ((removidos ?? []) as { data: string }[])
+      .map(r => r.data).filter((d, i, arr) => arr.indexOf(d) === i)
+      .map(d => d.split('-').reverse().slice(0, 2).join('/')).join(', ')
+    await registrarNota(admin, semana.id, auth.perfil.id,
+      `🗑️ Removeu recolhimento de cartão (${lista}). Motivo: ${motivo}${sufixo}`)
+  }
+  revalidatePath('/agenda')
+  return { ok: true }
+}
+
 export async function publicarSemana(semanaInicio: string, supervisorId?: string): Promise<Resultado> {
   const ctx = await contextoDono(semanaInicio, supervisorId)
   if ('erro' in ctx) return { ok: false, erro: ctx.erro }
