@@ -18,7 +18,7 @@ const db = () => createAdminClient() as unknown as AnyClient
 
 export type Resultado = { ok: true } | { ok: false; erro: string }
 
-export type TipoFoco = { id: string; nome: string; cor: string; icone: string; ativo: boolean; ordem: number; exige_foto?: boolean }
+export type TipoFoco = { id: string; nome: string; cor: string; icone: string; ativo: boolean; ordem: number; exige_foto?: boolean; sem_posto?: boolean }
 export type { PostoOpt }
 
 export type BlocoView = {
@@ -63,6 +63,7 @@ export type AgendaDados = {
   ehDono: boolean // check-in/foto continuam exclusivos do supervisor
   checkinsHoje: CheckinHoje[]
   geoDisponivel: boolean
+  sede: PostoOpt | null // posto da sede/base (ADM): só aparece no check-in dos focos "sem posto"
 }
 
 export type CheckinHoje = {
@@ -171,6 +172,7 @@ export async function carregarAgenda(
   const podeEditar = ehDono || ehGestao(role)
   const postos = podeEditar ? await postosDoSupervisor(supervisorId) : []
   const sugestoes = podeEditar ? await calcularSugestoes(supervisorId, semanaInicio, postos, blocos) : []
+  const sede = podeEditar ? await buscarSede() : null
 
   // Tipos desativados só aparecem se ainda usados na semana.
   const usados = new Set(blocos.map(b => b.tipo_foco_id))
@@ -219,7 +221,25 @@ export async function carregarAgenda(
       ehDono,
       checkinsHoje,
       geoDisponivel,
+      sede,
     },
+  }
+}
+
+/** Posto da sede/base (ADM). Null se a migração 20261013 ainda não foi aplicada ou não há sede marcada. */
+async function buscarSede(): Promise<PostoOpt | null> {
+  const { data, error } = await db()
+    .from('postos')
+    .select('id, nome, secretaria, latitude, longitude, geo_confirmado')
+    .eq('sede_base', true)
+    .maybeSingle()
+  if (error || !data) return null
+  return {
+    id: data.id,
+    nome: data.nome,
+    secretaria: data.secretaria ?? null,
+    tem_local: data.latitude != null && data.longitude != null,
+    a_conferir: false,
   }
 }
 
@@ -464,12 +484,21 @@ export async function salvarBloco(input: {
   const motivo = (input.motivo ?? '').trim()
   if (publicada && motivo.length < 5) return { ok: false, erro: 'Agenda publicada: informe o motivo do replanejamento' }
 
-  const { data: tipo } = await admin.from('agenda_tipos_foco').select('id, nome, ativo').eq('id', input.tipoFocoId).maybeSingle()
+  const { data: tipo } = await admin.from('agenda_tipos_foco').select('id, nome, ativo, sem_posto').eq('id', input.tipoFocoId).maybeSingle()
   if (!tipo || tipo.ativo === false) return { ok: false, erro: 'Tipo de foco inválido' }
 
-  const permitidos = new Set((await postosDoSupervisor(alvoId)).map(p => p.id))
-  const postoIds = Array.from(new Set(input.postoIds))
-  if (postoIds.some(id => !permitidos.has(id))) return { ok: false, erro: 'Posto não pertence ao supervisor' }
+  let postoIds: string[]
+  if (tipo.sem_posto) {
+    // Foco sem posto (check-in sede/base): vincula a sede automaticamente.
+    const sede = await buscarSede()
+    if (!sede) return { ok: false, erro: 'Sede/base não cadastrada: peça à coordenação para marcar o posto SEDE.' }
+    postoIds = [sede.id]
+  } else {
+    postoIds = Array.from(new Set(input.postoIds))
+    if (postoIds.length === 0) return { ok: false, erro: 'Escolha ao menos um posto' }
+    const permitidos = new Set((await postosDoSupervisor(alvoId)).map(p => p.id))
+    if (postoIds.some(id => !permitidos.has(id))) return { ok: false, erro: 'Posto não pertence ao supervisor' }
+  }
 
   const observacao = input.observacao.trim().slice(0, 500) || null
 

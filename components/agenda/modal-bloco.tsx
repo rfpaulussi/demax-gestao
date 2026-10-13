@@ -89,9 +89,12 @@ function Conteudo({
     })
   }
 
+  const semPosto = !!tipos.find(t => t.id === tipoId)?.sem_posto
+
   function salvar() {
     setErro(null)
     if (!tipoId) return setErro('Escolha o tipo de foco')
+    if (!semPosto && sel.size === 0) return setErro('Escolha ao menos um posto')
     start(async () => {
       const r = await salvarBloco({
         semanaInicio, data: slot.data, periodo: slot.periodo, ordem: slot.ordem,
@@ -149,6 +152,11 @@ function Conteudo({
             </div>
           </section>
 
+          {semPosto ? (
+            <section className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+              🏢 Foco feito na sede/base da administração: o posto é definido automaticamente. No dia, o check-in exige GPS dentro do raio da sede.
+            </section>
+          ) : (
           <section>
             <div className="mb-2 flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Postos</p>
@@ -185,6 +193,7 @@ function Conteudo({
               })}
             </div>
           </section>
+          )}
 
           <section>
             <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">Observação</p>

@@ -201,10 +201,15 @@ export async function registrarCheckin(input: {
   if (input.tipo !== 'entrada' && input.tipo !== 'saida') return { ok: false, erro: 'Tipo inválido' }
   if (!coordenadaValida(input.latitude, input.longitude)) return { ok: false, erro: 'Localização inválida' }
 
-  const permitidos = await postosDoSupervisor(auth.perfil.id)
-  if (!permitidos.some(p => p.id === input.postoId)) return { ok: false, erro: 'Posto não pertence ao supervisor' }
-
   const admin = db()
+  // Sede/base (ADM) não é posto do supervisor: o check-in dela é liberado pelo foco "sem posto" (ver abaixo).
+  const { data: sedeRow } = await admin.from('postos').select('id').eq('sede_base', true).maybeSingle()
+  const ehSede = sedeRow?.id === input.postoId
+  if (!ehSede) {
+    const permitidos = await postosDoSupervisor(auth.perfil.id)
+    if (!permitidos.some(p => p.id === input.postoId)) return { ok: false, erro: 'Posto não pertence ao supervisor' }
+  }
+
   const { data: posto, error: postoErr } = await admin
     .from('postos')
     .select('id, nome, latitude, longitude, raio_m')
@@ -255,6 +260,9 @@ export async function registrarCheckin(input: {
     .eq('agenda_blocos_postos.posto_id', input.postoId)
     .limit(1)
   const blocoId = ((blocosDia ?? []) as { id: string }[])[0]?.id ?? null
+  if (ehSede && !blocoId) {
+    return { ok: false, erro: 'Check-in na sede só existe com o foco "Check-in Sede / Base" planejado para hoje.' }
+  }
 
   const { data: criado, error } = await admin
     .from('agenda_checkins')

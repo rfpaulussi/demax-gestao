@@ -52,6 +52,7 @@ export function CheckinPainel({
   blocos,
   tipos,
   postos,
+  sede,
   checkins,
   geoDisponivel,
 }: {
@@ -59,6 +60,7 @@ export function CheckinPainel({
   blocos: BlocoView[]
   tipos: TipoFoco[]
   postos: PostoOpt[]
+  sede: PostoOpt | null
   checkins: CheckinHoje[]
   geoDisponivel: boolean
 }) {
@@ -83,7 +85,8 @@ export function CheckinPainel({
       plan.set(p.id, g)
     }
   }
-  const planejados = postos.filter(p => plan.has(p.id))
+  // A sede não é posto do supervisor: entra só quando há bloco de foco "sem posto" planejado hoje.
+  const planejados = [...postos, ...(sede ? [sede] : [])].filter(p => plan.has(p.id))
   const extras = postos.filter(p => !plan.has(p.id))
 
   function situacao(postoId: string) {
@@ -217,7 +220,7 @@ export function CheckinPainel({
             )}
           </div>
 
-          {!posto.tem_local ? (
+          {!posto.tem_local && posto.id !== sede?.id ? (
             <button type="button" disabled={!!busy} onClick={() => marcarLocal(posto.id)}
               className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-900 transition hover:bg-amber-400 disabled:opacity-50">
               <MapPinOff className="h-4 w-4" /> {carregando ? 'Localizando…' : 'Marcar local aqui'}
@@ -237,7 +240,7 @@ export function CheckinPainel({
           )}
         </div>
 
-        {!posto.tem_local && (
+        {!posto.tem_local && posto.id !== sede?.id && (
           <p className="mt-2 text-[11px] text-slate-500">
             Este posto ainda não tem localização. Estando no posto, toque em <b>Marcar local aqui</b>: o GPS registra o ponto e a coordenação confere depois.
           </p>
