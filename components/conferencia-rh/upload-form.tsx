@@ -14,6 +14,37 @@ function excelDataParaISO(valor: unknown): string | null {
   return null
 }
 
+/** Normaliza rótulo de cabeçalho: sem acento, maiúsculo, espaços colapsados.
+ * Assim "FUNÇÃO", "Função" e "FUNCAO" caem no mesmo rótulo. */
+function normalizarCabecalho(valor: unknown): string {
+  return String(valor ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Rótulos aceitos por coluna (já normalizados). A ordem importa em `codigo`:
+ * a planilha do RH traz o código do supervisor em "C. CUSTO", e "CONTRATO" = 706
+ * (número do contrato, igual em todas as linhas) — por isso "C. CUSTO" vem primeiro.
+ * O modelo antigo (gerar-modelo.ts) usa "CONTRATO" como código, então continua funcionando. */
+const COLUNAS_LISTAGEM = {
+  nome: ['NOME DO FUNCIONARIO', 'NOME'],
+  funcao: ['FUNCAO'],
+  admissao: ['ADMISSAO'],
+  afastado: ['AFASTADO', 'AFASTAMENTO'],
+  codigo: ['C. CUSTO', 'CONTRATO'],
+} as const
+
+function acharColuna(header: string[], rotulos: readonly string[]): number {
+  for (const rotulo of rotulos) {
+    const idx = header.indexOf(rotulo)
+    if (idx !== -1) return idx
+  }
+  return -1
+}
+
 function parseListagem(file: File): Promise<{ linhas: LinhaRH[]; erro?: string }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -21,38 +52,43 @@ function parseListagem(file: File): Promise<{ linhas: LinhaRH[]; erro?: string }
       try {
         const buffer = e.target?.result as ArrayBuffer
         const wb = XLSX.read(buffer, { type: 'array', cellDates: true })
-        const ws = wb.Sheets['LISTAGEM']
+        // Aba "LISTAGEM" (modelo) ou, se não existir, a primeira aba (ex: "Planilha1" do RH).
+        const ws = wb.Sheets['LISTAGEM'] ?? wb.Sheets[wb.SheetNames[0]]
         if (!ws) {
-          resolve({ linhas: [], erro: 'Aba "LISTAGEM" não encontrada no arquivo.' })
+          resolve({ linhas: [], erro: 'Nenhuma aba encontrada no arquivo.' })
           return
         }
         const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null }) as unknown[][]
-        // linha 0 = cabeçalho: RE, NOME DO FUNCIONARIO, FUNCAO, ADMISSAO, AFASTADO, CONTRATO, ..., NUM
-        const header = (raw[0] ?? []).map(h => String(h ?? '').trim().toUpperCase())
+        // linha 0 = cabeçalho. Colunas localizadas pelo rótulo, não pela posição,
+        // então a ordem das colunas pode variar entre planilhas do RH.
+        const header = (raw[0] ?? []).map(normalizarCabecalho)
         // Coluna A é só o identificador único (RE/matrícula/código) — o rótulo varia
         // conforme quem editou a planilha, então só exigimos que não esteja vazia.
-        const HEADER_ESPERADO_B_A_F = ['NOME DO FUNCIONARIO', 'FUNCAO', 'ADMISSAO', 'AFASTADO', 'CONTRATO']
         const colunaAValida = header[0] != null && header[0] !== ''
-        const colunasBaFValidas = HEADER_ESPERADO_B_A_F.every((esperado, i) => header[i + 1] === esperado)
-        if (!colunaAValida || !colunasBaFValidas) {
+        const colNome = acharColuna(header, COLUNAS_LISTAGEM.nome)
+        const colFuncao = acharColuna(header, COLUNAS_LISTAGEM.funcao)
+        const colAdmissao = acharColuna(header, COLUNAS_LISTAGEM.admissao)
+        const colAfastado = acharColuna(header, COLUNAS_LISTAGEM.afastado)
+        const colCodigo = acharColuna(header, COLUNAS_LISTAGEM.codigo)
+        if (!colunaAValida || colNome === -1 || colFuncao === -1 || colAdmissao === -1 || colAfastado === -1 || colCodigo === -1) {
           resolve({
             linhas: [],
-            erro: 'Cabeçalho inesperado na aba LISTAGEM — confirme que as colunas são [identificador], NOME DO FUNCIONARIO, FUNCAO, ADMISSAO, AFASTADO, CONTRATO.',
+            erro: 'Cabeçalho inesperado — confirme que a planilha tem as colunas [identificador/RE], NOME, FUNÇÃO, ADMISSÃO, AFASTAMENTO e C. CUSTO (ou CONTRATO).',
           })
           return
         }
         const linhas: LinhaRH[] = []
         for (const row of raw.slice(1)) {
           const re = row[0]
-          const nome = row[1]
+          const nome = row[colNome]
           if (re == null || nome == null || String(nome).trim() === '') continue
           linhas.push({
             re: String(re).trim(),
             nome: String(nome).trim(),
-            funcao: String(row[2] ?? '').trim(),
-            admissao: excelDataParaISO(row[3]),
-            afastadoEm: excelDataParaISO(row[4]),
-            codigoSupervisor: Number(row[5]) || 0,
+            funcao: String(row[colFuncao] ?? '').trim(),
+            admissao: excelDataParaISO(row[colAdmissao]),
+            afastadoEm: excelDataParaISO(row[colAfastado]),
+            codigoSupervisor: Number(row[colCodigo]) || 0,
           })
         }
         resolve({ linhas })
