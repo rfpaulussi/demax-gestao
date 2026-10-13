@@ -1,13 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, Camera, CheckCircle2, Clock, LogIn, LogOut, MapPinOff, Navigation, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, Camera, CheckCircle2, Clock, LogIn, LogOut, MapPinOff, Navigation, RefreshCw, ShieldCheck } from 'lucide-react'
 import { formatarDistancia } from '@/lib/agenda/geo'
 import { diaMes } from '@/lib/agenda/datas'
 import { PERIODOS } from '@/lib/agenda/tema'
 import { anexarFotoCheckin, marcarLocalPosto, registrarCheckin } from '@/app/(admin)/agenda/geo-actions'
 import { comprimirImagem } from '@/lib/agenda/imagem'
+import { listarFotosPendentes, removerFotoPendente, salvarFotoPendente } from '@/lib/agenda/fila-fotos'
 import type { BlocoView, CheckinHoje, PostoOpt, TipoFoco } from '@/app/(admin)/agenda/actions'
 
 type Coords = { lat: number; lng: number; precisao: number | null }
@@ -47,6 +48,14 @@ function lerPosicao(): Promise<Coords> {
   })
 }
 
+/** Envia a foto de um check-in. Lança erro se não houver conexão (a chamada não chegou ao servidor). */
+async function enviarFotoCheckin(checkinId: string, blob: Blob): Promise<{ ok: true } | { ok: false; erro: string }> {
+  const fd = new FormData()
+  fd.append('checkinId', checkinId)
+  fd.append('foto', new File([blob], 'foto.jpg', { type: 'image/jpeg' }))
+  return anexarFotoCheckin(fd)
+}
+
 export function CheckinPainel({
   hoje,
   blocos,
@@ -71,6 +80,58 @@ export function CheckinPainel({
   const [pend, setPend] = useState<Pendente | null>(null)
   const [just, setJust] = useState('')
   const [fotoBusy, setFotoBusy] = useState<string | null>(null)
+  const [pendentesFoto, setPendentesFoto] = useState<Set<string>>(new Set())
+  const [erroFila, setErroFila] = useState<string | null>(null)
+  const processandoFila = useRef(false)
+
+  async function atualizarPendentesFoto() {
+    const itens = await listarFotosPendentes()
+    setPendentesFoto(new Set(itens.map(i => i.checkinId)))
+  }
+
+  // Envia as fotos guardadas sem sinal. Para no primeiro erro de rede e tenta de novo depois.
+  async function processarFilaFotos() {
+    if (processandoFila.current) return
+    processandoFila.current = true
+    try {
+      const itens = await listarFotosPendentes()
+      const falhas: string[] = []
+      let enviou = false
+      for (const item of itens) {
+        let r: { ok: true } | { ok: false; erro: string }
+        try {
+          r = await enviarFotoCheckin(item.checkinId, item.blob)
+        } catch {
+          break // ainda sem sinal: a foto continua guardada
+        }
+        if (r.ok) enviou = true
+        else if (!/já tem foto/i.test(r.erro)) falhas.push(r.erro)
+        await removerFotoPendente(item.checkinId) // enviada, ou recusada pelo servidor (não adianta insistir)
+      }
+      setErroFila(falhas.length > 0 ? `Foto guardada não pôde ser anexada: ${falhas[0]}` : null)
+      await atualizarPendentesFoto()
+      if (enviou) router.refresh()
+    } catch {
+      // IndexedDB indisponível: nada a reenviar
+    } finally {
+      processandoFila.current = false
+    }
+  }
+
+  useEffect(() => {
+    void processarFilaFotos()
+    const timer = window.setInterval(() => void processarFilaFotos(), 15000)
+    const aoVoltarSinal = () => void processarFilaFotos()
+    const aoVoltarTela = () => { if (document.visibilityState === 'visible') void processarFilaFotos() }
+    window.addEventListener('online', aoVoltarSinal)
+    document.addEventListener('visibilitychange', aoVoltarTela)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('online', aoVoltarSinal)
+      document.removeEventListener('visibilitychange', aoVoltarTela)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const nomeTipo = new Map(tipos.map(t => [t.id, `${t.icone} ${t.nome}`]))
   const exigeFotoTipo = new Map(tipos.map(t => [t.id, !!t.exige_foto]))
@@ -120,15 +181,19 @@ export function CheckinPainel({
     setFotoBusy(checkinId)
     try {
       const blob = await comprimirImagem(file)
-      const fd = new FormData()
-      fd.append('checkinId', checkinId)
-      fd.append('foto', new File([blob], 'foto.jpg', { type: 'image/jpeg' }))
-      const r = await anexarFotoCheckin(fd)
-      if (!r.ok) setErro({ postoId, texto: r.erro })
-      else {
-        setAviso('📷 Foto anexada (fica guardada por 90 dias).')
-        router.refresh()
+      let r: { ok: true } | { ok: false; erro: string }
+      try {
+        r = await enviarFotoCheckin(checkinId, blob)
+      } catch {
+        // Sem sinal: guarda no aparelho e envia quando a conexão voltar.
+        await salvarFotoPendente(checkinId, blob)
+        await atualizarPendentesFoto()
+        setAviso('📡 Sem sinal: a foto ficou guardada no aparelho e será enviada assim que houver conexão. Mantenha a agenda aberta.')
+        return
       }
+      if (!r.ok) return setErro({ postoId, texto: r.erro })
+      setAviso('📷 Foto anexada (fica guardada por 90 dias).')
+      router.refresh()
     } catch (e) {
       setErro({ postoId, texto: e instanceof Error ? e.message : 'Falha ao enviar a foto.' })
     } finally {
@@ -139,6 +204,17 @@ export function CheckinPainel({
   function botaoFoto(postoId: string, ck: CheckinHoje, rotulo: string) {
     if (ck.tem_foto) {
       return <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700"><Camera className="h-3 w-3" /> foto da {rotulo} anexada</span>
+    }
+    if (pendentesFoto.has(ck.id)) {
+      return (
+        <button
+          type="button"
+          onClick={() => void processarFilaFotos()}
+          className="flex w-fit items-center gap-1 rounded-md bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-200"
+        >
+          <RefreshCw className="h-3 w-3" /> Foto da {rotulo} aguardando sinal · tentar agora
+        </button>
+      )
     }
     return (
       <label className="flex w-fit cursor-pointer items-center gap-1 rounded-md bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50">
@@ -297,6 +373,7 @@ export function CheckinPainel({
           <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-500">Check-in será habilitado após a atualização do banco de dados.</p>
         )}
         {aviso && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">{aviso}</p>}
+        {erroFila && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{erroFila}</p>}
 
         {geoDisponivel && (
           <>
