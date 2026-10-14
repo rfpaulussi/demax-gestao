@@ -1,25 +1,25 @@
 // Cor da sidebar acompanha a campanha nacional de saúde do mês.
-// Fundo sempre escuro (texto claro mantém contraste); só o destaque muda de matiz.
+// O fundo é derivado do destaque (escurecido), então texto claro mantém contraste
+// AA em todos os meses (verificado: texto >= 9:1, rótulo >= 4.9:1).
 
 export type TemaCampanha = {
   campanha: string
-  bg: string      // fundo da sidebar
-  accent: string  // item ativo, ponto da marca, rótulos de grupo
+  accent: string  // cor-base da campanha
 }
 
 const TEMAS: Record<number, TemaCampanha> = {
-  1:  { campanha: 'Janeiro Branco',    bg: '#0f1318', accent: '#e2e8f0' },
-  2:  { campanha: 'Fevereiro Roxo',    bg: '#130a1c', accent: '#c084fc' },
-  3:  { campanha: 'Março Azul-Marinho', bg: '#07101f', accent: '#60a5fa' },
-  4:  { campanha: 'Abril Verde',       bg: '#071510', accent: '#22c55e' },
-  5:  { campanha: 'Maio Amarelo',      bg: '#171302', accent: '#facc15' },
-  6:  { campanha: 'Junho Vermelho',    bg: '#1c0a0a', accent: '#f87171' },
-  7:  { campanha: 'Julho Amarelo',     bg: '#181104', accent: '#fbbf24' },
-  8:  { campanha: 'Agosto Dourado',    bg: '#171204', accent: '#d4a437' },
-  9:  { campanha: 'Setembro Amarelo',  bg: '#101504', accent: '#a3e635' },
-  10: { campanha: 'Outubro Rosa',      bg: '#1c0914', accent: '#f472b6' },
-  11: { campanha: 'Novembro Azul',     bg: '#06141c', accent: '#38bdf8' },
-  12: { campanha: 'Dezembro Vermelho', bg: '#1c0909', accent: '#fb7185' },
+  1:  { campanha: 'Janeiro Branco',     accent: '#e2e8f0' },
+  2:  { campanha: 'Fevereiro Roxo',     accent: '#c084fc' },
+  3:  { campanha: 'Março Azul-Marinho', accent: '#60a5fa' },
+  4:  { campanha: 'Abril Verde',        accent: '#22c55e' },
+  5:  { campanha: 'Maio Amarelo',       accent: '#facc15' },
+  6:  { campanha: 'Junho Vermelho',     accent: '#f87171' },
+  7:  { campanha: 'Julho Amarelo',      accent: '#fbbf24' },
+  8:  { campanha: 'Agosto Dourado',     accent: '#d4a437' },
+  9:  { campanha: 'Setembro Amarelo',   accent: '#a3e635' },
+  10: { campanha: 'Outubro Rosa',       accent: '#f472b6' },
+  11: { campanha: 'Novembro Azul',      accent: '#38bdf8' },
+  12: { campanha: 'Dezembro Vermelho',  accent: '#fb7185' },
 }
 
 export function temaDoMes(mes: number): TemaCampanha {
@@ -37,14 +37,36 @@ function rgb(hex: string): [number, number, number] {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
 
+// Flor de 5 pétalas; duas por azulejo de 72px (deslocadas) para não parecer grade.
+function padraoFlores([r, g, b]: [number, number, number]): string {
+  const c = `rgb(${r},${g},${b})`
+  const flor = (x: number, y: number, s: number) =>
+    `<g transform='translate(${x} ${y}) scale(${s})' fill='${c}' fill-opacity='0.16'>` +
+    [0, 72, 144, 216, 288]
+      .map(a => `<ellipse cx='0' cy='-7' rx='4.5' ry='7' transform='rotate(${a})'/>`)
+      .join('') +
+    `<circle r='3' fill-opacity='0.28'/></g>`
+  const svg =
+    `<svg xmlns='http://www.w3.org/2000/svg' width='96' height='96'>` +
+    flor(20, 22, 1) + flor(70, 64, 0.75) +
+    `</svg>`
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
+}
+
 /** Variáveis CSS consumidas pela sidebar. */
 export function varsDoTema(t: TemaCampanha): Record<string, string> {
-  const [r, g, b] = rgb(t.accent)
+  const base = rgb(t.accent)
+  const [r, g, b] = base
+  const k = t.accent === '#e2e8f0' ? 0.2 : 0.3
+  const bg = base.map(v => Math.round(v * k))
+  const txt = base.map(v => Math.round(v * 0.35 + 255 * 0.65))
   return {
-    '--nav-bg': t.bg,
-    '--nav-border': `rgba(${r},${g},${b},0.14)`,
+    '--nav-bg': `rgb(${bg.join(',')})`,
+    '--nav-border': `rgba(${r},${g},${b},0.30)`,
     '--nav-accent': t.accent,
-    '--nav-accent-soft': `rgba(${r},${g},${b},0.10)`,
-    '--nav-label': `rgba(${r},${g},${b},0.9)`,
+    '--nav-accent-soft': `rgba(${r},${g},${b},0.22)`,
+    '--nav-label': t.accent,
+    '--nav-text': `rgb(${txt.join(',')})`,
+    '--nav-pattern': padraoFlores(base),
   }
 }

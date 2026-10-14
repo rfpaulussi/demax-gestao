@@ -148,9 +148,9 @@ function NavLinks({
                     className={
                       active
                         ? 'flex items-center gap-3 rounded-r-lg border-l-2 px-3 py-2.5 text-sm font-semibold text-white'
-                        : 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:text-white'
+                        : 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors hover:text-white'
                     }
-                    style={active ? { borderColor: 'var(--nav-accent)', background: 'var(--nav-accent-soft)' } : undefined}
+                    style={active ? { borderColor: 'var(--nav-accent)', background: 'var(--nav-accent-soft)' } : { color: 'var(--nav-text)' }}
                   >
                     {Icon && <Icon className="h-4 w-4 shrink-0" />}
                     <span className="flex-1">{label}</span>
@@ -212,7 +212,7 @@ export function SidebarNav({
     <div className="contents" style={varsDoTema(tema) as React.CSSProperties}>
       {/* Mobile: Sheet sidebar (aberta pelo botão do cabeçalho) */}
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="left" className="pt-0 !bg-[var(--nav-bg)]">
+        <SheetContent side="left" className="pt-0 !bg-[var(--nav-bg)] [background-image:var(--nav-pattern)]">
           <SheetClose />
           <SidebarHeader />
           <NavLinks role={role} pendingCount={pendingCount} alertCount={alertCount} termosPendentes={termosPendentes} onNavigate={() => setOpen(false)} />
@@ -220,7 +220,7 @@ export function SidebarNav({
       </Sheet>
 
       {/* Desktop: fixed sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-30 hidden w-64 flex-col ${collapsed ? '' : 'md:flex'}`} style={{ background: 'var(--nav-bg)', borderRight: '1px solid var(--nav-border)' }}>
+      <aside className={`fixed inset-y-0 left-0 z-30 hidden w-64 flex-col ${collapsed ? '' : 'md:flex'}`} style={{ backgroundColor: 'var(--nav-bg)', backgroundImage: 'var(--nav-pattern)', borderRight: '1px solid var(--nav-border)' }}>
         <SidebarHeader />
         <NavLinks role={role} pendingCount={pendingCount} alertCount={alertCount} termosPendentes={termosPendentes} />
       </aside>
