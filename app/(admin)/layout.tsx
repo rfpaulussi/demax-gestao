@@ -5,11 +5,13 @@ import { getUser } from '@/lib/auth/get-user'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { SidebarNav } from '@/components/admin/sidebar-nav'
+import { SidebarProvider, SidebarContent, SidebarToggle } from '@/components/admin/sidebar-context'
 import { NotificacoesBell } from '@/components/admin/notificacoes-bell'
 import type { LogAcao } from '@/components/admin/notificacoes-bell'
 import { SupervisorBell } from '@/components/admin/supervisor-bell'
 import type { SolicitacaoNotif, AlertaSupervisor } from '@/components/admin/supervisor-bell'
 import { contarTermosPendentes } from '@/lib/termos/listar-termos'
+import { temaDoMes, mesAtualBrasilia } from '@/lib/tema-campanha'
 import { ROLE_LABELS } from '@/types'
 import type { Role } from '@/types'
 
@@ -139,16 +141,16 @@ export default async function AdminLayout({
   ])
 
   return (
+    <SidebarProvider>
     <div className={`${inter.className} min-h-screen bg-gray-50`}>
-      <SidebarNav role={perfil.role as Role | null} pendingCount={pendingCount ?? 0} alertCount={alertCount} termosPendentes={termosPendentes} />
+      <SidebarNav tema={temaDoMes(mesAtualBrasilia())} role={perfil.role as Role | null} pendingCount={pendingCount ?? 0} alertCount={alertCount} termosPendentes={termosPendentes} />
 
-      {/* Content area — offset by sidebar width on desktop */}
-      <div className="flex min-h-screen flex-col md:pl-64">
+      {/* Content area — offset by sidebar width on desktop (zero when collapsed) */}
+      <SidebarContent>
 
         {/* Top header */}
         <header className="sticky top-0 z-20 flex h-12 items-center border-b border-gray-200 bg-white px-4 md:px-6">
-          {/* Spacer keeps header content from overlapping mobile hamburger */}
-          <div className="w-10 shrink-0 md:hidden" aria-hidden />
+          <SidebarToggle />
 
           <div className="ml-auto flex items-center gap-2">
             <div className="hidden items-center gap-1.5 rounded-lg bg-slate-50 px-3 py-1.5 sm:flex">
@@ -191,7 +193,8 @@ export default async function AdminLayout({
         </header>
 
         <main className="flex-1 p-3 md:p-4">{children}</main>
-      </div>
+      </SidebarContent>
     </div>
+    </SidebarProvider>
   )
 }

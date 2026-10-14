@@ -16,7 +16,6 @@ import {
   Biohazard,
   Siren,
   UserCog,
-  Menu,
   Upload,
   ClipboardList,
   BarChart3,
@@ -35,8 +34,12 @@ import {
   CalendarClock,
   FileCheck2,
   CalendarRange,
+  FileSpreadsheet,
+  ChevronDown,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
+import { useSidebar } from './sidebar-context'
+import { varsDoTema, type TemaCampanha } from '@/lib/tema-campanha'
 import { NAV_GROUPS } from './nav-config'
 import type { Role } from '@/types'
 
@@ -73,6 +76,7 @@ const ICONS: Record<string, React.ElementType> = {
   '/funcoes':               Briefcase,
   '/revisor-operacional':   SearchCheck,
   '/auditoria-atestados':   FileSearch,
+  '/conferencia-rh':        FileSpreadsheet,
 }
 
 // ─── shared nav content ──────────────────────────────────────────────────────
@@ -91,6 +95,20 @@ function NavLinks({
   onNavigate?: () => void
 }) {
   const pathname = usePathname()
+  // Grupo da página atual (ou o primeiro) começa aberto; os demais recolhidos.
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
+    const atual = NAV_GROUPS.find(g =>
+      g.items.some(it => pathname === it.href || pathname.startsWith(it.href + '/')),
+    )
+    return new Set([atual?.label ?? NAV_GROUPS[0].label])
+  })
+  const toggleGroup = (label: string) =>
+    setOpenGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(label)) next.delete(label)
+      else next.add(label)
+      return next
+    })
 
   return (
     <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-4">
@@ -101,12 +119,20 @@ function NavLinks({
             : !group.adminOnly || role === 'admin',
         )
         if (visibleItems.length === 0) return null
+        const aberto = openGroups.has(group.label)
         return (
-          <div key={group.label} className={i > 0 ? 'mt-6' : undefined}>
-            <p className="text-[10px] uppercase tracking-widest px-3 mb-2" style={{ color: '#2d5a3d' }}>
+          <div key={group.label} className={i > 0 ? 'mt-4' : undefined}>
+            <button
+              type="button"
+              onClick={() => toggleGroup(group.label)}
+              aria-expanded={aberto}
+              className="mb-2 flex w-full items-center justify-between px-3 text-[10px] uppercase tracking-widest"
+              style={{ color: 'var(--nav-label)' }}
+            >
               {group.label}
-            </p>
-            <div className="flex flex-col gap-0.5">
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${aberto ? '' : '-rotate-90'}`} />
+            </button>
+            <div className={`flex flex-col gap-0.5 ${aberto ? '' : 'hidden'}`}>
               {visibleItems.map(({ href, label, badge, alertBadge, termosBadge }) => {
                 const termosVal = termosBadge && termosPendentes > 0 ? termosPendentes : 0
                 const Icon = ICONS[href]
@@ -124,7 +150,7 @@ function NavLinks({
                         ? 'flex items-center gap-3 rounded-r-lg border-l-2 px-3 py-2.5 text-sm font-semibold text-white'
                         : 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:text-white'
                     }
-                    style={active ? { borderColor: '#22c55e', background: 'rgba(34,197,94,0.08)' } : undefined}
+                    style={active ? { borderColor: 'var(--nav-accent)', background: 'var(--nav-accent-soft)' } : undefined}
                   >
                     {Icon && <Icon className="h-4 w-4 shrink-0" />}
                     <span className="flex-1">{label}</span>
@@ -156,8 +182,8 @@ function NavLinks({
 
 function SidebarHeader() {
   return (
-    <div className="flex h-16 shrink-0 items-center gap-2.5 px-6" style={{ borderBottom: '1px solid #0d2318' }}>
-      <span className="block h-2 w-2 rounded-full flex-shrink-0" style={{ background: '#22c55e' }} aria-hidden />
+    <div className="flex h-16 shrink-0 items-center gap-2.5 px-6" style={{ borderBottom: '1px solid var(--nav-border)' }}>
+      <span className="block h-2 w-2 rounded-full flex-shrink-0" style={{ background: 'var(--nav-accent)' }} aria-hidden />
       <span className="text-sm font-black uppercase tracking-widest text-white">
         DEMAX
       </span>
@@ -172,28 +198,21 @@ export function SidebarNav({
   pendingCount = 0,
   alertCount = 0,
   termosPendentes = 0,
+  tema,
 }: {
+  tema: TemaCampanha
   role: Role | null
   pendingCount?: number
   alertCount?: number
   termosPendentes?: number
 }) {
-  const [open, setOpen] = useState(false)
+  const { collapsed, mobileOpen: open, setMobileOpen: setOpen } = useSidebar()
 
   return (
-    <>
-      {/* Mobile: hamburger triggers Sheet */}
-      <button
-        onClick={() => setOpen(true)}
-        aria-label="Abrir menu"
-        className="fixed left-4 top-4 z-50 rounded-lg p-1.5 text-slate-600 transition-colors hover:bg-slate-100 md:hidden"
-      >
-        <Menu className="h-5 w-5" />
-      </button>
-
-      {/* Mobile: Sheet sidebar */}
+    <div className="contents" style={varsDoTema(tema) as React.CSSProperties}>
+      {/* Mobile: Sheet sidebar (aberta pelo botão do cabeçalho) */}
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="left" className="pt-0 !bg-[#071510]">
+        <SheetContent side="left" className="pt-0 !bg-[var(--nav-bg)]">
           <SheetClose />
           <SidebarHeader />
           <NavLinks role={role} pendingCount={pendingCount} alertCount={alertCount} termosPendentes={termosPendentes} onNavigate={() => setOpen(false)} />
@@ -201,10 +220,10 @@ export function SidebarNav({
       </Sheet>
 
       {/* Desktop: fixed sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col md:flex" style={{ background: '#071510', borderRight: '1px solid #0d2318' }}>
+      <aside className={`fixed inset-y-0 left-0 z-30 hidden w-64 flex-col ${collapsed ? '' : 'md:flex'}`} style={{ background: 'var(--nav-bg)', borderRight: '1px solid var(--nav-border)' }}>
         <SidebarHeader />
         <NavLinks role={role} pendingCount={pendingCount} alertCount={alertCount} termosPendentes={termosPendentes} />
       </aside>
-    </>
+    </div>
   )
 }
