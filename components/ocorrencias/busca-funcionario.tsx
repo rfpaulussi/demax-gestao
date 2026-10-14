@@ -408,6 +408,11 @@ export function BuscaFuncionario({
                           Aguardando {STATUS_LABEL[f.aguardando]}{f.aguardandoDesde ? ` · há ${diasDesde(f.aguardandoDesde)}d` : ''}
                         </span>
                       ) : null}
+                      {f.comRHDesde && (
+                        <span className="ml-1 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">
+                          Com o RH · há {diasDesde(f.comRHDesde)}d
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))

@@ -81,6 +81,8 @@ export type FuncionarioPainel = {
   }
   aguardando: LadoConversa | null
   aguardandoDesde: string | null
+  /** Desde quando há ocorrência aberta com o RH (só gestão; supervisor/viewer sempre null). */
+  comRHDesde: string | null
 }
 
 type RawFuncPainel = {
@@ -201,6 +203,26 @@ async function getFuncionarioAguardando(
   return infoPorFuncionario
 }
 
+// Funcionário -> desde quando tem ocorrência aberta com o RH (a mais antiga). Só para a gestão.
+// Coluna nova: se a migração estiver pendente a consulta dá erro e o mapa fica vazio.
+async function getComRHPorFuncionario(auth: AuthUser | null): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  if (!auth || (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador')) return map
+  const { data, error } = await (createAdminClient() as unknown as AnyClient)
+    .from('ocorrencias')
+    .select('funcionario_id, com_rh_desde')
+    .eq('tipo', 'ocorrencia')
+    .in('status', ['aberta', 'em_analise'])
+    .not('com_rh_desde', 'is', null)
+    .not('funcionario_id', 'is', null)
+  if (error) return map
+  for (const r of (data ?? []) as { funcionario_id: string; com_rh_desde: string }[]) {
+    const atual = map.get(r.funcionario_id)
+    if (!atual || r.com_rh_desde < atual) map.set(r.funcionario_id, r.com_rh_desde)
+  }
+  return map
+}
+
 export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
   const supabase = createClient()
   const auth = await getUser()
@@ -224,7 +246,7 @@ export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
     return query as unknown as PromiseLike<{ data: RawFuncPainel[] | null; error: { message: string } | null }>
   })
 
-  const [advertenciasMap, atestadosMap, faltasMap, ocorrenciasMap, supervisoresPorPosto, aguardandoPorFuncionario] = await Promise.all([
+  const [advertenciasMap, atestadosMap, faltasMap, ocorrenciasMap, supervisoresPorPosto, aguardandoPorFuncionario, comRHPorFuncionario] = await Promise.all([
     contarPorFuncionario((from, to) =>
       supabase.from('advertencias').select('funcionario_id').range(from, to) as unknown as PromiseLike<{ data: RawContagem[] | null; error: { message: string } | null }>,
     ),
@@ -244,6 +266,7 @@ export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
     ),
     getSupervisoresPorPosto(supabase),
     getFuncionarioAguardando(supabase, auth),
+    getComRHPorFuncionario(auth),
   ])
 
   return funcionariosRaw.map(f => ({
@@ -261,6 +284,7 @@ export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
     },
     aguardando: aguardandoPorFuncionario.get(f.id)?.lado ?? null,
     aguardandoDesde: aguardandoPorFuncionario.get(f.id)?.desde ?? null,
+    comRHDesde: comRHPorFuncionario.get(f.id) ?? null,
   }))
 }
 

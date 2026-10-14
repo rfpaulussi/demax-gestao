@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import type { DossieFuncionario, SupervisorSimples, TimelineTipo } from '@/app/(admin)/ocorrencias/actions'
 import { getDossieFuncionario, updateStatusOcorrencia, registrarRetornoRH } from '@/app/(admin)/ocorrencias/actions'
+import { decidirAnalise } from '@/app/(admin)/ocorrencias/ia-actions'
 import { ModalEncaminharRH } from './modal-encaminhar-rh'
 import { ModalAnaliseIA } from './modal-analise-ia'
 import { diasComRH } from '@/lib/ocorrencias/encaminhar-rh'
@@ -77,6 +78,7 @@ export function ModalDossie({
   const [retornoId, setRetornoId]       = useState<string | null>(null)
   const [analiseIA, setAnaliseIA]       = useState<{ id: string; modo: 'analise' | 'retorno' } | null>(null)
   const [consideracoesIA, setConsideracoesIA] = useState('')
+  const [decisaoIA, setDecisaoIA] = useState<{ analiseId: string; devolutiva: string | null } | null>(null)
   const [retornoTexto, setRetornoTexto] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -448,8 +450,13 @@ export function ModalDossie({
                 <ModalEncaminharRH
                   ocorrenciaId={encaminharId.replace('ocorrencia-', '')}
                   consideracoes={consideracoesIA}
-                  onClose={() => { setEncaminharId(null); setConsideracoesIA('') }}
-                  onEnviado={() => carregar()}
+                  // Cancelar volta ao modal da IA intacto (a análise segue pendente).
+                  onClose={() => { setEncaminharId(null); setConsideracoesIA(''); setDecisaoIA(null) }}
+                  onEnviado={() => { setAnaliseIA(null); carregar() }}
+                  aoEnviar={decisaoIA ? () => decidirAnalise(decisaoIA.analiseId, {
+                    decisao: 'aprovada',
+                    devolutivaEditada: decisaoIA.devolutiva ?? undefined,
+                  }) : undefined}
                 />
               )}
 
@@ -457,10 +464,12 @@ export function ModalDossie({
                 <ModalAnaliseIA
                   ocorrenciaId={analiseIA.id.replace('ocorrencia-', '')}
                   modo={analiseIA.modo}
+                  comRH={!!dossie?.timeline.find(t => t.id === analiseIA.id)?.com_rh_desde}
                   onClose={() => setAnaliseIA(null)}
                   onAprovada={() => carregar(true)}
-                  onEncaminharRH={(consideracoes) => {
+                  onEncaminharRH={({ analiseId, consideracoes, devolutiva }) => {
                     setConsideracoesIA(consideracoes)
+                    setDecisaoIA({ analiseId, devolutiva })
                     setEncaminharId(analiseIA.id)
                   }}
                 />

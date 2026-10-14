@@ -42,12 +42,16 @@ export function ModalAnaliseIA({
   onClose,
   onEncaminharRH,
   onAprovada,
+  comRH,
 }: {
   ocorrenciaId: string
   modo: 'analise' | 'retorno'
   onClose: () => void
-  onEncaminharRH: (consideracoes: string) => void
+  // Não decide a análise: quem decide é o fluxo do e-mail, depois que ele sair.
+  onEncaminharRH: (d: { analiseId: string; consideracoes: string; devolutiva: string | null }) => void
   onAprovada: () => void
+  /** Ocorrência já está com o RH: não há novo encaminhamento. */
+  comRH: boolean
 }) {
   const [carregando, setCarregando] = useState(modo === 'analise')
   const [mensagem, setMensagem]     = useState('')
@@ -147,15 +151,12 @@ export function ModalAnaliseIA({
     })
   }
 
-  function handleEncaminhar() {
+  // Abre o e-mail por cima deste modal. Nada é decidido nem postado aqui: a devolutiva ao supervisor
+  // (se houver) só é postada depois que o e-mail ao RH sair. Cancelar o e-mail volta a este modal intacto.
+  function handleEncaminhar(comDevolutiva: boolean) {
     if (!analiseId) return
     setErro(null)
-    startTransition(async () => {
-      const r = await decidirAnalise(analiseId, { decisao: 'aprovada' })
-      if (!r.success) { setErro(r.error); return }
-      onEncaminharRH(consideracoes)
-      onClose()
-    })
+    onEncaminharRH({ analiseId, consideracoes, devolutiva: comDevolutiva ? devolutiva : null })
   }
 
   function handleReprovar() {
@@ -376,7 +377,7 @@ export function ModalAnaliseIA({
               {analise && passoRH === 'gerado' && (
                 <div className="space-y-1">
                   <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
-                    Considerações para o e-mail ao RH (edite antes de encaminhar)
+                    Considerações para o e-mail ao RH (opcional, edite antes de encaminhar)
                   </label>
                   <textarea value={consideracoes} onChange={e => setConsideracoes(e.target.value)} rows={4} className={textareaClass} />
                 </div>
@@ -401,20 +402,38 @@ export function ModalAnaliseIA({
                 </div>
               ) : (
                 <div className="flex flex-wrap justify-end gap-2">
+                  <button disabled={isPending} onClick={onClose} className="h-9 rounded-lg border border-gray-200 px-4 text-xs font-semibold uppercase tracking-widest text-gray-500 hover:bg-gray-50 disabled:opacity-50">
+                    Sair
+                  </button>
                   <button disabled={isPending} onClick={() => setReprovando(true)} className="h-9 rounded-lg border border-red-200 px-4 text-xs font-semibold uppercase tracking-widest text-red-600 hover:bg-red-50 disabled:opacity-50">
                     Reprovar
                   </button>
-                  {passoRH === 'gerado' && (
-                    <button disabled={isPending} onClick={handleEncaminhar} className="h-9 rounded-lg bg-indigo-600 px-4 text-xs font-semibold uppercase tracking-widest text-white hover:bg-indigo-700 disabled:opacity-50">
-                      Encaminhar ao RH
-                    </button>
+                  {analise && !comRH && (
+                    <>
+                      <button
+                        disabled={isPending}
+                        onClick={() => handleEncaminhar(false)}
+                        title="Abre o e-mail ao RH. Nada é enviado ao supervisor."
+                        className="h-9 rounded-lg border border-indigo-200 px-4 text-xs font-semibold uppercase tracking-widest text-indigo-600 hover:bg-indigo-50 disabled:opacity-50"
+                      >
+                        Só encaminhar ao RH
+                      </button>
+                      <button
+                        disabled={isPending || !devolutiva.trim()}
+                        onClick={() => handleEncaminhar(true)}
+                        title="Abre o e-mail ao RH. A devolutiva só vai ao supervisor depois que o e-mail sair."
+                        className="h-9 rounded-lg bg-indigo-600 px-4 text-xs font-semibold uppercase tracking-widest text-white hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        Aprovar e encaminhar ao RH
+                      </button>
+                    </>
                   )}
                   <button
                     disabled={isPending || !devolutiva.trim()}
                     onClick={handleAprovarDevolutiva}
                     className="h-9 rounded-lg bg-slate-900 px-4 text-xs font-semibold uppercase tracking-widest text-white hover:bg-slate-700 disabled:opacity-50"
                   >
-                    {isPending ? 'Enviando…' : 'Aprovar devolutiva'}
+                    {isPending ? 'Enviando…' : 'Aprovar e responder ao supervisor'}
                   </button>
                 </div>
               )}
