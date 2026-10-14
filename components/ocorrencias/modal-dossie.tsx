@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import type { DossieFuncionario, SupervisorSimples, TimelineTipo } from '@/app/(admin)/ocorrencias/actions'
-import { getDossieFuncionario, updateStatusOcorrencia, registrarRetornoRH } from '@/app/(admin)/ocorrencias/actions'
+import { getDossieFuncionario, updateStatusOcorrencia, registrarRetornoRH, liberarCorrecaoOcorrencia, cancelarCorrecaoOcorrencia, corrigirTextoOcorrencia } from '@/app/(admin)/ocorrencias/actions'
 import { decidirAnalise } from '@/app/(admin)/ocorrencias/ia-actions'
 import { ModalEncaminharRH } from './modal-encaminhar-rh'
 import { ModalAnaliseIA } from './modal-analise-ia'
@@ -80,6 +80,9 @@ export function ModalDossie({
   const [consideracoesIA, setConsideracoesIA] = useState('')
   const [decisaoIA, setDecisaoIA] = useState<{ analiseId: string; devolutiva: string | null } | null>(null)
   const [retornoTexto, setRetornoTexto] = useState('')
+  // correção do texto: ocorrência com o painel aberto + modo (gestão pede / supervisor corrige)
+  const [correcao, setCorrecao] = useState<{ id: string; modo: 'pedir' | 'corrigir' } | null>(null)
+  const [correcaoTexto, setCorrecaoTexto] = useState('')
   const [isPending, startTransition] = useTransition()
 
   // silencioso = atualiza os dados sem trocar a tela por "Carregando" (usado ao enviar mensagem)
@@ -102,6 +105,23 @@ export function ModalDossie({
       if (result.success) {
         setRetornoId(null)
         setRetornoTexto('')
+        carregar()
+      } else {
+        alert(result.error)
+      }
+    })
+  }
+
+  function handleCorrecao(idComPrefixo: string, acao: 'pedir' | 'corrigir' | 'cancelar') {
+    const id = idComPrefixo.replace('ocorrencia-', '')
+    startTransition(async () => {
+      const result =
+        acao === 'pedir' ? await liberarCorrecaoOcorrencia(id, correcaoTexto)
+        : acao === 'corrigir' ? await corrigirTextoOcorrencia(id, correcaoTexto)
+        : await cancelarCorrecaoOcorrencia(id)
+      if (result.success) {
+        setCorrecao(null)
+        setCorrecaoTexto('')
         carregar()
       } else {
         alert(result.error)
@@ -309,7 +329,42 @@ export function ModalDossie({
                                 Encerrar
                               </button>
                             )}
-                            {ehGestao && ehOcorrencia && (item.status === 'aberta' || item.status === 'em_analise') && (
+                            {ehOcorrencia && (item.status === 'aberta' || item.status === 'em_analise') && item.correcao_liberada_em && (
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                                Aguardando correção do supervisor
+                              </span>
+                            )}
+                            {ehGestao && ehOcorrencia && (item.status === 'aberta' || item.status === 'em_analise') && !item.com_rh_desde && (
+                              item.correcao_liberada_em ? (
+                                <button
+                                  disabled={isPending}
+                                  title="Desfaz o pedido de correção e libera a análise e o encaminhamento ao RH."
+                                  onClick={() => handleCorrecao(item.id, 'cancelar')}
+                                  className="rounded-lg border border-amber-200 px-2 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-50"
+                                >
+                                  Cancelar pedido de correção
+                                </button>
+                              ) : (
+                                <button
+                                  disabled={isPending}
+                                  title="Libera o supervisor para reescrever o texto desta ocorrência (ex.: redação confusa). A análise e o RH ficam bloqueados até ele corrigir."
+                                  onClick={() => { setCorrecao({ id: item.id, modo: 'pedir' }); setCorrecaoTexto('') }}
+                                  className="rounded-lg bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                                >
+                                  Pedir correção do texto
+                                </button>
+                              )
+                            )}
+                            {!ehGestao && canWrite && ehOcorrencia && item.correcao_liberada_em && (item.status === 'aberta' || item.status === 'em_analise') && (
+                              <button
+                                disabled={isPending}
+                                onClick={() => { setCorrecao({ id: item.id, modo: 'corrigir' }); setCorrecaoTexto(item.detalhe) }}
+                                className="rounded-lg bg-amber-500 px-2 py-0.5 text-xs font-semibold text-slate-900 hover:bg-amber-400 disabled:opacity-50"
+                              >
+                                Corrigir texto
+                              </button>
+                            )}
+                            {ehGestao && ehOcorrencia && (item.status === 'aberta' || item.status === 'em_analise') && !item.correcao_liberada_em && (
                               item.com_rh_desde ? (
                                 <>
                                   <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">
@@ -333,7 +388,7 @@ export function ModalDossie({
                                 </button>
                               )
                             )}
-                            {ehGestao && ehOcorrencia && (item.status === 'aberta' || item.status === 'em_analise') && (
+                            {ehGestao && ehOcorrencia && (item.status === 'aberta' || item.status === 'em_analise') && !item.correcao_liberada_em && (
                               <>
                                 <button
                                   disabled={isPending}
@@ -365,6 +420,43 @@ export function ModalDossie({
                             >
                               {conversaAberta ? 'Ocultar conversa' : `Conversa (${item.comentarios ?? 0})`}
                             </button>
+                          </div>
+                        )}
+
+                        {correcao?.id === item.id && (
+                          <div className="space-y-2 border-t border-gray-50 bg-amber-50/50 px-4 py-3">
+                            <label className="text-xs font-semibold uppercase tracking-widest text-gray-500">
+                              {correcao.modo === 'pedir'
+                                ? 'O que o supervisor deve corrigir? (opcional, ele vê esta mensagem)'
+                                : 'Reescreva o texto da ocorrência'}
+                            </label>
+                            <textarea
+                              value={correcaoTexto}
+                              onChange={e => setCorrecaoTexto(e.target.value)}
+                              rows={correcao.modo === 'pedir' ? 3 : 10}
+                              placeholder={correcao.modo === 'pedir' ? 'Ex.: não ficou claro quem fez o quê no 2º parágrafo…' : ''}
+                              className="w-full resize-y rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400"
+                            />
+                            {correcao.modo === 'corrigir' && (
+                              <p className="text-xs text-gray-500">A gestão será avisada. A versão anterior fica guardada no histórico interno.</p>
+                            )}
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => { setCorrecao(null); setCorrecaoTexto('') }}
+                                className="h-8 rounded-lg border border-gray-200 px-3 text-xs font-semibold uppercase tracking-widest text-gray-500 hover:bg-gray-50"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                type="button"
+                                disabled={isPending || (correcao.modo === 'corrigir' && !correcaoTexto.trim())}
+                                onClick={() => handleCorrecao(item.id, correcao.modo)}
+                                className="h-8 rounded-lg bg-slate-900 px-3 text-xs font-semibold uppercase tracking-widest text-white hover:bg-slate-700 disabled:opacity-50"
+                              >
+                                {isPending ? 'Salvando…' : correcao.modo === 'pedir' ? 'Liberar correção' : 'Salvar correção'}
+                              </button>
+                            </div>
                           </div>
                         )}
 

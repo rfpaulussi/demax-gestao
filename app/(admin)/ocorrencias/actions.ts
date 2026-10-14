@@ -421,6 +421,9 @@ export type TimelineItem = {
   comentarios?: number
   supervisor_nome?: string | null
   com_rh_desde?: string | null
+  /** Gestão liberou o supervisor para corrigir o texto (aguardando correção). */
+  correcao_liberada_em?: string | null
+  correcao_motivo?: string | null
 }
 
 export type DossieFuncionario = {
@@ -530,6 +533,20 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
     }
   }
 
+  // "Aguardando correção": consulta separada e tolerante (coluna nova; sem a migração fica vazio).
+  // Supervisor e gestão precisam ver. O escopo do supervisor já foi checado acima.
+  const correcaoMap = new Map<string, { em: string; motivo: string | null }>()
+  if (ocorrencias.length > 0 && auth.perfil.role !== 'viewer') {
+    const { data: cr } = await (createAdminClient() as unknown as AnyClient)
+      .from('ocorrencias')
+      .select('id, correcao_liberada_em, correcao_motivo')
+      .in('id', ocorrencias.map(o => o.id))
+      .not('correcao_liberada_em', 'is', null)
+    for (const r of (cr ?? []) as { id: string; correcao_liberada_em: string; correcao_motivo: string | null }[]) {
+      correcaoMap.set(r.id, { em: r.correcao_liberada_em, motivo: r.correcao_motivo })
+    }
+  }
+
   const supervisorIds = Array.from(new Set(ocorrencias.map(o => o.supervisor_id).filter((s): s is string => Boolean(s))))
   const supervisorNomesMap = new Map<string, string>()
   if (supervisorIds.length > 0) {
@@ -581,6 +598,8 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
       comentarios: contagemComentarios.get(o.id) ?? 0,
       supervisor_nome: o.supervisor_id ? (supervisorNomesMap.get(o.supervisor_id) ?? null) : null,
       com_rh_desde: ehGestao ? (comRhMap.get(o.id) ?? null) : null,
+      correcao_liberada_em: correcaoMap.get(o.id)?.em ?? null,
+      correcao_motivo: correcaoMap.get(o.id)?.motivo ?? null,
     })
   }
 
@@ -970,6 +989,9 @@ export async function getRascunhoRH(ocorrenciaId: string): Promise<RascunhoRH> {
     return { success: false, error: 'Esta ocorrência já foi encerrada' }
   }
   if (await lerComRH(ocorrenciaId)) return { success: false, error: 'Esta ocorrência já está com o RH' }
+  if (await lerCorrecaoLiberada(ocorrenciaId)) {
+    return { success: false, error: 'Aguardando o supervisor corrigir o texto. Cancele o pedido de correção para encaminhar.' }
+  }
 
   const dados = await montarDadosRascunhoRH(oc, auth.perfil.nome ?? 'Coordenação')
   if (!dados) return { success: false, error: 'Não foi possível montar o rascunho' }
@@ -1000,6 +1022,9 @@ export async function encaminharAoRH(
   if (!oc) return { success: false, error: 'Sem permissão' }
   if (oc.status === 'encerrada' || oc.status === 'resolvido') {
     return { success: false, error: 'Esta ocorrência já foi encerrada' }
+  }
+  if (await lerCorrecaoLiberada(ocorrenciaId)) {
+    return { success: false, error: 'Aguardando o supervisor corrigir o texto. Cancele o pedido de correção para encaminhar.' }
   }
   const admin = createAdminClient() as unknown as AnyClient
 
@@ -1040,6 +1065,178 @@ export async function encaminharAoRH(
   })
   // O e-mail já saiu e a ocorrência está marcada; a nota é só o registro do que foi enviado.
   if (erroNota) console.error('[encaminhar-rh] falha ao gravar a nota do encaminhamento:', erroNota.message)
+
+  revalidatePath('/ocorrencias')
+  return { success: true }
+}
+
+// ─── correção do texto pelo supervisor (liberada pela gestão, antes da análise) ───────────────
+
+// Lê se a ocorrência está liberada para correção. Coluna nova: sem a migração devolve null.
+async function lerCorrecaoLiberada(ocorrenciaId: string): Promise<string | null> {
+  const { data } = await (createAdminClient() as unknown as AnyClient)
+    .from('ocorrencias')
+    .select('correcao_liberada_em')
+    .eq('id', ocorrenciaId)
+    .single()
+  return (data?.correcao_liberada_em as string | null | undefined) ?? null
+}
+
+// Gestão pede ao supervisor que corrija a redação. Bloqueia análise por IA e encaminhamento ao RH
+// até ele corrigir. O motivo vai para a conversa (o supervisor vê) e ele é avisado por sino e e-mail.
+export async function liberarCorrecaoOcorrencia(ocorrenciaId: string, motivo: string): Promise<ActionResult> {
+  const auth = await exigirGestao()
+  if (!auth) return { success: false, error: 'Sem permissão' }
+
+  const oc = await carregarOcorrenciaDevolutiva(ocorrenciaId, auth)
+  if (!oc) return { success: false, error: 'Sem permissão' }
+  if (oc.status === 'encerrada' || oc.status === 'resolvido') {
+    return { success: false, error: 'Esta ocorrência já foi encerrada' }
+  }
+  if (await lerComRH(ocorrenciaId)) {
+    return { success: false, error: 'Esta ocorrência já está com o RH. Registre o retorno antes de pedir correção.' }
+  }
+
+  const texto = motivo.trim() || 'Pode revisar a redação desta ocorrência? Alguns trechos ficaram difíceis de entender.'
+  const validado = validarTexto(texto)
+  if (!validado.ok) return { success: false, error: validado.error }
+
+  const admin = createAdminClient() as unknown as AnyClient
+
+  // Condicional: só libera uma vez (duplo clique não manda duas mensagens).
+  const { data: liberadas, error } = await admin
+    .from('ocorrencias')
+    .update({
+      correcao_liberada_em: new Date().toISOString(),
+      correcao_liberada_por: auth.user.id,
+      correcao_motivo: validado.texto,
+    })
+    .eq('id', ocorrenciaId)
+    .is('correcao_liberada_em', null)
+    .select('id')
+  if (error) return { success: false, error: 'Não foi possível liberar a correção. Tente de novo.' }
+  if (!liberadas || liberadas.length === 0) {
+    return { success: false, error: 'Esta ocorrência já está liberada para correção' }
+  }
+
+  const { error: erroMsg } = await admin.from('ocorrencia_comentarios').insert({
+    ocorrencia_id: ocorrenciaId,
+    autor_id: auth.user.id,
+    tipo: 'mensagem',
+    texto: `Correção solicitada: ${validado.texto}`,
+  })
+  if (erroMsg) {
+    await admin.from('ocorrencias')
+      .update({ correcao_liberada_em: null, correcao_liberada_por: null, correcao_motivo: null })
+      .eq('id', ocorrenciaId)
+    return { success: false, error: erroMsg.message }
+  }
+
+  await notificarDevolutiva({
+    funcionarioId: oc.funcionario_id,
+    funcionarioNome: oc.funcionario_nome,
+    postoId: oc.posto_id,
+    supervisorDaOcorrencia: oc.supervisor_id,
+    autorId: auth.user.id,
+    autorRole: auth.perfil.role ?? '',
+    parecer: false,
+  })
+
+  revalidatePath('/ocorrencias')
+  return { success: true }
+}
+
+// Gestão desiste do pedido (ex.: entendeu o texto por outro meio). Libera análise e encaminhamento.
+export async function cancelarCorrecaoOcorrencia(ocorrenciaId: string): Promise<ActionResult> {
+  const auth = await exigirGestao()
+  if (!auth) return { success: false, error: 'Sem permissão' }
+
+  const oc = await carregarOcorrenciaDevolutiva(ocorrenciaId, auth)
+  if (!oc) return { success: false, error: 'Sem permissão' }
+
+  const { data, error } = await (createAdminClient() as unknown as AnyClient)
+    .from('ocorrencias')
+    .update({ correcao_liberada_em: null, correcao_liberada_por: null, correcao_motivo: null })
+    .eq('id', ocorrenciaId)
+    .not('correcao_liberada_em', 'is', null)
+    .select('id')
+  if (error) return { success: false, error: error.message }
+  if (!data || data.length === 0) return { success: false, error: 'Esta ocorrência não está aguardando correção' }
+
+  revalidatePath('/ocorrencias')
+  return { success: true }
+}
+
+// Supervisor (ou gestão) reescreve o texto, mas SÓ enquanto a gestão tiver liberado a correção.
+// O texto anterior fica guardado em nota interna (auditoria) e a gestão é avisada.
+export async function corrigirTextoOcorrencia(ocorrenciaId: string, novoTexto: string): Promise<ActionResult> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role === 'viewer') return { success: false, error: 'Sem permissão' }
+
+  const validado = validarTexto(novoTexto)
+  if (!validado.ok) return { success: false, error: validado.error }
+
+  const oc = await carregarOcorrenciaDevolutiva(ocorrenciaId, auth)
+  if (!oc) return { success: false, error: 'Sem permissão' }
+  if (oc.status === 'encerrada' || oc.status === 'resolvido') {
+    return { success: false, error: 'Esta ocorrência já foi encerrada' }
+  }
+  if (!(await lerCorrecaoLiberada(ocorrenciaId))) {
+    return { success: false, error: 'A gestão não liberou esta ocorrência para correção' }
+  }
+
+  const admin = createAdminClient() as unknown as AnyClient
+  const { data: atual } = await admin.from('ocorrencias').select('descricao').eq('id', ocorrenciaId).single()
+  const textoAnterior = (atual?.descricao as string | null) ?? ''
+  if (textoAnterior.trim() === validado.texto) {
+    return { success: false, error: 'O texto não foi alterado' }
+  }
+
+  // Condicional: a liberação é consumida por uma única correção.
+  const { data: atualizadas, error } = await admin
+    .from('ocorrencias')
+    .update({
+      descricao: validado.texto,
+      correcao_liberada_em: null,
+      correcao_liberada_por: null,
+      correcao_motivo: null,
+      atualizado_por: auth.user.id,
+      atualizado_em: new Date().toISOString(),
+    })
+    .eq('id', ocorrenciaId)
+    .not('correcao_liberada_em', 'is', null)
+    .select('id')
+  if (error) return { success: false, error: error.message }
+  if (!atualizadas || atualizadas.length === 0) {
+    return { success: false, error: 'A gestão não liberou esta ocorrência para correção' }
+  }
+
+  // Auditoria: o texto original não se perde. Nota interna (o supervisor não vê a nota).
+  const { error: erroNota } = await admin.from('ocorrencia_comentarios').insert({
+    ocorrencia_id: ocorrenciaId,
+    autor_id: auth.user.id,
+    tipo: 'nota_interna',
+    texto: `Texto da ocorrência corrigido. Versão anterior:\n${textoAnterior}`,
+  })
+  if (erroNota) console.error('[correcao] falha ao gravar a versão anterior:', erroNota.message)
+
+  const { error: erroMsg } = await admin.from('ocorrencia_comentarios').insert({
+    ocorrencia_id: ocorrenciaId,
+    autor_id: auth.user.id,
+    tipo: 'mensagem',
+    texto: 'Texto da ocorrência corrigido.',
+  })
+  if (erroMsg) console.error('[correcao] falha ao avisar na conversa:', erroMsg.message)
+
+  await notificarDevolutiva({
+    funcionarioId: oc.funcionario_id,
+    funcionarioNome: oc.funcionario_nome,
+    postoId: oc.posto_id,
+    supervisorDaOcorrencia: oc.supervisor_id,
+    autorId: auth.user.id,
+    autorRole: auth.perfil.role ?? '',
+    parecer: false,
+  })
 
   revalidatePath('/ocorrencias')
   return { success: true }

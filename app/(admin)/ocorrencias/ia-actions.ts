@@ -107,6 +107,18 @@ async function carregarBase(ocorrenciaId: string): Promise<BaseOcorrencia | null
   }
 }
 
+// Texto ainda sob correção do supervisor: não vale analisar. Coluna nova (tolerante: sem migração = livre).
+async function aguardandoCorrecao(ocorrenciaId: string): Promise<boolean> {
+  const { data } = await (createAdminClient() as AnyClient)
+    .from('ocorrencias')
+    .select('correcao_liberada_em')
+    .eq('id', ocorrenciaId)
+    .single()
+  return !!data?.correcao_liberada_em
+}
+
+const ERRO_AGUARDANDO_CORRECAO = 'Aguardando o supervisor corrigir o texto da ocorrência. Analise depois da correção.'
+
 // Nomes a mascarar: todos os funcionários e todos os perfis (supervisores, coordenação).
 async function carregarPessoas(): Promise<PessoaRef[]> {
   const admin = createAdminClient() as AnyClient
@@ -200,6 +212,7 @@ export async function previaAnalise(ocorrenciaId: string): Promise<PreviaAnalise
   if (base.status === 'encerrada' || base.status === 'resolvido') {
     return { success: false, error: 'Esta ocorrência já foi encerrada' }
   }
+  if (await aguardandoCorrecao(ocorrenciaId)) return { success: false, error: ERRO_AGUARDANDO_CORRECAO }
 
   const anon = anonimizarOcorrencia(base.descricao, await carregarPessoas())
   const mensagem = montarContexto({
@@ -245,6 +258,7 @@ export async function analisarOcorrencia(ocorrenciaId: string): Promise<Resultad
   if (base.status === 'encerrada' || base.status === 'resolvido') {
     return { success: false, error: 'Esta ocorrência já foi encerrada' }
   }
+  if (await aguardandoCorrecao(ocorrenciaId)) return { success: false, error: ERRO_AGUARDANDO_CORRECAO }
 
   // A prévia é refeita aqui no servidor: nunca se confia no que o navegador diz que enviou.
   const anon = anonimizarOcorrencia(base.descricao, await carregarPessoas())
