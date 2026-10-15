@@ -1,8 +1,8 @@
 'use client'
 
-import { MessageSquareText, Plus, RefreshCw, Sun, Sunset } from 'lucide-react'
+import { MessageSquareText, Plus, RefreshCw, RotateCcw, Sun, Sunset } from 'lucide-react'
 import { DIAS_CURTOS, PERIODOS, slotsVisiveis, temaDe, type FeriadoDia, type Periodo } from '@/lib/agenda/tema'
-import { numeroDia } from '@/lib/agenda/datas'
+import { diaMes, numeroDia } from '@/lib/agenda/datas'
 import { ehDiaDaJanela } from '@/lib/agenda/recolhimento'
 import type { BlocoView, TipoFoco } from '@/app/(admin)/agenda/actions'
 
@@ -15,6 +15,7 @@ export function GradeSemanal({
   hoje,
   podeEditar,
   feriados,
+  repostas,
   onSlot,
 }: {
   dias: string[]
@@ -23,6 +24,7 @@ export function GradeSemanal({
   hoje: string
   podeEditar: boolean
   feriados: Record<string, FeriadoDia>
+  repostas?: Record<string, string> // `data|postoId` → dia em que a visita foi reposta
   onSlot: (data: string, periodo: Periodo, ordem: number, bloco: BlocoView | null) => void
 }) {
   const tiposMap = new Map(tipos.map(t => [t.id, t]))
@@ -117,6 +119,7 @@ export function GradeSemanal({
 
                     const tema = temaDe(tipo?.cor)
                     const extras = bloco.postos.length - 2
+                    const reposicao = bloco.postos.map(po => repostas?.[`${data}|${po.id}`]).find(Boolean)
                     return (
                       <button
                         key={ordem}
@@ -139,6 +142,11 @@ export function GradeSemanal({
                           ))}
                           {extras > 0 && <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${tema.chip}`}>+{extras}</span>}
                         </span>
+                        {reposicao && (
+                          <span className="flex w-fit items-center gap-1 rounded-md bg-teal-100 px-1.5 py-0.5 text-[10px] font-bold text-teal-800">
+                            <RotateCcw className="h-3 w-3" /> Reposta em {diaMes(reposicao)}
+                          </span>
+                        )}
                       </button>
                     )
                   })}

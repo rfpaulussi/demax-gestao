@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { diasDaSemana } from '@/lib/agenda/datas'
 import { PERIODOS, SLOTS_MAX, type Periodo } from '@/lib/agenda/tema'
 import type { AgendaDados } from '@/app/(admin)/agenda/actions'
@@ -12,6 +12,7 @@ import { Sugestoes } from './sugestoes'
 import { Comentarios } from './comentarios'
 import { CheckinPainel } from './checkin-painel'
 import { AbaMapa } from './aba-mapa'
+import { carregarMapa } from '@/app/(admin)/agenda/geo-actions'
 import { BotaoPdfSemana } from './botao-pdf'
 
 export function AgendaSupervisor({
@@ -29,6 +30,27 @@ export function AgendaSupervisor({
   const { semanaInicio, semana, blocos, tipos, postos, sugestoes, comentarios, podeEditar, ehDono, supervisor, checkinsHoje, geoDisponivel, feriados, sede } = dados
   const dias = diasDaSemana(semanaInicio)
   const publicada = semana.status === 'publicada'
+  const [repostasLista, setRepostasLista] = useState<{ data: string; posto_id: string; reposta_em: string }[]>([])
+
+  // Visitas repostas na semana (falta coberta por visita extra no mesmo posto): selo nos cards da grade.
+  useEffect(() => {
+    let vivo = true
+    setRepostasLista([])
+    if (!publicada) return
+    carregarMapa(semanaInicio, supervisor.id).then(r => {
+      if (!vivo || !r.ok) return
+      setRepostasLista(
+        r.dados.visitas
+          .filter(v => v.status === 'reposta' && v.reposta_em)
+          .map(v => ({ data: v.data, posto_id: v.posto_id, reposta_em: v.reposta_em! })),
+      )
+    })
+    return () => { vivo = false }
+  }, [semanaInicio, supervisor.id, publicada, blocos])
+  const repostas = useMemo(
+    () => Object.fromEntries(repostasLista.map(r => [`${r.data}|${r.posto_id}`, r.reposta_em])),
+    [repostasLista],
+  )
 
   function hrefSemana(s: string) {
     const q = new URLSearchParams()
@@ -137,6 +159,7 @@ export function AgendaSupervisor({
           hoje={hoje}
           podeEditar={podeEditar}
           feriados={feriados}
+          repostas={repostas}
           onSlot={(data, periodo, ordem, bloco) => setSlot({
             data, periodo, ordem, bloco,
             grupoPeriodos: bloco

@@ -63,6 +63,7 @@ export type VisitaView = {
   lng_real: number | null
   ordem: number | null
   fotos: string[]
+  reposta_em: string | null // dia em que a visita reposta foi de fato feita (status 'reposta')
 }
 
 export type MapaStats = {
@@ -196,6 +197,7 @@ export function montarVisitas(args: {
       lat_real: entrada?.latitude ?? null,
       lng_real: entrada?.longitude ?? null,
       ordem: null,
+      reposta_em: null,
       fotos: [entrada?.foto_path, saida?.foto_path].filter((f): f is string => !!f),
     }
   }
@@ -241,6 +243,7 @@ export function montarVisitas(args: {
       lat_real: extra.lat_real,
       lng_real: extra.lng_real,
       fotos: extra.fotos,
+      reposta_em: extra.data,
       alertas: [`Reposição: visita planejada para ${diaMes(falta.data)} feita em ${diaMes(extra.data)}`, ...extra.alertas],
     })
   }
