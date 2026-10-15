@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { buscarRegimePosto } from '@/lib/turnos/regime-posto'
 import {
   getCodigoSetor,
   REGIME_LABELS,
@@ -57,9 +58,8 @@ export async function getDadosMovColaborador(
           .limit(1)
           .maybeSingle()
       : Promise.resolve({ data: null }),
-    postoId
-      ? supabase.from('config_escalas_postos').select('regime').eq('posto_id', postoId).maybeSingle()
-      : Promise.resolve({ data: null }),
+    // client admin: config_escalas_postos é legível só por admin/coord (RLS)
+    buscarRegimePosto(postoId).then(regime => ({ data: regime ? { regime } : null })),
     solicitacaoId
       ? supabase.from('solicitacoes').select('dados_depois').eq('id', solicitacaoId).maybeSingle()
       : Promise.resolve({ data: null }),

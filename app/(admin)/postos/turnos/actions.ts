@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getUser } from '@/lib/auth/get-user'
 import { revalidatePath } from 'next/cache'
 import { isTipoEscalaPosto, type TipoEscalaPosto } from '@/lib/turnos/escala'
+import { buscarRegimePosto } from '@/lib/turnos/regime-posto'
 
 export interface TurnoData {
   nome: string
@@ -41,13 +42,10 @@ export async function listarTurnosPosto(postoId: string) {
 
 /** Regime de trabalho configurado para o posto em Config Escalas, ou null se ainda não configurado / valor inválido. */
 export async function obterRegimePosto(postoId: string): Promise<TipoEscalaPosto | null> {
-  const supabase = createClient()
-  const { data } = await supabase
-    .from('config_escalas_postos')
-    .select('regime')
-    .eq('posto_id', postoId)
-    .maybeSingle()
-  const regime = data?.regime
+  // client admin: supervisor/viewer também abrem o modal e precisam ver o regime (RLS só libera admin/coord)
+  const auth = await getUser()
+  if (!auth) return null
+  const regime = await buscarRegimePosto(postoId)
   return isTipoEscalaPosto(regime) ? regime : null
 }
 

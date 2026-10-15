@@ -398,7 +398,10 @@ export function TabHorario({
 
   const canWrite = role === 'admin' || role === 'coordenador'
   const isJovemAprendiz = funcaoNome === FUNCAO_JOVEM_APRENDIZ
-  const regime    = isJovemAprendiz ? 'jovem_aprendiz' : (regimePosto ?? '5x2')
+  // regime real do turno vigente tem prioridade; regime do posto é só fallback
+  const regime    = isJovemAprendiz
+    ? 'jovem_aprendiz'
+    : (horarioVigente?.turno.tipo_escala ?? regimePosto ?? '5x2')
   const regimeCfg = REGIME_CONFIG[regime] ?? REGIME_CONFIG['5x2']
   const diaCursoAtual = horarioVigente?.dia_curso ?? null
 

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { buscarRegimePosto } from '@/lib/turnos/regime-posto'
 import { getUser } from '@/lib/auth/get-user'
 import { cn } from '@/lib/utils'
 import { calcularStatusExperiencia } from '@/lib/experiencia'
@@ -147,9 +148,8 @@ export default async function PerfilFuncionarioPage({
       .not('data_fim', 'is', null)
       .order('data_inicio', { ascending: false }),
     // regime do posto
-    postoId
-      ? supabase.from('config_escalas_postos').select('regime').eq('posto_id', postoId).maybeSingle()
-      : Promise.resolve({ data: null }),
+    // client admin: config_escalas_postos é legível só por admin/coord (RLS)
+    buscarRegimePosto(postoId).then(regime => ({ data: regime ? { regime } : null })),
   ])
 
   const cutoffRisco = dataCorteScoreRisco()

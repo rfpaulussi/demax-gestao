@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
 import { assertRole } from '@/lib/auth/assert-role'
 import { obterRegimesPorFuncionario } from '@/lib/turnos/regime-funcionario'
+import { buscarRegimePosto } from '@/lib/turnos/regime-posto'
 import { diasDireitoEfetivo } from '@/lib/ferias/dias-direito'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -71,15 +72,7 @@ export async function agendarFerias(data: {
       .eq('id', data.funcionario_id)
       .single()
 
-    let regimePosto = '5x2'
-    if (func?.posto_id) {
-      const { data: escala } = await supabase
-        .from('config_escalas_postos')
-        .select('regime')
-        .eq('posto_id', func.posto_id)
-        .maybeSingle()
-      if (escala?.regime) regimePosto = escala.regime
-    }
+    const regimePosto = (await buscarRegimePosto(func?.posto_id)) ?? '5x2'
     const postoConfigMap = new Map(func?.posto_id ? [[func.posto_id, regimePosto]] : [])
     const postoIdPorFuncionario = new Map([[data.funcionario_id, func?.posto_id ?? null]])
     const regimes = await obterRegimesPorFuncionario(supabase, [data.funcionario_id], postoConfigMap, postoIdPorFuncionario)
