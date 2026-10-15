@@ -22,9 +22,10 @@ const SITUACAO: Record<StatusVisita, string> = {
   falta: 'Sem check-in',
   agendado: 'Agendado',
   extra: 'Visita extra',
+  reposta: 'Reposta na semana',
 }
 const COR: Record<StatusVisita, string> = {
-  ok: '#047857', alerta: '#b45309', sem_foto: '#c2410c', falta: '#be123c', agendado: '#2563eb', extra: '#4b5563',
+  ok: '#047857', alerta: '#b45309', sem_foto: '#c2410c', falta: '#be123c', agendado: '#2563eb', extra: '#4b5563', reposta: '#0f766e',
 }
 const ROTULO_PERIODO = Object.fromEntries(PERIODOS.map(p => [p.id, p.label])) as Record<string, string>
 

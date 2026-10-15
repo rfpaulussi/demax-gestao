@@ -1,5 +1,6 @@
 import { distanciaM, formatarDistancia } from '@/lib/agenda/geo'
 import type { Periodo } from '@/lib/agenda/tema'
+import { diaMes, segundaDe } from '@/lib/agenda/datas'
 
 /** Permanência mínima esperada entre chegada e saída (abaixo disso vira sinal de atenção). */
 export const MIN_PERMANENCIA_MIN = 10
@@ -38,7 +39,7 @@ export type PostoGeo = {
   raio_m: number
 }
 
-export type StatusVisita = 'ok' | 'alerta' | 'sem_foto' | 'falta' | 'agendado' | 'extra'
+export type StatusVisita = 'ok' | 'alerta' | 'sem_foto' | 'falta' | 'agendado' | 'extra' | 'reposta'
 
 export type VisitaView = {
   key: string
@@ -66,7 +67,8 @@ export type VisitaView = {
 
 export type MapaStats = {
   planejadas: number
-  cumpridas: number
+  cumpridas: number // inclui as repostas
+  repostas: number // faltas cobertas por visita extra no mesmo posto, na mesma semana
   faltas: number
   extras: number
   atencao: number // visitas cumpridas, mas com algum sinal de atenção
@@ -216,9 +218,43 @@ export function montarVisitas(args: {
     .sort((a, b) => a.entrada_em!.localeCompare(b.entrada_em!))
     .forEach((v, i) => { v.ordem = i + 1 })
 
+  // Reposição: falta que teve visita extra no mesmo posto, na mesma semana, vira `reposta` (conta como cumprida).
+  // 1 visita extra cobre no máximo 1 falta. Foco que exige foto só é reposto se a visita extra tiver foto.
+  const consumidas = new Set<string>()
+  for (const falta of visitas.filter(v => v.status === 'falta')) {
+    const semana = segundaDe(falta.data)
+    const extra = visitas.find(v =>
+      v.status === 'extra' && !consumidas.has(v.key) && v.entrada_em &&
+      v.posto_id === falta.posto_id && segundaDe(v.data) === semana,
+    )
+    if (!extra) continue
+    if (plan.get(falta.key)?.exigeFoto && extra.fotos.length === 0) continue
+    consumidas.add(extra.key)
+    Object.assign(falta, {
+      status: 'reposta' as StatusVisita,
+      entrada_em: extra.entrada_em,
+      saida_em: extra.saida_em,
+      tempo_min: extra.tempo_min,
+      distancia_m: extra.distancia_m,
+      justificativa: extra.justificativa,
+      baixa_precisao: extra.baixa_precisao,
+      lat_real: extra.lat_real,
+      lng_real: extra.lng_real,
+      fotos: extra.fotos,
+      alertas: [`Reposição: visita planejada para ${diaMes(falta.data)} feita em ${diaMes(extra.data)}`, ...extra.alertas],
+    })
+  }
+  const visitasFinal = visitas.filter(v => !consumidas.has(v.key))
+  visitas.length = 0
+  visitasFinal.forEach(v => visitas.push(v))
+  visitas
+    .filter(v => v.entrada_em)
+    .sort((a, b) => a.entrada_em!.localeCompare(b.entrada_em!))
+    .forEach((v, i) => { v.ordem = i + 1 })
+
   // Visitas "devidas": planejadas (agenda publicada) cujo prazo já chegou; futuras não entram na %.
-  const devidas = visitas.filter(v => v.status === 'ok' || v.status === 'alerta' || v.status === 'sem_foto' || v.status === 'falta')
-  const cumpridas = devidas.filter(v => v.status === 'ok' || v.status === 'alerta').length
+  const devidas = visitas.filter(v => v.status === 'ok' || v.status === 'alerta' || v.status === 'sem_foto' || v.status === 'falta' || v.status === 'reposta')
+  const cumpridas = devidas.filter(v => v.status === 'ok' || v.status === 'alerta' || v.status === 'reposta').length
   const tempos = visitas.map(v => v.tempo_min).filter((t): t is number => t !== null)
 
   return {
@@ -226,6 +262,7 @@ export function montarVisitas(args: {
     stats: {
       planejadas: devidas.length,
       cumpridas,
+      repostas: visitas.filter(v => v.status === 'reposta').length,
       faltas: visitas.filter(v => v.status === 'falta').length,
       extras: visitas.filter(v => v.status === 'extra').length,
       atencao: visitas.filter(v => v.status === 'alerta').length,
