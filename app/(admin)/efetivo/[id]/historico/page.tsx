@@ -137,7 +137,7 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
       .order('data_ocorrencia', { ascending: false }),
     (supabase as unknown as AnyQ)
       .from('movimentacoes')
-      .select('solicitacao_id, valor_antes, valor_depois, solicitacoes!solicitacao_id(dados_antes, dados_depois, motivo)')
+      .select('solicitacao_id, valor_antes, valor_depois, created_at, solicitacoes!solicitacao_id(dados_antes, dados_depois, motivo)')
       .eq('funcionario_id', id)
       .eq('tipo', 'mudanca_funcao'),
     (supabase as unknown as AnyQ)
@@ -214,10 +214,11 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
     solicitacao_id: string | null
     valor_antes: string | null
     valor_depois: string | null
+    created_at: string
     solicitacoes: { dados_antes: Record<string, unknown> | null; dados_depois: Record<string, unknown> | null; motivo: string | null } | null
   }
   const funcaoEnrichMap   = new Map<string, { anterior: string | null; nova: string | null; motivo: string | null }>()
-  const funcaoIdxBySolId  = new Map<string, string>() // "valor_antes:valor_depois" → solicitacao_id
+  const movsFuncao = ((movMudancas ?? []) as MovMudanca[]).filter(m => m.solicitacao_id)
   for (const m of ((movMudancas ?? []) as MovMudanca[])) {
     if (!m.solicitacao_id) continue
     const sol = m.solicitacoes
@@ -226,7 +227,16 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
       nova:     (sol?.dados_depois?.['funcao_destino_nome'] as string | undefined) ?? null,
       motivo:   sol?.motivo ?? null,
     })
-    funcaoIdxBySolId.set(`${m.valor_antes ?? ''}:${m.valor_depois ?? ''}`, m.solicitacao_id)
+  }
+
+  // O mesmo par função antes→depois pode se repetir (A→B, B→A, A→B): escolhe a movimentação
+  // cuja data é a mais próxima do evento, senão o motivo de uma troca aparece na outra.
+  function acharSolicitacaoFuncao(antes: string | undefined, depois: string | undefined, dataEvento: string): string | undefined {
+    const cands = movsFuncao.filter(m => m.valor_antes === (antes ?? null) && m.valor_depois === (depois ?? null))
+    if (cands.length === 0) return undefined
+    return cands.reduce((melhor, m) =>
+      diasEntre(dataSP(m.created_at), dataEvento) < diasEntre(dataSP(melhor.created_at), dataEvento) ? m : melhor
+    ).solicitacao_id ?? undefined
   }
 
   // ── Índices para evitar duplicidade entre historico (trigger) e tabelas-fonte ─
@@ -262,7 +272,7 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
         if (tipo === 'mudanca_funcao') {
           const funcAntesId = da?.['funcao_id'] as string | undefined
           const funcNovaId  = dn?.['funcao_id'] as string | undefined
-          const solId  = funcaoIdxBySolId.get(`${funcAntesId ?? ''}:${funcNovaId ?? ''}`)
+          const solId  = acharSolicitacaoFuncao(funcAntesId, funcNovaId, e.data_evento)
           const enrich = solId ? funcaoEnrichMap.get(solId) : undefined
           if (enrich) {
             return {
