@@ -42,3 +42,9 @@ restore_errors.log
 # snapshots locais de scripts de regressão (não commitar)
 scripts/.regime-parity-snapshot.json
 supabase/.temp/
+
+# levantamentos com dados pessoais (não versionar)
+/exports/
+
+# worktrees locais do Claude Code
+.claude/worktrees/
