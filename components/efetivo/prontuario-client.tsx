@@ -7,7 +7,7 @@ import {
   RotateCcw, Loader2, Clock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { ProntuarioFuncionario, ProntuarioEvento } from '@/app/(admin)/efetivo/[id]/historico/page'
+import type { ProntuarioFuncionario, ProntuarioEvento, PeriodoFerias } from '@/app/(admin)/efetivo/[id]/historico/page'
 import { TIPOS_DESLIGAMENTO, MOTIVOS_POR_TIPO } from '@/components/efetivo/modal-desligar'
 
 const TIPO_DESLIG_MAP = Object.fromEntries(TIPOS_DESLIGAMENTO.map(t => [t.value, t.label]))
@@ -80,9 +80,33 @@ function fmtMesAno(ym: string): string {
   return `${MONTH_NAMES[Number(m)]}/${y}`
 }
 
+type Dados = Record<string, unknown>
+
+function nomePosto(d: Dados): string {
+  const v = d.posto_nome ?? d.posto
+  return v ? String(v).replace(/""/g, '"') : ''
+}
+function nomeSecretaria(d: Dados): string {
+  const v = d.secretaria_nome ?? d.secretaria
+  return v ? String(v) : ''
+}
+function nomeFuncao(d: Dados): string {
+  const v = d.funcao_nome ?? d.funcao ?? d.cargo
+  return v ? String(v) : ''
+}
+// A planilha antiga usava "AFASTADO - <supervisor>" como se fosse um posto
+function ehPostoFicticio(nome: string): boolean {
+  return /^AFASTADO\b/i.test(nome.trim())
+}
+
+function mesCruzaPeriodo(ym: string, inicio: string, fim: string): boolean {
+  return inicio <= `${ym}-31` && fim >= `${ym}-01`
+}
+
 function buildHistoricoMes(
   eventos: ProntuarioEvento[],
   funcionario: ProntuarioFuncionario,
+  ferias: PeriodoFerias[],
 ): MesEntry[] {
   const sorted = [...eventos].sort((a, b) => a.data.localeCompare(b.data))
   const now = new Date()
@@ -100,17 +124,28 @@ function buildHistoricoMes(
     cur = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`
   }
 
-  // Start with empty state — events drive all values.
-  // Supervisor intentionally starts empty and is only populated by explicit events.
-  // status intentionally starts empty — using funcionario.status as default bleeds
-  // the current status (e.g. 'ferias') into all historical months for employees
-  // whose admissão event is missing from historico_funcionarios (bulk imports).
+  // Estado inicial: o que a PRIMEIRA mudança registrada diz sobre "antes".
+  // A importação de planilha tem o posto/cargo da admissão inconsistente com as mudanças
+  // seguintes; o "valor anterior" da primeira mudança é o dado mais confiável.
   const state = {
-    posto:      '',
-    secretaria: '',
-    funcao:     '',
-    status:     '',
-    supervisor: '',
+    posto:       '',
+    secretaria:  '',
+    funcao:      '',
+    supervisor:  '',
+    statusBase:  '' as '' | 'ativo' | 'afastado' | 'desligado',
+  }
+  const primeiraMudPosto = sorted.find(e => {
+    const n = e.tipo === 'mudanca_posto' && e.dados_anteriores ? nomePosto(e.dados_anteriores) : ''
+    return n !== '' && !ehPostoFicticio(n)
+  })
+  if (primeiraMudPosto?.dados_anteriores) {
+    state.posto      = nomePosto(primeiraMudPosto.dados_anteriores)
+    state.secretaria = nomeSecretaria(primeiraMudPosto.dados_anteriores)
+  }
+  const primeiraMudFuncao = sorted.find(e =>
+    e.tipo === 'mudanca_funcao' && e.dados_anteriores && nomeFuncao(e.dados_anteriores) !== '')
+  if (primeiraMudFuncao?.dados_anteriores) {
+    state.funcao = nomeFuncao(primeiraMudFuncao.dados_anteriores)
   }
 
   // Last event YM is used to override the tail with current employee data
@@ -127,64 +162,102 @@ function buildHistoricoMes(
       const e = sorted[ei]
       if (e.data.substring(0, 7) === ym) eventsThisMonth.push(e.tipo)
 
-      const d = (e.dados_novos ?? {}) as Record<string, string>
+      const d = (e.dados_novos ?? {}) as Dados
       switch (e.tipo) {
-        case 'admissao':
-          // posto_nome: resolução via UUID (pós-migration) tem precedência sobre texto bruto
-          if (d.posto_nome)  state.posto      = String(d.posto_nome)
-          else if (d.posto)  state.posto      = String(d.posto).replace(/""/g, '"')
-          if (d.cargo)       state.funcao     = String(d.cargo)
-          if (d.supervisor)  state.supervisor = String(d.supervisor)
-          if (d.status)      state.status     = String(d.status).toLowerCase()
-          if (d.secretaria)  state.secretaria = String(d.secretaria)
+        case 'admissao': {
+          const p = nomePosto(d)
+          if (p && !state.posto) {
+            state.posto      = p
+            state.secretaria = nomeSecretaria(d)
+          }
+          const fn = nomeFuncao(d)
+          if (fn && !state.funcao) state.funcao = fn
+          if (d.supervisor) state.supervisor = String(d.supervisor)
+          state.statusBase = String(d.status ?? 'ativo').toLowerCase() === 'ativo' ? 'ativo' : state.statusBase
           break
-        case 'mudanca_posto':
-          if (d.posto_nome)  state.posto      = d.posto_nome
-          if (d.secretaria)  state.secretaria = d.secretaria
+        }
+        case 'mudanca_posto': {
+          const p = nomePosto(d)
+          if (!p) break
+          if (ehPostoFicticio(p)) {
+            // posto fictício de afastado: mantém o último posto real
+            state.statusBase = 'afastado'
+            break
+          }
+          state.posto      = p
+          state.secretaria = nomeSecretaria(d)
+          if (d.supervisor) state.supervisor = String(d.supervisor)
+          // movimentação registrada pelo sistema (posto_id) não informa supervisor:
+          // o valor antigo deixou de valer e não há como saber o novo
+          else if (d.posto_id) state.supervisor = ''
           break
-        case 'mudanca_funcao':
-          if (d.cargo)       state.funcao     = d.cargo
-          else if (d.funcao) state.funcao     = d.funcao
+        }
+        case 'mudanca_funcao': {
+          // correção desfeita logo depois (A→B→A): resultado líquido é nulo
+          if (e.correcao) break
+          const fn = nomeFuncao(d)
+          if (fn) state.funcao = fn
           break
+        }
         case 'transferencia':
-          if (d.supervisor)  state.supervisor = d.supervisor
-          if (d.status)      state.status     = d.status.toLowerCase()
+          if (d.supervisor) state.supervisor = String(d.supervisor)
+          if (d.status) {
+            const st = String(d.status).toLowerCase()
+            if (st === 'ativo' || st === 'afastado' || st === 'desligado') state.statusBase = st
+          }
           break
         case 'desligamento':
-          state.status = 'desligado'
+          state.statusBase = 'desligado'
           break
         case 'reativacao':
-          state.status = 'ativo'
+        case 'retorno_afastamento':
+          state.statusBase = 'ativo'
           break
         case 'afastamento':
-          state.status = 'afastado'
+          state.statusBase = 'afastado'
           break
-        case 'retorno_afastamento':
-          state.status = 'ativo'
-          break
-        case 'ferias':
-          state.status = 'ferias'
-          break
+        // 'ferias' não altera o estado: o status do mês vem dos períodos reais (abaixo)
       }
       ei++
     }
 
-    // For months after the last recorded event, current employee data is authoritative
-    // for posto/secretaria/funcao/status. Supervisor is NOT overridden here — it is only
-    // shown when explicitly recorded in a historico event.
     const isAfterLastEvent = lastEventYM ? ym > lastEventYM : false
+    const isCurrent = ym === currentYM
+
+    // Status base do mês: evento (afastado/desligado) ou ativo desde a admissão
+    let status: string = state.statusBase
+    if (!status && admissaoYM && ym >= admissaoYM) status = 'ativo'
+    if (isAfterLastEvent && isCurrent && funcionario.status) status = funcionario.status
+
+    // Férias: pelo período real, nunca "herdado" de um evento antigo
+    if (status === 'ativo' || status === '') {
+      if (ferias.some(p => mesCruzaPeriodo(ym, p.inicio, p.fim))) status = 'ferias'
+    }
+
     result.push({
       ym,
-      posto:        isAfterLastEvent ? (funcionario.posto      ?? state.posto)      : (state.posto      || funcionario.posto      || ''),
-      secretaria:   isAfterLastEvent ? (funcionario.secretaria ?? state.secretaria) : (state.secretaria || funcionario.secretaria || ''),
-      funcao:       isAfterLastEvent ? (funcionario.funcao     ?? state.funcao)     : (state.funcao     || funcionario.funcao     || ''),
-      status:       isAfterLastEvent ? (funcionario.status     ?? state.status)     : state.status,
+      // Após o último evento o cadastro atual é a fonte. Antes disso, só o que os eventos dizem.
+      posto:        isAfterLastEvent ? (funcionario.posto      ?? state.posto)      : state.posto,
+      secretaria:   isAfterLastEvent ? (funcionario.secretaria ?? state.secretaria) : state.secretaria,
+      funcao:       isAfterLastEvent ? (funcionario.funcao     ?? state.funcao)     : state.funcao,
+      status,
       supervisor:   state.supervisor,
       eventosNoMes: eventsThisMonth,
     })
   }
 
   return result.reverse() // most recent first
+}
+
+// Ordem de relevância para os selos do mês (mais grave primeiro)
+const SEVERIDADE = [
+  'desligamento', 'suspensao', 'advertencia', 'afastamento', 'retorno_afastamento', 'falta',
+  'atestado', 'ferias', 'mudanca_posto', 'transferencia', 'mudanca_funcao', 'mudanca_horario',
+  'cobertura_insalubre', 'reativacao', 'admissao',
+]
+function severidade(tipo: string): number {
+  const i = SEVERIDADE.indexOf(tipo)
+  return i === -1 ? SEVERIDADE.length : i
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -196,13 +269,31 @@ function fmt(iso: string | null | undefined): string {
   return `${day}/${m}/${y}`
 }
 
-function dadosList(dados: Record<string, unknown> | null): [string, string][] {
+// Campos internos (ids) que nunca devem aparecer: o nome resolvido é exibido no lugar.
+const CAMPOS_OCULTOS = new Set(['posto_id', 'funcao_id', 'turno_id', 'secretaria_nome'])
+const ROTULOS: Record<string, string> = {
+  posto_nome:  'Posto',
+  posto:       'Posto',
+  funcao_nome: 'Função',
+  funcao:      'Função',
+  cargo:       'Função',
+  horario:     'Horário',
+}
+
+export function dadosList(dados: Record<string, unknown> | null): [string, string][] {
   if (!dados) return []
-  const hasPostoNome = dados.posto_nome != null && dados.posto_nome !== ''
+  const temPostoNome  = dados.posto_nome  != null && dados.posto_nome  !== ''
+  const temFuncaoNome = dados.funcao_nome != null && dados.funcao_nome !== ''
   return Object.entries(dados)
-    .filter(([k, v]) => v != null && v !== '' && !(hasPostoNome && k === 'posto_id'))
+    .filter(([k, v]) => {
+      if (v == null || v === '') return false
+      if (CAMPOS_OCULTOS.has(k)) return false
+      if (k === 'posto' && temPostoNome) return false
+      if ((k === 'funcao' || k === 'cargo') && temFuncaoNome) return false
+      return true
+    })
     .map(([k, v]) => {
-      const label = k === 'posto_nome' || k === 'posto' ? 'Posto' : k
+      const label = ROTULOS[k] ?? k
       const val   = (k === 'posto' || k === 'posto_nome') ? String(v).replace(/""/g, '"') : String(v)
       return [label, val] as [string, string]
     })
@@ -213,14 +304,19 @@ function dadosList(dados: Record<string, unknown> | null): [string, string][] {
 interface Props {
   funcionario: ProntuarioFuncionario
   eventos: ProntuarioEvento[]
+  ferias: PeriodoFerias[]
 }
 
-export function ProntuarioClient({ funcionario, eventos }: Props) {
+export function ProntuarioClient({ funcionario, eventos: eventosBrutos, ferias }: Props) {
   const [filtro,     setFiltro]     = useState<string | null>(null)
   const [loadingPdf, setLoadingPdf] = useState(false)
   const [aba,        setAba]        = useState<'timeline' | 'historico-mes'>('timeline')
 
-  const mesEntries = buildHistoricoMes(eventos, funcionario)
+  // Falta lançada automaticamente por suspensão é o mesmo incidente da suspensão: não é exibida
+  // nem contada como falta (a suspensão já informa o dia aplicado).
+  const eventos = eventosBrutos.filter(e => e.origem !== 'suspensao')
+
+  const mesEntries = buildHistoricoMes(eventos, funcionario, ferias)
 
   const contagem = eventos.reduce<Record<string, number>>((acc, e) => {
     acc[e.tipo] = (acc[e.tipo] ?? 0) + 1
@@ -398,10 +494,10 @@ export function ProntuarioClient({ funcionario, eventos }: Props) {
                         <Icon className="h-4 w-4 text-white" />
                       </div>
 
-                      <div className="flex-1 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+                      <div className={cn('flex-1 rounded-xl border border-gray-100 bg-white p-4 shadow-sm', evento.correcao && 'opacity-60')}>
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className={cn('text-xs font-bold uppercase tracking-wide', cfg.text)}>
-                            {cfg.label}
+                            {cfg.label}{evento.correcao ? ' (ajuste)' : ''}
                           </span>
                           <span className="text-xs font-medium text-gray-400">{fmt(evento.dataDisplay ?? evento.data)}</span>
                         </div>
@@ -465,7 +561,11 @@ export function ProntuarioClient({ funcionario, eventos }: Props) {
                 <tbody className="divide-y divide-gray-50">
                   {mesEntries.map(entry => {
                     const sb = STATUS_BADGE[entry.status]
-                    const uniqueEventos = Array.from(new Set(entry.eventosNoMes))
+                    const qtdPorTipo = entry.eventosNoMes.reduce<Record<string, number>>((acc, t) => {
+                      acc[t] = (acc[t] ?? 0) + 1
+                      return acc
+                    }, {})
+                    const uniqueEventos = Object.keys(qtdPorTipo).sort((a, b) => severidade(a) - severidade(b))
                     return (
                       <tr key={entry.ym} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
@@ -504,7 +604,7 @@ export function ProntuarioClient({ funcionario, eventos }: Props) {
                                     key={tipo}
                                     className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-semibold text-white', cfg.dot)}
                                   >
-                                    {cfg.label}
+                                    {cfg.label}{qtdPorTipo[tipo] > 1 ? ` ×${qtdPorTipo[tipo]}` : ''}
                                   </span>
                                 )
                               })}

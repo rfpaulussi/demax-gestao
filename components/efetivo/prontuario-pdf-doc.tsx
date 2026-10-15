@@ -1,6 +1,7 @@
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import type { ProntuarioFuncionario, ProntuarioEvento } from '@/app/(admin)/efetivo/[id]/historico/page'
 import type { MesEntry } from '@/components/efetivo/prontuario-client'
+import { dadosList } from '@/components/efetivo/prontuario-client'
 
 const TIPO_LABEL: Record<string, string> = {
   admissao:            'Admissão',
@@ -15,6 +16,9 @@ const TIPO_LABEL: Record<string, string> = {
   cobertura_insalubre: 'Cobertura Insalubre',
   transferencia:       'Transferência',
   reativacao:          'Reativação',
+  afastamento:         'Afastamento',
+  retorno_afastamento: 'Retorno de Afastamento',
+  mudanca_horario:     'Mudança de Horário',
 }
 
 const TIPO_COLOR: Record<string, string> = {
@@ -30,6 +34,9 @@ const TIPO_COLOR: Record<string, string> = {
   cobertura_insalubre: '#4f46e5',
   transferencia:       '#0891b2',
   reativacao:          '#22c55e',
+  afastamento:         '#f59e0b',
+  retorno_afastamento: '#16a34a',
+  mudanca_horario:     '#0891b2',
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -37,6 +44,7 @@ const STATUS_LABEL: Record<string, string> = {
   afastado:  'Afastado',
   ferias:    'Férias',
   desligado: 'Desligado',
+  rescisao_indireta: 'Rescisão Indireta',
 }
 
 function fmt(iso: string | null | undefined): string {
@@ -47,12 +55,7 @@ function fmt(iso: string | null | undefined): string {
 }
 
 function dadosText(dados: Record<string, unknown> | null): string {
-  if (!dados) return ''
-  const hasPostoNome = dados.posto_nome != null && dados.posto_nome !== ''
-  return Object.entries(dados)
-    .filter(([k, v]) => v != null && v !== '' && !(hasPostoNome && k === 'posto_id'))
-    .map(([k, v]) => `${k === 'posto_nome' ? 'Posto' : k}: ${v}`)
-    .join('  ·  ')
+  return dadosList(dados).map(([k, v]) => `${k}: ${v}`).join('  ·  ')
 }
 
 const MONTH_NAMES = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']

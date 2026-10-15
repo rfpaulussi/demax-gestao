@@ -25,7 +25,26 @@ export interface ProntuarioEvento {
   descricao: string | null
   dados_anteriores: Record<string, unknown> | null
   dados_novos: Record<string, unknown> | null
+  // 'suspensao': falta lançada automaticamente por uma suspensão — mesmo incidente, não conta como falta
+  origem?: 'suspensao'
+  // mudança de função desfeita pouco depois (A→B→A): mostrada esmaecida, não altera o histórico mensal
+  correcao?: boolean
 }
+
+export interface PeriodoFerias {
+  inicio: string
+  fim: string
+  status: string
+}
+
+type Rec = Record<string, unknown>
+
+// Férias que de fato foram/estão sendo gozadas — só estas pintam o mês como "Férias"
+const FERIAS_STATUS_GOZADAS = ['aprovado', 'em_curso', 'concluido']
+// Férias que nunca ocorreram — o evento criado pelo trigger no INSERT não deve aparecer
+const FERIAS_STATUS_DESCARTADAS = ['cancelado', 'disponivel']
+// Mudança de função revertida dentro desta janela é tratada como correção de lançamento
+const JANELA_CORRECAO_DIAS = 15
 
 function isoToDate(iso: string | null | undefined): string | null {
   if (!iso) return null
@@ -39,9 +58,34 @@ function fmt(iso: string | null | undefined): string {
   return `${day}/${m}/${y}`
 }
 
+function diasEntre(a: string, b: string): number {
+  return Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000
+}
+
+function dataSP(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+}
+
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 function isUUID(v: unknown): v is string {
   return typeof v === 'string' && UUID_REGEX.test(v)
+}
+
+// A importação de planilha gravou "Status: ATIVO → AFASTADO" como tipo 'transferencia'.
+// Reclassifica na leitura (o dado no banco não é alterado).
+function reclassificarTipo(tipo: string, da: Rec | null, dn: Rec | null): string {
+  if (tipo !== 'transferencia') return tipo
+  const temPosto = !!(dn?.posto || dn?.posto_id || dn?.posto_nome)
+  const novo = String(dn?.status ?? '').toLowerCase()
+  const ant  = String(da?.status ?? '').toLowerCase()
+  if (temPosto || !novo) return tipo
+  if (novo === 'afastado') return 'afastamento'
+  if (ant === 'afastado' && novo === 'ativo') return 'retorno_afastamento'
+  return tipo
+}
+
+function ehFaltaDeSuspensao(tipoFalta: unknown, observacao: unknown): boolean {
+  return tipoFalta === 'suspensao' || /gerada automaticamente/i.test(String(observacao ?? ''))
 }
 
 export default async function ProntuarioPage({ params }: { params: { id: string } }) {
@@ -59,6 +103,7 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
     { data: faltas },
     { data: advertencias },
     { data: movMudancas },
+    { data: movHorario },
   ] = await Promise.all([
     supabase
       .from('funcionarios')
@@ -95,6 +140,11 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
       .select('solicitacao_id, valor_antes, valor_depois, solicitacoes!solicitacao_id(dados_antes, dados_depois, motivo)')
       .eq('funcionario_id', id)
       .eq('tipo', 'mudanca_funcao'),
+    (supabase as unknown as AnyQ)
+      .from('movimentacoes')
+      .select('id, valor_antes, valor_depois, created_at')
+      .eq('funcionario_id', id)
+      .eq('tipo', 'mudanca_horario'),
   ])
 
   if (!funcRaw) notFound()
@@ -142,7 +192,22 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
     }
   }
 
-  // Build solicitacao_id → enrich map; secondary index by "valor_antes:valor_depois" → solicitacao_id
+  // ── Férias: status atual de cada período (verdade) ──────────────────────────
+  const feriasStatusPorInicio = new Map<string, string>()
+  for (const fe of ferias ?? []) {
+    if (fe.data_inicio) feriasStatusPorInicio.set(fe.data_inicio, fe.status ?? '')
+  }
+  const feriasDescartada = (dataInicio: string | null | undefined): boolean => {
+    if (!dataInicio) return false
+    const st = feriasStatusPorInicio.get(dataInicio)
+    return !!st && FERIAS_STATUS_DESCARTADAS.includes(st)
+  }
+
+  const periodosFerias: PeriodoFerias[] = (ferias ?? [])
+    .filter(fe => fe.data_inicio && fe.data_fim && FERIAS_STATUS_GOZADAS.includes(fe.status ?? ''))
+    .map(fe => ({ inicio: fe.data_inicio!, fim: fe.data_fim!, status: fe.status ?? '' }))
+
+  // ── Mudança de função: enriquecimento opcional via solicitação (motivo) ────
   // The historico trigger stores funcao_id UUIDs in dados_anteriores/dados_novos, matching
   // movimentacoes.valor_antes / valor_depois — this lets us link without a date collision.
   type MovMudanca = {
@@ -164,52 +229,87 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
     funcaoIdxBySolId.set(`${m.valor_antes ?? ''}:${m.valor_depois ?? ''}`, m.solicitacao_id)
   }
 
-  // Track historico entries to avoid duplicates from individual tables
+  // ── Índices para evitar duplicidade entre historico (trigger) e tabelas-fonte ─
   const historicoSet = new Set(
     (historico ?? []).map(e => `${e.tipo}:${e.data_evento}`)
   )
+  // Advertência/suspensão: o trigger usa data_ocorrencia (advertência) e data_aplicacao (suspensão).
+  // Compara pela data_ocorrencia gravada em dados_novos para não duplicar a suspensão.
+  const histAdvertOcorrencia = new Set<string>()
+  const histSuspOcorrencia   = new Set<string>()
+  for (const e of historico ?? []) {
+    const dn = e.dados_novos as Rec | null
+    const oc = (dn?.data_ocorrencia as string | undefined) ?? e.data_evento
+    if (e.tipo === 'advertencia') histAdvertOcorrencia.add(oc)
+    if (e.tipo === 'suspensao')   histSuspOcorrencia.add(oc)
+  }
 
   const eventos: ProntuarioEvento[] = [
-    // Primary: historico entries (triggers + manual)
-    // Exclude monthly snapshot markers (em_ferias:true) — they duplicate the real férias event
-    ...(historico ?? []).filter(e => !(e.tipo === 'ferias' && (e.dados_novos as Record<string, unknown> | null)?.em_ferias === true)).map(e => {
-      if (e.tipo === 'mudanca_funcao') {
-        const funcAntesId = (e.dados_anteriores as Record<string, unknown> | null)?.['funcao_id'] as string | undefined
-        const funcNovaId  = (e.dados_novos      as Record<string, unknown> | null)?.['funcao_id'] as string | undefined
-        const solId  = funcaoIdxBySolId.get(`${funcAntesId ?? ''}:${funcNovaId ?? ''}`)
-        const enrich = solId ? funcaoEnrichMap.get(solId) : undefined
-        if (enrich) {
-          return {
-            id: e.id,
-            tipo: e.tipo,
-            data: e.data_evento,
-            descricao: enrich.motivo ? `Motivo: ${enrich.motivo}` : (e.descricao ?? null),
-            dados_anteriores: enrich.anterior ? { funcao: enrich.anterior } : null,
-            dados_novos: enrich.nova ? { funcao: enrich.nova } : (e.dados_novos as Record<string, unknown> | null),
+    // Primary: historico entries (triggers + manual + importação)
+    // Exclude monthly snapshot markers (em_ferias:true) and férias que nunca ocorreram
+    ...(historico ?? [])
+      .filter(e => {
+        if (e.tipo !== 'ferias') return true
+        const dn = e.dados_novos as Rec | null
+        if (dn?.em_ferias === true) return false
+        return !feriasDescartada(e.data_evento)
+      })
+      .map((e): ProntuarioEvento => {
+        const da = e.dados_anteriores as Rec | null
+        const dn = e.dados_novos as Rec | null
+        const tipo = reclassificarTipo(e.tipo, da, dn)
+
+        if (tipo === 'mudanca_funcao') {
+          const funcAntesId = da?.['funcao_id'] as string | undefined
+          const funcNovaId  = dn?.['funcao_id'] as string | undefined
+          const solId  = funcaoIdxBySolId.get(`${funcAntesId ?? ''}:${funcNovaId ?? ''}`)
+          const enrich = solId ? funcaoEnrichMap.get(solId) : undefined
+          if (enrich) {
+            return {
+              id: e.id,
+              tipo,
+              data: e.data_evento,
+              descricao: enrich.motivo ? `Motivo: ${enrich.motivo}` : (e.descricao ?? null),
+              dados_anteriores: enrich.anterior ? { funcao: enrich.anterior, funcao_id: funcAntesId } : da,
+              dados_novos: enrich.nova ? { funcao: enrich.nova, funcao_id: funcNovaId } : dn,
+            }
           }
         }
-      }
-      // For admissao events, keep data as the original data_evento (used by the simulation)
-      // but set dataDisplay to data_admissao when it predates the historico entry,
-      // so the UI shows the real admission date without affecting the simulation.
-      const admissaoDisplay = e.tipo === 'admissao' && funcionario.data_admissao
-        && funcionario.data_admissao.split('T')[0] < e.data_evento
-        ? funcionario.data_admissao.split('T')[0]
-        : undefined
-      return {
-        id: e.id,
-        tipo: e.tipo,
-        data: e.data_evento,
-        ...(admissaoDisplay ? { dataDisplay: admissaoDisplay } : {}),
-        descricao: e.descricao ?? null,
-        dados_anteriores: e.dados_anteriores as Record<string, unknown> | null,
-        dados_novos: e.dados_novos as Record<string, unknown> | null,
-      }
-    }),
+
+        // Falta lançada automaticamente por suspensão: mesmo incidente da suspensão
+        if (tipo === 'falta' && ehFaltaDeSuspensao(dn?.tipo, dn?.observacao)) {
+          return {
+            id: e.id,
+            tipo,
+            data: e.data_evento,
+            descricao: 'Dia de suspensão (lançado como falta)',
+            dados_anteriores: da,
+            dados_novos: dn,
+            origem: 'suspensao',
+          }
+        }
+
+        // For admissao events, keep data as the original data_evento (used by the simulation)
+        // but set dataDisplay to data_admissao when it predates the historico entry,
+        // so the UI shows the real admission date without affecting the simulation.
+        const admissaoDisplay = tipo === 'admissao' && funcionario.data_admissao
+          && funcionario.data_admissao.split('T')[0] < e.data_evento
+          ? funcionario.data_admissao.split('T')[0]
+          : undefined
+        return {
+          id: e.id,
+          tipo,
+          data: e.data_evento,
+          ...(admissaoDisplay ? { dataDisplay: admissaoDisplay } : {}),
+          descricao: e.descricao ?? null,
+          dados_anteriores: da,
+          dados_novos: dn,
+        }
+      }),
 
     // Supplementary férias (fallback for data before triggers)
     ...(ferias ?? [])
-      .filter(fe => fe.data_inicio && !historicoSet.has(`ferias:${fe.data_inicio}`))
+      .filter(fe => fe.data_inicio && !historicoSet.has(`ferias:${fe.data_inicio}`) && !feriasDescartada(fe.data_inicio))
       .map(fe => ({
         id: `ferias-${fe.id}`,
         tipo: 'ferias' as const,
@@ -234,21 +334,32 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
     // Supplementary faltas
     ...(faltas ?? [])
       .filter(fa => !historicoSet.has(`falta:${fa.data_falta}`))
-      .map(fa => ({
-        id: `falta-${fa.id}`,
-        tipo: 'falta' as const,
-        data: fa.data_falta,
-        descricao: `Falta — ${fa.tipo}${fa.observacao ? `: ${fa.observacao}` : ''}`,
-        dados_anteriores: null,
-        dados_novos: { tipo: fa.tipo, dias: fa.dias, observacao: fa.observacao } as Record<string, unknown>,
-      })),
+      .map((fa): ProntuarioEvento => {
+        const deSuspensao = ehFaltaDeSuspensao(fa.tipo, fa.observacao)
+        return {
+          id: `falta-${fa.id}`,
+          tipo: 'falta',
+          data: fa.data_falta,
+          descricao: deSuspensao
+            ? 'Dia de suspensão (lançado como falta)'
+            : `Falta — ${fa.tipo}${fa.observacao ? `: ${fa.observacao}` : ''}`,
+          dados_anteriores: null,
+          dados_novos: { tipo: fa.tipo, dias: fa.dias, observacao: fa.observacao } as Record<string, unknown>,
+          ...(deSuspensao ? { origem: 'suspensao' as const } : {}),
+        }
+      }),
 
     // Supplementary advertências/suspensões
     ...(advertencias ?? [])
       .filter(ad => {
         const data = isoToDate(ad.data_ocorrencia) ?? isoToDate(ad.created_at)
-        const tipo = ad.grau === 'suspensao' ? 'suspensao' : 'advertencia'
-        return data ? !historicoSet.has(`${tipo}:${data}`) : true
+        if (!data) return true
+        if (ad.grau === 'suspensao') {
+          // trigger grava a suspensão em data_aplicacao; compara pela ocorrência
+          return !histSuspOcorrencia.has(data)
+            && !historicoSet.has(`suspensao:${isoToDate(ad.data_aplicacao) ?? data}`)
+        }
+        return !histAdvertOcorrencia.has(data) && !historicoSet.has(`advertencia:${data}`)
       })
       .map(ad => {
         const tipo = ad.grau === 'suspensao' ? 'suspensao' : 'advertencia'
@@ -262,41 +373,94 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
           dados_novos: { grau: ad.grau, tipo: ad.tipo, dias_suspensao: ad.dias_suspensao } as Record<string, unknown>,
         }
       }),
+
+    // Mudanças de horário (movimentacoes) — nomes resolvidos mais abaixo
+    ...((movHorario ?? []) as { id: string; valor_antes: string | null; valor_depois: string | null; created_at: string }[])
+      .map((m): ProntuarioEvento => ({
+        id: `horario-${m.id}`,
+        tipo: 'mudanca_horario',
+        data: dataSP(m.created_at),
+        descricao: 'Horário alterado',
+        dados_anteriores: m.valor_antes ? { turno_id: m.valor_antes } : null,
+        dados_novos: m.valor_depois ? { turno_id: m.valor_depois } : null,
+      })),
   ]
 
+  // Remove duplicatas reais (mesmo tipo, data e conteúdo). Eventos distintos do mesmo
+  // tipo no mesmo dia são mantidos.
   const deduped = new Map<string, ProntuarioEvento>()
   for (const e of eventos) {
-    const key = `${e.tipo}:${e.data}`
+    const key = `${e.tipo}:${e.data}:${JSON.stringify(e.dados_novos)}:${JSON.stringify(e.dados_anteriores)}`
     if (!deduped.has(key)) deduped.set(key, e)
   }
   const eventosFinal = Array.from(deduped.values())
   eventosFinal.sort((a, b) => b.data.localeCompare(a.data))
 
-  // S2: Resolve posto_id UUIDs to human-readable names
-  const postoIdSet = new Set<string>()
+  // ── Resolve UUIDs (posto, função, turno) para nomes legíveis ─────────────────
+  const postoIds  = new Set<string>()
+  const funcaoIds = new Set<string>()
+  const turnoIds  = new Set<string>()
   for (const e of eventosFinal) {
-    const dn = e.dados_novos
-    const da = e.dados_anteriores
-    if (dn && isUUID(dn.posto_id)) postoIdSet.add(dn.posto_id)
-    if (da && isUUID(da.posto_id)) postoIdSet.add(da.posto_id)
+    for (const d of [e.dados_novos, e.dados_anteriores]) {
+      if (!d) continue
+      if (isUUID(d.posto_id))  postoIds.add(d.posto_id)
+      if (isUUID(d.funcao_id)) funcaoIds.add(d.funcao_id)
+      if (isUUID(d.turno_id))  turnoIds.add(d.turno_id)
+    }
   }
-  if (postoIdSet.size > 0) {
-    const { data: postosRows } = await supabase
-      .from('postos')
-      .select('id, nome')
-      .in('id', Array.from(postoIdSet))
-    const postoNomeMap: Record<string, string> = Object.fromEntries(
-      (postosRows ?? []).map(p => [p.id, p.nome])
-    )
-    for (const e of eventosFinal) {
-      const dn = e.dados_novos
-      const da = e.dados_anteriores
-      if (dn && isUUID(dn.posto_id)) {
-        e.dados_novos = { ...dn, posto_nome: postoNomeMap[dn.posto_id] ?? 'Posto não encontrado' }
-      }
-      if (da && isUUID(da.posto_id)) {
-        e.dados_anteriores = { ...da, posto_nome: postoNomeMap[da.posto_id] ?? 'Posto não encontrado' }
-      }
+
+  const [postosRes, funcoesRes, turnosRes] = await Promise.all([
+    postoIds.size > 0
+      ? supabase.from('postos').select('id, nome, secretaria').in('id', Array.from(postoIds))
+      : Promise.resolve({ data: [] as { id: string; nome: string; secretaria: string | null }[] }),
+    funcaoIds.size > 0
+      ? supabase.from('funcoes').select('id, nome').in('id', Array.from(funcaoIds))
+      : Promise.resolve({ data: [] as { id: string; nome: string }[] }),
+    turnoIds.size > 0
+      ? (supabase as unknown as AnyQ).from('turnos_postos').select('id, nome').in('id', Array.from(turnoIds))
+      : Promise.resolve({ data: [] as { id: string; nome: string }[] }),
+  ])
+
+  const postoMap  = new Map((postosRes.data ?? []).map(p => [p.id, p]))
+  const funcaoMap = new Map((funcoesRes.data ?? []).map(fn => [fn.id, fn.nome]))
+  const turnoMap  = new Map(((turnosRes.data ?? []) as { id: string; nome: string }[]).map(t => [t.id, t.nome]))
+
+  function resolver(d: Rec | null): Rec | null {
+    if (!d) return d
+    const out: Rec = { ...d }
+    if (isUUID(d.posto_id)) {
+      const p = postoMap.get(d.posto_id)
+      out.posto_nome = p?.nome ?? 'Posto não encontrado'
+      if (p?.secretaria) out.secretaria_nome = p.secretaria
+    }
+    if (isUUID(d.funcao_id) && !out.funcao) {
+      out.funcao_nome = funcaoMap.get(d.funcao_id) ?? 'Função não encontrada'
+    }
+    if (isUUID(d.turno_id)) {
+      out.horario = turnoMap.get(d.turno_id) ?? 'Horário não encontrado'
+    }
+    return out
+  }
+
+  for (const e of eventosFinal) {
+    e.dados_novos = resolver(e.dados_novos)
+    e.dados_anteriores = resolver(e.dados_anteriores)
+  }
+
+  // ── Marca mudanças de função revertidas em pouco tempo (A→B→A) como correção ──
+  const funcaoOrdenadas = eventosFinal
+    .filter(e => e.tipo === 'mudanca_funcao' && e.dados_anteriores?.funcao_id && e.dados_novos?.funcao_id)
+    .sort((a, b) => a.data.localeCompare(b.data))
+  for (let i = 1; i < funcaoOrdenadas.length; i++) {
+    const prev = funcaoOrdenadas[i - 1]
+    const cur  = funcaoOrdenadas[i]
+    if (prev.correcao) continue
+    const desfez =
+      cur.dados_novos?.funcao_id === prev.dados_anteriores?.funcao_id &&
+      cur.dados_anteriores?.funcao_id === prev.dados_novos?.funcao_id
+    if (desfez && diasEntre(prev.data, cur.data) <= JANELA_CORRECAO_DIAS) {
+      prev.correcao = true
+      cur.correcao = true
     }
   }
 
@@ -307,7 +471,7 @@ export default async function ProntuarioPage({ params }: { params: { id: string 
         <h1 className="text-lg font-bold text-gray-900">Prontuário</h1>
         <p className="text-sm text-gray-400">Histórico completo do funcionário</p>
       </div>
-      <ProntuarioClient funcionario={funcionario} eventos={eventosFinal} />
+      <ProntuarioClient funcionario={funcionario} eventos={eventosFinal} ferias={periodosFerias} />
     </div>
   )
 }
