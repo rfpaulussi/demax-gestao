@@ -139,7 +139,7 @@ const REGIME_CONFIG: Record<string, {
     dotClass: 'bg-blue-500',
   },
   '5x1': {
-    badge: '5×1 · 44h/sem',
+    badge: '6×1 · 44h/sem',
     badgeClass: 'bg-purple-50 text-purple-700 ring-purple-200',
     diasLabel: 'Segunda a Sábado',
     diasAtivos: [false, true, true, true, true, true, true],
