@@ -349,7 +349,10 @@ export function ModalDossie({
                             {ehOcorrencia && item.aguardando && (
                               item.aguardando === (ehGestao ? 'gestao' : 'supervisor') ? (
                                 <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700">
-                                  Aguardando você{item.aguardando_desde ? ` · há ${diasDesdeIso(item.aguardando_desde)}d` : ''}
+                                  {item.aguardando_origem === 'mensagem'
+                                    ? (item.aguardando === 'gestao' ? 'Supervisor respondeu' : 'Gestão respondeu')
+                                    : 'Aguardando você'}
+                                  {item.aguardando_desde ? ` · há ${diasDesdeIso(item.aguardando_desde)}d` : ''}
                                 </span>
                               ) : (
                                 <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
@@ -566,6 +569,7 @@ export function ModalDossie({
                             <ConversaOcorrencia
                               ocorrenciaId={item.id.replace('ocorrencia-', '')}
                               onEnviado={() => carregar(true)}
+                              onCiente={ehGestao && item.aguardando === 'gestao' && item.aguardando_origem === 'mensagem' ? () => handleCiente(item.id) : undefined}
                             />
                           </div>
                         )}

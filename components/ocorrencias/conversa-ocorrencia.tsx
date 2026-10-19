@@ -18,12 +18,16 @@ function fmtDataHora(iso: string): string {
 export function ConversaOcorrencia({
   ocorrenciaId,
   onEnviado,
+  onCiente,
 }: {
   ocorrenciaId: string
   onEnviado: () => void
+  /** Só para a gestão quando a bola está com ela: marca como visto, sem responder. */
+  onCiente?: () => void
 }) {
   const [comentarios, setComentarios] = useState<ComentarioRow[] | null>(null)
   const [texto, setTexto]             = useState('')
+  const [soInformar, setSoInformar]   = useState(false)
   const [erro, setErro]               = useState<string | null>(null)
   const [isPending, startTransition]  = useTransition()
 
@@ -40,9 +44,10 @@ export function ConversaOcorrencia({
     e.preventDefault()
     setErro(null)
     startTransition(async () => {
-      const result = await comentarOcorrencia(ocorrenciaId, texto)
+      const result = await comentarOcorrencia(ocorrenciaId, texto, !soInformar)
       if (result.success) {
         setTexto('')
+        setSoInformar(false)
         await carregar()
         onEnviado()
       } else {
@@ -80,6 +85,11 @@ export function ConversaOcorrencia({
                   <span className="text-gray-400"> · {ROLE_LABELS[c.autor_role as Role] ?? c.autor_role}</span>
                 )}
                 <span className="text-gray-400"> · {fmtDataHora(c.created_at)}</span>
+                {c.tipo === 'mensagem' && !c.requer_resposta && (
+                  <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                    Só informar
+                  </span>
+                )}
                 {c.tipo === 'parecer' && (
                   <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-700">
                     Parecer
@@ -98,6 +108,19 @@ export function ConversaOcorrencia({
         </div>
       )}
 
+      {onCiente && (
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-rose-50 px-3 py-2">
+          <p className="text-xs text-rose-700">A última mensagem é do supervisor. Se ela não pede resposta, dê ciente.</p>
+          <button
+            type="button"
+            onClick={onCiente}
+            className="h-8 flex-shrink-0 rounded-lg bg-emerald-600 px-3 text-xs font-semibold uppercase tracking-widest text-white hover:bg-emerald-700"
+          >
+            Ciente, sem resposta
+          </button>
+        </div>
+      )}
+
       <form onSubmit={handleEnviar} className="space-y-2">
         <p className="text-xs text-gray-500">
           Conversa entre a gestão e o supervisor que registrou. Não é enviada ao RH. Quem recebe é avisado por sino e e-mail, sem o texto da mensagem.
@@ -111,7 +134,16 @@ export function ConversaOcorrencia({
           className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400"
         />
         {erro && <p className="text-xs text-red-500">{erro}</p>}
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-3">
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-gray-600" title="A outra parte é avisada, mas a ocorrência não fica pendente de resposta.">
+            <input
+              type="checkbox"
+              checked={soInformar}
+              onChange={e => setSoInformar(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            Só informar (não precisa de resposta)
+          </label>
           <button
             type="submit"
             disabled={isPending || !texto.trim()}

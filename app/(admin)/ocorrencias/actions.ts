@@ -133,7 +133,21 @@ async function getSupervisoresPorPosto(
 }
 
 type RawOcorrenciaAberta = { id: string; funcionario_id: string | null; created_at: string }
-type RawComentarioLeve = { ocorrencia_id: string; autor_id: string; created_at: string }
+type RawComentarioLeve = { id: string; ocorrencia_id: string; autor_id: string; created_at: string }
+
+// Mensagens marcadas "só informar" (não pedem resposta). Coluna nova: sem a migração devolve vazio
+// e tudo se comporta como antes.
+async function idsSemResposta(ocorrenciaIds?: string[]): Promise<Set<string>> {
+  let q = (createAdminClient() as unknown as AnyClient)
+    .from('ocorrencia_comentarios')
+    .select('id')
+    .eq('tipo', 'mensagem')
+    .eq('requer_resposta', false)
+  if (ocorrenciaIds) q = q.in('ocorrencia_id', ocorrenciaIds)
+  const { data, error } = await q
+  if (error) return new Set()
+  return new Set(((data ?? []) as { id: string }[]).map(r => r.id))
+}
 export type LadoConversa = 'gestao' | 'supervisor'
 export type AguardandoInfo = { lado: LadoConversa; desde: string }
 
@@ -165,7 +179,7 @@ async function getFuncionarioAguardando(
   const comentarios = await fetchAllRows<RawComentarioLeve>((from, to) =>
     (supabase as unknown as AnyClient)
       .from('ocorrencia_comentarios')
-      .select('ocorrencia_id, autor_id, created_at')
+      .select('id, ocorrencia_id, autor_id, created_at')
       .eq('tipo', 'mensagem')
       .in('ocorrencia_id', ocorrenciaIds)
       .order('created_at', { ascending: true })
@@ -198,12 +212,16 @@ async function getFuncionarioAguardando(
     }
   }
 
+  const semResposta = await idsSemResposta()
+
   const infoPorFuncionario = new Map<string, AguardandoInfo>()
   for (const o of ocorrencias) {
     if (!o.funcionario_id) continue
     const ultimo = ultimoComentarioPorOcorrencia.get(o.id)
     const estado = calcularAguardando({
-      ultimaMensagem: ultimo ? { autorRole: rolePorAutor.get(ultimo.autor_id) ?? null, criadaEm: ultimo.created_at } : null,
+      ultimaMensagem: ultimo
+        ? { autorRole: rolePorAutor.get(ultimo.autor_id) ?? null, criadaEm: ultimo.created_at, requerResposta: !semResposta.has(ultimo.id) }
+        : null,
       ocorrenciaCriadaEm: o.created_at,
       cienciaGestaoEm: cienciaPorOcorrencia.get(o.id) ?? null,
     })
@@ -446,6 +464,8 @@ export type TimelineItem = {
   /** De que lado está a bola nesta ocorrência (null = fechada, sem pendência ou sem acesso à conversa). */
   aguardando?: LadoConversa | null
   aguardando_desde?: string | null
+  /** 'mensagem' = o outro lado respondeu; 'registro' = ninguém escreveu ainda. */
+  aguardando_origem?: 'registro' | 'mensagem' | null
 }
 
 export type DossieFuncionario = {
@@ -532,17 +552,17 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
   // contagem de mensagens por ocorrência (viewer não vê a conversa, então não recebe contagem).
   // Nota interna é só da gestão: para supervisor ela nem entra na contagem.
   const contagemComentarios = new Map<string, number>()
-  const ultimaMensagemMap = new Map<string, { autorId: string; criadaEm: string }>()
+  const ultimaMensagemMap = new Map<string, { id: string; autorId: string; criadaEm: string }>()
   if (ocorrencias.length > 0 && auth.perfil.role !== 'viewer') {
     const { data: cs } = await (createAdminClient() as unknown as AnyClient)
       .from('ocorrencia_comentarios')
-      .select('ocorrencia_id, tipo, autor_id, created_at')
+      .select('id, ocorrencia_id, tipo, autor_id, created_at')
       .in('ocorrencia_id', ocorrencias.map(o => o.id))
       .order('created_at', { ascending: true })
-    for (const c of (cs ?? []) as { ocorrencia_id: string; tipo: string; autor_id: string; created_at: string }[]) {
+    for (const c of (cs ?? []) as { id: string; ocorrencia_id: string; tipo: string; autor_id: string; created_at: string }[]) {
       if (auth.perfil.role === 'supervisor' && c.tipo === 'nota_interna') continue
       contagemComentarios.set(c.ocorrencia_id, (contagemComentarios.get(c.ocorrencia_id) ?? 0) + 1)
-      if (c.tipo === 'mensagem') ultimaMensagemMap.set(c.ocorrencia_id, { autorId: c.autor_id, criadaEm: c.created_at })
+      if (c.tipo === 'mensagem') ultimaMensagemMap.set(c.ocorrencia_id, { id: c.id, autorId: c.autor_id, criadaEm: c.created_at })
     }
   }
 
@@ -554,6 +574,9 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
       .from('perfis').select('id, role').in('id', autoresUltimas)
     for (const r of (pa ?? []) as { id: string; role: string | null }[]) if (r.role) rolePorAutorDossie.set(r.id, r.role)
   }
+  const semRespostaDossie = ocorrencias.length > 0 && auth.perfil.role !== 'viewer'
+    ? await idsSemResposta(ocorrencias.map(o => o.id))
+    : new Set<string>()
   const cienciaDossieMap = new Map<string, string>()
   if (ocorrencias.length > 0 && auth.perfil.role !== 'viewer') {
     const { data: ci } = await (createAdminClient() as unknown as AnyClient)
@@ -635,7 +658,9 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
     const ult = ultimaMensagemMap.get(o.id)
     const estado = aberta && auth.perfil.role !== 'viewer'
       ? calcularAguardando({
-          ultimaMensagem: ult ? { autorRole: rolePorAutorDossie.get(ult.autorId) ?? null, criadaEm: ult.criadaEm } : null,
+          ultimaMensagem: ult
+            ? { autorRole: rolePorAutorDossie.get(ult.autorId) ?? null, criadaEm: ult.criadaEm, requerResposta: !semRespostaDossie.has(ult.id) }
+            : null,
           ocorrenciaCriadaEm: o.created_at,
           cienciaGestaoEm: cienciaDossieMap.get(o.id) ?? null,
         })
@@ -655,6 +680,7 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
       correcao_motivo: correcaoMap.get(o.id)?.motivo ?? null,
       aguardando: estado?.lado ?? null,
       aguardando_desde: estado?.desde ?? null,
+      aguardando_origem: estado?.origem ?? null,
     })
   }
 
@@ -737,6 +763,8 @@ export type ComentarioRow = {
   created_at: string
   autor_nome: string
   autor_role: string
+  /** false = mensagem "só informar" (não pede resposta). */
+  requer_resposta: boolean
 }
 
 type RawComentario = {
@@ -764,6 +792,7 @@ export async function getComentarios(ocorrenciaId: string): Promise<ComentarioRo
   // nota interna é só da gestão: o supervisor nunca a recebe
   if (auth.perfil.role === 'supervisor') consulta = consulta.neq('tipo', 'nota_interna')
   const { data } = await consulta
+  const semResposta = await idsSemResposta([ocorrenciaId])
 
   return ((data ?? []) as RawComentario[]).map(c => {
     const perfil = Array.isArray(c.perfis) ? c.perfis[0] : c.perfis
@@ -774,11 +803,16 @@ export async function getComentarios(ocorrenciaId: string): Promise<ComentarioRo
       created_at: c.created_at,
       autor_nome: perfil?.nome ?? 'Usuário',
       autor_role: perfil?.role ?? '',
+      requer_resposta: !semResposta.has(c.id),
     }
   })
 }
 
-export async function comentarOcorrencia(ocorrenciaId: string, texto: string): Promise<ActionResult> {
+export async function comentarOcorrencia(
+  ocorrenciaId: string,
+  texto: string,
+  requerResposta = true,
+): Promise<ActionResult> {
   const auth = await getUser()
   if (!auth || auth.perfil.role === 'viewer') return { success: false, error: 'Sem permissão' }
 
@@ -795,6 +829,8 @@ export async function comentarOcorrencia(ocorrenciaId: string, texto: string): P
       autor_id: auth.user.id,
       texto: validado.texto,
       tipo: 'mensagem',
+      // só grava a coluna quando for "só informar": sem a migração, mensagens normais seguem funcionando
+      ...(requerResposta ? {} : { requer_resposta: false }),
     })
   if (error) return { success: false, error: error.message }
 
