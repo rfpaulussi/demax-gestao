@@ -7,6 +7,7 @@ import { getUser } from '@/lib/auth/get-user'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { validarTexto } from '@/lib/ocorrencias/devolutiva'
 import { notificarDevolutiva } from '@/lib/ocorrencias/notificar-devolutiva'
+import { calcularAguardando } from '@/lib/ocorrencias/aguardando'
 import type { AuthUser } from '@/lib/auth/get-user'
 import { enviarEmail } from '@/lib/email'
 import {
@@ -183,14 +184,32 @@ async function getFuncionarioAguardando(
     }
   }
 
+  // "Ciente" da gestão: consulta separada e tolerante (coluna nova; sem a migração ninguém tem ciente).
+  const cienciaPorOcorrencia = new Map<string, string>()
+  const { data: cienciasRaw, error: erroCiencia } = await (createAdminClient() as unknown as AnyClient)
+    .from('ocorrencias')
+    .select('id, ciencia_gestao_em')
+    .eq('tipo', 'ocorrencia')
+    .in('status', ['aberta', 'em_analise'])
+    .not('ciencia_gestao_em', 'is', null)
+  if (!erroCiencia) {
+    for (const c of (cienciasRaw ?? []) as { id: string; ciencia_gestao_em: string }[]) {
+      cienciaPorOcorrencia.set(c.id, c.ciencia_gestao_em)
+    }
+  }
+
   const infoPorFuncionario = new Map<string, AguardandoInfo>()
   for (const o of ocorrencias) {
     if (!o.funcionario_id) continue
     const ultimo = ultimoComentarioPorOcorrencia.get(o.id)
-    const lado: LadoConversa = ultimo
-      ? (rolePorAutor.get(ultimo.autor_id) === 'supervisor' ? 'gestao' : 'supervisor')
-      : 'gestao' // sem mensagem ainda: aguardando o primeiro olhar da gestão
-    const desde = ultimo?.created_at ?? o.created_at
+    const estado = calcularAguardando({
+      ultimaMensagem: ultimo ? { autorRole: rolePorAutor.get(ultimo.autor_id) ?? null, criadaEm: ultimo.created_at } : null,
+      ocorrenciaCriadaEm: o.created_at,
+      cienciaGestaoEm: cienciaPorOcorrencia.get(o.id) ?? null,
+    })
+    if (!estado) continue // gestão deu ciente: sem pendência
+    const lado: LadoConversa = estado.lado
+    const desde = estado.desde
 
     const atual = infoPorFuncionario.get(o.funcionario_id)
     // um funcionário pode ter várias ocorrências abertas; "gestao" tem prioridade
@@ -424,6 +443,9 @@ export type TimelineItem = {
   /** Gestão liberou o supervisor para corrigir o texto (aguardando correção). */
   correcao_liberada_em?: string | null
   correcao_motivo?: string | null
+  /** De que lado está a bola nesta ocorrência (null = fechada, sem pendência ou sem acesso à conversa). */
+  aguardando?: LadoConversa | null
+  aguardando_desde?: string | null
 }
 
 export type DossieFuncionario = {
@@ -447,6 +469,7 @@ export type DossieFuncionario = {
 
 type RawOcorrenciaDossie = {
   id: string
+  created_at: string
   titulo: string | null
   descricao: string | null
   data_ocorrencia: string | null
@@ -497,7 +520,7 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
       .select('id, data_falta, tipo, dias, observacao')
       .eq('funcionario_id', funcionarioId),
     (supabase as unknown as AnyClient).from('ocorrencias')
-      .select('id, titulo, descricao, data_ocorrencia, gravidade, status, supervisor_id')
+      .select('id, created_at, titulo, descricao, data_ocorrencia, gravidade, status, supervisor_id')
       .eq('funcionario_id', funcionarioId)
       .eq('tipo', 'ocorrencia'),
   ])
@@ -509,15 +532,36 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
   // contagem de mensagens por ocorrência (viewer não vê a conversa, então não recebe contagem).
   // Nota interna é só da gestão: para supervisor ela nem entra na contagem.
   const contagemComentarios = new Map<string, number>()
+  const ultimaMensagemMap = new Map<string, { autorId: string; criadaEm: string }>()
   if (ocorrencias.length > 0 && auth.perfil.role !== 'viewer') {
     const { data: cs } = await (createAdminClient() as unknown as AnyClient)
       .from('ocorrencia_comentarios')
-      .select('ocorrencia_id, tipo')
+      .select('ocorrencia_id, tipo, autor_id, created_at')
       .in('ocorrencia_id', ocorrencias.map(o => o.id))
-    for (const c of (cs ?? []) as { ocorrencia_id: string; tipo: string }[]) {
+      .order('created_at', { ascending: true })
+    for (const c of (cs ?? []) as { ocorrencia_id: string; tipo: string; autor_id: string; created_at: string }[]) {
       if (auth.perfil.role === 'supervisor' && c.tipo === 'nota_interna') continue
       contagemComentarios.set(c.ocorrencia_id, (contagemComentarios.get(c.ocorrencia_id) ?? 0) + 1)
+      if (c.tipo === 'mensagem') ultimaMensagemMap.set(c.ocorrencia_id, { autorId: c.autor_id, criadaEm: c.created_at })
     }
+  }
+
+  // Papel de quem escreveu a última mensagem + "ciente" da gestão (coluna nova, tolerante) -> de que lado está a bola.
+  const rolePorAutorDossie = new Map<string, string>()
+  const autoresUltimas = Array.from(new Set(Array.from(ultimaMensagemMap.values()).map(u => u.autorId)))
+  if (autoresUltimas.length > 0) {
+    const { data: pa } = await (createAdminClient() as unknown as AnyClient)
+      .from('perfis').select('id, role').in('id', autoresUltimas)
+    for (const r of (pa ?? []) as { id: string; role: string | null }[]) if (r.role) rolePorAutorDossie.set(r.id, r.role)
+  }
+  const cienciaDossieMap = new Map<string, string>()
+  if (ocorrencias.length > 0 && auth.perfil.role !== 'viewer') {
+    const { data: ci } = await (createAdminClient() as unknown as AnyClient)
+      .from('ocorrencias')
+      .select('id, ciencia_gestao_em')
+      .in('id', ocorrencias.map(o => o.id))
+      .not('ciencia_gestao_em', 'is', null)
+    for (const r of (ci ?? []) as { id: string; ciencia_gestao_em: string }[]) cienciaDossieMap.set(r.id, r.ciencia_gestao_em)
   }
 
   // "Com o RH": consulta separada e tolerante. Se a coluna ainda não existir (migração pendente),
@@ -587,6 +631,15 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
   }
 
   for (const o of ocorrencias) {
+    const aberta = o.status === 'aberta' || o.status === 'em_analise' || !o.status
+    const ult = ultimaMensagemMap.get(o.id)
+    const estado = aberta && auth.perfil.role !== 'viewer'
+      ? calcularAguardando({
+          ultimaMensagem: ult ? { autorRole: rolePorAutorDossie.get(ult.autorId) ?? null, criadaEm: ult.criadaEm } : null,
+          ocorrenciaCriadaEm: o.created_at,
+          cienciaGestaoEm: cienciaDossieMap.get(o.id) ?? null,
+        })
+      : null
     timeline.push({
       id: `ocorrencia-${o.id}`,
       tipo: 'ocorrencia',
@@ -600,6 +653,8 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
       com_rh_desde: ehGestao ? (comRhMap.get(o.id) ?? null) : null,
       correcao_liberada_em: correcaoMap.get(o.id)?.em ?? null,
       correcao_motivo: correcaoMap.get(o.id)?.motivo ?? null,
+      aguardando: estado?.lado ?? null,
+      aguardando_desde: estado?.desde ?? null,
     })
   }
 
@@ -1237,6 +1292,38 @@ export async function corrigirTextoOcorrencia(ocorrenciaId: string, novoTexto: s
     autorRole: auth.perfil.role ?? '',
     parecer: false,
   })
+
+  revalidatePath('/ocorrencias')
+  return { success: true }
+}
+
+// Gestão dá "ciente" numa ocorrência irrelevante: sai das pendências sem responder ao supervisor.
+// Não envia nada a ninguém. Volta a pendente se o supervisor escrever de novo.
+export async function darCienciaOcorrencia(ocorrenciaId: string): Promise<ActionResult> {
+  const auth = await exigirGestao()
+  if (!auth) return { success: false, error: 'Sem permissão' }
+
+  const oc = await carregarOcorrenciaDevolutiva(ocorrenciaId, auth)
+  if (!oc) return { success: false, error: 'Sem permissão' }
+  if (oc.status === 'encerrada' || oc.status === 'resolvido') {
+    return { success: false, error: 'Esta ocorrência já foi encerrada' }
+  }
+
+  const admin = createAdminClient() as unknown as AnyClient
+  const { error } = await admin
+    .from('ocorrencias')
+    .update({ ciencia_gestao_em: new Date().toISOString(), ciencia_gestao_por: auth.user.id })
+    .eq('id', ocorrenciaId)
+  if (error) return { success: false, error: 'Não foi possível registrar o ciente. Confira se a migração foi aplicada.' }
+
+  // Registro na conversa só da gestão (o supervisor não vê nota interna).
+  const { error: erroNota } = await admin.from('ocorrencia_comentarios').insert({
+    ocorrencia_id: ocorrenciaId,
+    autor_id: auth.user.id,
+    tipo: 'nota_interna',
+    texto: 'Ciente da gestão (sem resposta ao supervisor).',
+  })
+  if (erroNota) console.error('[ciente] falha ao gravar a nota:', erroNota.message)
 
   revalidatePath('/ocorrencias')
   return { success: true }

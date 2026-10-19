@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import type { DossieFuncionario, SupervisorSimples, TimelineTipo } from '@/app/(admin)/ocorrencias/actions'
-import { getDossieFuncionario, updateStatusOcorrencia, registrarRetornoRH, liberarCorrecaoOcorrencia, cancelarCorrecaoOcorrencia, corrigirTextoOcorrencia } from '@/app/(admin)/ocorrencias/actions'
+import { getDossieFuncionario, updateStatusOcorrencia, registrarRetornoRH, liberarCorrecaoOcorrencia, cancelarCorrecaoOcorrencia, corrigirTextoOcorrencia, darCienciaOcorrencia } from '@/app/(admin)/ocorrencias/actions'
 import { decidirAnalise } from '@/app/(admin)/ocorrencias/ia-actions'
 import { ModalEncaminharRH } from './modal-encaminhar-rh'
 import { ModalAnaliseIA } from './modal-analise-ia'
@@ -41,6 +41,10 @@ const GRAVIDADE_CHIP: Record<string, string> = {
 
 const STATUS_LABEL: Record<string, string> = {
   aberta: 'Aberta', em_analise: 'Em Análise', encerrada: 'Encerrada', resolvido: 'Resolvido',
+}
+
+function diasDesdeIso(iso: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86400000))
 }
 
 function CounterCard({ label, value, topColor }: { label: string; value: number | string; topColor: string }) {
@@ -129,6 +133,15 @@ export function ModalDossie({
     })
   }
 
+  function handleCiente(idComPrefixo: string) {
+    const id = idComPrefixo.replace('ocorrencia-', '')
+    startTransition(async () => {
+      const result = await darCienciaOcorrencia(id)
+      if (result.success) carregar(true)
+      else alert(result.error)
+    })
+  }
+
   function toggleConversa(id: string) {
     setConversasAbertas(prev => {
       const next = new Set(prev)
@@ -194,7 +207,7 @@ export function ModalDossie({
     <Dialog.Root open onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/50" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-full max-w-5xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
           {loading ? (
             <p className="py-12 text-center text-sm text-gray-400">Carregando dossiê…</p>
           ) : !dossie ? (
@@ -327,6 +340,27 @@ export function ModalDossie({
                                 className="rounded-lg bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700 hover:bg-green-200 disabled:opacity-50"
                               >
                                 Encerrar
+                              </button>
+                            )}
+                            {ehOcorrencia && item.aguardando && (
+                              item.aguardando === (ehGestao ? 'gestao' : 'supervisor') ? (
+                                <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700">
+                                  Aguardando você{item.aguardando_desde ? ` · há ${diasDesdeIso(item.aguardando_desde)}d` : ''}
+                                </span>
+                              ) : (
+                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                                  Aguardando {item.aguardando === 'gestao' ? 'gestão' : 'supervisor'}{item.aguardando_desde ? ` · há ${diasDesdeIso(item.aguardando_desde)}d` : ''}
+                                </span>
+                              )
+                            )}
+                            {ehGestao && ehOcorrencia && item.aguardando === 'gestao' && (
+                              <button
+                                disabled={isPending}
+                                title="Marca como vista, sem responder. Não envia nada ao supervisor e sai das suas pendências até ele escrever de novo."
+                                onClick={() => handleCiente(item.id)}
+                                className="rounded-lg bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                              >
+                                Ciente (sem pendência)
                               </button>
                             )}
                             {ehOcorrencia && (item.status === 'aberta' || item.status === 'em_analise') && item.correcao_liberada_em && (

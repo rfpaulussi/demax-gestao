@@ -59,7 +59,9 @@ export function ConversaOcorrencia({
         <p className="text-xs text-gray-400">Nenhuma mensagem ainda.</p>
       ) : (
         <div className="space-y-2">
-          {comentarios.map(c => (
+          {comentarios.map(c => {
+            const doSupervisor = c.autor_role === 'supervisor'
+            return (
             <div
               key={c.id}
               className={`rounded-lg px-3 py-2 ${
@@ -67,7 +69,9 @@ export function ConversaOcorrencia({
                   ? 'bg-green-50 ring-1 ring-green-200'
                   : c.tipo === 'nota_interna'
                     ? 'bg-amber-50 ring-1 ring-amber-200'
-                    : 'bg-gray-50'
+                    : doSupervisor
+                      ? 'mr-10 border-l-4 border-slate-300 bg-gray-50'
+                      : 'ml-10 border-r-4 border-indigo-300 bg-indigo-50/60'
               }`}
             >
               <p className="text-xs">
@@ -89,7 +93,8 @@ export function ConversaOcorrencia({
               </p>
               <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">{c.texto}</p>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
