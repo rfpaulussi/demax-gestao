@@ -175,7 +175,8 @@ export function ModalAnaliseIA({
     <Dialog.Root open onOpenChange={(aberto) => { if (!aberto) onClose() }}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-[60] bg-black/50" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-[61] max-h-[90vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+        <Dialog.Popup className={`fixed left-1/2 top-1/2 z-[61] flex max-h-[92vh] w-full ${temResultado ? 'max-w-5xl' : 'max-w-2xl'} -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl`}>
+          <div className="flex-1 overflow-y-auto p-6">
           <Dialog.Title className="mb-1 text-sm font-bold uppercase tracking-widest text-gray-900">
             {modo === 'analise' ? 'Analisar com IA' : 'Devolutiva a partir do retorno do RH'}
           </Dialog.Title>
@@ -196,7 +197,7 @@ export function ModalAnaliseIA({
                   e nomes de funcionários e supervisores viram códigos (FUNC_1…). Atenção: nomes de terceiros escritos no
                   relato (&quot;a diretora Fulana&quot;, &quot;a filha&quot;) não são detectados. Se houver, edite a ocorrência antes.
                 </p>
-                <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
+                <pre className="max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
                   {mensagem}
                 </pre>
                 {!iaOk && <p className="text-xs text-red-500">A IA não está configurada neste ambiente.</p>}
@@ -272,9 +273,9 @@ export function ModalAnaliseIA({
 
           {/* ── passo 2: resultado ── */}
           {temResultado && (
-            <div className="space-y-4">
+            <div className={analise ? 'grid gap-6 lg:grid-cols-2' : 'space-y-4'}>
               {analise && (
-                <>
+                <div className="space-y-4">
                   <div className="flex flex-wrap gap-2">
                     <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-700">
                       {CATEGORIA_LABEL[analise.categoria] ?? analise.categoria}
@@ -322,9 +323,10 @@ export function ModalAnaliseIA({
                       <p className="mt-1 text-sm text-gray-700">{analise.motivo_rh}</p>
                     </div>
                   )}
-                </>
+                </div>
               )}
 
+              <div className="space-y-4">
               {pontos.length > 0 && (
                 <ul className="space-y-1 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
                   {pontos.map((p, i) => <li key={i}>• {p}</li>)}
@@ -335,7 +337,7 @@ export function ModalAnaliseIA({
                 <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
                   Devolutiva ao supervisor (edite antes de aprovar)
                 </label>
-                <textarea value={devolutiva} onChange={e => setDevolutiva(e.target.value)} rows={5} className={textareaClass} />
+                <textarea value={devolutiva} onChange={e => setDevolutiva(e.target.value)} rows={analise ? 14 : 8} className={textareaClass} />
               </div>
 
               {analise && passoRH === 'inicial' && (
@@ -383,6 +385,13 @@ export function ModalAnaliseIA({
                 </div>
               )}
 
+              </div>
+            </div>
+          )}
+          </div>
+
+          {temResultado && (
+            <div className="border-t border-gray-100 bg-white px-6 py-3">
               {reprovando ? (
                 <div className="space-y-2">
                   <input

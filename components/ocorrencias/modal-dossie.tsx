@@ -324,6 +324,10 @@ export function ModalDossie({
                             {ehOcorrencia && item.status && (
                               <span className="text-xs font-medium text-gray-500">{STATUS_LABEL[item.status] ?? item.status}</span>
                             )}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-1.5 border-t border-gray-50 px-4 py-2 empty:hidden">
                             {canWrite && ehOcorrencia && item.status === 'aberta' && (
                               <button
                                 disabled={isPending}
@@ -442,7 +446,6 @@ export function ModalDossie({
                                 )}
                               </>
                             )}
-                          </div>
                         </div>
 
                         {canWrite && ehOcorrencia && (
