@@ -73,7 +73,7 @@ export function ModalEncaminharRH({
     <Dialog.Root open onOpenChange={(aberto) => { if (!aberto) onClose() }}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-[60] bg-black/50" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-[61] max-h-[90vh] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-[61] max-h-[94vh] w-[96vw] max-w-4xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
           <Dialog.Title className="mb-1 text-sm font-bold uppercase tracking-widest text-gray-900">
             Encaminhar ao RH
           </Dialog.Title>
@@ -125,7 +125,7 @@ export function ModalEncaminharRH({
                 <textarea
                   value={corpo}
                   onChange={e => setCorpo(e.target.value)}
-                  rows={16}
+                  rows={20}
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-xs leading-relaxed text-gray-700 shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-400"
                 />
               </div>

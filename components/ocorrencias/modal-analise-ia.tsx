@@ -175,7 +175,7 @@ export function ModalAnaliseIA({
     <Dialog.Root open onOpenChange={(aberto) => { if (!aberto) onClose() }}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-[60] bg-black/50" />
-        <Dialog.Popup className={`fixed left-1/2 top-1/2 z-[61] flex max-h-[92vh] w-full ${temResultado ? 'max-w-5xl' : 'max-w-2xl'} -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl`}>
+        <Dialog.Popup className={`fixed left-1/2 top-1/2 z-[61] flex max-h-[94vh] w-[96vw] ${temResultado ? 'max-w-[1400px]' : 'max-w-5xl'} -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl bg-white shadow-2xl`}>
           <div className="flex-1 overflow-y-auto p-6">
           <Dialog.Title className="mb-1 text-sm font-bold uppercase tracking-widest text-gray-900">
             {modo === 'analise' ? 'Analisar com IA' : 'Devolutiva a partir do retorno do RH'}
@@ -197,7 +197,7 @@ export function ModalAnaliseIA({
                   e nomes de funcionários e supervisores viram códigos (FUNC_1…). Atenção: nomes de terceiros escritos no
                   relato (&quot;a diretora Fulana&quot;, &quot;a filha&quot;) não são detectados. Se houver, edite a ocorrência antes.
                 </p>
-                <pre className="max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
+                <pre className="max-h-[55vh] overflow-y-auto whitespace-pre-wrap rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
                   {mensagem}
                 </pre>
                 {!iaOk && <p className="text-xs text-red-500">A IA não está configurada neste ambiente.</p>}
@@ -337,7 +337,7 @@ export function ModalAnaliseIA({
                 <label className="text-xs font-semibold uppercase tracking-widest text-gray-400">
                   Devolutiva ao supervisor (edite antes de aprovar)
                 </label>
-                <textarea value={devolutiva} onChange={e => setDevolutiva(e.target.value)} rows={analise ? 14 : 8} className={textareaClass} />
+                <textarea value={devolutiva} onChange={e => setDevolutiva(e.target.value)} rows={analise ? 18 : 8} className={textareaClass} />
               </div>
 
               {analise && passoRH === 'inicial' && (
@@ -410,13 +410,18 @@ export function ModalAnaliseIA({
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-wrap justify-end gap-2">
-                  <button disabled={isPending} onClick={onClose} className="h-9 rounded-lg border border-gray-200 px-4 text-xs font-semibold uppercase tracking-widest text-gray-500 hover:bg-gray-50 disabled:opacity-50">
-                    Sair
-                  </button>
-                  <button disabled={isPending} onClick={() => setReprovando(true)} className="h-9 rounded-lg border border-red-200 px-4 text-xs font-semibold uppercase tracking-widest text-red-600 hover:bg-red-50 disabled:opacity-50">
-                    Reprovar
-                  </button>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  {/* esquerda: saídas sem efeito / descarte */}
+                  <div className="flex gap-2">
+                    <button disabled={isPending} onClick={onClose} className="h-9 rounded-lg border border-gray-200 px-4 text-xs font-semibold uppercase tracking-widest text-gray-500 hover:bg-gray-50 disabled:opacity-50">
+                      Sair
+                    </button>
+                    <button disabled={isPending} onClick={() => setReprovando(true)} className="h-9 rounded-lg border border-red-200 px-4 text-xs font-semibold uppercase tracking-widest text-red-600 hover:bg-red-50 disabled:opacity-50">
+                      Reprovar
+                    </button>
+                  </div>
+                  {/* direita: o que acontece de fato, do mais leve ao mais completo */}
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                   {analise && !comRH && (
                     <>
                       <button
@@ -444,6 +449,7 @@ export function ModalAnaliseIA({
                   >
                     {isPending ? 'Enviando…' : 'Aprovar e responder ao supervisor'}
                   </button>
+                  </div>
                 </div>
               )}
             </div>
