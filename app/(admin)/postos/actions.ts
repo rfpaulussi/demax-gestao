@@ -88,7 +88,6 @@ export type PostoRow = {
   secretaria: string
   efetivo_previsto: number
   cota_insalubridade: number
-  centro_custo: string
   ativo: boolean
   efetivo_atual: number
   insalubridade_atual: number
@@ -170,7 +169,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
   const [{ data: postos }, funcionariosRaw, { data: config }, { data: coberturas }] = await Promise.all([
     supabase
       .from('postos')
-      .select('id, nome, secretaria, efetivo_previsto, cota_insalubridade, centro_custo, ativo')
+      .select('id, nome, secretaria, efetivo_previsto, cota_insalubridade, ativo')
       .eq('contrato_id', CONTRATO_ID)
       .eq('ativo', true)
       .order('secretaria', { ascending: true })
@@ -292,7 +291,6 @@ export async function getPostosData(): Promise<PostoRow[]> {
     secretaria: p.secretaria ?? '',
     efetivo_previsto: p.efetivo_previsto ?? 0,
     cota_insalubridade: p.cota_insalubridade ?? 0,
-    centro_custo: p.centro_custo ?? '',
     ativo: p.ativo ?? true,
     efetivo_atual: efetivoMap.get(p.id) ?? 0,
     insalubridade_atual: insalubMap.get(p.id) ?? 0,
@@ -310,7 +308,6 @@ export async function criarPosto(data: {
   secretaria: string
   efetivo_previsto: number
   cota_insalubridade: number
-  centro_custo?: string
 }): Promise<{ error?: string }> {
   const supabase = createClient()
   const { data: contratos } = await supabase
@@ -327,7 +324,6 @@ export async function criarPosto(data: {
     secretaria: data.secretaria.trim().toUpperCase(),
     efetivo_previsto: data.efetivo_previsto,
     cota_insalubridade: data.cota_insalubridade,
-    centro_custo: data.centro_custo?.trim() || null,
     ativo: true,
   })
   if (error) return { error: error.message }
@@ -340,7 +336,6 @@ export async function editarPosto(id: string, data: {
   secretaria: string
   efetivo_previsto: number
   cota_insalubridade: number
-  centro_custo?: string
 }): Promise<{ error?: string }> {
   const supabase = createClient()
   const { error } = await supabase.from('postos').update({
@@ -348,7 +343,6 @@ export async function editarPosto(id: string, data: {
     secretaria: data.secretaria.trim().toUpperCase(),
     efetivo_previsto: data.efetivo_previsto,
     cota_insalubridade: data.cota_insalubridade,
-    centro_custo: data.centro_custo?.trim() || null,
     updated_at: new Date().toISOString(),
   }).eq('id', id)
   if (error) return { error: error.message }

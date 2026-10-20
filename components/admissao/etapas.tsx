@@ -1,10 +1,18 @@
 'use client'
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { buscarSubstituiveis, consultarCep, type SugestaoAdmissao, type Substituivel } from '@/app/(admin)/admissao/actions'
+import {
+  Briefcase, Bus, ClipboardCheck, Info, Plus, Search, Shirt, SlidersHorizontal, User, X, type LucideIcon,
+} from 'lucide-react'
+import {
+  buscarSubstituiveis, consultarCep,
+  type LinhaConhecida, type SugestaoAdmissao, type Substituivel,
+} from '@/app/(admin)/admissao/actions'
+import { MOTIVOS_POR_TIPO, TIPOS_DESLIGAMENTO, type TipoDesligamento } from '@/components/efetivo/modal-desligar'
+import { EMPRESAS_ONIBUS_MOGI, TARIFA_ONIBUS_MOGI } from '@/lib/admissao/constantes'
 import { formatarCep, formatarCpf, formatarTelefone, validarCpf } from '@/lib/admissao/cpf'
 import {
-  DOCUMENTOS_ADMISSAO, DOCUMENTOS_DEPENDENTES, MAX_LINHAS_VT, TIPOS_TRANSPORTE, UFS,
+  DOCUMENTOS_ADMISSAO, DOCUMENTOS_DEPENDENTES, MAX_LINHAS_VT, TIPOS_TRANSPORTE, UFS, linhaVtVazia,
   type CartaoVT, type DossieAdmissao, type LinhaVT,
 } from '@/lib/admissao/tipos'
 import { formatarMoeda, totaisVT } from '@/lib/admissao/vt'
@@ -33,9 +41,32 @@ export type TurnoOpcao = {
 
 export type Definir = <K extends keyof DossieAdmissao>(campo: K, valor: DossieAdmissao[K]) => void
 
-export const rotuloClasse = 'mb-1 block text-xs font-semibold uppercase tracking-widest text-slate-500'
+// ─── Identidade visual das etapas (uma cor por etapa, como as cores por métrica do sistema) ───
+
+export interface InfoEtapa {
+  titulo: string
+  descricao: string
+  icone: LucideIcon
+  /** Classes literais (o Tailwind só gera o que aparece escrito por inteiro). */
+  tile: string
+  barra: string
+  borda: string
+  anel: string
+}
+
+export const INFO_ETAPAS: InfoEtapa[] = [
+  { titulo: 'Pessoais',        descricao: 'Dados do funcionário, como estão nos documentos.',             icone: User,              tile: 'bg-blue-100 text-blue-700',       barra: 'bg-blue-600',    borda: 'border-blue-600',    anel: 'ring-blue-200' },
+  { titulo: 'Vaga',            descricao: 'Onde, quando e em que turno ele começa.',                      icone: Briefcase,         tile: 'bg-violet-100 text-violet-700',   barra: 'bg-violet-600',  borda: 'border-violet-600',  anel: 'ring-violet-200' },
+  { titulo: 'Condições',       descricao: 'Salário e benefícios vêm do cadastro da função.',              icone: SlidersHorizontal, tile: 'bg-indigo-100 text-indigo-700',   barra: 'bg-indigo-600',  borda: 'border-indigo-600',  anel: 'ring-indigo-200' },
+  { titulo: 'Vale transporte', descricao: 'Linhas que ele usa de casa ao posto e o cartão.',              icone: Bus,               tile: 'bg-emerald-100 text-emerald-700', barra: 'bg-emerald-600', borda: 'border-emerald-600', anel: 'ring-emerald-200' },
+  { titulo: 'Uniforme',        descricao: 'Tamanhos e documentos que ele já entregou.',                   icone: Shirt,             tile: 'bg-orange-100 text-orange-700',   barra: 'bg-orange-500',  borda: 'border-orange-500',  anel: 'ring-orange-200' },
+  { titulo: 'Revisão',         descricao: 'Confira tudo antes de enviar e imprimir.',                     icone: ClipboardCheck,    tile: 'bg-amber-100 text-amber-700',     barra: 'bg-amber-500',   borda: 'border-amber-500',   anel: 'ring-amber-200' },
+]
+
+export const rotuloClasse = 'mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-500'
 export const campoClasse =
-  'w-full rounded border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-600 disabled:bg-gray-50 disabled:text-gray-400'
+  'w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 ' +
+  'focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400'
 
 function Rotulado({ rotulo, children, className }: { rotulo: string; children: ReactNode; className?: string }) {
   return (
@@ -46,10 +77,51 @@ function Rotulado({ rotulo, children, className }: { rotulo: string; children: R
   )
 }
 
+/** Bloco de apoio dentro de uma etapa. */
+function Painel({ titulo, children, tom = 'slate', className }: {
+  titulo?: string
+  children: ReactNode
+  tom?: 'slate' | 'blue' | 'amber' | 'emerald'
+  className?: string
+}) {
+  const tons = {
+    slate: 'border-slate-200 bg-slate-50/70',
+    blue: 'border-blue-200 bg-blue-50/70',
+    amber: 'border-amber-200 bg-amber-50/70',
+    emerald: 'border-emerald-200 bg-emerald-50/70',
+  }
+  const tit = { slate: 'text-slate-700', blue: 'text-blue-800', amber: 'text-amber-800', emerald: 'text-emerald-800' }
+  return (
+    <div className={cn('space-y-3 rounded-xl border p-4', tons[tom], className)}>
+      {titulo && <p className={cn('text-sm font-semibold', tit[tom])}>{titulo}</p>}
+      {children}
+    </div>
+  )
+}
+
 const fmtData = (iso: string | null) => {
   if (!iso) return ''
   const [a, m, d] = iso.slice(0, 10).split('-')
   return `${d}/${m}/${a}`
+}
+
+/** "demissao"/"justa_causa" → "Demissão — Justa Causa" (sem os parênteses explicativos do formulário de desligamento). */
+function descricaoSaida(tipo: string | null, motivo: string | null): string {
+  const curto = (s: string) => s.replace(/\s*\(.*\)\s*$/, '')
+  const t = TIPOS_DESLIGAMENTO.find(x => x.value === tipo)
+  const m = tipo ? MOTIVOS_POR_TIPO[tipo as TipoDesligamento]?.find(x => x.value === motivo) : undefined
+  return [t ? curto(t.label) : tipo, m ? curto(m.label) : motivo].filter(Boolean).join(' — ')
+}
+
+/** Mês atual e os 11 anteriores, para o filtro "mês da saída". */
+function opcoesMeses(): { valor: string; rotulo: string }[] {
+  const hoje = new Date()
+  return Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1)
+    const valor = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    const nome = d.toLocaleDateString('pt-BR', { month: 'long' })
+    return { valor, rotulo: `${nome.charAt(0).toUpperCase()}${nome.slice(1)}/${d.getFullYear()}` }
+  })
 }
 
 // ─── 1. Pessoais ──────────────────────────────────────────────────────────────
@@ -77,53 +149,61 @@ export function EtapaPessoais({ d, definir }: { d: DossieAdmissao; definir: Defi
 
   const cpfCompleto = d.cpf.length === 11
   const cpfInvalido = cpfCompleto && !validarCpf(d.cpf)
+  const cpfOk = cpfCompleto && !cpfInvalido
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Rotulado rotulo="Nome completo *" className="sm:col-span-2">
-        <input className={campoClasse} style={{ textTransform: 'uppercase' }} value={d.nome} autoComplete="off"
-          onChange={e => definir('nome', e.target.value.toUpperCase())} placeholder="NOME COMO NO DOCUMENTO" />
-      </Rotulado>
-      <Rotulado rotulo="CPF *">
-        <input className={cn(campoClasse, cpfInvalido && 'border-red-400 focus:ring-red-500')} inputMode="numeric" autoComplete="off"
-          value={formatarCpf(d.cpf)} onChange={e => definir('cpf', e.target.value.replace(/\D/g, '').slice(0, 11))} placeholder="000.000.000-00" />
-        {cpfInvalido && <p className="mt-1 text-xs text-red-600">CPF inválido — confira os dígitos.</p>}
-      </Rotulado>
-      <Rotulado rotulo="Telefone (com DDD) *">
-        <input className={campoClasse} inputMode="tel" autoComplete="off"
-          value={formatarTelefone(d.telefone)} onChange={e => definir('telefone', e.target.value.replace(/\D/g, '').slice(0, 11))} placeholder="(00) 00000-0000" />
-      </Rotulado>
-      <Rotulado rotulo="E-mail" className="sm:col-span-2">
-        <input className={campoClasse} type="email" autoComplete="off" value={d.email}
-          onChange={e => definir('email', e.target.value)} placeholder="opcional" />
-      </Rotulado>
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Rotulado rotulo="Nome completo *" className="sm:col-span-2">
+          <input className={campoClasse} style={{ textTransform: 'uppercase' }} value={d.nome} autoComplete="off"
+            onChange={e => definir('nome', e.target.value.toUpperCase())} placeholder="NOME COMO NO DOCUMENTO" />
+        </Rotulado>
+        <Rotulado rotulo="CPF *">
+          <input className={cn(campoClasse, cpfInvalido && 'border-red-400 focus:border-red-500 focus:ring-red-100', cpfOk && 'border-emerald-400')}
+            inputMode="numeric" autoComplete="off" value={formatarCpf(d.cpf)}
+            onChange={e => definir('cpf', e.target.value.replace(/\D/g, '').slice(0, 11))} placeholder="000.000.000-00" />
+          {cpfInvalido && <p className="mt-1 text-xs text-red-600">CPF inválido — confira os dígitos.</p>}
+        </Rotulado>
+        <Rotulado rotulo="Telefone (com DDD) *">
+          <input className={campoClasse} inputMode="tel" autoComplete="off" value={formatarTelefone(d.telefone)}
+            onChange={e => definir('telefone', e.target.value.replace(/\D/g, '').slice(0, 11))} placeholder="(00) 00000-0000" />
+        </Rotulado>
+        <Rotulado rotulo="E-mail" className="sm:col-span-2">
+          <input className={campoClasse} type="email" autoComplete="off" value={d.email}
+            onChange={e => definir('email', e.target.value)} placeholder="opcional" />
+        </Rotulado>
+      </div>
 
-      <Rotulado rotulo="CEP *">
-        <input className={campoClasse} inputMode="numeric" autoComplete="off" value={formatarCep(d.cep)}
-          onChange={e => aoMudarCep(e.target.value)} placeholder="00000-000" />
-        {cepMsg && <p className="mt-1 text-xs text-slate-500">{cepMsg}</p>}
-      </Rotulado>
-      <Rotulado rotulo="UF *">
-        <select className={campoClasse} value={d.uf} onChange={e => definir('uf', e.target.value)}>
-          <option value="">—</option>
-          {UFS.map(uf => <option key={uf} value={uf}>{uf}</option>)}
-        </select>
-      </Rotulado>
-      <Rotulado rotulo="Endereço *" className="sm:col-span-2">
-        <input className={campoClasse} value={d.logradouro} autoComplete="off" onChange={e => definir('logradouro', e.target.value)} placeholder="Rua, avenida…" />
-      </Rotulado>
-      <Rotulado rotulo="Número *">
-        <input className={campoClasse} value={d.numero} autoComplete="off" onChange={e => definir('numero', e.target.value)} placeholder="S/N se não houver" />
-      </Rotulado>
-      <Rotulado rotulo="Complemento">
-        <input className={campoClasse} value={d.complemento} autoComplete="off" onChange={e => definir('complemento', e.target.value)} />
-      </Rotulado>
-      <Rotulado rotulo="Bairro *">
-        <input className={campoClasse} value={d.bairro} autoComplete="off" onChange={e => definir('bairro', e.target.value)} />
-      </Rotulado>
-      <Rotulado rotulo="Cidade *">
-        <input className={campoClasse} value={d.cidade} autoComplete="off" onChange={e => definir('cidade', e.target.value)} />
-      </Rotulado>
+      <Painel titulo="Endereço" tom="blue">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
+          <Rotulado rotulo="CEP *" className="sm:col-span-2">
+            <input className={campoClasse} inputMode="numeric" autoComplete="off" value={formatarCep(d.cep)}
+              onChange={e => aoMudarCep(e.target.value)} placeholder="00000-000" />
+            {cepMsg && <p className="mt-1 text-xs text-slate-500">{cepMsg}</p>}
+          </Rotulado>
+          <Rotulado rotulo="Endereço *" className="sm:col-span-4">
+            <input className={campoClasse} value={d.logradouro} autoComplete="off" onChange={e => definir('logradouro', e.target.value)} placeholder="Rua, avenida…" />
+          </Rotulado>
+          <Rotulado rotulo="Número *" className="sm:col-span-2">
+            <input className={campoClasse} value={d.numero} autoComplete="off" onChange={e => definir('numero', e.target.value)} placeholder="S/N se não houver" />
+          </Rotulado>
+          <Rotulado rotulo="Complemento" className="sm:col-span-4">
+            <input className={campoClasse} value={d.complemento} autoComplete="off" onChange={e => definir('complemento', e.target.value)} />
+          </Rotulado>
+          <Rotulado rotulo="Bairro *" className="sm:col-span-3">
+            <input className={campoClasse} value={d.bairro} autoComplete="off" onChange={e => definir('bairro', e.target.value)} />
+          </Rotulado>
+          <Rotulado rotulo="Cidade *" className="sm:col-span-2">
+            <input className={campoClasse} value={d.cidade} autoComplete="off" onChange={e => definir('cidade', e.target.value)} />
+          </Rotulado>
+          <Rotulado rotulo="UF *" className="sm:col-span-1">
+            <select className={campoClasse} value={d.uf} onChange={e => definir('uf', e.target.value)}>
+              <option value="">—</option>
+              {UFS.map(uf => <option key={uf} value={uf}>{uf}</option>)}
+            </select>
+          </Rotulado>
+        </div>
+      </Painel>
     </div>
   )
 }
@@ -143,39 +223,40 @@ interface PropsVaga {
 
 export function EtapaVaga({ d, definir, funcoes, postosFiltrados, jovemAprendiz, turnoOpcoes, carregandoTurnos }: PropsVaga) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Rotulado rotulo="Função *">
-        <select className={campoClasse} value={d.funcao_id} onChange={e => definir('funcao_id', e.target.value)}>
-          <option value="">Selecione…</option>
-          {funcoes.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
-        </select>
-      </Rotulado>
-      <Rotulado rotulo="Posto *">
-        <select className={campoClasse} value={d.posto_id} onChange={e => definir('posto_id', e.target.value)}>
-          <option value="">Selecione…</option>
-          {postosFiltrados.map(p => <option key={p.id} value={p.id}>{p.nome}{p.secretaria ? ` — ${p.secretaria}` : ''}</option>)}
-        </select>
-      </Rotulado>
-      <Rotulado rotulo="Data de admissão *">
-        <input type="date" className={campoClasse} value={d.data_admissao} onChange={e => definir('data_admissao', e.target.value)} />
-      </Rotulado>
-      <Rotulado rotulo="Período de experiência">
-        <select className={campoClasse} value={d.periodo_experiencia} disabled={jovemAprendiz}
-          onChange={e => definir('periodo_experiencia', e.target.value as DossieAdmissao['periodo_experiencia'])}>
-          <option value="nenhum">Nenhum</option>
-          <option value="30+30">30 + 30 dias</option>
-          <option value="45+45">45 + 45 dias</option>
-        </select>
-        <p className={cn('mt-1 text-xs', jovemAprendiz ? 'font-medium text-amber-600' : 'text-gray-400')}>
-          {jovemAprendiz
-            ? '⚠ Jovem Aprendiz não tem período de experiência.'
-            : 'Use "Nenhum" se o funcionário foi recontratado há menos de 6 meses.'}
-        </p>
-      </Rotulado>
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Rotulado rotulo="Função *">
+          <select className={campoClasse} value={d.funcao_id} onChange={e => definir('funcao_id', e.target.value)}>
+            <option value="">Selecione…</option>
+            {funcoes.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+          </select>
+        </Rotulado>
+        <Rotulado rotulo="Posto *">
+          <select className={campoClasse} value={d.posto_id} onChange={e => definir('posto_id', e.target.value)}>
+            <option value="">Selecione…</option>
+            {postosFiltrados.map(p => <option key={p.id} value={p.id}>{p.nome}{p.secretaria ? ` — ${p.secretaria}` : ''}</option>)}
+          </select>
+        </Rotulado>
+        <Rotulado rotulo="Data de admissão *">
+          <input type="date" className={campoClasse} value={d.data_admissao} onChange={e => definir('data_admissao', e.target.value)} />
+        </Rotulado>
+        <Rotulado rotulo="Período de experiência">
+          <select className={campoClasse} value={d.periodo_experiencia} disabled={jovemAprendiz}
+            onChange={e => definir('periodo_experiencia', e.target.value as DossieAdmissao['periodo_experiencia'])}>
+            <option value="nenhum">Nenhum</option>
+            <option value="30+30">30 + 30 dias</option>
+            <option value="45+45">45 + 45 dias</option>
+          </select>
+          <p className={cn('mt-1 text-xs', jovemAprendiz ? 'font-medium text-amber-600' : 'text-slate-400')}>
+            {jovemAprendiz
+              ? '⚠ Jovem Aprendiz não tem período de experiência.'
+              : 'Use "Nenhum" se foi recontratado há menos de 6 meses.'}
+          </p>
+        </Rotulado>
+      </div>
 
       {d.posto_id && (
-        <div className="space-y-3 rounded border border-blue-200 bg-blue-50 px-4 py-3 sm:col-span-2">
-          <p className="text-sm font-semibold text-blue-800">Turno de trabalho</p>
+        <Painel titulo="Turno de trabalho" tom="blue">
           {carregandoTurnos ? (
             <p className="text-xs text-blue-600">Carregando turnos…</p>
           ) : turnoOpcoes.length === 0 ? (
@@ -202,16 +283,21 @@ export function EtapaVaga({ d, definir, funcoes, postosFiltrados, jovemAprendiz,
               )}
             </>
           )}
-        </div>
+        </Painel>
       )}
 
-      <div className="sm:col-span-2">
+      <div>
         <label className={rotuloClasse}>Motivo da admissão</label>
-        <div className="flex flex-wrap gap-4 text-sm">
-          {([['aumento_efetivo', 'Aumento de efetivo'], ['substituicao', 'Substituição']] as const).map(([valor, texto]) => (
-            <label key={valor} className="flex items-center gap-2">
-              <input type="radio" name="motivo" checked={d.motivo === valor} onChange={() => definir('motivo', valor)} />
-              {texto}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {([['aumento_efetivo', 'Aumento de efetivo', 'Uma vaga nova no posto.'], ['substituicao', 'Substituição', 'Entra no lugar de alguém que saiu.']] as const).map(([valor, titulo, apoio]) => (
+            <label key={valor}
+              className={cn('flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-colors',
+                d.motivo === valor ? 'border-violet-500 bg-violet-50' : 'border-slate-200 bg-white hover:border-slate-300')}>
+              <input type="radio" name="motivo" className="mt-1" checked={d.motivo === valor} onChange={() => definir('motivo', valor)} />
+              <span>
+                <span className="block text-sm font-semibold text-slate-800">{titulo}</span>
+                <span className="block text-xs text-slate-500">{apoio}</span>
+              </span>
             </label>
           ))}
         </div>
@@ -224,10 +310,12 @@ export function EtapaVaga({ d, definir, funcoes, postosFiltrados, jovemAprendiz,
 
 function Substituido({ d, definir }: { d: DossieAdmissao; definir: Definir }) {
   const [termo, setTermo] = useState('')
+  const [mes, setMes] = useState('')
   const [itens, setItens] = useState<Substituivel[]>([])
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [manual, setManual] = useState(!!d.substituido_nome && !d.substituido_id)
+  const meses = useRef(opcoesMeses()).current
 
   useEffect(() => {
     if (manual) return
@@ -235,22 +323,22 @@ function Substituido({ d, definir }: { d: DossieAdmissao; definir: Definir }) {
     setCarregando(true)
     const t = setTimeout(async () => {
       try {
-        const r = await buscarSubstituiveis(d.posto_id, termo)
+        const r = await buscarSubstituiveis(d.posto_id, termo, mes || undefined)
         if (cancelado) return
         if (r.success) { setItens(r.itens); setErro(null) } else setErro(r.error)
       } catch {
-        if (!cancelado) setErro('Não foi possível buscar os desligados. Use "Não consta na lista".')
+        if (!cancelado) setErro('Não foi possível buscar os desligados. Use "Não achei — digitar o nome".')
       } finally {
         if (!cancelado) setCarregando(false)
       }
     }, termo ? 350 : 0)
     return () => { cancelado = true; clearTimeout(t) }
-  }, [d.posto_id, termo, manual])
+  }, [d.posto_id, termo, mes, manual])
 
   function escolher(s: Substituivel) {
     definir('substituido_id', s.id)
     definir('substituido_nome', s.nome)
-    definir('substituido_motivo', [s.tipo_desligamento, s.motivo_desligamento].filter(Boolean).join(' — '))
+    definir('substituido_motivo', descricaoSaida(s.tipo_desligamento, s.motivo_desligamento))
     definir('substituido_data_desligamento', s.data_desligamento?.slice(0, 10) ?? '')
   }
 
@@ -262,43 +350,58 @@ function Substituido({ d, definir }: { d: DossieAdmissao; definir: Definir }) {
   }
 
   return (
-    <div className="space-y-3 rounded border border-amber-200 bg-amber-50 px-4 py-3 sm:col-span-2">
-      <div className="flex items-center justify-between gap-2">
+    <Painel tom="amber" className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-semibold text-amber-800">Quem está sendo substituído?</p>
-        <button type="button" className="text-xs font-medium text-amber-800 underline"
-          onClick={() => { limpar(); setManual(m => !m) }}>
-          {manual ? 'Buscar entre os desligados' : 'Não consta na lista — digitar'}
+        <button type="button" className="text-xs font-medium text-amber-800 underline" onClick={() => { limpar(); setManual(m => !m) }}>
+          {manual ? 'Buscar entre os desligados' : 'Não achei — digitar o nome'}
         </button>
       </div>
 
       {!manual && (
-        <>
-          {d.substituido_id ? (
-            <div className="flex items-center justify-between gap-2 rounded border border-green-300 bg-green-50 px-3 py-2 text-sm">
-              <span><strong>{d.substituido_nome}</strong>{d.substituido_data_desligamento ? ` · desligado em ${fmtData(d.substituido_data_desligamento)}` : ''}</span>
-              <button type="button" className="text-xs font-medium text-green-800 underline" onClick={limpar}>trocar</button>
+        d.substituido_id ? (
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2.5 text-sm">
+            <span><strong>{d.substituido_nome}</strong>{d.substituido_data_desligamento ? ` · saiu em ${fmtData(d.substituido_data_desligamento)}` : ''}</span>
+            <button type="button" className="text-xs font-medium text-emerald-800 underline" onClick={limpar}>trocar</button>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
+              <div className="relative sm:col-span-3">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                <input className={cn(campoClasse, 'pl-9')} placeholder="Buscar pelo nome (3+ letras)" value={termo} onChange={e => setTermo(e.target.value)} />
+              </div>
+              <select className={cn(campoClasse, 'sm:col-span-2')} value={mes} onChange={e => setMes(e.target.value)} disabled={termo.trim().length >= 3} aria-label="Mês da saída">
+                <option value="">Últimos 60 dias</option>
+                {meses.map(m => <option key={m.valor} value={m.valor}>{m.rotulo}</option>)}
+              </select>
             </div>
-          ) : (
-            <>
-              <input className={campoClasse} placeholder="Buscar por nome (3+ letras amplia para 12 meses)" value={termo} onChange={e => setTermo(e.target.value)} />
-              {erro && <p className="text-xs text-red-600">{erro}</p>}
-              <ul className="max-h-48 divide-y divide-amber-100 overflow-y-auto rounded border border-amber-100 bg-white text-sm">
-                {carregando && <li className="px-3 py-2 text-xs text-gray-400">Buscando…</li>}
-                {!carregando && itens.length === 0 && <li className="px-3 py-2 text-xs text-gray-400">Nenhum desligado encontrado neste período.</li>}
-                {itens.map(s => (
-                  <li key={s.id}>
-                    <button type="button" onClick={() => escolher(s)} className="flex w-full flex-col px-3 py-2 text-left hover:bg-amber-50">
-                      <span className="font-medium text-gray-800">{s.nome}</span>
-                      <span className="text-xs text-gray-500">
-                        {s.posto_nome ?? 'sem posto'}{s.mesmo_posto ? ' · mesmo posto' : ''} · desligado em {fmtData(s.data_desligamento)}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </>
+            <p className="text-xs text-amber-700">
+              {termo.trim().length >= 3
+                ? 'Buscando pelo nome nos últimos 24 meses, ignorando o mês.'
+                : 'Só aparecem desligados dos seus postos. Escolha o mês da saída ou digite o nome para achar os mais antigos.'}
+            </p>
+            {erro && <p className="text-xs text-red-600">{erro}</p>}
+            <ul className="max-h-56 divide-y divide-amber-100 overflow-y-auto rounded-lg border border-amber-100 bg-white text-sm">
+              {carregando && <li className="px-3 py-2.5 text-xs text-slate-400">Buscando…</li>}
+              {!carregando && itens.length === 0 && (
+                <li className="px-3 py-2.5 text-xs text-slate-400">Nenhum desligado dos seus postos neste período. Tente outro mês ou busque pelo nome.</li>
+              )}
+              {itens.map(s => (
+                <li key={s.id}>
+                  <button type="button" onClick={() => escolher(s)} className="flex w-full flex-col px-3 py-2.5 text-left hover:bg-amber-50">
+                    <span className="font-medium text-slate-800">{s.nome}</span>
+                    <span className="text-xs text-slate-500">
+                      {s.posto_nome ?? 'sem posto'}
+                      {s.mesmo_posto && <span className="ml-1.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">mesmo posto</span>}
+                      {' '}· saiu em {fmtData(s.data_desligamento)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )
       )}
 
       {manual && (
@@ -318,7 +421,7 @@ function Substituido({ d, definir }: { d: DossieAdmissao; definir: Definir }) {
           </Rotulado>
         </div>
       )}
-    </div>
+    </Painel>
   )
 }
 
@@ -328,28 +431,42 @@ export function EtapaCondicoes({ d, definir, sugestao }: { d: DossieAdmissao; de
   const f = sugestao?.funcao ?? null
   const adicional = (perc: number | null, valor: number | null) =>
     valor && valor > 0 ? `${perc ? `${perc}% · ` : ''}${formatarMoeda(valor)}` : 'Não'
+  const dados = f
+    ? [
+        { r: 'Função', v: f.nome },
+        { r: 'Salário base', v: formatarMoeda(f.salario_base) || '—' },
+        { r: 'Insalubridade', v: adicional(f.insalubridade_perc, f.insalubridade_valor) },
+        { r: 'Periculosidade', v: adicional(f.periculosidade_perc, f.periculosidade_valor) },
+      ]
+    : []
   return (
-    <div className="space-y-4">
-      <div className="rounded border border-slate-200 bg-slate-50 px-4 py-3">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">Do cadastro da função (somente leitura)</p>
+    <div className="space-y-5">
+      <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-indigo-700">Do cadastro da função</p>
         {f ? (
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
-            <div><dt className="text-xs text-slate-500">Função</dt><dd className="font-medium">{f.nome}</dd></div>
-            <div><dt className="text-xs text-slate-500">Salário base</dt><dd className="font-medium">{formatarMoeda(f.salario_base) || '—'}</dd></div>
-            <div><dt className="text-xs text-slate-500">Insalubridade</dt><dd className="font-medium">{adicional(f.insalubridade_perc, f.insalubridade_valor)}</dd></div>
-            <div><dt className="text-xs text-slate-500">Periculosidade</dt><dd className="font-medium">{adicional(f.periculosidade_perc, f.periculosidade_valor)}</dd></div>
+          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {dados.map(x => (
+              <div key={x.r} className="rounded-lg bg-white px-3 py-2 shadow-sm">
+                <dt className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{x.r}</dt>
+                <dd className="mt-0.5 text-sm font-semibold text-slate-900">{x.v}</dd>
+              </div>
+            ))}
           </dl>
         ) : (
-          <p className="text-sm text-gray-400">Escolha a função e o posto na etapa anterior.</p>
+          <p className="text-sm text-slate-400">Escolha a função e o posto na etapa anterior.</p>
         )}
       </div>
 
-      <p className="text-xs text-gray-500">Sugeridos pelo sistema — corrija se for diferente. Saem impressos no Cadastro.</p>
+      <p className="flex items-start gap-2 text-xs text-slate-500">
+        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        Sugeridos pelo sistema — corrija se for diferente. Saem impressos no Cadastro de Funcionários.
+      </p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Rotulado rotulo="Contrato"><input className={campoClasse} value={d.contrato} onChange={e => definir('contrato', e.target.value)} /></Rotulado>
         <Rotulado rotulo="Centro de custo"><input className={campoClasse} value={d.centro_custo} onChange={e => definir('centro_custo', e.target.value)} /></Rotulado>
         <Rotulado rotulo="Sindicato"><input className={campoClasse} value={d.sindicato} onChange={e => definir('sindicato', e.target.value)} /></Rotulado>
         <Rotulado rotulo="CBO"><input className={campoClasse} value={d.cbo} onChange={e => definir('cbo', e.target.value)} /></Rotulado>
+        <Rotulado rotulo="Setor (Segurança do Trabalho)" className="sm:col-span-2"><input className={campoClasse} value={d.setor} onChange={e => definir('setor', e.target.value)} /></Rotulado>
         <Rotulado rotulo="Vale alimentação (R$)"><input className={campoClasse} inputMode="decimal" value={d.va} onChange={e => definir('va', e.target.value)} placeholder="0,00" /></Rotulado>
         <Rotulado rotulo="Vale refeição (R$)"><input className={campoClasse} inputMode="decimal" value={d.vr} onChange={e => definir('vr', e.target.value)} placeholder="0,00" /></Rotulado>
       </div>
@@ -359,68 +476,113 @@ export function EtapaCondicoes({ d, definir, sugestao }: { d: DossieAdmissao; de
 
 // ─── 4. Vale transporte ───────────────────────────────────────────────────────
 
-export function EtapaVt({ d, definir }: { d: DossieAdmissao; definir: Definir }) {
+export function EtapaVt({ d, definir, linhasConhecidas }: { d: DossieAdmissao; definir: Definir; linhasConhecidas: LinhaConhecida[] }) {
   const totais = totaisVT(d.vt_linhas)
 
   function mudarLinha(i: number, campo: keyof LinhaVT, valor: string) {
-    definir('vt_linhas', d.vt_linhas.map((l, idx) => (idx === i ? { ...l, [campo]: valor } : l)))
+    definir('vt_linhas', d.vt_linhas.map((l, idx) => {
+      if (idx !== i) return l
+      const nova = { ...l, [campo]: valor }
+      // Linha já conhecida: completa tipo, empresa e valor se ainda estiverem em branco.
+      if (campo === 'linha' && !l.empresa.trim()) {
+        const conhecida = linhasConhecidas.find(k => k.linha.trim().toLowerCase() === valor.trim().toLowerCase())
+        if (conhecida) {
+          nova.tipo = conhecida.tipo || nova.tipo
+          nova.empresa = conhecida.empresa ?? ''
+          if (conhecida.valor !== null) nova.valor = conhecida.valor.toFixed(2).replace('.', ',')
+        }
+      }
+      return nova
+    }))
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-4 text-sm">
-        <label className="flex items-center gap-2"><input type="radio" name="vt" checked={d.vt_utiliza} onChange={() => definir('vt_utiliza', true)} /> Utiliza vale transporte</label>
-        <label className="flex items-center gap-2"><input type="radio" name="vt" checked={!d.vt_utiliza} onChange={() => definir('vt_utiliza', false)} /> Não utiliza</label>
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {([[true, 'Utiliza vale transporte', 'Informe as linhas que ele usa.'], [false, 'Não utiliza', 'Sai sem linhas no formulário.']] as const).map(([valor, titulo, apoio]) => (
+          <label key={String(valor)}
+            className={cn('flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-colors',
+              d.vt_utiliza === valor ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white hover:border-slate-300')}>
+            <input type="radio" name="vt" className="mt-1" checked={d.vt_utiliza === valor} onChange={() => definir('vt_utiliza', valor)} />
+            <span>
+              <span className="block text-sm font-semibold text-slate-800">{titulo}</span>
+              <span className="block text-xs text-slate-500">{apoio}</span>
+            </span>
+          </label>
+        ))}
       </div>
 
       {d.vt_utiliza && (
         <>
+          <datalist id="admissao-linhas">
+            {linhasConhecidas.map(l => <option key={l.linha} value={l.linha}>{[l.empresa, l.valor !== null ? formatarMoeda(l.valor) : ''].filter(Boolean).join(' · ')}</option>)}
+          </datalist>
+
           <div className="space-y-3">
             {d.vt_linhas.map((l, i) => (
-              <div key={i} className="grid grid-cols-2 gap-2 rounded border border-gray-200 p-3 sm:grid-cols-12">
-                <Rotulado rotulo="Tipo" className="sm:col-span-2">
-                  <select className={campoClasse} value={l.tipo} onChange={e => mudarLinha(i, 'tipo', e.target.value)}>
-                    {TIPOS_TRANSPORTE.map(t => <option key={t}>{t}</option>)}
-                  </select>
-                </Rotulado>
-                <Rotulado rotulo="Nome e nº da linha *" className="col-span-2 sm:col-span-3">
-                  <input className={campoClasse} value={l.linha} onChange={e => mudarLinha(i, 'linha', e.target.value)} />
-                </Rotulado>
-                <Rotulado rotulo="Empresa" className="col-span-2 sm:col-span-3">
-                  <input className={campoClasse} value={l.empresa} onChange={e => mudarLinha(i, 'empresa', e.target.value)} />
-                </Rotulado>
-                <Rotulado rotulo="Valor (R$) *" className="sm:col-span-2">
-                  <input className={campoClasse} inputMode="decimal" value={l.valor} placeholder="0,00" onChange={e => mudarLinha(i, 'valor', e.target.value)} />
-                </Rotulado>
-                <Rotulado rotulo="Passagens/dia *" className="sm:col-span-2">
-                  <div className="flex items-center gap-1">
+              <div key={i} className="rounded-xl border border-slate-200 border-l-4 border-l-emerald-500 bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-xs font-semibold uppercase tracking-widest text-emerald-700">Linha {i + 1}</span>
+                  {d.vt_linhas.length > 1 && (
+                    <button type="button" aria-label="Remover linha" title="Remover linha"
+                      onClick={() => definir('vt_linhas', d.vt_linhas.filter((_, idx) => idx !== i))}
+                      className="rounded-md p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"><X className="h-4 w-4" /></button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-12">
+                  <Rotulado rotulo="Tipo" className="sm:col-span-3">
+                    <select className={campoClasse} value={l.tipo} onChange={e => mudarLinha(i, 'tipo', e.target.value)}>
+                      {TIPOS_TRANSPORTE.map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </Rotulado>
+                  <Rotulado rotulo="Nome e nº da linha *" className="col-span-2 sm:col-span-9">
+                    <input className={campoClasse} list="admissao-linhas" value={l.linha} placeholder="Digite para buscar linhas já usadas"
+                      onChange={e => mudarLinha(i, 'linha', e.target.value)} />
+                  </Rotulado>
+                  <Rotulado rotulo="Empresa" className="col-span-2 sm:col-span-6">
+                    <input className={campoClasse} value={l.empresa} onChange={e => mudarLinha(i, 'empresa', e.target.value)} />
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {EMPRESAS_ONIBUS_MOGI.map(emp => (
+                        <button key={emp} type="button" onClick={() => mudarLinha(i, 'empresa', emp)}
+                          className={cn('rounded-full border px-2.5 py-0.5 text-xs font-medium',
+                            l.empresa === emp ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}>
+                          {emp}
+                        </button>
+                      ))}
+                    </div>
+                  </Rotulado>
+                  <Rotulado rotulo="Valor (R$) *" className="sm:col-span-3">
+                    <input className={campoClasse} inputMode="decimal" value={l.valor} placeholder="0,00" onChange={e => mudarLinha(i, 'valor', e.target.value)} />
+                  </Rotulado>
+                  <Rotulado rotulo="Passagens/dia *" className="sm:col-span-3">
                     <input className={campoClasse} inputMode="numeric" value={l.qtd} onChange={e => mudarLinha(i, 'qtd', e.target.value.replace(/\D/g, '').slice(0, 2))} />
-                    {d.vt_linhas.length > 1 && (
-                      <button type="button" aria-label="Remover linha" title="Remover linha"
-                        onClick={() => definir('vt_linhas', d.vt_linhas.filter((_, idx) => idx !== i))}
-                        className="rounded px-2 py-2 text-sm text-red-600 hover:bg-red-50">✕</button>
-                    )}
-                  </div>
-                </Rotulado>
+                  </Rotulado>
+                </div>
               </div>
             ))}
           </div>
+
           {d.vt_linhas.length < MAX_LINHAS_VT && (
-            <button type="button" className="rounded border border-dashed border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-              onClick={() => definir('vt_linhas', [...d.vt_linhas, { tipo: 'Ônibus', linha: '', empresa: '', valor: '', qtd: '2' }])}>
-              + Adicionar linha
+            <button type="button" className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-emerald-400 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
+              onClick={() => definir('vt_linhas', [...d.vt_linhas, linhaVtVazia()])}>
+              <Plus className="h-4 w-4" aria-hidden="true" /> Adicionar linha
             </button>
           )}
-          <p className="text-sm text-slate-600">
-            Total por dia: <strong>{formatarMoeda(totais.valorDia) || 'R$ 0,00'}</strong> em <strong>{totais.passagensDia}</strong> passagem(ns)
-          </p>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm">
+            <span className="text-emerald-800">Total por dia</span>
+            <span><strong className="text-lg text-emerald-900">{formatarMoeda(totais.valorDia) || 'R$ 0,00'}</strong> <span className="text-emerald-700">em {totais.passagensDia} passagem(ns)</span></span>
+          </div>
+          <p className="text-xs text-slate-400">Tarifa municipal de ônibus: R$ {TARIFA_ONIBUS_MOGI} desde 01/04/2026 (Decreto nº 24.277/2026).</p>
 
           <div>
             <label className={rotuloClasse}>Possui cartão?</label>
-            <div className="flex flex-wrap gap-4 text-sm">
+            <div className="flex flex-wrap gap-2">
               {([['nenhum', 'Não possui'], ['bilhete_unico', 'Bilhete Único'], ['top', 'Cartão TOP'], ['outro', 'Outro']] as [CartaoVT, string][]).map(([valor, texto]) => (
-                <label key={valor} className="flex items-center gap-2">
-                  <input type="radio" name="cartao" checked={d.vt_cartao === valor} onChange={() => definir('vt_cartao', valor)} /> {texto}
+                <label key={valor}
+                  className={cn('cursor-pointer rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors',
+                    d.vt_cartao === valor ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')}>
+                  <input type="radio" name="cartao" className="sr-only" checked={d.vt_cartao === valor} onChange={() => definir('vt_cartao', valor)} /> {texto}
                 </label>
               ))}
             </div>
@@ -440,53 +602,56 @@ function alternar(lista: string[], id: string): string[] {
   return lista.includes(id) ? lista.filter(x => x !== id) : [...lista, id]
 }
 
-export function EtapaDocumentos({ d, definir }: { d: DossieAdmissao; definir: Definir }) {
+function ItemDocumento({ id, label, marcado, aoAlternar }: { id: string; label: string; marcado: boolean; aoAlternar: () => void }) {
   return (
-    <div className="space-y-5">
-      <div>
-        <p className={rotuloClasse}>Uniforme (tamanho / nº)</p>
+    <li key={id}>
+      <label className={cn('flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors',
+        marcado ? 'border-orange-300 bg-orange-50 text-slate-800' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')}>
+        <input type="checkbox" className="mt-0.5" checked={marcado} onChange={aoAlternar} />
+        {label}
+      </label>
+    </li>
+  )
+}
+
+export function EtapaDocumentos({ d, definir }: { d: DossieAdmissao; definir: Definir }) {
+  const todos = d.docs.length === DOCUMENTOS_ADMISSAO.length
+  return (
+    <div className="space-y-6">
+      <Painel titulo="Uniforme (tamanho / nº)">
         <div className="grid grid-cols-3 gap-3">
           <Rotulado rotulo="Calça"><input className={campoClasse} value={d.uniforme_calca} onChange={e => definir('uniforme_calca', e.target.value)} /></Rotulado>
           <Rotulado rotulo="Camisa"><input className={campoClasse} value={d.uniforme_camisa} onChange={e => definir('uniforme_camisa', e.target.value)} /></Rotulado>
           <Rotulado rotulo="Sapato"><input className={campoClasse} value={d.uniforme_sapato} onChange={e => definir('uniforme_sapato', e.target.value)} /></Rotulado>
         </div>
-      </div>
+      </Painel>
 
       <div>
-        <div className="mb-2 flex items-center justify-between">
+        <div className="mb-1 flex items-center justify-between">
           <p className={cn(rotuloClasse, 'mb-0')}>Documentos entregues</p>
-          <button type="button" className="text-xs font-medium text-slate-600 underline"
-            onClick={() => definir('docs', d.docs.length === DOCUMENTOS_ADMISSAO.length ? [] : DOCUMENTOS_ADMISSAO.map(x => x.id))}>
-            {d.docs.length === DOCUMENTOS_ADMISSAO.length ? 'Desmarcar todos' : 'Marcar todos'}
+          <button type="button" className="text-xs font-medium text-orange-700 underline"
+            onClick={() => definir('docs', todos ? [] : DOCUMENTOS_ADMISSAO.map(x => x.id))}>
+            {todos ? 'Desmarcar todos' : 'Marcar todos'}
           </button>
         </div>
-        <p className="mb-2 text-xs text-gray-500">Marque o que o funcionário já trouxe. O que faltar sai sem marcação no Cadastro impresso.</p>
-        <ul className="space-y-1.5">
+        <p className="mb-3 text-xs text-slate-500">Marque o que o funcionário já trouxe. O que faltar sai sem marcação no Cadastro impresso.</p>
+        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {DOCUMENTOS_ADMISSAO.map(doc => (
-            <li key={doc.id}>
-              <label className="flex items-start gap-2 text-sm">
-                <input type="checkbox" className="mt-0.5" checked={d.docs.includes(doc.id)} onChange={() => definir('docs', alternar(d.docs, doc.id))} />
-                {doc.label}
-              </label>
-            </li>
+            <ItemDocumento key={doc.id} id={doc.id} label={doc.label} marcado={d.docs.includes(doc.id)} aoAlternar={() => definir('docs', alternar(d.docs, doc.id))} />
           ))}
         </ul>
       </div>
 
       <div>
-        <label className="flex items-center gap-2 text-sm font-medium">
+        <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-800">
           <input type="checkbox" checked={d.tem_dependentes} onChange={e => definir('tem_dependentes', e.target.checked)} />
           Funcionário tem dependentes
         </label>
         {d.tem_dependentes && (
-          <ul className="mt-2 space-y-1.5 border-l-2 border-slate-200 pl-3">
+          <ul className="mt-3 grid grid-cols-1 gap-2 border-l-2 border-orange-200 pl-3 sm:grid-cols-2">
             {DOCUMENTOS_DEPENDENTES.map(doc => (
-              <li key={doc.id}>
-                <label className="flex items-start gap-2 text-sm">
-                  <input type="checkbox" className="mt-0.5" checked={d.docs_dependentes.includes(doc.id)} onChange={() => definir('docs_dependentes', alternar(d.docs_dependentes, doc.id))} />
-                  {doc.label}
-                </label>
-              </li>
+              <ItemDocumento key={doc.id} id={doc.id} label={doc.label} marcado={d.docs_dependentes.includes(doc.id)}
+                aoAlternar={() => definir('docs_dependentes', alternar(d.docs_dependentes, doc.id))} />
             ))}
           </ul>
         )}
@@ -507,34 +672,50 @@ interface PropsRevisao {
 
 export function EtapaRevisao({ d, definir, postoNome, funcaoNome, turnoNome }: PropsRevisao) {
   const totais = totaisVT(d.vt_linhas)
-  const linha = (rotulo: string, valor: string) => (
-    <div className="flex justify-between gap-4 border-b border-slate-100 py-1.5 text-sm">
-      <dt className="text-slate-500">{rotulo}</dt>
-      <dd className="text-right font-medium text-slate-800">{valor || '—'}</dd>
-    </div>
+  const grupo = (titulo: string, tom: string, linhas: [string, string][]) => (
+    <section className={cn('rounded-xl border-l-4 bg-white p-4 shadow-sm ring-1 ring-slate-200', tom)}>
+      <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">{titulo}</h3>
+      <dl className="space-y-1.5">
+        {linhas.map(([r, v]) => (
+          <div key={r} className="flex justify-between gap-4 text-sm">
+            <dt className="text-slate-500">{r}</dt>
+            <dd className="text-right font-medium text-slate-900">{v || '—'}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   )
   return (
     <div className="space-y-4">
-      <dl className="rounded border border-slate-200 px-4 py-2">
-        {linha('Nome', d.nome)}
-        {linha('CPF', formatarCpf(d.cpf))}
-        {linha('Telefone', formatarTelefone(d.telefone))}
-        {linha('Endereço', `${d.logradouro}, ${d.numero}${d.complemento ? ` ${d.complemento}` : ''} — ${d.bairro}, ${d.cidade}/${d.uf}`)}
-        {linha('Função', funcaoNome)}
-        {linha('Posto', postoNome)}
-        {linha('Turno', turnoNome ?? 'Não informado')}
-        {linha('Admissão', fmtData(d.data_admissao))}
-        {linha('Motivo', d.motivo === 'substituicao' ? `Substituição de ${d.substituido_nome}` : 'Aumento de efetivo')}
-        {linha('Vale transporte', d.vt_utiliza ? `${formatarMoeda(totais.valorDia)}/dia · ${totais.passagensDia} passagem(ns)` : 'Não utiliza')}
-      </dl>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {grupo('Funcionário', 'border-l-blue-500', [
+          ['Nome', d.nome],
+          ['CPF', formatarCpf(d.cpf)],
+          ['Telefone', formatarTelefone(d.telefone)],
+          ['Endereço', `${d.logradouro}, ${d.numero}${d.complemento ? ` ${d.complemento}` : ''} — ${d.bairro}, ${d.cidade}/${d.uf}`],
+        ])}
+        {grupo('Vaga', 'border-l-violet-500', [
+          ['Função', funcaoNome],
+          ['Posto', postoNome],
+          ['Turno', turnoNome ?? 'Não informado'],
+          ['Admissão', fmtData(d.data_admissao)],
+          ['Motivo', d.motivo === 'substituicao' ? `Substituição de ${d.substituido_nome}` : 'Aumento de efetivo'],
+        ])}
+      </div>
+      {grupo('Vale transporte', 'border-l-emerald-500', [
+        ['Situação', d.vt_utiliza ? `${formatarMoeda(totais.valorDia)}/dia · ${totais.passagensDia} passagem(ns)` : 'Não utiliza'],
+      ])}
 
       <Rotulado rotulo="Data da integração *" className="max-w-xs">
         <input type="date" className={campoClasse} value={d.data_integracao} onChange={e => definir('data_integracao', e.target.value)} />
       </Rotulado>
 
-      <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-        Ao enviar, a solicitação segue para aprovação e o PDF (Cadastro, VT e Lista de Presença da integração) é baixado para impressão.
-        O RE e o bloco de Segurança do Trabalho saem em branco.
+      <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        <p>
+          Ao enviar, a solicitação segue para aprovação e o PDF (Cadastro, VT e Lista de Presença da integração) é baixado para impressão.
+          O RE e a parte do Departamento de Segurança e Medicina do Trabalho saem em branco para o RH e o SST preencherem.
+        </p>
       </div>
     </div>
   )

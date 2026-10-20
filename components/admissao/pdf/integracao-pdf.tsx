@@ -1,4 +1,4 @@
-import { Page, Text, View } from '@react-pdf/renderer'
+import { Image, Page, Text, View } from '@react-pdf/renderer'
 import type { PacoteAdmissao } from '@/lib/admissao/tipos'
 import { COR_BORDA, fmtData, st } from './base'
 
@@ -20,11 +20,18 @@ function Bloco({ rotulo, valor }: { rotulo: string; valor: string }) {
 }
 
 /** Lista de presença da integração — uma por funcionário, com o próprio nome já na linha. */
-export function IntegracaoPage({ pacote }: { pacote: PacoteAdmissao }) {
+export function IntegracaoPage({ pacote, logo }: { pacote: PacoteAdmissao; logo?: string }) {
   const { dossie: d, contexto: c } = pacote
   return (
     <Page size="A4" style={[st.pagina, { paddingTop: 48, paddingHorizontal: 48 }]}>
-      <Text style={{ fontSize: 17, fontFamily: 'Helvetica-Bold', textAlign: 'center', marginBottom: 20 }}>Lista de Presença</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+        <View style={{ width: 56 }}>
+          {/* eslint-disable-next-line jsx-a11y/alt-text */}
+          {logo ? <Image src={logo} style={{ width: 48, height: 48 }} /> : null}
+        </View>
+        <Text style={{ flex: 1, fontSize: 17, fontFamily: 'Helvetica-Bold', textAlign: 'center' }}>Lista de Presença</Text>
+        <View style={{ width: 56 }} />
+      </View>
 
       <Text style={{ fontSize: 10, fontFamily: 'Helvetica-Bold', marginBottom: 6 }}>ASSUNTO: INTEGRAÇÃO DAS NORMAS DA EMPRESA</Text>
       {TEMAS.map(t => (

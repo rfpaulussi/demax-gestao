@@ -6,7 +6,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import { listarTurnosDoPosto, listarTurnosJovemAprendiz } from '@/app/(admin)/efetivo/horario/actions'
 import { filtroPostoDaFuncao, funcaoAdmissivel, postoAceitaFuncao } from '@/lib/admissao/funcoes-posto'
+import { SINDICATO_PADRAO } from '@/lib/admissao/constantes'
 import { normalizarDossie } from '@/lib/admissao/normalizar'
+import { numeroBR } from '@/lib/admissao/vt'
 import { errosDoDossie } from '@/lib/admissao/validar'
 import type { ContextoAdmissao, DossieAdmissao, PacoteAdmissao } from '@/lib/admissao/tipos'
 import type { TurnoHorarios } from '@/lib/turnos/escala'
@@ -45,12 +47,13 @@ async function turnosDisponiveis(postoId: string, jovemAprendiz: boolean): Promi
 /** Falso enquanto a migração 20261025 não foi aplicada (a página mostra um aviso em vez de quebrar). */
 export async function admissaoDisponivel(): Promise<boolean> {
   const admin = createAdminClient()
-  const [rascunhos, funcoes, postos] = await Promise.all([
+  const sondas = await Promise.all([
     admin.from('admissao_rascunhos').select('supervisor_id').limit(1),
-    admin.from('funcoes').select('cbo').limit(1),
-    admin.from('postos').select('centro_custo').limit(1),
+    admin.from('funcoes').select('cbo, setor, sindicato').limit(1),
+    admin.from('perfis').select('centro_custo').limit(1),
+    admin.from('linhas_transporte').select('chave').limit(1),
   ])
-  return !rascunhos.error && !funcoes.error && !postos.error
+  return sondas.every(s => !s.error)
 }
 
 // ─── Sugestões do sistema ─────────────────────────────────────────────────────
@@ -66,6 +69,7 @@ export interface SugestaoAdmissao {
     periculosidade_perc: number | null
     periculosidade_valor: number | null
     cbo: string
+    setor: string
     sindicato: string
     va: number | null
     vr: number | null
@@ -87,23 +91,25 @@ export async function carregarSugestaoAdmissao(postoId: string, funcaoId: string
   const admin = createAdminClient()
 
   let contrato = ''
-  let centro_custo = ''
   if (postoId) {
     const { data: posto } = await admin
       .from('postos')
-      .select('secretaria, centro_custo, contratos(numero)')
+      .select('secretaria, contratos(numero)')
       .eq('id', postoId)
       .single()
-    const p = posto as unknown as { secretaria: string | null; centro_custo: string | null; contratos: { numero: string | null } | null } | null
+    const p = posto as unknown as { secretaria: string | null; contratos: { numero: string | null } | null } | null
     contrato = p?.contratos?.numero ?? p?.secretaria ?? ''
-    centro_custo = p?.centro_custo ?? ''
   }
+
+  // O centro de custo é do supervisor (70601–70607), não do posto.
+  const { data: perfil } = await admin.from('perfis').select('centro_custo').eq('id', g.auth.user.id).maybeSingle()
+  const centro_custo = perfil?.centro_custo ?? ''
 
   let funcao: SugestaoAdmissao['funcao'] = null
   if (funcaoId) {
     const { data: f } = await admin
       .from('funcoes')
-      .select('nome, salario_base, insalubridade_perc, insalubridade_valor, periculosidade_perc, periculosidade_valor, cbo, sindicato, custos_funcoes(va, vr)')
+      .select('nome, salario_base, insalubridade_perc, insalubridade_valor, periculosidade_perc, periculosidade_valor, cbo, setor, sindicato, custos_funcoes(va, vr)')
       .eq('id', funcaoId)
       .single()
     if (f) {
@@ -116,7 +122,8 @@ export async function carregarSugestaoAdmissao(postoId: string, funcaoId: string
         periculosidade_perc: f.periculosidade_perc,
         periculosidade_valor: f.periculosidade_valor,
         cbo: f.cbo ?? '',
-        sindicato: f.sindicato ?? '',
+        setor: f.setor ?? '',
+        sindicato: f.sindicato || SINDICATO_PADRAO,
         va: c?.va ?? null,
         vr: c?.vr ?? null,
       }
@@ -155,26 +162,50 @@ export interface Substituivel {
   motivo_desligamento: string | null
 }
 
+async function postosDoSupervisor(userId: string): Promise<string[]> {
+  const { data } = await createClient()
+    .from('config_supervisores_postos')
+    .select('posto_id')
+    .eq('supervisor_id', userId)
+    .eq('ativo', true)
+  return (data ?? []).map(r => r.posto_id as string)
+}
+
 /**
- * Desligados que o supervisor pode indicar como substituídos. Sem busca: últimos 60 dias; com busca (3+ letras): últimos 12 meses.
- * Devolve só nome, posto e dados do desligamento — nunca CPF, salário ou qualquer outro dado do funcionário —
- * porque o supervisor também vê desligados de postos que não são dele (admin client).
+ * Desligados que o supervisor pode indicar como substituídos — só de postos dele (o do funcionário a admitir primeiro).
+ * Sem filtro: últimos 60 dias. `mes` (AAAA-MM) mostra só quem saiu naquele mês. Com busca por nome (3+ letras) a lista
+ * ignora o mês e olha os últimos 24 meses. Admin client com filtro explícito de postos: o RLS do supervisor não enxerga desligados.
  */
-export async function buscarSubstituiveis(postoId: string, termo: string): Promise<Resultado<{ itens: Substituivel[] }>> {
+export async function buscarSubstituiveis(postoId: string, termo: string, mes?: string): Promise<Resultado<{ itens: Substituivel[] }>> {
   const g = await exigirSupervisor()
   if (!g.ok) return { success: false, error: g.erro }
 
+  const meusPostos = await postosDoSupervisor(g.auth.user.id)
+  if (meusPostos.length === 0) return { success: true, itens: [] }
+
   const t = termo.trim().slice(0, 60)
-  const dias = t.length >= 3 ? 365 : 60
-  const desde = new Date(Date.now() - dias * 86_400_000).toISOString().slice(0, 10)
+  const hoje = new Date()
+  let desde: string
+  let ate: string | null = null
+  if (t.length >= 3) {
+    desde = new Date(hoje.getTime() - 730 * 86_400_000).toISOString().slice(0, 10)
+  } else if (mes && /^\d{4}-\d{2}$/.test(mes)) {
+    const [ano, m] = mes.split('-').map(Number)
+    desde = `${mes}-01`
+    ate = new Date(Date.UTC(ano, m, 0)).toISOString().slice(0, 10) // último dia do mês
+  } else {
+    desde = new Date(hoje.getTime() - 60 * 86_400_000).toISOString().slice(0, 10)
+  }
 
   let q = createAdminClient()
     .from('funcionarios')
     .select('id, nome, posto_id, data_desligamento, tipo_desligamento, motivo_desligamento, postos(nome)')
     .eq('status', 'desligado')
+    .in('posto_id', meusPostos)
     .gte('data_desligamento', desde)
     .order('data_desligamento', { ascending: false })
-    .limit(80)
+    .limit(120)
+  if (ate) q = q.lte('data_desligamento', ate)
   if (t.length >= 3) q = q.ilike('nome', `%${t.replace(/[%_\\]/g, ch => `\\${ch}`)}%`)
 
   const { data, error } = await q
@@ -197,7 +228,38 @@ export async function buscarSubstituiveis(postoId: string, termo: string): Promi
   })
   // Mesmo posto primeiro; dentro de cada grupo mantém a ordem (mais recente primeiro).
   itens.sort((a, b) => Number(b.mesmo_posto) - Number(a.mesmo_posto))
-  return { success: true, itens: itens.slice(0, 15) }
+  return { success: true, itens: itens.slice(0, 40) }
+}
+
+// ─── Linhas de transporte ─────────────────────────────────────────────────────
+
+export interface LinhaConhecida { linha: string; tipo: string | null; empresa: string | null; valor: number | null }
+
+/** Linhas já informadas em admissões anteriores, mais usadas primeiro — alimentam o autocompletar do VT. */
+export async function listarLinhasTransporte(): Promise<LinhaConhecida[]> {
+  const g = await exigirSupervisor()
+  if (!g.ok) return []
+  const { data } = await createClient()
+    .from('linhas_transporte')
+    .select('linha, tipo, empresa, valor')
+    .order('usos', { ascending: false })
+    .limit(400)
+  return (data ?? []) as LinhaConhecida[]
+}
+
+/** Guarda as linhas da admissão no catálogo (cria ou soma um uso). Falha aqui não impede a solicitação. */
+async function registrarLinhasTransporte(d: DossieAdmissao): Promise<void> {
+  if (!d.vt_utiliza) return
+  const admin = createAdminClient()
+  for (const l of d.vt_linhas) {
+    const linha = l.linha.trim()
+    if (!linha) continue
+    const chave = linha.toLowerCase().replace(/\s+/g, ' ')
+    const { data: existente } = await admin.from('linhas_transporte').select('id, usos').eq('chave', chave).maybeSingle()
+    const dados = { linha, tipo: l.tipo || null, empresa: l.empresa.trim() || null, valor: numeroBR(l.valor), updated_at: new Date().toISOString() }
+    if (existente) await admin.from('linhas_transporte').update({ ...dados, usos: existente.usos + 1 }).eq('id', existente.id)
+    else await admin.from('linhas_transporte').insert({ chave, ...dados })
+  }
 }
 
 // ─── Rascunho ─────────────────────────────────────────────────────────────────
@@ -331,6 +393,7 @@ export async function enviarAdmissaoAssistida(bruto: unknown): Promise<Resultado
   if (error || !criada) return { success: false, error: error?.message ?? 'Erro ao criar a solicitação' }
 
   await createClient().from('admissao_rascunhos').delete().eq('supervisor_id', auth.user.id)
+  await registrarLinhasTransporte(dossie).catch(() => undefined)
 
   revalidatePath('/aprovacoes')
   revalidatePath('/postos')

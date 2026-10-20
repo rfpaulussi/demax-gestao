@@ -2,7 +2,7 @@ import { Page, Text, View } from '@react-pdf/renderer'
 import { formatarCep, formatarCpf } from '@/lib/admissao/cpf'
 import { MAX_LINHAS_VT, type PacoteAdmissao } from '@/lib/admissao/tipos'
 import { linhaVtPreenchida, numeroBR } from '@/lib/admissao/vt'
-import { Campo, COR_BORDA, Linha, brl, marca, st } from './base'
+import { Campo, COR_BORDA, Linha, Titulo, brl, marca, st } from './base'
 
 const CLAUSULAS = [
   'Nos termos do artigo 7º do Decreto nº 95.247 de 17 de novembro de 1987, solicito receber o Vale transporte e comprometo-me :',
@@ -20,7 +20,7 @@ function enderecoCompleto(p: PacoteAdmissao['dossie']): string {
   return `${rua}${comp}${local ? ` — ${local}` : ''}`
 }
 
-export function VtPage({ pacote }: { pacote: PacoteAdmissao }) {
+export function VtPage({ pacote, logo }: { pacote: PacoteAdmissao; logo?: string }) {
   const { dossie: d, contexto: c } = pacote
   const linhas = d.vt_utiliza ? d.vt_linhas.filter(linhaVtPreenchida) : []
   const vazias = Math.max(0, MAX_LINHAS_VT - linhas.length)
@@ -28,7 +28,7 @@ export function VtPage({ pacote }: { pacote: PacoteAdmissao }) {
 
   return (
     <Page size="A4" style={st.pagina}>
-      <Text style={[st.titulo, { fontSize: 13 }]}>SOLICITAÇÃO DE VALE TRANSPORTE</Text>
+      <Titulo texto="SOLICITAÇÃO DE VALE TRANSPORTE" logo={logo} tamanho={13} />
 
       <Linha>
         <Campo rotulo="NOME:" valor={d.nome} peso={4} />

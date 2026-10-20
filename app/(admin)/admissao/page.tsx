@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { UserPlus } from 'lucide-react'
 import { getUser } from '@/lib/auth/get-user'
 import { createClient } from '@/lib/supabase/server'
 import { filtroPostoDaFuncao, funcaoAdmissivel } from '@/lib/admissao/funcoes-posto'
@@ -13,11 +14,16 @@ export default async function AdmissaoPage() {
   if (auth.perfil.role !== 'supervisor') redirect('/dashboard')
 
   const cabecalho = (
-    <div>
-      <h1 className="text-lg font-bold text-gray-900">Admissão</h1>
-      <p className="text-sm text-gray-400">
-        Prepare o Cadastro, o Vale Transporte e a Lista da Integração para impressão e envie a solicitação para aprovação.
-      </p>
+    <div className="flex items-center gap-3">
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white">
+        <UserPlus className="h-5 w-5" aria-hidden="true" />
+      </span>
+      <div>
+        <h1 className="text-lg font-bold leading-tight text-gray-900">Admissão</h1>
+        <p className="text-sm text-gray-400">
+          Prepare o Cadastro, o Vale Transporte e a Lista da Integração para impressão e envie a solicitação para aprovação.
+        </p>
+      </div>
     </div>
   )
 
@@ -28,8 +34,9 @@ export default async function AdmissaoPage() {
         <div className="rounded-xl border border-amber-300 bg-amber-50 p-5 text-sm text-amber-900">
           <p className="font-bold">Admissão ainda não habilitada</p>
           <p className="mt-1">
-            Aplique a migração <code className="rounded bg-amber-100 px-1">supabase/migrations/20261025_admissao_assistida.sql</code> no
-            Supabase Studio (SQL Editor) e recarregue a página.
+            Aplique as migrações <code className="rounded bg-amber-100 px-1">supabase/migrations/20261025_admissao_assistida.sql</code> e{' '}
+            <code className="rounded bg-amber-100 px-1">20261026_admissao_ajustes.sql</code> no Supabase Studio (SQL Editor) e
+            recarregue a página.
           </p>
         </div>
       </div>

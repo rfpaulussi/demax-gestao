@@ -1,4 +1,5 @@
 import type { TurnoHorarios } from '@/lib/turnos/escala'
+import { TARIFA_ONIBUS_MOGI } from './constantes'
 
 export const MAX_LINHAS_VT = 5
 
@@ -46,6 +47,7 @@ export interface DossieAdmissao {
   centro_custo: string
   sindicato: string
   cbo: string
+  setor: string
   va: string
   vr: string
   // vale transporte
@@ -116,6 +118,11 @@ export const UFS = [
 
 export const TIPOS_TRANSPORTE = ['Ônibus', 'Metrô', 'Trem', 'Van / Lotação', 'Outro'] as const
 
+/** Linha de VT nova: ida e volta, já com a tarifa municipal vigente (o supervisor corrige se for outra). */
+export function linhaVtVazia(): LinhaVT {
+  return { tipo: 'Ônibus', linha: '', empresa: '', valor: TARIFA_ONIBUS_MOGI, qtd: '2' }
+}
+
 export function dossieVazio(hoje: string): DossieAdmissao {
   return {
     nome: '', cpf: '', telefone: '', email: '',
@@ -124,9 +131,9 @@ export function dossieVazio(hoje: string): DossieAdmissao {
     motivo: 'aumento_efetivo',
     substituido_id: null, substituido_nome: '', substituido_motivo: '', substituido_data_desligamento: '',
     turno_id: '', dia_curso: null,
-    contrato: '', centro_custo: '', sindicato: '', cbo: '', va: '', vr: '',
+    contrato: '', centro_custo: '', sindicato: '', cbo: '', setor: '', va: '', vr: '',
     vt_utiliza: true,
-    vt_linhas: [{ tipo: 'Ônibus', linha: '', empresa: '', valor: '', qtd: '2' }],
+    vt_linhas: [linhaVtVazia()],
     vt_cartao: 'nenhum', vt_cartao_outro: '',
     uniforme_calca: '', uniforme_camisa: '', uniforme_sapato: '',
     docs: [], tem_dependentes: false, docs_dependentes: [],

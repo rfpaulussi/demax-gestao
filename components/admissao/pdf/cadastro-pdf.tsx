@@ -3,7 +3,7 @@ import { horarioParaCadastro } from '@/lib/admissao/horario'
 import { DOCUMENTOS_ADMISSAO, DOCUMENTOS_DEPENDENTES, type PacoteAdmissao } from '@/lib/admissao/tipos'
 import { formatarTelefone } from '@/lib/admissao/cpf'
 import { numeroBR, totaisVT } from '@/lib/admissao/vt'
-import { Campo, Linha, brl, fmtData, marca, st } from './base'
+import { Campo, Linha, Titulo, brl, fmtData, marca, st } from './base'
 
 function textoAdicional(perc: number | null, valor: number | null): string {
   if (!valor || valor <= 0) return 'NÃO'
@@ -30,7 +30,7 @@ function HorarioCelulas({ rotulo, entrada, saida, peso = 1, ultima }: { rotulo?:
   )
 }
 
-export function CadastroPage({ pacote }: { pacote: PacoteAdmissao }) {
+export function CadastroPage({ pacote, logo }: { pacote: PacoteAdmissao; logo?: string }) {
   const { dossie: d, contexto: c } = pacote
   const h = c.turno ? horarioParaCadastro(c.turno) : null
   const vt = totaisVT(d.vt_linhas)
@@ -38,7 +38,7 @@ export function CadastroPage({ pacote }: { pacote: PacoteAdmissao }) {
 
   return (
     <Page size="A4" style={st.pagina}>
-      <Text style={st.titulo}>CADASTRO DE FUNCIONÁRIOS</Text>
+      <Titulo texto="CADASTRO DE FUNCIONÁRIOS" logo={logo} />
 
       <Linha>
         <Campo rotulo="NOME COMPLETO:" valor={d.nome} peso={3.2} />
@@ -102,14 +102,14 @@ export function CadastroPage({ pacote }: { pacote: PacoteAdmissao }) {
       <Text style={st.secao}>PREENCHIMENTO PELO DEPARTAMENTO DE SEGURANÇA E MEDICINA DO TRABALHO</Text>
       <Text style={[st.secao, { backgroundColor: '#f1f5f9' }]}>SETORES</Text>
       <Linha>
-        <Vazio rotulo="NOME DO SETOR:" peso={2} />
+        <Campo rotulo="NOME DO SETOR:" valor={d.setor} peso={2} pequeno />
         <Vazio rotulo="REGIÃO:" peso={1} />
         <Vazio rotulo="SETOR DESENVOLVIDO:" peso={2} ultima />
       </Linha>
       <Text style={[st.secao, { backgroundColor: '#f1f5f9' }]}>CARGOS</Text>
       <Linha>
         <Campo rotulo="CBO:" valor={d.cbo} peso={1.4} />
-        <Vazio rotulo="CARGO DESENVOLVIDO:" peso={3.6} ultima />
+        <Campo rotulo="CARGO DESENVOLVIDO:" valor={c.funcao_nome} peso={3.6} pequeno ultima />
       </Linha>
       <Linha>
         <View style={[st.celula, { flex: 2 }]}><Text style={st.rotulo}>EXAME ADMISSIONAL</Text></View>

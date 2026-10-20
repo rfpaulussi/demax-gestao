@@ -1453,6 +1453,39 @@ export type Database = {
         }
         Relationships: []
       }
+      linhas_transporte: {
+        Row: {
+          chave: string
+          empresa: string | null
+          id: string
+          linha: string
+          tipo: string | null
+          updated_at: string
+          usos: number
+          valor: number | null
+        }
+        Insert: {
+          chave: string
+          empresa?: string | null
+          id?: string
+          linha: string
+          tipo?: string | null
+          updated_at?: string
+          usos?: number
+          valor?: number | null
+        }
+        Update: {
+          chave?: string
+          empresa?: string | null
+          id?: string
+          linha?: string
+          tipo?: string | null
+          updated_at?: string
+          usos?: number
+          valor?: number | null
+        }
+        Relationships: []
+      }
       funcionarios_dados_pessoais: {
         Row: {
           bairro: string | null
@@ -1533,6 +1566,7 @@ export type Database = {
           periculosidade_valor: number | null
           salario_base: number | null
           cbo: string | null
+          setor: string | null
           sindicato: string | null
           updated_at: string | null
         }
@@ -1547,6 +1581,7 @@ export type Database = {
           periculosidade_valor?: number | null
           salario_base?: number | null
           cbo?: string | null
+          setor?: string | null
           sindicato?: string | null
           updated_at?: string | null
         }
@@ -1561,6 +1596,7 @@ export type Database = {
           periculosidade_valor?: number | null
           salario_base?: number | null
           cbo?: string | null
+          setor?: string | null
           sindicato?: string | null
           updated_at?: string | null
         }
@@ -1984,6 +2020,7 @@ export type Database = {
       perfis: {
         Row: {
           ativo: boolean | null
+          centro_custo: string | null
           created_at: string | null
           email: string | null
           id: string
@@ -1992,6 +2029,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean | null
+          centro_custo?: string | null
           created_at?: string | null
           email?: string | null
           id: string
@@ -2000,6 +2038,7 @@ export type Database = {
         }
         Update: {
           ativo?: boolean | null
+          centro_custo?: string | null
           created_at?: string | null
           email?: string | null
           id?: string
@@ -2018,7 +2057,6 @@ export type Database = {
           id: string
           nome: string
           secretaria: string | null
-          centro_custo: string | null
           updated_at: string | null
         }
         Insert: {
@@ -2030,7 +2068,6 @@ export type Database = {
           id?: string
           nome: string
           secretaria?: string | null
-          centro_custo?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -2042,7 +2079,6 @@ export type Database = {
           id?: string
           nome?: string
           secretaria?: string | null
-          centro_custo?: string | null
           updated_at?: string | null
         }
         Relationships: [

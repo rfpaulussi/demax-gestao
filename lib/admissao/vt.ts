@@ -14,9 +14,9 @@ export function formatarMoeda(valor: number | null | undefined): string {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-/** Linha em branco (sem linha de transporte nem valor) não entra na conta. */
+/** Linha em branco (sem nome da linha nem empresa) não entra na conta — mesmo com o valor sugerido já preenchido. */
 export function linhaVtPreenchida(l: LinhaVT): boolean {
-  return !!(l.linha.trim() || l.empresa.trim() || numeroBR(l.valor) !== null)
+  return !!(l.linha.trim() || l.empresa.trim())
 }
 
 /** Soma do dia: valor gasto por dia (passagem × quantidade) e total de passagens por dia. */

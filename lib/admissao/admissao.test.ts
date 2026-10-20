@@ -3,7 +3,7 @@ import { validarCpf, formatarCpf, formatarCep, formatarTelefone, apenasDigitos }
 import { numeroBR, totaisVT } from './vt'
 import { horarioParaCadastro } from './horario'
 import { errosDaEtapa, errosDoDossie } from './validar'
-import { dossieVazio, type DossieAdmissao } from './tipos'
+import { dossieVazio, linhaVtVazia, type DossieAdmissao } from './tipos'
 
 describe('cpf', () => {
   it('aceita CPF válido com ou sem máscara', () => {
@@ -37,6 +37,9 @@ describe('vale transporte', () => {
     expect(numeroBR('4.5')).toBe(4.5)
     expect(numeroBR('')).toBeNull()
     expect(numeroBR('abc')).toBeNull()
+  })
+  it('linha nova, com a tarifa sugerida mas sem nome da linha, não entra na conta', () => {
+    expect(totaisVT([linhaVtVazia()])).toEqual({ valorDia: 0, passagensDia: 0 })
   })
   it('soma valor do dia e passagens, ignorando linha em branco', () => {
     const linhas = [

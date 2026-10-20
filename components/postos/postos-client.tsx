@@ -220,7 +220,6 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
   const [formSecretaria, setFormSecretaria]  = useState('')
   const [formPrevisto, setFormPrevisto]      = useState(1)
   const [formInsalubridade, setFormInsalubridade] = useState(0)
-  const [formCentroCusto, setFormCentroCusto] = useState('')
   const [gerenciarSortCol, setGerenciarSortCol] = useState<'nome' | 'secretaria' | 'efetivo_previsto' | 'cota_insalubridade'>('secretaria')
   const [gerenciarSortDir, setGerenciarSortDir] = useState<'asc' | 'desc'>('asc')
   const [buscaGerenciar, setBuscaGerenciar]   = useState('')
@@ -231,20 +230,20 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
   }
 
   function abrirCriar() {
-    setFormNome(''); setFormSecretaria(''); setFormPrevisto(1); setFormInsalubridade(0); setFormCentroCusto('')
+    setFormNome(''); setFormSecretaria(''); setFormPrevisto(1); setFormInsalubridade(0)
     setErroModal(''); setModalPosto('criar')
   }
 
   function abrirEditar(p: PostoRow) {
     setFormNome(p.nome); setFormSecretaria(p.secretaria ?? '')
-    setFormPrevisto(p.efetivo_previsto); setFormInsalubridade(p.cota_insalubridade ?? 0); setFormCentroCusto(p.centro_custo ?? '')
+    setFormPrevisto(p.efetivo_previsto); setFormInsalubridade(p.cota_insalubridade ?? 0)
     setErroModal(''); setModalPosto(p)
   }
 
   async function handleSalvar() {
     if (!formNome.trim() || !formSecretaria.trim()) { setErroModal('Nome e secretaria são obrigatórios'); return }
     setSaving(true); setErroModal('')
-    const payload = { nome: formNome, secretaria: formSecretaria, efetivo_previsto: formPrevisto, cota_insalubridade: formInsalubridade, centro_custo: formCentroCusto }
+    const payload = { nome: formNome, secretaria: formSecretaria, efetivo_previsto: formPrevisto, cota_insalubridade: formInsalubridade }
     const res = modalPosto === 'criar'
       ? await criarPosto(payload)
       : await editarPosto((modalPosto as PostoRow).id, payload)
@@ -775,12 +774,6 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                   <input type="number" min={0} value={formInsalubridade} onChange={e => setFormInsalubridade(Number(e.target.value))}
                     className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
                 </div>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Centro de Custo</label>
-                <input value={formCentroCusto} onChange={e => setFormCentroCusto(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
-                  placeholder="Impresso no Cadastro de Funcionários (opcional)" />
               </div>
               {erroModal && <p className="text-xs text-red-600">{erroModal}</p>}
             </div>

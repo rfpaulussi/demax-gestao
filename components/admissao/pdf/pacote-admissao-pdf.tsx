@@ -3,16 +3,22 @@ import type { PacoteAdmissao } from '@/lib/admissao/tipos'
 import { CadastroPage } from './cadastro-pdf'
 import { IntegracaoPage } from './integracao-pdf'
 import { VtPage } from './vt-pdf'
+import { LOGO_PADRAO } from './base'
 
 export type DocumentoAdmissao = 'cadastro' | 'vt' | 'integracao'
 
 /** Os três documentos da admissão, na ordem de impressão (ou só os pedidos). */
-export function PacoteAdmissaoDoc({ pacote, documentos = ['cadastro', 'vt', 'integracao'] }: { pacote: PacoteAdmissao; documentos?: DocumentoAdmissao[] }) {
+export function PacoteAdmissaoDoc({ pacote, documentos = ['cadastro', 'vt', 'integracao'], logo = LOGO_PADRAO }: {
+  pacote: PacoteAdmissao
+  documentos?: DocumentoAdmissao[]
+  /** Caminho do logo (no navegador, o arquivo de /public). Testes em Node passam um caminho de disco. */
+  logo?: string
+}) {
   return (
     <Document title={`Admissão — ${pacote.dossie.nome}`} author="Demax Gestão">
-      {documentos.includes('cadastro') && <CadastroPage pacote={pacote} />}
-      {documentos.includes('vt') && <VtPage pacote={pacote} />}
-      {documentos.includes('integracao') && <IntegracaoPage pacote={pacote} />}
+      {documentos.includes('cadastro') && <CadastroPage pacote={pacote} logo={logo} />}
+      {documentos.includes('vt') && <VtPage pacote={pacote} logo={logo} />}
+      {documentos.includes('integracao') && <IntegracaoPage pacote={pacote} logo={logo} />}
     </Document>
   )
 }

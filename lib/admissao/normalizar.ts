@@ -67,6 +67,7 @@ export function normalizarDossie(bruto: unknown, hoje = new Date().toISOString()
     centro_custo: texto(r.centro_custo, 60),
     sindicato: texto(r.sindicato, 80),
     cbo: texto(r.cbo, 12),
+    setor: texto(r.setor, 80),
     va: texto(r.va, 12),
     vr: texto(r.vr, 12),
     vt_utiliza: r.vt_utiliza === false ? false : true,

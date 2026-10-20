@@ -1,17 +1,18 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Download, FileText, Receipt, Send, Users } from 'lucide-react'
 import {
-  carregarSugestaoAdmissao, descartarRascunho, enviarAdmissaoAssistida, obterRascunho, salvarRascunho,
-  type SugestaoAdmissao,
+  carregarSugestaoAdmissao, descartarRascunho, enviarAdmissaoAssistida, listarLinhasTransporte, obterRascunho,
+  salvarRascunho, type LinhaConhecida, type SugestaoAdmissao,
 } from '@/app/(admin)/admissao/actions'
 import { listarTurnosDoPosto, listarTurnosJovemAprendiz } from '@/app/(admin)/efetivo/horario/actions'
 import { dossieVazio, type DossieAdmissao, type PacoteAdmissao } from '@/lib/admissao/tipos'
-import { ETAPAS_ADMISSAO, errosDaEtapa, errosDoDossie } from '@/lib/admissao/validar'
+import { errosDaEtapa, errosDoDossie } from '@/lib/admissao/validar'
 import { cn } from '@/lib/utils'
 import { baixarPacoteAdmissaoPDF, type DocumentoAdmissao } from './pdf/pacote-admissao-pdf'
 import {
-  EtapaCondicoes, EtapaDocumentos, EtapaPessoais, EtapaRevisao, EtapaVaga, EtapaVt,
+  EtapaCondicoes, EtapaDocumentos, EtapaPessoais, EtapaRevisao, EtapaVaga, EtapaVt, INFO_ETAPAS,
   type Definir, type FuncaoOpt, type PostoOpt, type TurnoOpcao,
 } from './etapas'
 
@@ -50,6 +51,7 @@ export function AssistenteAdmissao({ postos, funcoes }: Props) {
 
   const [turnoOpcoes, setTurnoOpcoes] = useState<TurnoOpcao[]>([])
   const [carregandoTurnos, setCarregandoTurnos] = useState(false)
+  const [linhasConhecidas, setLinhasConhecidas] = useState<LinhaConhecida[]>([])
 
   const definir: Definir = useCallback((campo, valor) => {
     modificado.current = true
@@ -81,6 +83,13 @@ export function AssistenteAdmissao({ postos, funcoes }: Props) {
     return () => { cancelado = true }
   }, [ciclo])
 
+  // Linhas de transporte já usadas em outras admissões (autocompletar do VT).
+  useEffect(() => {
+    let cancelado = false
+    listarLinhasTransporte().then(l => { if (!cancelado) setLinhasConhecidas(l) }).catch(() => undefined)
+    return () => { cancelado = true }
+  }, [ciclo])
+
   function retomarRascunho() {
     if (!rascunhoPendente) return
     const dados = { ...dossieVazio(hojeLocal()), ...rascunhoPendente.dados }
@@ -108,7 +117,7 @@ export function AssistenteAdmissao({ postos, funcoes }: Props) {
     return () => clearTimeout(t)
   }, [d, rascunhoResolvido, pacote])
 
-  // ── Sugestões do sistema (salário, CBO, VA/VR, centro de custo…) ──
+  // ── Sugestões do sistema (salário, CBO, setor, VA/VR, centro de custo…) ──
   useEffect(() => {
     if (!d.posto_id && !d.funcao_id) { setSugestao(null); return }
     let cancelado = false
@@ -117,6 +126,7 @@ export function AssistenteAdmissao({ postos, funcoes }: Props) {
       setSugestao(r.sugestao)
       setD(atual => {
         const novo = { ...atual }
+        // O centro de custo é do supervisor: vem junto com o primeiro posto escolhido.
         if (atual.posto_id && atual.posto_id !== postoAplicado.current) {
           postoAplicado.current = atual.posto_id
           novo.contrato = r.sugestao.contrato
@@ -125,6 +135,7 @@ export function AssistenteAdmissao({ postos, funcoes }: Props) {
         if (atual.funcao_id && atual.funcao_id !== funcaoAplicada.current && r.sugestao.funcao) {
           funcaoAplicada.current = atual.funcao_id
           novo.cbo = r.sugestao.funcao.cbo
+          novo.setor = r.sugestao.funcao.setor
           novo.sindicato = r.sugestao.funcao.sindicato
           novo.va = moedaTexto(r.sugestao.funcao.va)
           novo.vr = moedaTexto(r.sugestao.funcao.vr)
@@ -232,63 +243,94 @@ export function AssistenteAdmissao({ postos, funcoes }: Props) {
     }
   }
 
-  const botaoPrimario = 'rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50'
-  const botaoSecundario = 'rounded px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-50'
+  const info = INFO_ETAPAS[etapa - 1]
+  const Icone = info.icone
+  const botaoSecundario = 'inline-flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50'
+  const botaoPrimario = 'inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-700 disabled:opacity-50'
 
   return (
-    <div className="mx-auto w-full max-w-3xl rounded-lg border-t-4 border-slate-900 bg-white shadow-sm">
-      <div className="border-b border-gray-100 px-5 pb-3 pt-5">
-        <h2 className="text-lg font-semibold">Nova admissão</h2>
-        {!pacote && (
-          <>
-            <p className="mt-0.5 text-sm text-gray-400">
-              Preenche o Cadastro, o Vale Transporte e a Lista da Integração e envia a solicitação para aprovação.
-            </p>
-            <ol className="mt-3 flex items-center gap-1.5" aria-label="Etapas">
-              {ETAPAS_ADMISSAO.map((nome, i) => {
+    <div className={cn('mx-auto w-full max-w-4xl overflow-hidden rounded-2xl border-t-4 bg-white shadow-md ring-1 ring-slate-200', pacote ? 'border-emerald-500' : info.borda)}>
+      {pacote ? (
+        <div className="px-5 py-10 text-center sm:px-10">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+            <CheckCircle2 className="h-9 w-9 text-emerald-600" aria-hidden="true" />
+          </div>
+          <h2 className="mt-4 text-xl font-bold text-slate-900">Solicitação enviada!</h2>
+          <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
+            Foi para aprovação da gestão. O PDF com os 3 documentos já foi baixado: imprima, colha as assinaturas e entregue ao RH.
+          </p>
+          {erroPdf && <p className="mx-auto mt-4 max-w-md rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{erroPdf}</p>}
+
+          <div className="mx-auto mt-6 grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
+            {([
+              ['cadastro', 'Cadastro', 'de Funcionários', FileText, 'bg-blue-50 text-blue-700 ring-blue-200'],
+              ['vt', 'Vale Transporte', 'Solicitação', Receipt, 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+              ['integracao', 'Integração', 'Lista de Presença', Users, 'bg-orange-50 text-orange-700 ring-orange-200'],
+            ] as [DocumentoAdmissao, string, string, typeof FileText, string][]).map(([doc, titulo, sub, Ic, cor]) => (
+              <button key={doc} type="button" disabled={gerandoPdf} onClick={() => baixar(pacote, [doc])}
+                className={cn('flex flex-col items-center gap-1 rounded-xl p-4 ring-1 ring-inset transition-transform hover:-translate-y-0.5 disabled:opacity-50', cor)}>
+                <Ic className="h-6 w-6" aria-hidden="true" />
+                <span className="text-sm font-semibold">{titulo}</span>
+                <span className="text-xs opacity-80">{sub}</span>
+                <span className="mt-1 inline-flex items-center gap-1 text-xs font-medium"><Download className="h-3 w-3" aria-hidden="true" /> baixar só este</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <button type="button" disabled={gerandoPdf} onClick={() => baixar(pacote)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-5 py-2.5 text-sm font-semibold text-slate-900 shadow-sm hover:bg-amber-400 disabled:opacity-50">
+              <Download className="h-4 w-4" aria-hidden="true" /> {gerandoPdf ? 'Gerando…' : 'Baixar os 3 documentos'}
+            </button>
+            <button type="button" onClick={reiniciar} className={botaoPrimario}>Nova admissão</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Cabeçalho: stepper com ícones e rótulos */}
+          <div className="border-b border-slate-100 bg-gradient-to-b from-slate-50 to-white px-5 pb-4 pt-5 sm:px-8">
+            <ol className="flex items-start" aria-label="Etapas">
+              {INFO_ETAPAS.map((e, i) => {
                 const n = i + 1
+                const feito = n < etapa
+                const atual = n === etapa
+                const Ic = e.icone
                 return (
-                  <li key={nome} className="flex items-center gap-1.5">
-                    <button type="button" disabled={n > etapa} onClick={() => { setErros([]); setEtapa(n) }}
-                      title={nome} aria-current={n === etapa ? 'step' : undefined}
-                      className={cn(
-                        'flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold',
-                        n === etapa ? 'bg-slate-900 text-white' : n < etapa ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-400',
-                      )}>
-                      {n < etapa ? '✓' : n}
-                    </button>
-                    {n < ETAPAS_ADMISSAO.length && <span className="h-px w-3 bg-gray-200 sm:w-6" />}
+                  <li key={e.titulo} className="flex flex-1 flex-col items-center last:flex-none sm:last:flex-1">
+                    <div className="flex w-full items-center">
+                      <span className={cn('h-0.5 flex-1', i === 0 ? 'opacity-0' : feito || atual ? INFO_ETAPAS[i - 1].barra : 'bg-slate-200')} />
+                      <button type="button" disabled={n > etapa} onClick={() => { setErros([]); setEtapa(n) }}
+                        title={e.titulo} aria-current={atual ? 'step' : undefined}
+                        className={cn(
+                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-all',
+                          atual ? cn(e.tile, 'ring-4', e.anel) : feito ? cn(e.barra, 'text-white') : 'bg-slate-100 text-slate-400',
+                        )}>
+                        {feito ? <Check className="h-4 w-4" aria-hidden="true" /> : <Ic className="h-4 w-4" aria-hidden="true" />}
+                      </button>
+                      <span className={cn('h-0.5 flex-1', i === INFO_ETAPAS.length - 1 ? 'opacity-0' : feito ? e.barra : 'bg-slate-200')} />
+                    </div>
+                    <span className={cn('mt-1.5 hidden text-center text-[11px] font-medium sm:block', atual ? 'text-slate-900' : 'text-slate-400')}>{e.titulo}</span>
                   </li>
                 )
               })}
             </ol>
-            <p className="mt-2 text-xs font-semibold uppercase tracking-widest text-slate-500">
-              Etapa {etapa} de {ETAPAS_ADMISSAO.length} · {ETAPAS_ADMISSAO[etapa - 1]}
-            </p>
-          </>
-        )}
-      </div>
-
-      <div className="px-5 py-5">
-        {pacote ? (
-          <div className="py-4 text-center">
-            <p className="text-3xl text-green-600">✓</p>
-            <p className="mt-2 text-sm font-medium text-gray-700">Solicitação enviada para aprovação.</p>
-            <p className="mt-1 text-sm text-gray-500">O PDF com os 3 documentos foi baixado. Imprima, colha as assinaturas e entregue ao RH.</p>
-            {erroPdf && <p className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">{erroPdf}</p>}
-            <div className="mt-5 flex flex-wrap justify-center gap-2">
-              <button type="button" disabled={gerandoPdf} onClick={() => baixar(pacote)} className="rounded bg-amber-500 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-amber-400 disabled:opacity-50">
-                {gerandoPdf ? 'Gerando…' : 'Baixar os 3 documentos'}
-              </button>
-              {([['cadastro', 'Só o Cadastro'], ['vt', 'Só o VT'], ['integracao', 'Só a Integração']] as [DocumentoAdmissao, string][]).map(([doc, texto]) => (
-                <button key={doc} type="button" disabled={gerandoPdf} onClick={() => baixar(pacote, [doc])} className={botaoSecundario + ' border border-gray-200'}>{texto}</button>
-              ))}
-            </div>
           </div>
-        ) : (
-          <>
+
+          <div className="px-5 py-6 sm:px-8">
+            {/* Título da etapa */}
+            <div className="mb-6 flex items-center gap-3">
+              <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-xl', info.tile)}>
+                <Icone className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Etapa {etapa} de {INFO_ETAPAS.length}</p>
+                <h2 className="text-lg font-bold leading-tight text-slate-900">{info.titulo}</h2>
+                <p className="text-sm text-slate-500">{info.descricao}</p>
+              </div>
+            </div>
+
             {rascunhoPendente && (
-              <div className="mb-4 rounded border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+              <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
                 <p className="font-medium">
                   Você tem um rascunho salvo{rascunhoPendente.dados.nome ? ` (${rascunhoPendente.dados.nome})` : ''}
                   {rascunhoPendente.atualizadoEm ? ` em ${new Date(rascunhoPendente.atualizadoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}.
@@ -306,43 +348,35 @@ export function AssistenteAdmissao({ postos, funcoes }: Props) {
                 jovemAprendiz={jovemAprendiz} turnoOpcoes={turnoOpcoes} carregandoTurnos={carregandoTurnos} />
             )}
             {etapa === 3 && <EtapaCondicoes d={d} definir={definir} sugestao={sugestao} />}
-            {etapa === 4 && <EtapaVt d={d} definir={definir} />}
+            {etapa === 4 && <EtapaVt d={d} definir={definir} linhasConhecidas={linhasConhecidas} />}
             {etapa === 5 && <EtapaDocumentos d={d} definir={definir} />}
             {etapa === 6 && (
               <EtapaRevisao d={d} definir={definir} postoNome={postoNome} funcaoNome={funcaoSel?.nome ?? ''} turnoNome={turnoNome} />
             )}
 
             {erros.length > 0 && (
-              <ul className="mt-4 space-y-0.5 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600" role="alert">
+              <ul className="mt-5 space-y-0.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
                 {erros.map(e => <li key={e}>• {e}</li>)}
               </ul>
             )}
-          </>
-        )}
-      </div>
+          </div>
 
-      <div className="sticky bottom-0 flex items-center justify-between gap-2 rounded-b-lg border-t border-gray-100 bg-white px-5 py-3">
-        {pacote ? (
-          <>
-            <span />
-            <button type="button" onClick={reiniciar} className={botaoPrimario}>Nova admissão</button>
-          </>
-        ) : (
-          <>
-            <span className="text-xs text-gray-400">{salvoEm ? `Rascunho salvo às ${salvoEm}` : ''}</span>
+          <div className="sticky bottom-0 flex items-center justify-between gap-2 border-t border-slate-100 bg-white/95 px-5 py-3 backdrop-blur sm:px-8">
+            <span className="text-xs text-slate-400">{salvoEm ? `Rascunho salvo às ${salvoEm}` : ''}</span>
             <div className="flex gap-2">
               {etapa > 1
-                ? <button type="button" onClick={() => { setErros([]); setEtapa(etapa - 1) }} disabled={enviando} className={botaoSecundario}>Voltar</button>
+                ? <button type="button" onClick={() => { setErros([]); setEtapa(etapa - 1) }} disabled={enviando} className={botaoSecundario}><ArrowLeft className="h-4 w-4" aria-hidden="true" /> Voltar</button>
                 : <button type="button" onClick={limpar} disabled={enviando} className={botaoSecundario}>Limpar</button>}
-              {etapa < ETAPAS_ADMISSAO.length
-                ? <button type="button" onClick={avancar} className={botaoPrimario}>Avançar</button>
-                : <button type="button" onClick={enviar} disabled={enviando} className="rounded bg-amber-500 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-amber-400 disabled:opacity-50">
-                    {enviando ? 'Enviando…' : 'Enviar e imprimir'}
+              {etapa < INFO_ETAPAS.length
+                ? <button type="button" onClick={avancar} className={botaoPrimario}>Avançar <ArrowRight className="h-4 w-4" aria-hidden="true" /></button>
+                : <button type="button" onClick={enviar} disabled={enviando}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-5 py-2.5 text-sm font-semibold text-slate-900 shadow-sm hover:bg-amber-400 disabled:opacity-50">
+                    <Send className="h-4 w-4" aria-hidden="true" /> {enviando ? 'Enviando…' : 'Enviar e imprimir'}
                   </button>}
             </div>
-          </>
-        )}
-      </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

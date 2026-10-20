@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from '@react-pdf/renderer'
+import { Image, StyleSheet, Text, View } from '@react-pdf/renderer'
 import type { ReactNode } from 'react'
 
 export const COR_BORDA = '#334155'
@@ -27,6 +27,22 @@ export const brl = (v: number | null | undefined): string =>
 
 /** "(X)" / "( )" como no formulário em papel. */
 export const marca = (ligado: boolean): string => (ligado ? '( X )' : '(    )')
+
+export const LOGO_PADRAO = '/logo-demax.jpg'
+
+/** Faixa de título com o logo da empresa à esquerda e o texto centralizado. */
+export function Titulo({ texto, logo, tamanho = 12 }: { texto: string; logo?: string; tamanho?: number }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COR_BORDA, minHeight: 36 }}>
+      <View style={{ width: 44, alignItems: 'center', justifyContent: 'center' }}>
+        {/* eslint-disable-next-line jsx-a11y/alt-text */}
+        {logo ? <Image src={logo} style={{ width: 30, height: 30 }} /> : null}
+      </View>
+      <Text style={{ flex: 1, textAlign: 'center', fontSize: tamanho, fontFamily: 'Helvetica-Bold', paddingVertical: 5 }}>{texto}</Text>
+      <View style={{ width: 44 }} />
+    </View>
+  )
+}
 
 export function Linha({ children }: { children: ReactNode }) {
   return <View style={st.linha} wrap={false}>{children}</View>
