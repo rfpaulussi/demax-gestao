@@ -1,6 +1,6 @@
 # Admissão assistida — Fase 1
 
-Assistente de 6 passos para o supervisor preparar **Cadastro de Funcionários + Solicitação de VT + Lista de Presença da Integração** (PDF para imprimir e assinar) e, no mesmo ato, enviar a solicitação de admissão para Aprovações. Substitui o modal "Solicitar Admissão" da página Postos (só supervisor). O admin continua com `modal-admitir-admin` (admissão direta).
+Assistente de 6 passos para o supervisor preparar **Cadastro de Funcionários + Solicitação de VT + Lista de Presença da Integração** (PDF para imprimir e assinar) e, no mesmo ato, enviar a solicitação de admissão para Aprovações. Vive na aba própria **Admissão** (`/admissao`, só supervisor). Não substitui nada: o botão "Nova Admissão" de Postos (que avisa a gestão de que o funcionário iniciou) e o `modal-admitir-admin` (admissão direta do admin) continuam como eram.
 
 Fase 2 (não faz parte desta entrega): leitura de RG/CNH/comprovante de residência por IA (Claude Haiku, imagem processada em memória e descartada). Fase 3: sugestão de linhas de VT pelos colegas do posto.
 

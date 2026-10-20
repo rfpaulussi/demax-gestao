@@ -9,7 +9,7 @@ import * as XLSX from 'xlsx-js-style'
 import { cn } from '@/lib/utils'
 import type { PostoRow } from '@/app/(admin)/postos/actions'
 import { criarPosto, editarPosto, desativarPosto } from '@/app/(admin)/postos/actions'
-import { AssistenteAdmissao } from '@/components/admissao/assistente-admissao'
+import { ModalNovaAdmissao } from './modal-nova-admissao'
 
 // ─── types ────────────────────────────────────────────────────────────────────
 
@@ -820,7 +820,7 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
       )}
 
       {role === 'supervisor' && (
-        <AssistenteAdmissao
+        <ModalNovaAdmissao
           open={novaAdmissaoOpen}
           onClose={() => setNovaAdmissaoOpen(false)}
           onSuccess={() => setToast(true)}

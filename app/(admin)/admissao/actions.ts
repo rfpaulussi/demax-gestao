@@ -42,6 +42,17 @@ async function turnosDisponiveis(postoId: string, jovemAprendiz: boolean): Promi
   return lista as unknown as TurnoComNome[]
 }
 
+/** Falso enquanto a migração 20261025 não foi aplicada (a página mostra um aviso em vez de quebrar). */
+export async function admissaoDisponivel(): Promise<boolean> {
+  const admin = createAdminClient()
+  const [rascunhos, funcoes, postos] = await Promise.all([
+    admin.from('admissao_rascunhos').select('supervisor_id').limit(1),
+    admin.from('funcoes').select('cbo').limit(1),
+    admin.from('postos').select('centro_custo').limit(1),
+  ])
+  return !rascunhos.error && !funcoes.error && !postos.error
+}
+
 // ─── Sugestões do sistema ─────────────────────────────────────────────────────
 
 export interface SugestaoAdmissao {

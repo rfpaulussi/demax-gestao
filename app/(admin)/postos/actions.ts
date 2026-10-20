@@ -3,8 +3,71 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { getUser } from '@/lib/auth/get-user'
 import { buscarEmprestimosAtivos } from '@/lib/coberturas-emprestimos'
 import { FUNCOES_FORA_DO_EFETIVO } from '@/lib/constants'
+
+type ActionResult = { success: true } | { success: false; error: string }
+
+export async function solicitarAdmissao(fd: FormData): Promise<ActionResult> {
+  const supabase = createClient()
+  const auth = await getUser()
+  if (!auth) return { success: false, error: 'Não autenticado' }
+
+  const nome               = (fd.get('nome') as string)?.trim().toUpperCase()
+  const registro           = (fd.get('registro') as string)?.trim()
+  const funcao_id          = fd.get('funcao_id') as string
+  const posto_id           = fd.get('posto_id') as string
+  const data_admissao      = fd.get('data_admissao') as string
+  const periodo_experiencia = fd.get('periodo_experiencia') as string
+  const turno_destino_id   = (fd.get('turno_destino_id') as string | null) || null
+  const diaCursoRaw        = fd.get('dia_curso_destino') as string | null
+  const dia_curso_destino  = diaCursoRaw ? Number(diaCursoRaw) : null
+
+  if (!nome)          return { success: false, error: 'Nome obrigatório' }
+  if (!registro)      return { success: false, error: 'Registro (PIS/NIT) obrigatório' }
+  if (!funcao_id)     return { success: false, error: 'Função obrigatória' }
+  if (!posto_id)      return { success: false, error: 'Posto obrigatório' }
+  if (!data_admissao) return { success: false, error: 'Data de admissão obrigatória' }
+  if (!(['nenhum', '30+30', '45+45'] as const).includes(periodo_experiencia as 'nenhum' | '30+30' | '45+45')) {
+    return { success: false, error: 'Período de experiência inválido' }
+  }
+
+  const [{ data: funcao }, { data: posto }] = await Promise.all([
+    supabase.from('funcoes').select('nome').eq('id', funcao_id).single(),
+    supabase.from('postos').select('nome, secretaria').eq('id', posto_id).single(),
+  ])
+
+  const postoTyped = posto as unknown as { nome: string; secretaria: string | null } | null
+
+  const { error } = await supabase.from('solicitacoes').insert({
+    tipo:           'admissao' as unknown as 'desligamento',
+    status:         'pendente',
+    supervisor_id:  auth.user.id,
+    funcionario_id: null as unknown as string,
+    dados_antes:    null,
+    dados_depois: {
+      nome,
+      registro,
+      funcao_id,
+      funcao_nome:          funcao?.nome ?? null,
+      posto_id,
+      posto_nome:           postoTyped?.nome ?? null,
+      secretaria:           postoTyped?.secretaria ?? null,
+      data_admissao,
+      periodo_experiencia,
+      turno_destino_id,
+      dia_curso_destino,
+    },
+  })
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/aprovacoes')
+  return { success: true }
+}
+
+
 
 const CONTRATO_ID = 'c73a81ae-0104-4c05-b7d6-e6266f6be1b2'
 

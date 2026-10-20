@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { buscarSubstituiveis, consultarCep, type SugestaoAdmissao, type Substituivel } from '@/app/(admin)/postos/admissao-actions'
+import { buscarSubstituiveis, consultarCep, type SugestaoAdmissao, type Substituivel } from '@/app/(admin)/admissao/actions'
 import { formatarCep, formatarCpf, formatarTelefone, validarCpf } from '@/lib/admissao/cpf'
 import {
   DOCUMENTOS_ADMISSAO, DOCUMENTOS_DEPENDENTES, MAX_LINHAS_VT, TIPOS_TRANSPORTE, UFS,
