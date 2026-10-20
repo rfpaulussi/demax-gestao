@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { cn } from '@/lib/utils'
 import { PostoImpactPanel } from '@/components/posto-impact-panel'
@@ -8,6 +8,8 @@ import { camposDaSolicitacao, fmtData, badgeDaSolicitacao } from './campos-solic
 import { TIPOS_DESLIGAMENTO, MOTIVOS_POR_TIPO, type TipoDesligamento } from '@/components/efetivo/modal-desligar'
 import type { SolicitacaoPendente } from './aprovacoes-list'
 import type { ImpactoResult } from '@/app/(admin)/efetivo/impacto'
+import { baixarPacoteAdmissaoPDF } from '@/components/admissao/pdf/pacote-admissao-pdf'
+import type { PacoteAdmissao } from '@/lib/admissao/tipos'
 
 export type FuncaoOpt = { id: string; nome: string }
 
@@ -54,6 +56,27 @@ export function ModalDetalheSolicitacao({
   const campos = camposDaSolicitacao(sol.tipo, sol.dados_antes, sol.dados_depois)
   const depois = sol.dados_depois ?? {}
   const editando = canApprove
+
+  // Admissão feita pelo assistente guarda o dossiê: dá para reimprimir Cadastro, VT e Integração.
+  const [gerandoPdf, setGerandoPdf] = useState(false)
+  const [erroPdf, setErroPdf] = useState<string | null>(null)
+  const pacoteAdmissao: PacoteAdmissao | null =
+    sol.tipo === 'admissao' && depois.dossie && depois.contexto
+      ? { dossie: depois.dossie as PacoteAdmissao['dossie'], contexto: depois.contexto as PacoteAdmissao['contexto'] }
+      : null
+
+  async function reimprimir() {
+    if (!pacoteAdmissao) return
+    setErroPdf(null)
+    setGerandoPdf(true)
+    try {
+      await baixarPacoteAdmissaoPDF(pacoteAdmissao)
+    } catch {
+      setErroPdf('Não foi possível gerar o PDF.')
+    } finally {
+      setGerandoPdf(false)
+    }
+  }
 
   function val(chave: string, fallback: unknown = ''): string {
     return overrides[chave] ?? (depois[chave] != null ? String(depois[chave]) : String(fallback))
@@ -197,6 +220,20 @@ export function ModalDetalheSolicitacao({
               </>
             )}
           </div>
+
+          {pacoteAdmissao && (
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={reimprimir}
+                disabled={gerandoPdf}
+                className="w-full rounded-lg bg-amber-500 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-400 disabled:opacity-50"
+              >
+                {gerandoPdf ? 'Gerando…' : 'Reimprimir documentos (Cadastro, VT e Integração)'}
+              </button>
+              {erroPdf && <p className="mt-1 text-xs text-red-600">{erroPdf}</p>}
+            </div>
+          )}
 
           {impacto && (
             <div className="mb-4">

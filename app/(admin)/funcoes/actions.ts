@@ -15,7 +15,7 @@ export async function listarFuncoes() {
   const { data, error } = await supabase
     .from('funcoes')
     .select(`
-      id, nome, salario_base,
+      id, nome, salario_base, cbo, sindicato,
       insalubridade_perc, insalubridade_valor,
       periculosidade_perc, periculosidade_valor,
       custos_funcoes (
@@ -54,6 +54,8 @@ export async function atualizarSalarioFuncao(
     insalubridade_valor: number
     periculosidade_perc: number
     periculosidade_valor: number
+    cbo?: string | null
+    sindicato?: string | null
   } & CustoFuncaoInput
 ) {
   const auth = await getUser()
@@ -70,6 +72,8 @@ export async function atualizarSalarioFuncao(
       insalubridade_valor:  dados.insalubridade_valor,
       periculosidade_perc:  dados.periculosidade_perc,
       periculosidade_valor: dados.periculosidade_valor,
+      cbo:                  dados.cbo?.trim() || null,
+      sindicato:            dados.sindicato?.trim() || null,
       updated_at:           new Date().toISOString(),
     })
     .eq('id', funcaoId)

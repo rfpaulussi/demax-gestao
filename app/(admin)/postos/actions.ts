@@ -3,71 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
-import { getUser } from '@/lib/auth/get-user'
 import { buscarEmprestimosAtivos } from '@/lib/coberturas-emprestimos'
 import { FUNCOES_FORA_DO_EFETIVO } from '@/lib/constants'
-
-type ActionResult = { success: true } | { success: false; error: string }
-
-export async function solicitarAdmissao(fd: FormData): Promise<ActionResult> {
-  const supabase = createClient()
-  const auth = await getUser()
-  if (!auth) return { success: false, error: 'Não autenticado' }
-
-  const nome               = (fd.get('nome') as string)?.trim().toUpperCase()
-  const registro           = (fd.get('registro') as string)?.trim()
-  const funcao_id          = fd.get('funcao_id') as string
-  const posto_id           = fd.get('posto_id') as string
-  const data_admissao      = fd.get('data_admissao') as string
-  const periodo_experiencia = fd.get('periodo_experiencia') as string
-  const turno_destino_id   = (fd.get('turno_destino_id') as string | null) || null
-  const diaCursoRaw        = fd.get('dia_curso_destino') as string | null
-  const dia_curso_destino  = diaCursoRaw ? Number(diaCursoRaw) : null
-
-  if (!nome)          return { success: false, error: 'Nome obrigatório' }
-  if (!registro)      return { success: false, error: 'Registro (PIS/NIT) obrigatório' }
-  if (!funcao_id)     return { success: false, error: 'Função obrigatória' }
-  if (!posto_id)      return { success: false, error: 'Posto obrigatório' }
-  if (!data_admissao) return { success: false, error: 'Data de admissão obrigatória' }
-  if (!(['nenhum', '30+30', '45+45'] as const).includes(periodo_experiencia as 'nenhum' | '30+30' | '45+45')) {
-    return { success: false, error: 'Período de experiência inválido' }
-  }
-
-  const [{ data: funcao }, { data: posto }] = await Promise.all([
-    supabase.from('funcoes').select('nome').eq('id', funcao_id).single(),
-    supabase.from('postos').select('nome, secretaria').eq('id', posto_id).single(),
-  ])
-
-  const postoTyped = posto as unknown as { nome: string; secretaria: string | null } | null
-
-  const { error } = await supabase.from('solicitacoes').insert({
-    tipo:           'admissao' as unknown as 'desligamento',
-    status:         'pendente',
-    supervisor_id:  auth.user.id,
-    funcionario_id: null as unknown as string,
-    dados_antes:    null,
-    dados_depois: {
-      nome,
-      registro,
-      funcao_id,
-      funcao_nome:          funcao?.nome ?? null,
-      posto_id,
-      posto_nome:           postoTyped?.nome ?? null,
-      secretaria:           postoTyped?.secretaria ?? null,
-      data_admissao,
-      periodo_experiencia,
-      turno_destino_id,
-      dia_curso_destino,
-    },
-  })
-
-  if (error) return { success: false, error: error.message }
-
-  revalidatePath('/aprovacoes')
-  return { success: true }
-}
-
-
 
 const CONTRATO_ID = 'c73a81ae-0104-4c05-b7d6-e6266f6be1b2'
 
@@ -88,6 +25,7 @@ export type PostoRow = {
   secretaria: string
   efetivo_previsto: number
   cota_insalubridade: number
+  centro_custo: string
   ativo: boolean
   efetivo_atual: number
   insalubridade_atual: number
@@ -169,7 +107,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
   const [{ data: postos }, funcionariosRaw, { data: config }, { data: coberturas }] = await Promise.all([
     supabase
       .from('postos')
-      .select('id, nome, secretaria, efetivo_previsto, cota_insalubridade, ativo')
+      .select('id, nome, secretaria, efetivo_previsto, cota_insalubridade, centro_custo, ativo')
       .eq('contrato_id', CONTRATO_ID)
       .eq('ativo', true)
       .order('secretaria', { ascending: true })
@@ -291,6 +229,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
     secretaria: p.secretaria ?? '',
     efetivo_previsto: p.efetivo_previsto ?? 0,
     cota_insalubridade: p.cota_insalubridade ?? 0,
+    centro_custo: p.centro_custo ?? '',
     ativo: p.ativo ?? true,
     efetivo_atual: efetivoMap.get(p.id) ?? 0,
     insalubridade_atual: insalubMap.get(p.id) ?? 0,
@@ -308,6 +247,7 @@ export async function criarPosto(data: {
   secretaria: string
   efetivo_previsto: number
   cota_insalubridade: number
+  centro_custo?: string
 }): Promise<{ error?: string }> {
   const supabase = createClient()
   const { data: contratos } = await supabase
@@ -324,6 +264,7 @@ export async function criarPosto(data: {
     secretaria: data.secretaria.trim().toUpperCase(),
     efetivo_previsto: data.efetivo_previsto,
     cota_insalubridade: data.cota_insalubridade,
+    centro_custo: data.centro_custo?.trim() || null,
     ativo: true,
   })
   if (error) return { error: error.message }
@@ -336,6 +277,7 @@ export async function editarPosto(id: string, data: {
   secretaria: string
   efetivo_previsto: number
   cota_insalubridade: number
+  centro_custo?: string
 }): Promise<{ error?: string }> {
   const supabase = createClient()
   const { error } = await supabase.from('postos').update({
@@ -343,6 +285,7 @@ export async function editarPosto(id: string, data: {
     secretaria: data.secretaria.trim().toUpperCase(),
     efetivo_previsto: data.efetivo_previsto,
     cota_insalubridade: data.cota_insalubridade,
+    centro_custo: data.centro_custo?.trim() || null,
     updated_at: new Date().toISOString(),
   }).eq('id', id)
   if (error) return { error: error.message }
