@@ -351,7 +351,7 @@ export function AssistenteAdmissao({ postos, funcoes }: Props) {
             {etapa === 4 && <EtapaVt d={d} definir={definir} linhasConhecidas={linhasConhecidas} />}
             {etapa === 5 && <EtapaDocumentos d={d} definir={definir} />}
             {etapa === 6 && (
-              <EtapaRevisao d={d} definir={definir} postoNome={postoNome} funcaoNome={funcaoSel?.nome ?? ''} turnoNome={turnoNome} />
+              <EtapaRevisao d={d} postoNome={postoNome} funcaoNome={funcaoSel?.nome ?? ''} turnoNome={turnoNome} />
             )}
 
             {erros.length > 0 && (

@@ -710,13 +710,12 @@ export function EtapaDocumentos({ d, definir }: { d: DossieAdmissao; definir: De
 
 interface PropsRevisao {
   d: DossieAdmissao
-  definir: Definir
   postoNome: string
   funcaoNome: string
   turnoNome: string | null
 }
 
-export function EtapaRevisao({ d, definir, postoNome, funcaoNome, turnoNome }: PropsRevisao) {
+export function EtapaRevisao({ d, postoNome, funcaoNome, turnoNome }: PropsRevisao) {
   const totais = totaisVT(d.vt_linhas)
   const grupo = (titulo: string, tom: string, linhas: [string, string][]) => (
     <section className={cn('rounded-xl border-l-4 bg-white p-4 shadow-sm ring-1 ring-slate-200', tom)}>
@@ -751,10 +750,6 @@ export function EtapaRevisao({ d, definir, postoNome, funcaoNome, turnoNome }: P
       {grupo('Vale transporte', 'border-l-emerald-500', [
         ['Situação', d.vt_utiliza ? `${formatarMoeda(totais.valorDia)}/dia · ${totais.passagensDia} passagem(ns)` : 'Não utiliza'],
       ])}
-
-      <Rotulado rotulo="Data da integração *" className="max-w-xs">
-        <input type="date" className={campoClasse} value={d.data_integracao} onChange={e => definir('data_integracao', e.target.value)} />
-      </Rotulado>
 
       <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
         <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
