@@ -39,18 +39,79 @@ function mensagemLocalizacaoBloqueada(): string {
   return 'Localização bloqueada. No Android: toque no cadeado ao lado do endereço → Permissões → Localização → Permitir. Confira também se o GPS do celular está ligado. Depois tente de novo.'
 }
 
+/** Navegador embutido de WhatsApp/Instagram/Facebook etc.: não oferece localização ao site. */
+function emNavegadorEmbutido(): boolean {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+  return /FBAN|FBAV|Instagram|Line\/|MicroMessenger|; wv\)|WhatsApp|Snapchat|TikTok/i.test(ua)
+}
+
+/**
+ * Explica por que o GPS foi negado. O erro "negado" do navegador serve tanto para site bloqueado quanto para
+ * GPS/permissão desligados no aparelho — a Permissions API diferencia os dois.
+ */
+async function explicarLocalizacaoNegada(): Promise<string> {
+  if (emNavegadorEmbutido()) {
+    return 'Este navegador embutido (WhatsApp, Instagram…) não libera a localização. Abra o sistema direto no Chrome (menu ⋮ → "Abrir no Chrome") e tente de novo.'
+  }
+  let estado: PermissionState | null = null
+  try {
+    estado = (await navigator.permissions.query({ name: 'geolocation' })).state
+  } catch {
+    // Permissions API indisponível (Safari antigo): cai na instrução genérica
+  }
+  if (estado === 'denied') return mensagemLocalizacaoBloqueada()
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+  if (/iPhone|iPad|iPod/i.test(ua)) return mensagemLocalizacaoBloqueada()
+  // Site não está bloqueado, mas o aparelho negou: GPS desligado ou Chrome sem permissão no Android.
+  return 'O celular não entregou a localização. Ligue o GPS (puxe a barra superior e ative "Localização"). Se continuar: Configurações do Android → Apps → Chrome → Permissões → Localização → "Permitir" e ative "Usar localização precisa". Depois tente de novo.'
+}
+
+const ALVO_PRECISAO_M = 40 // para de esperar quando o GPS chega nessa precisão
+const JANELA_GPS_MS = 12000 // tempo máximo esperando o GPS melhorar, se já houver alguma leitura
+
+/**
+ * Lê o GPS acompanhando por alguns segundos e fica com a leitura mais precisa. A primeira leitura do Android
+ * costuma vir por rede/torre (centenas de metros de erro); o satélite leva alguns segundos para fixar.
+ */
 function lerPosicao(): Promise<Coords> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error('Seu aparelho não oferece localização.'))
-    navigator.geolocation.getCurrentPosition(
-      p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, precisao: p.coords.accuracy ?? null }),
-      e => reject(new Error(
-        e.code === 1 ? mensagemLocalizacaoBloqueada()
-        : e.code === 3 ? 'Demorou demais para obter o GPS. Vá para um local aberto e tente de novo.'
-        : 'Não foi possível obter sua localização.',
-      )),
+    let melhor: GeolocationPosition | null = null
+    let encerrado = false
+    let watchId = 0
+    let timer = 0
+    let passouJanela = false
+    const encerrar = () => {
+      encerrado = true
+      navigator.geolocation.clearWatch(watchId)
+      window.clearTimeout(timer)
+    }
+    const concluir = () => {
+      if (encerrado || !melhor) return
+      encerrar()
+      resolve({ lat: melhor.coords.latitude, lng: melhor.coords.longitude, precisao: melhor.coords.accuracy ?? null })
+    }
+    watchId = navigator.geolocation.watchPosition(
+      p => {
+        if (!melhor || p.coords.accuracy < melhor.coords.accuracy) melhor = p
+        if (p.coords.accuracy <= ALVO_PRECISAO_M || passouJanela) concluir()
+      },
+      e => {
+        if (encerrado) return
+        if (melhor) return concluir() // já tem uma leitura aproveitável
+        encerrar()
+        if (e.code === 1) {
+          void explicarLocalizacaoNegada().then(msg => reject(new Error(msg)))
+        } else {
+          reject(new Error(
+            e.code === 3 ? 'Demorou demais para obter o GPS. Vá para um local aberto, confira se o GPS do celular está ligado e tente de novo.'
+            : 'Não foi possível obter sua localização. Confira se o GPS do celular está ligado e tente de novo.',
+          ))
+        }
+      },
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
     )
+    timer = window.setTimeout(() => { passouJanela = true; concluir() }, JANELA_GPS_MS)
   })
 }
 

@@ -38,7 +38,9 @@ const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
+  // geolocation=(self): o check-in da agenda lê o GPS. Com geolocation=() o navegador bloqueia o GPS do site
+  // inteiro e o cadeado não permite liberar.
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(self), interest-cohort=()' },
 ]
 
 const nextConfig = {

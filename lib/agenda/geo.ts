@@ -10,6 +10,15 @@ export function distanciaM(lat1: number, lng1: number, lat2: number, lng2: numbe
 
 export const PRECISAO_RUIM_M = 100
 
+/**
+ * Dentro do raio considerando a incerteza do GPS: o aparelho informa um círculo de erro (precisão) em volta do ponto lido.
+ * Se esse círculo toca o raio do posto, não dá para afirmar que a pessoa está fora. A folga é limitada para não virar brecha.
+ */
+export function dentroDoRaio(distancia: number, raio: number, precisaoM: number | null): boolean {
+  const folga = precisaoM != null && Number.isFinite(precisaoM) && precisaoM > 0 ? Math.min(precisaoM, PRECISAO_RUIM_M) : 0
+  return distancia <= raio + folga
+}
+
 export function formatarDistancia(m: number): string {
   return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1).replace('.', ',')} km`
 }

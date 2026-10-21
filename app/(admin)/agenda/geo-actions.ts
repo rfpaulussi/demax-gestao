@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getUser } from '@/lib/auth/get-user'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { addDias, ehData, hojeBR, segundaDe } from '@/lib/agenda/datas'
-import { coordenadaValida, distanciaM, PRECISAO_RUIM_M } from '@/lib/agenda/geo'
+import { coordenadaValida, dentroDoRaio, distanciaM, PRECISAO_RUIM_M } from '@/lib/agenda/geo'
 import { postosDoSupervisor } from '@/lib/agenda/postos'
 import {
   dataBR, montarVisitas,
@@ -397,7 +397,7 @@ export async function registrarCheckin(input: {
 
   const distancia = distanciaM(input.latitude, input.longitude, posto.latitude, posto.longitude)
   const raio = posto.raio_m ?? 150
-  const dentro = distancia <= raio
+  const dentro = dentroDoRaio(distancia, raio, input.precisaoM)
   const baixa = input.precisaoM != null && input.precisaoM > PRECISAO_RUIM_M
   const justificativa = (input.justificativa ?? '').trim().slice(0, 300)
 
