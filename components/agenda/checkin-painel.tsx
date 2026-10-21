@@ -72,7 +72,7 @@ const JANELA_MAX_MS = 25000 // limite: o satélite pode levar até ~25 s para fi
 const PRECISAO_APROXIMADA_M = 1000 // acima disso é localização aproximada (rede/torre), inútil para provar presença
 
 function msgLocalizacaoAproximada(precisaoM: number): string {
-  return `GPS com erro de cerca de ${formatarDistancia(precisaoM)}: o celular entregou só a localização aproximada. Ative a precisa: cadeado ao lado do endereço → Permissões → Localização → "Usar localização precisa". Em local fechado, vá para uma área aberta e tente de novo.`
+  return `GPS com erro de cerca de ${formatarDistancia(precisaoM)}: o Android entregou só a localização aproximada. Ative a precisa: Configurações do celular → Apps → Chrome → Permissões → Localização → ligue "Usar localização precisa". Depois volte aqui e tente de novo (em local fechado, vá para uma área aberta).`
 }
 
 /** Erro de leitura imprecisa que carrega a leitura, para o supervisor poder registrar mesmo assim. */

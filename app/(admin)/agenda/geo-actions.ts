@@ -136,7 +136,7 @@ export async function marcarLocalPosto(input: {
   if (input.precisaoM == null || input.precisaoM > PRECISAO_MARCAR_M) {
     return {
       ok: false,
-      erro: `GPS impreciso (±${input.precisaoM == null ? '?' : Math.round(input.precisaoM)} m). Vá para uma área aberta, aguarde alguns segundos e tente de novo. Se o erro continuar alto, libere a localização precisa do Chrome (cadeado → Permissões → Localização).`,
+      erro: `GPS impreciso (±${input.precisaoM == null ? '?' : Math.round(input.precisaoM)} m). Vá para uma área aberta, aguarde alguns segundos e tente de novo. Se o erro continuar alto, ligue "Usar localização precisa" em Configurações do celular → Apps → Chrome → Permissões → Localização.`,
     }
   }
 
