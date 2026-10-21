@@ -80,6 +80,7 @@ export type PostoFuncionario = {
   pcd: boolean
   pcd_tipo: string | null
   pcd_tipo_outro: string | null
+  falta_hoje: boolean
 }
 
 export type PostoRow = {
@@ -165,8 +166,9 @@ export async function getPostosData(): Promise<PostoRow[]> {
   )
 
   const hoje = new Date()
+  const hojeBR = hoje.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
 
-  const [{ data: postos }, funcionariosRaw, { data: config }, { data: coberturas }] = await Promise.all([
+  const [{ data: postos }, funcionariosRaw, { data: config }, { data: coberturas }, { data: faltasHoje }] = await Promise.all([
     supabase
       .from('postos')
       .select('id, nome, secretaria, efetivo_previsto, cota_insalubridade, ativo')
@@ -193,8 +195,15 @@ export async function getPostosData(): Promise<PostoRow[]> {
       .eq('status', 'ativa')
       .lte('data_inicio', hoje.toISOString().split('T')[0])
       .or(`data_prev_retorno.is.null,data_prev_retorno.gte.${hoje.toISOString().split('T')[0]}`),
+    // Faltas que cobrem hoje (período com data_fim, ou registro de 1 dia sem data_fim)
+    supabase
+      .from('faltas')
+      .select('funcionario_id')
+      .lte('data_falta', hojeBR)
+      .or(`data_fim.gte.${hojeBR},and(data_fim.is.null,data_falta.eq.${hojeBR})`),
   ])
 
+  const faltouHojeIds = new Set((faltasHoje ?? []).map(f => f.funcionario_id))
   // Mapa posto_id → secretaria/nome para diferenciar postos AFASTADOS e aplicar regras por posto (ex: Terminais SMMT)
   const postoSecretariaMap = new Map<string, string>()
   const postoNomeMap = new Map<string, string>()
@@ -220,6 +229,7 @@ export async function getPostosData(): Promise<PostoRow[]> {
       pcd: f.pcd ?? false,
       pcd_tipo: f.pcd_tipo,
       pcd_tipo_outro: f.pcd_tipo_outro,
+      falta_hoje: faltouHojeIds.has(f.id),
     })
     funcionariosPorPosto.set(f.posto_id, lista)
 

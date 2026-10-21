@@ -641,6 +641,9 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                                             ({STATUS_LABEL_LISTA[chave]})
                                           </span>
                                         )}
+                                        {f.falta_hoje && chave === 'ativo' && (
+                                          <span className="font-semibold text-amber-600">(faltou hoje)</span>
+                                        )}
                                       </li>
                                     )
                                   })}
