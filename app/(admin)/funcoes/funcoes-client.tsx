@@ -24,6 +24,8 @@ type Funcao = {
   insalubridade_valor: number | null
   periculosidade_perc: number | null
   periculosidade_valor: number | null
+  cbo: string | null
+  sindicato: string | null
   custos: Custos
 }
 
@@ -97,6 +99,8 @@ export function FuncoesClient({ funcoes }: { funcoes: Funcao[] }) {
       salario_base:            String(f.salario_base ?? ''),
       insalubridade_perc:      String(f.insalubridade_perc ?? '0'),
       periculosidade_perc:     String(f.periculosidade_perc ?? '0'),
+      cbo:                     f.cbo ?? '',
+      sindicato:               f.sindicato ?? '',
       va:                      String(c?.va ?? ''),
       vr:                      String(c?.vr ?? ''),
       vt:                      String(c?.vt ?? ''),
@@ -144,6 +148,8 @@ export function FuncoesClient({ funcoes }: { funcoes: Funcao[] }) {
       insalubridade_valor:     insalValor,
       periculosidade_perc:     parseFloat(form.periculosidade_perc) || 0,
       periculosidade_valor:    periculosValor,
+      cbo:                     form.cbo,
+      sindicato:               form.sindicato,
       va:                      n(form.va),
       vr:                      n(form.vr),
       vt:                      n(form.vt),
@@ -234,6 +240,27 @@ export function FuncoesClient({ funcoes }: { funcoes: Funcao[] }) {
             </div>
 
             <div className="space-y-5 px-6 py-5">
+
+              {/* Admissão */}
+              <section>
+                <p className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-400">Admissão (impresso no Cadastro de Funcionários)</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-slate-500">CBO</label>
+                    <input
+                      type="text" value={form.cbo} onChange={e => set('cbo', e.target.value)} placeholder="Ex.: 5143-20"
+                      className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-slate-500">Sindicato</label>
+                    <input
+                      type="text" value={form.sindicato} onChange={e => set('sindicato', e.target.value)}
+                      className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </section>
 
               {/* Remuneração */}
               <section>

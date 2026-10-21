@@ -3,6 +3,7 @@ import { getUser } from '@/lib/auth/get-user'
 import { createClient } from '@/lib/supabase/server'
 import { getPostosData } from './actions'
 import { PostosClient } from '@/components/postos/postos-client'
+import { filtroPostoDaFuncao, funcaoAdmissivel } from '@/lib/admissao/funcoes-posto'
 
 export default async function PostosPage() {
   const auth = await getUser()
@@ -23,18 +24,8 @@ export default async function PostosPage() {
   ])
 
   const funcoes = (funcoesRaw ?? [])
-    .filter(f => {
-      const n = f.nome.trim().normalize('NFC').toUpperCase()
-      return !n.startsWith('SUPERVISOR')
-    })
-    .map(f => {
-      const n = f.nome.trim().normalize('NFC').toUpperCase()
-      const postoFiltro =
-        (n.startsWith('AGENTE') && n.endsWith(' A')) ? 'apenas_sms' as const :
-        n.startsWith('ENCARREGADO')                  ? 'todos'      as const :
-                                                       'sem_sms'    as const
-      return { id: f.id, nome: f.nome, postoFiltro }
-    })
+    .filter(f => funcaoAdmissivel(f.nome))
+    .map(f => ({ id: f.id, nome: f.nome, postoFiltro: filtroPostoDaFuncao(f.nome) }))
   const supervisorPostos = (spRaw ?? []).map((c: unknown) => {
     const row = c as { posto_id: string; postos: { id: string; nome: string; secretaria: string | null } }
     const p = row.postos

@@ -1450,6 +1450,125 @@ export type Database = {
           },
         ]
       }
+      admissao_rascunhos: {
+        Row: {
+          dados: Json
+          supervisor_id: string
+          updated_at: string
+        }
+        Insert: {
+          dados: Json
+          supervisor_id: string
+          updated_at?: string
+        }
+        Update: {
+          dados?: Json
+          supervisor_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      linhas_transporte: {
+        Row: {
+          chave: string
+          empresa: string | null
+          id: string
+          linha: string
+          tipo: string | null
+          updated_at: string
+          usos: number
+          valor: number | null
+        }
+        Insert: {
+          chave: string
+          empresa?: string | null
+          id?: string
+          linha: string
+          tipo?: string | null
+          updated_at?: string
+          usos?: number
+          valor?: number | null
+        }
+        Update: {
+          chave?: string
+          empresa?: string | null
+          id?: string
+          linha?: string
+          tipo?: string | null
+          updated_at?: string
+          usos?: number
+          valor?: number | null
+        }
+        Relationships: []
+      }
+      funcionarios_dados_pessoais: {
+        Row: {
+          bairro: string | null
+          cep: string | null
+          cidade: string | null
+          complemento: string | null
+          created_at: string
+          email: string | null
+          funcionario_id: string
+          logradouro: string | null
+          numero: string | null
+          telefone: string | null
+          uf: string | null
+          uniforme: Json | null
+          updated_at: string
+          vt_cartao: string | null
+          vt_cartao_outro: string | null
+          vt_linhas: Json | null
+          vt_utiliza: boolean | null
+        }
+        Insert: {
+          bairro?: string | null
+          cep?: string | null
+          cidade?: string | null
+          complemento?: string | null
+          created_at?: string
+          email?: string | null
+          funcionario_id: string
+          logradouro?: string | null
+          numero?: string | null
+          telefone?: string | null
+          uf?: string | null
+          uniforme?: Json | null
+          updated_at?: string
+          vt_cartao?: string | null
+          vt_cartao_outro?: string | null
+          vt_linhas?: Json | null
+          vt_utiliza?: boolean | null
+        }
+        Update: {
+          bairro?: string | null
+          cep?: string | null
+          cidade?: string | null
+          complemento?: string | null
+          created_at?: string
+          email?: string | null
+          funcionario_id?: string
+          logradouro?: string | null
+          numero?: string | null
+          telefone?: string | null
+          uf?: string | null
+          uniforme?: Json | null
+          updated_at?: string
+          vt_cartao?: string | null
+          vt_cartao_outro?: string | null
+          vt_linhas?: Json | null
+          vt_utiliza?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funcionarios_dados_pessoais_funcionario_id_fkey"
+            columns: ["funcionario_id"]
+            isOneToOne: true
+            referencedRelation: "funcionarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       funcoes: {
         Row: {
           ativo: boolean | null
@@ -1461,6 +1580,9 @@ export type Database = {
           periculosidade_perc: number | null
           periculosidade_valor: number | null
           salario_base: number | null
+          cbo: string | null
+          setor: string | null
+          sindicato: string | null
           updated_at: string | null
         }
         Insert: {
@@ -1473,6 +1595,9 @@ export type Database = {
           periculosidade_perc?: number | null
           periculosidade_valor?: number | null
           salario_base?: number | null
+          cbo?: string | null
+          setor?: string | null
+          sindicato?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -1485,6 +1610,9 @@ export type Database = {
           periculosidade_perc?: number | null
           periculosidade_valor?: number | null
           salario_base?: number | null
+          cbo?: string | null
+          setor?: string | null
+          sindicato?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -1907,6 +2035,7 @@ export type Database = {
       perfis: {
         Row: {
           ativo: boolean | null
+          centro_custo: string | null
           created_at: string | null
           email: string | null
           id: string
@@ -1915,6 +2044,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean | null
+          centro_custo?: string | null
           created_at?: string | null
           email?: string | null
           id: string
@@ -1923,6 +2053,7 @@ export type Database = {
         }
         Update: {
           ativo?: boolean | null
+          centro_custo?: string | null
           created_at?: string | null
           email?: string | null
           id?: string

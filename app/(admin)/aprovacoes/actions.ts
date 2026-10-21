@@ -14,6 +14,7 @@ import { FUNCAO_JOVEM_APRENDIZ, precisaNovoTurno } from '@/lib/turnos/escala'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { removerFaltasCobertas } from '@/lib/faltas-conflito'
 import { existeAfastamentoAberto, fecharAfastamentosVencidos, fecharAfastamentosNoDesligamento } from '@/lib/afastamentos'
+import { gravarDadosPessoaisDaAdmissao } from '@/lib/admissao/persistir'
 
 async function nomeSupervisorDoPosto(postoId: string | null): Promise<string | null> {
   if (!postoId) return null
@@ -609,6 +610,13 @@ export async function aprovarSolicitacao(
         .from('funcionarios')
         .update({ criado_via: 'solicitacao_admissao' } as unknown as { status: 'ativo' })
         .eq('id', novoFunc.id)
+
+      // Admissão pelo assistente: CPF e dados pessoais passam para o cadastro. Falha aqui não desfaz a
+      // admissão (o funcionário já existe e retentar duplicaria); o dossiê segue em solicitacoes.dados_depois.
+      if (dadosDepois.dossie) {
+        const erroDados = await gravarDadosPessoaisDaAdmissao(adminSupabase, novoFunc.id, dadosDepois.dossie)
+        if (erroDados) console.error('[aprovarSolicitacao] dados pessoais da admissão', id, erroDados)
+      }
 
       await supabase.from('movimentacoes').insert({
         funcionario_id: novoFunc.id,
