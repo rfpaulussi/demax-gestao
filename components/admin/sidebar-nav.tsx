@@ -35,6 +35,7 @@ import {
   FileCheck2,
   CalendarRange,
   FileSpreadsheet,
+  UserPlus,
   ChevronDown,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetClose } from '@/components/ui/sheet'
@@ -49,6 +50,7 @@ const ICONS: Record<string, React.ElementType> = {
   '/dashboard':     LayoutDashboard,
   '/efetivo':       Users,
   '/postos':        Building2,
+  '/admissao':      UserPlus,
   '/aprovacoes':    ClipboardCheck,
   '/movimentacoes': FileCheck2,
   '/coberturas':    Repeat2,
