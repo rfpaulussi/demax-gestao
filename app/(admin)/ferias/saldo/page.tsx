@@ -1,5 +1,8 @@
 import Link from 'next/link'
-import { buscarSaldoFeriasAgregado } from '../actions'
+import { buscarSaldoFeriasAgregado, buscarUltimaListagemRh } from '../actions'
+import { getUser } from '@/lib/auth/get-user'
+import { SituacaoBadge } from '@/components/ferias/situacao-badge'
+import { AvisoLimiteFerias } from '@/components/ferias/aviso-limite-ferias'
 import { SaldoExcelButton } from '@/components/ferias/saldo-excel-button'
 
 function formatDate(str: string | null): string {
@@ -15,7 +18,8 @@ function diasParaVencer(limite: string | null): number | null {
 }
 
 export default async function SaldoFeriasPage() {
-  const saldos = await buscarSaldoFeriasAgregado()
+  const [saldos, ultimaListagem, auth] = await Promise.all([buscarSaldoFeriasAgregado(), buscarUltimaListagemRh(), getUser()])
+  const mostrarAviso = !!auth && ['admin', 'coordenador', 'supervisor'].includes(auth.perfil.role ?? '')
 
   const totalFuncionarios = saldos.length
   const totalDias         = saldos.reduce((s, i) => s + i.total_dias, 0)
@@ -45,6 +49,8 @@ export default async function SaldoFeriasPage() {
         </div>
       </div>
 
+      {mostrarAviso && <AvisoLimiteFerias ultimaListagem={ultimaListagem} />}
+
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 border-t-4 border-t-blue-500">
@@ -72,6 +78,7 @@ export default async function SaldoFeriasPage() {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-slate-500">Funcionário</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-slate-500">Situação</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-slate-500">Posto</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-slate-500">Secretaria</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-slate-500">Supervisor</th>
@@ -84,7 +91,7 @@ export default async function SaldoFeriasPage() {
             <tbody className="divide-y divide-slate-100">
               {saldos.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
+                  <td colSpan={9} className="px-4 py-10 text-center text-slate-400">
                     Nenhum funcionário com saldo de férias pendente
                   </td>
                 </tr>
@@ -105,6 +112,7 @@ export default async function SaldoFeriasPage() {
                         <div className="font-medium text-slate-900">{item.funcionario_nome}</div>
                         <div className="text-xs text-slate-400">{item.funcionario_registro}</div>
                       </td>
+                      <td className="px-4 py-3"><SituacaoBadge status={item.funcionario_status} /></td>
                       <td className="px-4 py-3 text-slate-600">{item.posto_nome}</td>
                       <td className="px-4 py-3 text-slate-600">{item.secretaria}</td>
                       <td className="px-4 py-3 text-slate-600">{item.supervisor_nome}</td>

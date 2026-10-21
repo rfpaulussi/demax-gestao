@@ -26,6 +26,9 @@ export type FeriasListaItem = {
   limite_gozo: string | null
   dias_direito: number | null
   dias_abono: number
+  dias_falta: number | null
+  dias_afastado: number | null
+  obs_rh: string | null
   data_inicio: string | null
   data_fim: string | null
   dias_utilizados: number | null
@@ -242,6 +245,9 @@ export async function buscarFeriasLista(): Promise<FeriasListaItem[]> {
       limite_gozo,
       dias_direito,
       dias_abono,
+      dias_falta,
+      dias_afastado,
+      obs_rh,
       data_inicio,
       data_fim,
       dias_utilizados,
@@ -317,6 +323,9 @@ export async function buscarFeriasLista(): Promise<FeriasListaItem[]> {
       limite_gozo: limiteGozo,
       dias_direito: diasDireitoEfetivo(r),
       dias_abono: r.dias_abono ?? 0,
+      dias_falta: r.dias_falta ?? null,
+      dias_afastado: r.dias_afastado ?? null,
+      obs_rh: r.obs_rh ?? null,
       data_inicio: r.data_inicio,
       data_fim: r.data_fim,
       dias_utilizados: r.dias_utilizados,
@@ -585,6 +594,7 @@ export type SaldoFeriasItem = {
   funcionario_id: string
   funcionario_nome: string
   funcionario_registro: string
+  funcionario_status: string | null
   posto_nome: string
   secretaria: string
   supervisor_nome: string
@@ -601,7 +611,7 @@ export async function buscarSaldoFeriasAgregado(): Promise<SaldoFeriasItem[]> {
     .from('ferias')
     .select(`
       id, funcionario_id, numero_periodo, periodo_inicio, periodo_fim, dias_direito, dias_abono, limite_gozo, status,
-      funcionarios ( nome, registro, postos ( id, nome, secretaria ) )
+      funcionarios ( nome, registro, status, postos ( id, nome, secretaria ) )
     `)
     .in('status', ['disponivel', 'agendado', 'aprovado'])
 
@@ -656,6 +666,7 @@ export async function buscarSaldoFeriasAgregado(): Promise<SaldoFeriasItem[]> {
       funcionario_id:       fid,
       funcionario_nome:     func?.nome       ?? '—',
       funcionario_registro: func?.registro   ?? '—',
+      funcionario_status:   func?.status     ?? null,
       posto_nome:           posto?.nome      ?? '—',
       secretaria:           posto?.secretaria ?? '—',
       supervisor_nome:      mapaPostoSup.get(postoId) ?? '—',
@@ -672,6 +683,19 @@ export async function buscarSaldoFeriasAgregado(): Promise<SaldoFeriasItem[]> {
     if (a.tem_vencido !== b.tem_vencido) return a.tem_vencido ? -1 : 1
     return b.total_dias - a.total_dias
   })
+}
+
+/** Data (YYYY-MM-DD) da última listagem do RH carregada; null se nunca houve. */
+export async function buscarUltimaListagemRh(): Promise<string | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('ferias')
+    .select('rh_atualizado_em')
+    .not('rh_atualizado_em', 'is', null)
+    .order('rh_atualizado_em', { ascending: false })
+    .limit(1)
+  if (error) return null
+  return data?.[0]?.rh_atualizado_em ?? null
 }
 
 export async function buscarRoleAtual(): Promise<string | null> {

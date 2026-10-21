@@ -3,6 +3,7 @@
 import { FileSpreadsheet } from 'lucide-react'
 import { exportToExcel } from '@/lib/export-excel'
 import type { SaldoFeriasItem } from '@/app/(admin)/ferias/actions'
+import { situacaoLabel } from '@/components/ferias/situacao-badge'
 
 function formatDate(str: string | null): string {
   if (!str) return '—'
@@ -19,6 +20,7 @@ export function SaldoExcelButton({ dados }: { dados: SaldoFeriasItem[] }) {
           [
             { label: 'Registro',          value: r => r.funcionario_registro,                      asText: true },
             { label: 'Funcionário',        value: r => r.funcionario_nome },
+            { label: 'Situação',           value: r => situacaoLabel(r.funcionario_status) },
             { label: 'Posto',              value: r => r.posto_nome },
             { label: 'Secretaria',         value: r => r.secretaria },
             { label: 'Supervisor',         value: r => r.supervisor_nome },

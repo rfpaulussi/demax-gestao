@@ -1266,6 +1266,8 @@ export type Database = {
           criado_por: string | null
           data_fim: string | null
           data_inicio: string | null
+          dias_afastado: number | null
+          dias_falta: number | null
           dias_direito: number | null
           dias_abono: number
           dias_utilizados: number | null
@@ -1273,8 +1275,10 @@ export type Database = {
           id: string
           limite_gozo: string | null
           numero_periodo: number | null
+          obs_rh: string | null
           observacao: string | null
           pdf_url: string | null
+          rh_atualizado_em: string | null
           periodo_fim: string | null
           periodo_inicio: string | null
           status: string | null
@@ -1287,6 +1291,8 @@ export type Database = {
           criado_por?: string | null
           data_fim?: string | null
           data_inicio?: string | null
+          dias_afastado?: number | null
+          dias_falta?: number | null
           dias_direito?: number | null
           dias_abono?: number
           dias_utilizados?: number | null
@@ -1294,8 +1300,10 @@ export type Database = {
           id?: string
           limite_gozo?: string | null
           numero_periodo?: number | null
+          obs_rh?: string | null
           observacao?: string | null
           pdf_url?: string | null
+          rh_atualizado_em?: string | null
           periodo_fim?: string | null
           periodo_inicio?: string | null
           status?: string | null
@@ -1308,6 +1316,8 @@ export type Database = {
           criado_por?: string | null
           data_fim?: string | null
           data_inicio?: string | null
+          dias_afastado?: number | null
+          dias_falta?: number | null
           dias_direito?: number | null
           dias_abono?: number
           dias_utilizados?: number | null
@@ -1315,8 +1325,10 @@ export type Database = {
           id?: string
           limite_gozo?: string | null
           numero_periodo?: number | null
+          obs_rh?: string | null
           observacao?: string | null
           pdf_url?: string | null
+          rh_atualizado_em?: string | null
           periodo_fim?: string | null
           periodo_inicio?: string | null
           status?: string | null
@@ -1341,6 +1353,7 @@ export type Database = {
       }
       funcionarios: {
         Row: {
+          centro_custo: string | null
           cpf: string | null
           created_at: string | null
           data_admissao: string | null
@@ -1367,6 +1380,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          centro_custo?: string | null
           cpf?: string | null
           created_at?: string | null
           data_admissao?: string | null
@@ -1393,6 +1407,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          centro_custo?: string | null
           cpf?: string | null
           created_at?: string | null
           data_admissao?: string | null

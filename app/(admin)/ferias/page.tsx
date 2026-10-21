@@ -10,10 +10,13 @@ import { ModalImportarHistoricoFerias } from '@/components/ferias/modal-importar
 import { ModalEditarFerias } from '@/components/ferias/modal-editar-ferias'
 import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dialog'
 import { exportToExcel } from '@/lib/export-excel'
+import { SituacaoBadge, SITUACAO_OPCOES, situacaoLabel } from '@/components/ferias/situacao-badge'
+import { AvisoLimiteFerias } from '@/components/ferias/aviso-limite-ferias'
 import {
   buscarFeriasLista,
   buscarSupervisoresParaFiltro,
   buscarRoleAtual,
+  buscarUltimaListagemRh,
   iniciarFerias,
   concluirFerias,
   excluirFerias,
@@ -360,12 +363,14 @@ function FeriasPageInner() {
   const [modalHistoricoAberto, setModalHistoricoAberto] = useState(false)
   const [avisoSupervisorAberto, setAvisoSupervisorAberto] = useState(false)
   const [role, setRole] = useState<string | null>(null)
+  const [ultimaListagemRh, setUltimaListagemRh] = useState<string | null>(null)
   const [itemEditando, setItemEditando] = useState<FeriasListaItem | null>(null)
   const [itemExcluindo, setItemExcluindo] = useState<FeriasListaItem | null>(null)
   const [filtroBusca, setFiltroBusca] = useState(searchParams.get('busca') ?? '')
 
   // Filtros
   const [filtroStatus, setFiltroStatus] = useState('todos')
+  const [filtroSituacao, setFiltroSituacao] = useState('todas')
   const [filtroSecretaria, setFiltroSecretaria] = useState('todas')
   const [filtroSupervisor, setFiltroSupervisor] = useState('todos')
   const [filtroVencimento, setFiltroVencimento] = useState('todos')
@@ -387,6 +392,7 @@ function FeriasPageInner() {
       }
     )
     buscarRoleAtual().then(setRole)
+    buscarUltimaListagemRh().then(setUltimaListagemRh)
   }, [])
 
   // Secretarias únicas
@@ -418,6 +424,7 @@ function FeriasPageInner() {
     }
 
     if (filtroStatus !== 'todos') list = list.filter(f => f.status === filtroStatus)
+    if (filtroSituacao !== 'todas') list = list.filter(f => f.funcionario_status === filtroSituacao)
     if (filtroSecretaria !== 'todas') list = list.filter(f => f.secretaria === filtroSecretaria)
     if (filtroSupervisor !== 'todos') list = list.filter(f => f.supervisor_nome === filtroSupervisor)
     if (filtroPosto.trim()) list = list.filter(f => nfd(f.posto_nome).includes(nfd(filtroPosto.trim())))
@@ -444,10 +451,10 @@ function FeriasPageInner() {
     })
 
     return list
-  }, [ferias, filtroBusca, filtroStatus, filtroSecretaria, filtroSupervisor, filtroVencimento, filtroPosto, sortKey, sortAsc])
+  }, [ferias, filtroBusca, filtroStatus, filtroSituacao, filtroSecretaria, filtroSupervisor, filtroVencimento, filtroPosto, sortKey, sortAsc])
 
   // Reinicia paginação ao filtrar ou ordenar
-  useEffect(() => { setVisibleCount(100) }, [filtroBusca, filtroStatus, filtroSecretaria, filtroSupervisor, filtroVencimento, filtroPosto, sortKey, sortAsc])
+  useEffect(() => { setVisibleCount(100) }, [filtroBusca, filtroStatus, filtroSituacao, filtroSecretaria, filtroSupervisor, filtroVencimento, filtroPosto, sortKey, sortAsc])
 
   const visibleRows = filtered.slice(0, visibleCount)
 
@@ -462,6 +469,7 @@ function FeriasPageInner() {
       [
         { label: 'Registro', value: r => r.funcionario_registro, asText: true },
         { label: 'Funcionário', value: r => r.funcionario_nome },
+        { label: 'Situação', value: r => situacaoLabel(r.funcionario_status) },
         { label: 'Posto', value: r => r.posto_nome },
         { label: 'Secretaria', value: r => r.secretaria },
         { label: 'Supervisor', value: r => r.supervisor_nome },
@@ -470,6 +478,9 @@ function FeriasPageInner() {
         { label: 'Limite Gozo', value: r => formatDate(r.limite_gozo), asText: true },
         { label: 'Dias', value: r => r.dias_direito ?? 0 },
         { label: 'Dias vendidos', value: r => r.dias_abono },
+        { label: 'Faltas (RH)', value: r => r.dias_falta },
+        { label: 'Afastado (RH)', value: r => r.dias_afastado },
+        { label: 'Obs. RH', value: r => r.obs_rh },
         { label: 'Início', value: r => formatDate(r.data_inicio), asText: true },
         { label: 'Fim', value: r => formatDate(r.data_fim), asText: true },
         { label: 'Status', value: r => r.status },
@@ -585,6 +596,11 @@ function FeriasPageInner() {
         </div>
       )}
 
+      {/* Aviso do critério de limite (admin, coordenador e supervisor) */}
+      {role && ['admin', 'coordenador', 'supervisor'].includes(role) && (
+        <AvisoLimiteFerias ultimaListagem={ultimaListagemRh} />
+      )}
+
       {/* Guia de uso */}
       <GuiaUso />
 
@@ -611,6 +627,16 @@ function FeriasPageInner() {
           <option value="em_curso">Em Curso</option>
           <option value="concluido">Concluído</option>
           <option value="cancelado">Cancelado</option>
+        </select>
+
+        {/* Situação do funcionário */}
+        <select
+          value={filtroSituacao}
+          onChange={e => setFiltroSituacao(e.target.value)}
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-slate-300 sm:w-auto"
+        >
+          <option value="todas">Todas as situações</option>
+          {SITUACAO_OPCOES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
 
         {/* Secretaria */}
@@ -703,10 +729,7 @@ function FeriasPageInner() {
                       <div className="text-xs text-slate-400">{item.funcionario_registro}</div>
                     </td>
                     <td className="px-3 py-3">
-                      {item.funcionario_status === 'ativo'    && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Ativo</span>}
-                      {item.funcionario_status === 'afastado' && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Afastado</span>}
-                      {item.funcionario_status === 'atestado' && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Atestado</span>}
-                      {item.funcionario_status === 'inativo'  && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">Inativo</span>}
+                      <SituacaoBadge status={item.funcionario_status} />
                     </td>
                     <td className="px-3 py-3 text-slate-600">{item.posto_nome}</td>
                     <td className="px-3 py-3 text-slate-600">{item.secretaria}</td>
@@ -718,6 +741,13 @@ function FeriasPageInner() {
                         : '—'}
                     </td>
                     <td className="px-3 py-3 text-center font-medium text-slate-700">{item.dias_direito ?? '—'}
+                      {((item.dias_falta ?? 0) > 0 || (item.dias_afastado ?? 0) > 0) && (
+                        <span className="block text-[10px] text-slate-400" title="Dados da listagem do RH">
+                          {(item.dias_falta ?? 0) > 0 && `${item.dias_falta} falta(s)`}
+                          {(item.dias_falta ?? 0) > 0 && (item.dias_afastado ?? 0) > 0 && ' · '}
+                          {(item.dias_afastado ?? 0) > 0 && `${item.dias_afastado}d afast.`}
+                        </span>
+                      )}
                       {item.dias_abono > 0 && (
                         <span className="block text-[10px] font-semibold text-amber-700" title={`${item.dias_abono} dias vendidos (abono). Gozo: ${(item.dias_direito ?? 30) - item.dias_abono} dias`}>
                           −{item.dias_abono} vendidos
