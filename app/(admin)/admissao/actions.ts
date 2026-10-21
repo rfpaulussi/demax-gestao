@@ -171,8 +171,10 @@ async function postosDoSupervisor(userId: string): Promise<string[]> {
 
 /**
  * Desligados que o supervisor pode indicar como substituídos — só de postos dele (o do funcionário a admitir primeiro).
+ * Quem ficou sem posto no cadastro entra pelo posto de origem (ou pelo supervisor da admissão) guardado no histórico
+ * (ver `origemDosDesligados`).
  * Sem filtro: últimos 60 dias. `mes` (AAAA-MM) mostra só quem saiu naquele mês. Com busca por nome (3+ letras) a lista
- * ignora o mês e olha os últimos 24 meses. Admin client com filtro explícito de postos: o RLS do supervisor não enxerga desligados.
+ * ignora o mês e olha os últimos 6 meses (limite da reposição). Admin client com filtro explícito de postos: o RLS do supervisor não enxerga desligados.
  */
 export async function buscarSubstituiveis(postoId: string, termo: string, mes?: string): Promise<Resultado<{ itens: Substituivel[] }>> {
   const g = await exigirSupervisor()
@@ -186,7 +188,7 @@ export async function buscarSubstituiveis(postoId: string, termo: string, mes?: 
   let desde: string
   let ate: string | null = null
   if (t.length >= 3) {
-    desde = new Date(hoje.getTime() - 730 * 86_400_000).toISOString().slice(0, 10)
+    desde = new Date(hoje.getTime() - 183 * 86_400_000).toISOString().slice(0, 10)
   } else if (mes && /^\d{4}-\d{2}$/.test(mes)) {
     const [ano, m] = mes.split('-').map(Number)
     desde = `${mes}-01`
@@ -206,10 +208,50 @@ export async function buscarSubstituiveis(postoId: string, termo: string, mes?: 
   if (ate) q = q.lte('data_desligamento', ate)
   if (t.length >= 3) q = q.ilike('nome', `%${t.replace(/[%_\\]/g, ch => `\\${ch}`)}%`)
 
-  const { data, error } = await q
+  // Desligados antigos ficaram com o posto vazio no cadastro; o posto em que estavam fica no histórico.
+  let qSem = createAdminClient()
+    .from('funcionarios')
+    .select('id, nome, data_desligamento, tipo_desligamento, motivo_desligamento')
+    .eq('status', 'desligado')
+    .is('posto_id', null)
+    .gte('data_desligamento', desde)
+    .order('data_desligamento', { ascending: false })
+    .limit(300)
+  if (ate) qSem = qSem.lte('data_desligamento', ate)
+  if (t.length >= 3) qSem = qSem.ilike('nome', `%${t.replace(/[%_\\]/g, ch => `\\${ch}`)}%`)
+
+  const [{ data, error }, { data: semPosto }] = await Promise.all([q, qSem])
   if (error) return { success: false, error: error.message }
 
-  const itens = (data ?? []).map((row): Substituivel => {
+  const origem = await origemDosDesligados((semPosto ?? []).map(f => f.id))
+  const meuNome = (g.auth.perfil.nome ?? '').trim().toUpperCase()
+  const antigos = (semPosto ?? []).filter(f => {
+    const p = origem.postos.get(f.id)
+    if (p) return meusPostos.includes(p)
+    // Sem posto no histórico: vale o supervisor que fez a admissão (registro antigo, anterior ao sistema).
+    return !!meuNome && origem.supervisores.get(f.id)?.trim().toUpperCase() === meuNome
+  })
+  const nomesPostos = new Map<string, string>()
+  const idsPostos = Array.from(new Set(antigos.map(f => origem.postos.get(f.id)).filter((p): p is string => !!p)))
+  if (idsPostos.length > 0) {
+    const { data: ps } = await createAdminClient().from('postos').select('id, nome').in('id', idsPostos)
+    for (const p of ps ?? []) nomesPostos.set(p.id, p.nome)
+  }
+
+  const itensAntigos = antigos.map((f): Substituivel => {
+    const posto = origem.postos.get(f.id) ?? null
+    return {
+      id: f.id,
+      nome: f.nome,
+      posto_nome: posto ? nomesPostos.get(posto) ?? null : null,
+      mesmo_posto: !!postoId && posto === postoId,
+      data_desligamento: f.data_desligamento,
+      tipo_desligamento: f.tipo_desligamento,
+      motivo_desligamento: f.motivo_desligamento,
+    }
+  })
+
+  const itensComPosto = (data ?? []).map((row): Substituivel => {
     const f = row as unknown as {
       id: string; nome: string; posto_id: string | null; data_desligamento: string | null
       tipo_desligamento: string | null; motivo_desligamento: string | null; postos: { nome: string } | null
@@ -224,9 +266,71 @@ export async function buscarSubstituiveis(postoId: string, termo: string, mes?: 
       motivo_desligamento: f.motivo_desligamento,
     }
   })
-  // Mesmo posto primeiro; dentro de cada grupo mantém a ordem (mais recente primeiro).
-  itens.sort((a, b) => Number(b.mesmo_posto) - Number(a.mesmo_posto))
+  // Mesmo posto primeiro; dentro de cada grupo, mais recente primeiro.
+  const itens = [...itensComPosto, ...itensAntigos]
+  itens.sort((a, b) =>
+    Number(b.mesmo_posto) - Number(a.mesmo_posto)
+    || (b.data_desligamento ?? '').localeCompare(a.data_desligamento ?? ''))
   return { success: true, itens: itens.slice(0, 40) }
+}
+
+/**
+ * De onde veio cada desligado que ficou sem posto no cadastro.
+ * `postos`: último `mudanca_posto` do histórico que zerou o posto; na falta dele, o posto da solicitação de desligamento.
+ * `supervisores`: para quem não tem posto em nenhum dos dois, o supervisor registrado no histórico de admissão.
+ */
+async function origemDosDesligados(funcionarioIds: string[]): Promise<{ postos: Map<string, string>; supervisores: Map<string, string> }> {
+  const mapa = new Map<string, string>()
+  const supervisores = new Map<string, string>()
+  if (funcionarioIds.length === 0) return { postos: mapa, supervisores }
+  const admin = createAdminClient()
+  const postoDe = (j: unknown): string | null => {
+    const v = (j as { posto_id?: string | null } | null)?.posto_id
+    return typeof v === 'string' ? v : null
+  }
+
+  const { data: hist } = await admin
+    .from('historico_funcionarios')
+    .select('funcionario_id, dados_anteriores, dados_novos')
+    .in('funcionario_id', funcionarioIds)
+    .eq('tipo', 'mudanca_posto')
+    .order('created_at', { ascending: false })
+    .limit(1000)
+  for (const h of hist ?? []) {
+    const anterior = postoDe(h.dados_anteriores)
+    if (!mapa.has(h.funcionario_id) && anterior && postoDe(h.dados_novos) === null) mapa.set(h.funcionario_id, anterior)
+  }
+
+  const faltam = funcionarioIds.filter(id => !mapa.has(id))
+  if (faltam.length > 0) {
+    const { data: sols } = await admin
+      .from('solicitacoes')
+      .select('funcionario_id, dados_antes')
+      .in('funcionario_id', faltam)
+      .eq('tipo', 'desligamento')
+      .order('created_at', { ascending: false })
+      .limit(1000)
+    for (const s of sols ?? []) {
+      const anterior = postoDe(s.dados_antes)
+      if (s.funcionario_id && !mapa.has(s.funcionario_id) && anterior) mapa.set(s.funcionario_id, anterior)
+    }
+  }
+
+  const semOrigem = funcionarioIds.filter(id => !mapa.has(id))
+  if (semOrigem.length > 0) {
+    const { data: adm } = await admin
+      .from('historico_funcionarios')
+      .select('funcionario_id, dados_novos')
+      .in('funcionario_id', semOrigem)
+      .eq('tipo', 'admissao')
+      .order('created_at', { ascending: false })
+      .limit(1000)
+    for (const a of adm ?? []) {
+      const sup = (a.dados_novos as { supervisor?: unknown } | null)?.supervisor
+      if (typeof sup === 'string' && sup && !supervisores.has(a.funcionario_id)) supervisores.set(a.funcionario_id, sup)
+    }
+  }
+  return { postos: mapa, supervisores }
 }
 
 // ─── Linhas de transporte ─────────────────────────────────────────────────────

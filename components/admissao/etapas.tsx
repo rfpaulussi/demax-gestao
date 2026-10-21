@@ -113,10 +113,10 @@ function descricaoSaida(tipo: string | null, motivo: string | null): string {
   return [t ? curto(t.label) : tipo, m ? curto(m.label) : motivo].filter(Boolean).join(' — ')
 }
 
-/** Mês atual e os 11 anteriores, para o filtro "mês da saída". */
+/** Mês atual e os 5 anteriores (reposição olha no máximo 6 meses), para o filtro "mês da saída". */
 function opcoesMeses(): { valor: string; rotulo: string }[] {
   const hoje = new Date()
-  return Array.from({ length: 12 }, (_, i) => {
+  return Array.from({ length: 6 }, (_, i) => {
     const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1)
     const valor = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
     const nome = d.toLocaleDateString('pt-BR', { month: 'long' })
@@ -424,8 +424,8 @@ function Substituido({ d, definir }: { d: DossieAdmissao; definir: Definir }) {
             </div>
             <p className="text-xs text-amber-700">
               {termo.trim().length >= 3
-                ? 'Buscando pelo nome nos últimos 24 meses, ignorando o mês.'
-                : 'Só aparecem desligados dos seus postos. Escolha o mês da saída ou digite o nome para achar os mais antigos.'}
+                ? 'Buscando pelo nome nos últimos 6 meses, ignorando o mês.'
+                : 'Só aparecem desligados dos seus postos nos últimos 6 meses. Escolha o mês da saída ou digite o nome.'}
             </p>
             {erro && <p className="text-xs text-red-600">{erro}</p>}
             <ul className="max-h-56 divide-y divide-amber-100 overflow-y-auto rounded-lg border border-amber-100 bg-white text-sm">
@@ -438,7 +438,7 @@ function Substituido({ d, definir }: { d: DossieAdmissao; definir: Definir }) {
                   <button type="button" onClick={() => escolher(s)} className="flex w-full flex-col px-3 py-2.5 text-left hover:bg-amber-50">
                     <span className="font-medium text-slate-800">{s.nome}</span>
                     <span className="text-xs text-slate-500">
-                      {s.posto_nome ?? 'sem posto'}
+                      {s.posto_nome ?? 'posto não identificado'}
                       {s.mesmo_posto && <span className="ml-1.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">mesmo posto</span>}
                       {' '}· saiu em {fmtData(s.data_desligamento)}
                     </span>
