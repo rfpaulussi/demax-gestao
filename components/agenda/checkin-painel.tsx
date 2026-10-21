@@ -71,8 +71,15 @@ const JANELA_BOA_MS = 12000 // aos 12 s aceita a leitura se já estiver razoáve
 const JANELA_MAX_MS = 25000 // limite: o satélite pode levar até ~25 s para fixar a 1ª vez
 const PRECISAO_APROXIMADA_M = 1000 // acima disso é localização aproximada (rede/torre), inútil para provar presença
 
-const MSG_LOCALIZACAO_APROXIMADA =
-  'O celular entregou só a localização aproximada (erro de vários metros a quilômetros). Libere a localização PRECISA: toque no cadeado ao lado do endereço → Permissões → Localização → "Usar localização precisa" (ou redefina a permissão e escolha "Precisa" ao perguntar). Confira também Configurações do Android → Localização ligada e, se houver, "Precisão de localização do Google". Depois tente de novo, de preferência ao ar livre.'
+function msgLocalizacaoAproximada(precisaoM: number): string {
+  return `GPS com erro de cerca de ${formatarDistancia(precisaoM)}: o celular entregou só a localização aproximada. Ative a precisa: cadeado ao lado do endereço → Permissões → Localização → "Usar localização precisa". Em local fechado, vá para uma área aberta e tente de novo.`
+}
+
+/** Erro de leitura imprecisa que carrega a leitura, para o supervisor poder registrar mesmo assim. */
+type ErroAproximada = Error & { coords: Coords }
+function ehErroAproximada(e: unknown): e is ErroAproximada {
+  return e instanceof Error && 'coords' in e
+}
 
 /**
  * Lê o GPS acompanhando por até ~25 s e fica com a leitura mais precisa. A primeira leitura do Android
@@ -97,8 +104,11 @@ function lerPosicao(): Promise<Coords> {
     const concluir = () => {
       if (encerrado || !melhor) return
       encerrar()
-      if (melhor.coords.accuracy > PRECISAO_APROXIMADA_M) return reject(new Error(MSG_LOCALIZACAO_APROXIMADA))
-      resolve({ lat: melhor.coords.latitude, lng: melhor.coords.longitude, precisao: melhor.coords.accuracy ?? null })
+      const coords: Coords = { lat: melhor.coords.latitude, lng: melhor.coords.longitude, precisao: melhor.coords.accuracy ?? null }
+      if (melhor.coords.accuracy > PRECISAO_APROXIMADA_M) {
+        return reject(Object.assign(new Error(msgLocalizacaoAproximada(melhor.coords.accuracy)), { coords }))
+      }
+      resolve(coords)
     }
     watchId = navigator.geolocation.watchPosition(
       p => {
@@ -181,6 +191,7 @@ export function CheckinPainel({
   const [erro, setErro] = useState<{ postoId: string; texto: string } | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [pend, setPend] = useState<Pendente | null>(null)
+  const [aprox, setAprox] = useState<{ postoId: string; tipo: 'entrada' | 'saida'; coords: Coords; texto: string } | null>(null)
   const [just, setJust] = useState('')
   const [pendLocal, setPendLocal] = useState<{ postoId: string; coords: Coords; distancia: number } | null>(null)
   const [justLocal, setJustLocal] = useState('')
@@ -460,6 +471,7 @@ export function CheckinPainel({
   async function acionar(postoId: string, tipo: 'entrada' | 'saida', coordsPrev?: Coords, justificativa?: string) {
     setErro(null)
     setAviso(null)
+    setAprox(null)
     setBusy(postoId)
     try {
       const coords = coordsPrev ?? (await lerPosicao())
@@ -500,7 +512,8 @@ export function CheckinPainel({
         setErro({ postoId, texto: r.erro })
       }
     } catch (e) {
-      setErro({ postoId, texto: falhaDeRede(e) })
+      if (ehErroAproximada(e)) setAprox({ postoId, tipo, coords: e.coords, texto: e.message })
+      else setErro({ postoId, texto: falhaDeRede(e) })
     } finally {
       setBusy(null)
     }
@@ -624,6 +637,27 @@ export function CheckinPainel({
                 📍 O ponto cadastrado deste posto está errado? Estou no posto — marcar o local exato aqui
               </button>
             )}
+          </div>
+        )}
+
+        {aprox?.postoId === posto.id && (
+          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
+            <p className="mb-2 flex items-start gap-1.5 text-xs font-medium text-red-700">
+              <MapPinOff className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {aprox.texto}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" disabled={!!busy} onClick={() => acionar(posto.id, aprox.tipo)}
+                className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50">
+                Tentar de novo
+              </button>
+              <button type="button" disabled={!!busy} onClick={() => acionar(posto.id, aprox.tipo, aprox.coords)}
+                className="rounded-lg bg-amber-500 px-4 py-1.5 text-sm font-semibold text-slate-900 hover:bg-amber-400 disabled:opacity-50">
+                Registrar mesmo assim
+              </button>
+              <button type="button" onClick={() => setAprox(null)} className="rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-white">Cancelar</button>
+            </div>
+            <p className="mt-2 text-[11px] text-red-600">Registrar assim marca a visita como &quot;GPS impreciso&quot; e a coordenação confere.</p>
           </div>
         )}
 
