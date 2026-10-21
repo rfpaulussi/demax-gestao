@@ -10,6 +10,9 @@ const TEMAS = [
   '5. INFORMAÇÕES DE UTILIZAÇÃO DE APARELHOS CELULARES',
 ]
 
+/** Texto do contrato como no modelo do RH; o campo de contrato do cadastro traz só o número. */
+const CONTRATO_FIXO = 'MOGI DAS CRUZES - LIMPEZA PREDIAL - 706'
+
 /** Total de linhas da tabela, como no modelo do RH (a primeira já sai com o nome do admitido). */
 const LINHAS = 21
 
@@ -49,7 +52,7 @@ export function IntegracaoPage({ pacote, logo }: { pacote: PacoteAdmissao; logo?
           </View>
         </View>
 
-        <Text style={[negrito, { padding: 5, borderBottomWidth: 1, borderColor: COR_BORDA }]}>CONTRATO: {d.contrato}</Text>
+        <Text style={[negrito, { padding: 5, borderBottomWidth: 1, borderColor: COR_BORDA }]}>CONTRATO: {CONTRATO_FIXO}</Text>
 
         <View style={{ flexDirection: 'row', backgroundColor: '#e2e8f0', borderBottomWidth: 1, borderColor: COR_BORDA }}>
           <Text style={[negrito, { flex: 1, padding: 5, textAlign: 'center', borderRightWidth: 1, borderColor: COR_BORDA }]}>Nome</Text>
