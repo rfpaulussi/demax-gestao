@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, Camera, CheckCircle2, Clock, LogIn, LogOut, MapPinOff, Navigation, RefreshCw, ShieldCheck } from 'lucide-react'
-import { formatarDistancia } from '@/lib/agenda/geo'
+import { formatarDistancia, PRECISAO_RUIM_M } from '@/lib/agenda/geo'
 import { diaMes } from '@/lib/agenda/datas'
 import { PERIODOS } from '@/lib/agenda/tema'
 import { anexarFotoCheckin, marcarLocalPosto, registrarCheckin } from '@/app/(admin)/agenda/geo-actions'
@@ -67,11 +67,17 @@ async function explicarLocalizacaoNegada(): Promise<string> {
 }
 
 const ALVO_PRECISAO_M = 40 // para de esperar quando o GPS chega nessa precisão
-const JANELA_GPS_MS = 12000 // tempo máximo esperando o GPS melhorar, se já houver alguma leitura
+const JANELA_BOA_MS = 12000 // aos 12 s aceita a leitura se já estiver razoável (até PRECISAO_RUIM_M)
+const JANELA_MAX_MS = 25000 // limite: o satélite pode levar até ~25 s para fixar a 1ª vez
+const PRECISAO_APROXIMADA_M = 1000 // acima disso é localização aproximada (rede/torre), inútil para provar presença
+
+const MSG_LOCALIZACAO_APROXIMADA =
+  'O celular entregou só a localização aproximada (erro de vários metros a quilômetros). Libere a localização PRECISA: toque no cadeado ao lado do endereço → Permissões → Localização → "Usar localização precisa" (ou redefina a permissão e escolha "Precisa" ao perguntar). Confira também Configurações do Android → Localização ligada e, se houver, "Precisão de localização do Google". Depois tente de novo, de preferência ao ar livre.'
 
 /**
- * Lê o GPS acompanhando por alguns segundos e fica com a leitura mais precisa. A primeira leitura do Android
+ * Lê o GPS acompanhando por até ~25 s e fica com a leitura mais precisa. A primeira leitura do Android
  * costuma vir por rede/torre (centenas de metros de erro); o satélite leva alguns segundos para fixar.
+ * Se terminar ainda com erro de quilômetros, a localização liberada é a aproximada: orienta a liberar a precisa.
  */
 function lerPosicao(): Promise<Coords> {
   return new Promise((resolve, reject) => {
@@ -80,15 +86,18 @@ function lerPosicao(): Promise<Coords> {
     let encerrado = false
     let watchId = 0
     let timer = 0
+    let timerBoa = 0
     let passouJanela = false
     const encerrar = () => {
       encerrado = true
       navigator.geolocation.clearWatch(watchId)
       window.clearTimeout(timer)
+      window.clearTimeout(timerBoa)
     }
     const concluir = () => {
       if (encerrado || !melhor) return
       encerrar()
+      if (melhor.coords.accuracy > PRECISAO_APROXIMADA_M) return reject(new Error(MSG_LOCALIZACAO_APROXIMADA))
       resolve({ lat: melhor.coords.latitude, lng: melhor.coords.longitude, precisao: melhor.coords.accuracy ?? null })
     }
     watchId = navigator.geolocation.watchPosition(
@@ -111,7 +120,10 @@ function lerPosicao(): Promise<Coords> {
       },
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
     )
-    timer = window.setTimeout(() => { passouJanela = true; concluir() }, JANELA_GPS_MS)
+    timerBoa = window.setTimeout(() => {
+      if (melhor && melhor.coords.accuracy <= PRECISAO_RUIM_M) concluir()
+    }, JANELA_BOA_MS)
+    timer = window.setTimeout(() => { passouJanela = true; concluir() }, JANELA_MAX_MS)
   })
 }
 
