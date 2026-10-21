@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getUser } from '@/lib/auth/get-user'
 import { listarTurnosDoPosto, listarTurnosJovemAprendiz } from '@/app/(admin)/efetivo/horario/actions'
 import { filtroPostoDaFuncao, funcaoAdmissivel, postoAceitaFuncao } from '@/lib/admissao/funcoes-posto'
+import { buscarEnderecoPorCep, type EnderecoCep } from '@/lib/admissao/cep'
 import { SINDICATO_PADRAO } from '@/lib/admissao/constantes'
 import { normalizarDossie } from '@/lib/admissao/normalizar'
 import { numeroBR } from '@/lib/admissao/vt'
@@ -133,21 +134,18 @@ export async function carregarSugestaoAdmissao(postoId: string, funcaoId: string
   return { success: true, sugestao: { contrato, centro_custo, funcao, jovemAprendiz: JOVEM_APRENDIZ(funcao?.nome) } }
 }
 
-/** ViaCEP é consultado pelo servidor porque a CSP do app não libera chamadas do navegador para fora. Só o CEP sai daqui. */
-export async function consultarCep(cep: string): Promise<Resultado<{ endereco: { logradouro: string; bairro: string; cidade: string; uf: string } }>> {
+/**
+ * O CEP é consultado pelo servidor porque a CSP do app não libera chamadas do navegador para fora.
+ * Só o CEP sai daqui. Usa ViaCEP e, se ele falhar, BrasilAPI (ver lib/admissao/cep.ts).
+ */
+export async function consultarCep(cep: string): Promise<Resultado<{ endereco: EnderecoCep }>> {
   const g = await exigirSupervisor()
   if (!g.ok) return { success: false, error: g.erro }
-  const digitos = cep.replace(/\D/g, '')
-  if (digitos.length !== 8) return { success: false, error: 'CEP inválido' }
-  try {
-    const resp = await fetch(`https://viacep.com.br/ws/${digitos}/json/`, { signal: AbortSignal.timeout(5000), cache: 'no-store' })
-    if (!resp.ok) return { success: false, error: 'Não foi possível consultar o CEP' }
-    const j = (await resp.json()) as { erro?: boolean; logradouro?: string; bairro?: string; localidade?: string; uf?: string }
-    if (j.erro) return { success: false, error: 'CEP não encontrado' }
-    return { success: true, endereco: { logradouro: j.logradouro ?? '', bairro: j.bairro ?? '', cidade: j.localidade ?? '', uf: j.uf ?? '' } }
-  } catch {
-    return { success: false, error: 'Não foi possível consultar o CEP' }
-  }
+  const r = await buscarEnderecoPorCep(cep)
+  if (r.ok) return { success: true, endereco: r.endereco }
+  if (r.motivo === 'invalido') return { success: false, error: 'CEP inválido' }
+  if (r.motivo === 'nao_encontrado') return { success: false, error: 'CEP não encontrado — confira os números ou digite o endereço' }
+  return { success: false, error: 'Não foi possível consultar o CEP agora — digite o endereço' }
 }
 
 // ─── Substituído ──────────────────────────────────────────────────────────────

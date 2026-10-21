@@ -126,25 +126,60 @@ function opcoesMeses(): { valor: string; rotulo: string }[] {
 
 // ─── 1. Pessoais ──────────────────────────────────────────────────────────────
 
-export function EtapaPessoais({ d, definir }: { d: DossieAdmissao; definir: Definir }) {
-  const [cepMsg, setCepMsg] = useState<string | null>(null)
-  const ultimoCep = useRef<string>('')
+type EstadoCep = 'parado' | 'buscando' | 'ok' | 'generico' | 'erro'
 
-  async function aoMudarCep(valor: string) {
-    const cep = formatarCep(valor)
-    definir('cep', cep.replace(/\D/g, ''))
-    setCepMsg(null)
-    const digitos = cep.replace(/\D/g, '')
-    if (digitos.length !== 8 || digitos === ultimoCep.current) return
+export function EtapaPessoais({ d, definir }: { d: DossieAdmissao; definir: Definir }) {
+  const [cep, setCep] = useState<{ estado: EstadoCep; msg: string | null }>({ estado: 'parado', msg: null })
+  const ultimoCep = useRef('')
+  /** O endereço da tela veio de uma busca de CEP (e não digitado à mão). */
+  const preenchidoPorCep = useRef(false)
+  const refLogradouro = useRef<HTMLInputElement>(null)
+  const refNumero = useRef<HTMLInputElement>(null)
+
+  /** Busca o endereço do CEP. `forcar` repete a busca mesmo para o CEP que já foi consultado (nova tentativa). */
+  async function buscarCep(digitos: string, forcar = false) {
+    if (digitos.length !== 8 || (!forcar && digitos === ultimoCep.current)) return
     ultimoCep.current = digitos
-    setCepMsg('Buscando endereço…')
+    // CEP novo: o endereço do CEP anterior não vale mais (e não pode passar por válido se esta busca falhar).
+    if (preenchidoPorCep.current) {
+      definir('logradouro', '')
+      definir('bairro', '')
+      definir('cidade', '')
+      definir('uf', '')
+      preenchidoPorCep.current = false
+    }
+    setCep({ estado: 'buscando', msg: 'Buscando endereço…' })
     const r = await consultarCep(digitos)
-    if (!r.success) { setCepMsg(r.error); return }
+    // O supervisor pode ter mudado o CEP enquanto a busca rodava: ignora a resposta velha.
+    if (ultimoCep.current !== digitos) return
+    if (!r.success) {
+      ultimoCep.current = '' // deixa tentar de novo
+      setCep({ estado: 'erro', msg: r.error })
+      return
+    }
     definir('logradouro', r.endereco.logradouro)
     definir('bairro', r.endereco.bairro)
     definir('cidade', r.endereco.cidade)
     definir('uf', r.endereco.uf)
-    setCepMsg(r.endereco.logradouro ? null : 'CEP genérico: digite a rua')
+    preenchidoPorCep.current = true
+    if (r.endereco.logradouro) {
+      setCep({ estado: 'ok', msg: 'Endereço encontrado — falta só o número.' })
+      setTimeout(() => refNumero.current?.focus(), 0)
+    } else {
+      setCep({ estado: 'generico', msg: 'CEP geral da cidade/bairro: digite o nome da rua.' })
+      setTimeout(() => refLogradouro.current?.focus(), 0)
+    }
+  }
+
+  function aoMudarCep(valor: string) {
+    const digitos = valor.replace(/\D/g, '').slice(0, 8)
+    definir('cep', digitos)
+    if (digitos.length < 8) {
+      ultimoCep.current = '' // apagou ou está digitando: o mesmo CEP volta a ser buscado se for digitado de novo
+      setCep({ estado: 'parado', msg: null })
+      return
+    }
+    void buscarCep(digitos)
   }
 
   const cpfCompleto = d.cpf.length === 11
@@ -177,15 +212,26 @@ export function EtapaPessoais({ d, definir }: { d: DossieAdmissao; definir: Defi
       <Painel titulo="Endereço" tom="blue">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-6">
           <Rotulado rotulo="CEP *" className="sm:col-span-2">
-            <input className={campoClasse} inputMode="numeric" autoComplete="off" value={formatarCep(d.cep)}
-              onChange={e => aoMudarCep(e.target.value)} placeholder="00000-000" />
-            {cepMsg && <p className="mt-1 text-xs text-slate-500">{cepMsg}</p>}
+            <input className={cn(campoClasse, cep.estado === 'ok' && 'border-emerald-400', cep.estado === 'erro' && 'border-amber-400')}
+              inputMode="numeric" autoComplete="off" value={formatarCep(d.cep)} placeholder="00000-000"
+              onChange={e => aoMudarCep(e.target.value)}
+              // Cobre rascunho retomado e colagem: CEP completo sem endereço busca ao sair do campo.
+              onBlur={() => { if (d.cep.length === 8 && !d.logradouro.trim()) void buscarCep(d.cep, true) }} />
+            {cep.msg && (
+              <p className={cn('mt-1 text-xs',
+                cep.estado === 'ok' ? 'text-emerald-700' : cep.estado === 'erro' ? 'text-amber-700' : cep.estado === 'generico' ? 'text-amber-700' : 'text-slate-500')}>
+                {cep.msg}
+                {cep.estado === 'erro' && d.cep.length === 8 && (
+                  <button type="button" className="ml-1.5 font-medium underline" onClick={() => void buscarCep(d.cep, true)}>tentar de novo</button>
+                )}
+              </p>
+            )}
           </Rotulado>
           <Rotulado rotulo="Endereço *" className="sm:col-span-4">
-            <input className={campoClasse} value={d.logradouro} autoComplete="off" onChange={e => definir('logradouro', e.target.value)} placeholder="Rua, avenida…" />
+            <input ref={refLogradouro} className={campoClasse} value={d.logradouro} autoComplete="off" onChange={e => definir('logradouro', e.target.value)} placeholder="Rua, avenida…" />
           </Rotulado>
           <Rotulado rotulo="Número *" className="sm:col-span-2">
-            <input className={campoClasse} value={d.numero} autoComplete="off" onChange={e => definir('numero', e.target.value)} placeholder="S/N se não houver" />
+            <input ref={refNumero} className={campoClasse} value={d.numero} autoComplete="off" onChange={e => definir('numero', e.target.value)} placeholder="S/N se não houver" />
           </Rotulado>
           <Rotulado rotulo="Complemento" className="sm:col-span-4">
             <input className={campoClasse} value={d.complemento} autoComplete="off" onChange={e => definir('complemento', e.target.value)} />
