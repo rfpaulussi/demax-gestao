@@ -5,6 +5,7 @@ import { Dialog } from '@base-ui/react/dialog'
 import { solicitarLancamentoAtestado } from '@/app/(admin)/auditoria-atestados/actions'
 import { extrairCodigoCid, motivoIndicaOcupacional, ultimoDiaAfastadoAntesDoRetorno } from '@/lib/auditoria-atestados/parse'
 import type { LinhaResultado } from '@/lib/auditoria-atestados/tipos'
+import { useBuscaCid } from '@/components/cid/use-busca-cid'
 
 type CidOpt = { codigo: string; descricao: string }
 type LinhaNaoLancada = Extract<LinhaResultado, { status: 'nao_lancado' }>
@@ -31,6 +32,8 @@ export function ModalLancarAtestado({ linha, cids, open, onClose, onLancado }: P
   const [origemOcupacional, setOrigemOcupacional] = useState(
     motivoIndicaOcupacional(linha.sesmt.motivo) ? 'doenca_ocupacional' : '',
   )
+
+  const sugestoesCid = useBuscaCid(cidCodigo, !semCid)
 
   function resetState() {
     setErro(null)
@@ -133,7 +136,7 @@ export function ModalLancarAtestado({ linha, cids, open, onClose, onLancado }: P
                 value={semCid ? '' : cidCodigo}
                 onChange={e => {
                   const valor = e.target.value
-                  const match = cids.find(c => `${c.codigo} — ${c.descricao}` === valor || c.codigo === valor)
+                  const match = [...cids, ...sugestoesCid].find(c => `${c.codigo} — ${c.descricao}` === valor || c.codigo === valor)
                   setCidCodigo(match ? match.codigo : valor)
                 }}
                 placeholder={semCid ? 'Sem CID informado' : 'Buscar por código ou descrição...'}
@@ -141,7 +144,7 @@ export function ModalLancarAtestado({ linha, cids, open, onClose, onLancado }: P
                 className={`${inputClass} ${semCid ? 'bg-gray-50 text-gray-400' : ''}`}
               />
               <datalist id="cids-lancar-datalist">
-                {cids.map(c => (
+                {sugestoesCid.map(c => (
                   <option key={c.codigo} value={`${c.codigo} — ${c.descricao}`} />
                 ))}
               </datalist>

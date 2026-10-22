@@ -57,7 +57,7 @@ export default async function CoberturasPage() {
   const supabase = createClient()
   const auth = await getUser()
 
-  const [{ data: ativasRaw }, { data: encerradasRaw }, supervisores, { data: cidsRaw }] = await Promise.all([
+  const [{ data: ativasRaw }, { data: encerradasRaw }, supervisores] = await Promise.all([
     supabase
       .from('coberturas_temporarias')
       .select(COB_SELECT)
@@ -70,10 +70,10 @@ export default async function CoberturasPage() {
       .order('data_retorno_real', { ascending: false })
       .limit(50),
     buscarTodosSupervisores(),
-    supabase.from('cid_referencia').select('codigo, descricao').order('codigo'),
   ])
 
-  const cids = (cidsRaw ?? []) as { codigo: string; descricao: string }[]
+  // CID é buscado no servidor enquanto o usuário digita (a tabela tem milhares de códigos)
+  const cids = [] as { codigo: string; descricao: string }[]
 
   // Enriquecimento via client admin: com o funcionário emprestado, o RLS de supervisor
   // (filtrado por posto) esconde o substituto, o ausente e o posto do outro supervisor,

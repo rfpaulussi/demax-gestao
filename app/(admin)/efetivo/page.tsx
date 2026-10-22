@@ -63,7 +63,6 @@ export default async function EfetivoPage() {
     { data: configRaw },
     { data: postosRaw },
     { data: funcoesRaw },
-    { data: cidsRaw },
     { count: countTotal },
     { count: countAfastados },
     { count: countFerias },
@@ -93,7 +92,6 @@ export default async function EfetivoPage() {
       .eq('ativo', true),
     supabaseAdmin.from('postos').select('id, nome, secretaria').order('nome'),
     supabase.from('funcoes').select('id, nome').order('nome'),
-    supabase.from('cid_referencia').select('codigo, descricao').order('codigo'),
     // KPIs via COUNT — bypassa o max_rows do PostgREST (head:true não retorna linhas)
     // Total = efetivo do contrato (exclui desligados, que ficam só no histórico)
     supabase.from('funcionarios').select('*', { count: 'exact', head: true }).neq('status', 'desligado'),
@@ -315,7 +313,8 @@ export default async function EfetivoPage() {
   const supervisores = (supervisoresRaw ?? []) as { id: string; nome: string | null }[]
   const postos       = (postosRaw ?? []) as { id: string; nome: string; secretaria: string | null }[]
   const funcoes      = (funcoesRaw ?? []) as { id: string; nome: string }[]
-  const cids         = (cidsRaw ?? []) as { codigo: string; descricao: string }[]
+  // CID é buscado no servidor enquanto o usuário digita (a tabela tem milhares de códigos)
+  const cids         = [] as { codigo: string; descricao: string }[]
 
   return (
     <div className="space-y-6">

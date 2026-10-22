@@ -5,6 +5,7 @@ import { Dialog } from '@base-ui/react/dialog'
 import { registrarAtestadoComRetorno, getSobreposicoesAtestado, getFaltasConflitantes, type SobreposicaoAtestado, type FaltaConflitante } from '@/app/(admin)/atestados/actions'
 import { cn } from '@/lib/utils'
 import type { Preenchimento } from '@/lib/atestados/leitura/tipos'
+import { useBuscaCid } from '@/components/cid/use-busca-cid'
 import type { FuncionarioRow } from './funcionarios-table'
 
 const fmt = (d: string) => d.split('-').reverse().join('/')
@@ -72,11 +73,7 @@ export function ModalAtestado({ funcionario, open, onClose, cids, inicial }: Pro
     return () => { cancelado = true; clearTimeout(timer) }
   }, [funcionario.id, dataInicio, dataFim])
 
-  const cidsFiltrados = cids.filter(c =>
-    !cidBusca ||
-    c.codigo.toLowerCase().includes(cidBusca.toLowerCase()) ||
-    c.descricao.toLowerCase().includes(cidBusca.toLowerCase()),
-  )
+  const cidsFiltrados = useBuscaCid(cidBusca, cidAberto && !cidCodigo)
 
   function handleDiasChange(val: string) {
     limparAviso('dias')

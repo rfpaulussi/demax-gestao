@@ -18,6 +18,21 @@ const TIPOS: readonly string[] = ['image/jpeg', 'image/png', 'image/webp', 'appl
 const resposta = (corpo: RespostaLeitura, status = 200) => NextResponse.json(corpo, { status })
 const falha = (erro: string, status: number) => resposta({ ok: false, erro }, status)
 
+/** Códigos que `normalizarCid` pode procurar para o texto lido: como veio, completo e categoria. */
+function candidatosCid(lido: string | null): string[] {
+  if (!lido) return []
+  const limpo = lido.replace(/\s+/g, '').toUpperCase().replace(/^CID(?:-?10)?[:.\-]*/, '')
+  if (!limpo) return []
+  const out = new Set<string>([limpo])
+  const m = /^([A-Z])(\d{2})[.,\-/]?(\d{1,2})?$/.exec(limpo)
+  if (m) {
+    const categoria = `${m[1]}${m[2]}`
+    out.add(categoria)
+    if (m[3]) out.add(`${categoria}.${m[3]}`)
+  }
+  return Array.from(out)
+}
+
 export async function POST(req: Request) {
   const auth = await getUser()
   if (!auth) return falha('Sessão expirada. Entre de novo.', 401)
@@ -43,7 +58,8 @@ export async function POST(req: Request) {
 
     const [funcionarios, { data: cids, error: erroCid }] = await Promise.all([
       carregarFuncionariosVisiveis(auth),
-      createClient().from('cid_referencia').select('codigo'),
+      // A tabela tem milhares de CIDs: consulta só o código lido e suas variações (exato e categoria).
+      createClient().from('cid_referencia').select('codigo').in('codigo', candidatosCid(leitura.cid)),
     ])
     if (erroCid) {
       console.error('[atestados/ler]', 'CID_REFERENCIA_FALHOU')

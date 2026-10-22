@@ -5,6 +5,7 @@ import { Dialog } from '@base-ui/react/dialog'
 import { createClient } from '@/lib/supabase/client'
 import { registrarCobertura, buscarPostosPorSupervisor } from '@/app/(admin)/coberturas/actions'
 import { cn } from '@/lib/utils'
+import { useBuscaCid } from '@/components/cid/use-busca-cid'
 
 interface Funcionario {
   id: string
@@ -101,7 +102,7 @@ const inputCls   = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm t
 
 // ─── component ────────────────────────────────────────────────────────────────
 
-export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = [], isSupervisor = false, onSuccess }: Props) {
+export function ModalNovaCobertura({ open, onClose, supervisores = [], isSupervisor = false, onSuccess }: Props) {
   // substituto
   const [busca, setBusca]                     = useState('')
   const [resultadosBusca, setResultadosBusca] = useState<Funcionario[]>([])
@@ -159,11 +160,7 @@ export function ModalNovaCobertura({ open, onClose, supervisores = [], cids = []
     ? (funcionariosAusentes.find(f => f.id === funcionarioAusenteId)?.nome ?? 'funcionário')
     : 'funcionário'
 
-  const cidsFiltrados = cids.filter(c =>
-    !cidBusca ||
-    c.codigo.toLowerCase().includes(cidBusca.toLowerCase()) ||
-    c.descricao.toLowerCase().includes(cidBusca.toLowerCase()),
-  )
+  const cidsFiltrados = useBuscaCid(cidBusca, cidAberto && !cidCodigo)
 
   // Sync atestado dates with ausência dates when they change
   useEffect(() => { setAtestadoDataInicio(dataInicioAusencia) }, [dataInicioAusencia])

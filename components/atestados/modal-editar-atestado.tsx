@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { updateAtestado, getSobreposicoesAtestado, type SobreposicaoAtestado } from '@/app/(admin)/atestados/actions'
+import { useBuscaCid } from '@/components/cid/use-busca-cid'
 import type { AtestadoRow } from './atestados-client'
 
 type CidOpt = { codigo: string; descricao: string }
@@ -61,11 +62,7 @@ export function ModalEditarAtestado({ atestado, onClose, cids }: Props) {
     return () => { cancelado = true; clearTimeout(timer) }
   }, [atestado, dataInicio, dataFim])
 
-  const cidsFiltrados = cids.filter(c =>
-    !cidBusca ||
-    c.codigo.toLowerCase().includes(cidBusca.toLowerCase()) ||
-    c.descricao.toLowerCase().includes(cidBusca.toLowerCase()),
-  )
+  const cidsFiltrados = useBuscaCid(cidBusca, cidAberto && !cidCodigo)
 
   function selecionarCid(c: CidOpt) {
     setCidCodigo(c.codigo)

@@ -62,7 +62,7 @@ type AtestadoRaw = {
 async function secaoAtestados(inicio: string, fim: string): Promise<string> {
   const supabase = createClient()
 
-  const [atestados, { data: cids }] = await Promise.all([
+  const atestados = await (
     fetchAllRows<AtestadoRaw>((from, to) =>
       supabase
         .from('atestados')
@@ -74,10 +74,14 @@ async function secaoAtestados(inicio: string, fim: string): Promise<string> {
         .lte('data_inicio', fim)
         .order('data_inicio', { ascending: true })
         .range(from, to) as unknown as PromiseLike<{ data: AtestadoRaw[] | null; error: { message: string } | null }>,
-    ),
-    supabase.from('cid_referencia').select('codigo, descricao'),
-  ])
+    )
+  )
 
+  // Só os CIDs usados no período (a tabela de referência tem milhares de códigos)
+  const codigosUsados = Array.from(new Set(atestados.map(a => a.cid_codigo).filter((c): c is string => !!c)))
+  const cids = codigosUsados.length > 0
+    ? (await supabase.from('cid_referencia').select('codigo, descricao').in('codigo', codigosUsados)).data
+    : []
   const cidByCodigo = new Map<string, string>((cids ?? []).map(c => [c.codigo, c.descricao]))
 
   const rows = atestados.map(a => {

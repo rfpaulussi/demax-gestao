@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { getUser } from '@/lib/auth/get-user'
 import { isAdminOrCoord, type Role } from '@/types'
-import { extrairRegistroDeMatricula } from '@/lib/auditoria-atestados/parse'
+import { extrairRegistroDeMatricula, extrairCodigoCid } from '@/lib/auditoria-atestados/parse'
 import { compararAuditoria, type FuncionarioLookup } from '@/lib/auditoria-atestados/comparar'
 import type { LinhaSesmt, AtestadoSistema, ResultadoAuditoria } from '@/lib/auditoria-atestados/tipos'
 import type { Json } from '@/types/database'
@@ -39,16 +39,12 @@ export async function auditarSesmt(linhasSesmt: LinhaSesmt[]): Promise<Resultado
     return { linha, registro }
   })
 
-  const [{ data: funcRaw, error: errFunc }, { data: cidRaw, error: errCid }] = await Promise.all([
-    supabase.from('funcionarios').select('id, registro, nome, posto_id').not('registro', 'is', null),
-    supabase.from('cid_referencia').select('codigo, descricao'),
-  ])
+  const { data: funcRaw, error: errFunc } = await supabase
+    .from('funcionarios').select('id, registro, nome, posto_id').not('registro', 'is', null)
 
   if (errFunc) return { erro: `Erro ao buscar funcionários: ${errFunc.message}` }
-  if (errCid) return { erro: `Erro ao buscar CIDs: ${errCid.message}` }
 
   const funcionarios = (funcRaw ?? []) as FuncionarioRaw[]
-  const cids = (cidRaw ?? []) as CidRaw[]
 
   const funcionariosPorRegistro = new Map<string, FuncionarioLookup>()
   for (const f of funcionarios) {
@@ -58,8 +54,6 @@ export async function auditarSesmt(linhasSesmt: LinhaSesmt[]): Promise<Resultado
   const funcionarioIdsRelevantes = funcionarios
     .filter(f => f.registro && registrosNoArquivo.has(f.registro))
     .map(f => f.id)
-
-  const cidMap = new Map(cids.map(c => [c.codigo, c.descricao] as [string, string]))
 
   let atestadosRaw: AtestadoRaw[] = []
   if (funcionarioIdsRelevantes.length > 0) {
@@ -71,6 +65,23 @@ export async function auditarSesmt(linhasSesmt: LinhaSesmt[]): Promise<Resultado
         .range(from, to) as unknown as PromiseLike<{ data: AtestadoRaw[] | null; error: { message: string } | null }>,
     )
   }
+
+  // A tabela de referência tem milhares de CIDs: carrega só os usados nesta auditoria
+  // (nos atestados do sistema e nas linhas do SESMT).
+  const codigosCid = new Set<string>()
+  for (const a of atestadosRaw) if (a.cid_codigo) codigosCid.add(a.cid_codigo)
+  for (const l of linhasSesmt) {
+    const c = extrairCodigoCid(l.cidTexto)
+    if (c) codigosCid.add(c)
+  }
+  let cids: CidRaw[] = []
+  if (codigosCid.size > 0) {
+    const { data: cidRaw, error: errCid } = await supabase
+      .from('cid_referencia').select('codigo, descricao').in('codigo', Array.from(codigosCid))
+    if (errCid) return { erro: `Erro ao buscar CIDs: ${errCid.message}` }
+    cids = (cidRaw ?? []) as CidRaw[]
+  }
+  const cidMap = new Map(cids.map(c => [c.codigo, c.descricao] as [string, string]))
 
   const atestadosPorRegistro = new Map<string, AtestadoSistema[]>()
   for (const a of atestadosRaw) {

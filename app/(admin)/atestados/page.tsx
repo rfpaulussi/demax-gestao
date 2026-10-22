@@ -62,7 +62,7 @@ export default async function AtestadosPage({
     postoIds = (postos ?? []).map(p => p.posto_id)
   }
 
-  const [{ data: rawAtestados }, { data: rawCids }, { data: rawCoberturas }, { data: rawSolicitacoesPendentes }] = await Promise.all([
+  const [{ data: rawAtestados }, { data: rawCoberturas }, { data: rawSolicitacoesPendentes }] = await Promise.all([
     (() => {
       let q = supabase
         .from('atestados')
@@ -82,7 +82,6 @@ export default async function AtestadosPage({
       if (postoIds) q = q.in('posto_id', postoIds.length > 0 ? postoIds : ['__none__'])
       return q
     })(),
-    supabase.from('cid_referencia').select('codigo, descricao, nexo_ocupacional_limpeza'),
     supabase
       .from('coberturas_temporarias')
       .select('funcionario_ausente_id, data_inicio, data_retorno_real, data_prev_retorno')
@@ -99,7 +98,13 @@ export default async function AtestadosPage({
     (rawSolicitacoesPendentes ?? []).map(s => s.funcionario_id as string),
   )
 
+  // A tabela de referência tem milhares de CIDs: carrega só os usados nos atestados listados.
+  // Para escolher outro CID, o modal busca no servidor enquanto o usuário digita.
   type CidRef = { codigo: string; descricao: string; nexo_ocupacional_limpeza: boolean }
+  const codigosUsados = Array.from(new Set((rawAtestados ?? []).map(a => a.cid_codigo).filter((c): c is string => !!c)))
+  const { data: rawCids } = codigosUsados.length > 0
+    ? await supabase.from('cid_referencia').select('codigo, descricao, nexo_ocupacional_limpeza').in('codigo', codigosUsados)
+    : { data: [] }
   const cidsRaw = (rawCids ?? []) as unknown as CidRef[]
 
   const cidMap = new Map(cidsRaw.map(c => [c.codigo, c.descricao] as [string, string]))
