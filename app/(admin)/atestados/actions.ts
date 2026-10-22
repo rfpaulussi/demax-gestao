@@ -9,6 +9,9 @@ import { existeAfastamentoAberto, removerAfastamentosEspelhoDeAtestado } from '@
 import { buscarAtestadoSobreposto, mensagemSobreposicao } from '@/lib/atestados/sobreposicao'
 import { atestadosConflitam } from '@/lib/atestados/periodos'
 import { calcularEpisodioInss, type AtestadoParaEpisodio, type EpisodioInss } from '@/lib/atestados/episodio-inss'
+import { buscarPorNome, type CandidatoFuncionario } from '@/lib/atestados/leitura/casar-funcionario'
+import { carregarFuncionariosVisiveis } from '@/lib/atestados/leitura/funcionarios-visiveis'
+import { registrarAtestado } from '@/app/(admin)/efetivo/actions'
 
 async function verificarAcessoAtestado(
   atestadoId: string,
@@ -225,5 +228,24 @@ export async function calcularEpisodioInssAction(
     return calcularEpisodioInss(atestadoAncoraId, atestados)
   } catch (e) {
     return { erro: e instanceof Error ? e.message : 'Erro ao calcular episódio' }
+  }
+}
+
+/** Busca manual de funcionário (3+ letras) dentro do escopo do usuário, para o lançamento por foto. */
+export async function buscarFuncionariosParaAtestado(termo: string): Promise<CandidatoFuncionario[]> {
+  if (typeof termo !== 'string') return []
+  const auth = await getUser()
+  if (!auth || auth.perfil.role === 'viewer') return []
+  return buscarPorNome(termo.slice(0, 60), await carregarFuncionariosVisiveis(auth))
+}
+
+/** Chama `registrarAtestado` e devolve o erro como dado: em produção o Next esconde a mensagem de erros lançados por Server Action. */
+export async function registrarAtestadoComRetorno(formData: FormData): Promise<{ erro?: string }> {
+  try {
+    await registrarAtestado(formData)
+    revalidatePath('/atestados')
+    return {}
+  } catch (e) {
+    return { erro: e instanceof Error ? e.message : 'Erro ao registrar atestado' }
   }
 }

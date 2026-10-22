@@ -34,11 +34,11 @@ export function iaConfigurada(): boolean {
   return !!process.env.ANTHROPIC_API_KEY
 }
 
-/** Uma chamada só, sem histórico, forçando a ferramenta dada. O texto já deve estar anonimizado. */
+/** Uma chamada só, sem histórico, forçando a ferramenta dada. Texto já anonimizado; blocos de imagem/PDF não têm como anonimizar. */
 export async function chamarFerramenta(
   sistema: string,
   ferramenta: Anthropic.Tool,
-  mensagem: string,
+  mensagem: string | Anthropic.ContentBlockParam[],
   opcoes: OpcoesChamada = {},
 ): Promise<RespostaModelo> {
   const chave = process.env.ANTHROPIC_API_KEY

@@ -21,7 +21,7 @@ Fotos tortas, escuras, print de tela, assinatura de cabeça para baixo, 5 layout
 | Início e retorno diferentes | Atestado com "Início 20/10, Retorno 21/10, 1 dia" → início 20/10, 1 dia (correto) |
 | Sem data de início no papel | Usou a data de emissão e marcou `origem_data_inicio = emissao` (correto) |
 | Menor de idade | Detectado (paciente de 3 anos) e nome da mãe extraído |
-| **Erro 1: nome com 1 letra trocada** | "FELISBINA" lido como "FELISBRINA" → o casamento com o cadastro precisa ser aproximado |
+| **Erro 1: nome com 1 letra trocada** | "ROSALINA" lido como "ROSALIMA" → o casamento com o cadastro precisa ser aproximado |
 | **Erro 2: CID não encontrado** | Atestado com CID só em checkbox ("Paciente libera a impressão do CID? ☒ S 50") voltou `cid = null` com confiança alta |
 | **Erro 3: campo inventado** | Devolveu `data_retorno` que não estava no papel → o campo sai do schema; fim = início + dias − 1 |
 | Custo medido | ≈ 3.000 tokens de entrada + 370 de saída por foto ≈ US$ 0,005 (R$ 0,03). ≈ 4 s por foto |

@@ -139,7 +139,7 @@ describe('partesDoNome', () => {
 
 describe('distanciaEdicao', () => {
   it('conta trocas, inserções e remoções', () => {
-    expect(distanciaEdicao('FELISBINA', 'FELISBRINA')).toBe(1)
+    expect(distanciaEdicao('ROSALINA', 'ROSALIMA')).toBe(1)
     expect(distanciaEdicao('ANA', 'ANA')).toBe(0)
     expect(distanciaEdicao('', 'ABC')).toBe(3)
   })
@@ -151,7 +151,7 @@ describe('similaridadeNomes', () => {
     expect(similaridadeNomes('Conceição Lima', 'CONCEICAO LIMA')).toBe(1)
   })
   it('tolera uma letra trocada numa parte do nome', () => {
-    expect(similaridadeNomes('MARCELA FELISBINA GERALDO', 'MARCELA FELISBRINA GERALDO')).toBeGreaterThan(0.95)
+    expect(similaridadeNomes('MARCELA ROSALINA SOARES', 'MARCELA ROSALIMA SOARES')).toBeGreaterThan(0.95)
   })
   it('nome do meio omitido fica em 0,8', () => {
     expect(similaridadeNomes('FERNANDA COSTA', 'FERNANDA OLIVEIRA DA COSTA')).toBeCloseTo(0.8, 5)
@@ -1826,7 +1826,7 @@ Expected: PASS em todos os arquivos `lib/**/*.test.ts`, incluindo os 4 novos de 
 
 - [ ] **Step 3: Conferir que nenhum dado real entrou no repositório**
 
-Run: `git grep -nE "FELISBINA|PALMEIRA|MARIA ALICE|VALDIRENE|EMILY LAUREN" -- lib components app docs/superpowers/plans`
+Run: `git grep -niE "<nomes e sobrenomes das fotos de teste, separados por |>" -- lib components app docs/superpowers`
 Expected: nenhuma linha (os testes usam só nomes fictícios).
 
 - [ ] **Step 4: Roteiro de teste manual no preview** (o teste logado local não funciona neste projeto; o usuário faz no preview/produção)

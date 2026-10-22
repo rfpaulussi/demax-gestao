@@ -3,6 +3,7 @@ import { getUser } from '@/lib/auth/get-user'
 import { createClient } from '@/lib/supabase/server'
 import { cn } from '@/lib/utils'
 import { AtestadosClient, type AtestadoRow } from '@/components/atestados/atestados-client'
+import { AtestadoPorFoto } from '@/components/atestados/atestado-por-foto'
 import { diasUnicosAtestados } from '@/lib/atestados/periodos'
 
 type AtestadoRaw = {
@@ -221,13 +222,16 @@ export default async function AtestadosPage({
           <h1 className="text-lg font-bold text-gray-900">Atestados</h1>
           <p className="text-sm text-gray-400">Controle de afastamentos por atestado médico</p>
         </div>
-        {totalAlerta > 0 && (
-          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2">
-            <span className="text-sm font-semibold text-red-700">
-              ⚠️ {totalAlerta} funcionário{totalAlerta > 1 ? 's' : ''} com acumulado &gt; 15 dias
-            </span>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {totalAlerta > 0 && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2">
+              <span className="text-sm font-semibold text-red-700">
+                ⚠️ {totalAlerta} funcionário{totalAlerta > 1 ? 's' : ''} com acumulado &gt; 15 dias
+              </span>
+            </div>
+          )}
+          <AtestadoPorFoto cids={cids} />
+        </div>
       </div>
 
       {/* KPIs */}

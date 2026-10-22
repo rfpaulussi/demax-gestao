@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
-import { registrarAtestado } from '@/app/(admin)/efetivo/actions'
-import { getSobreposicoesAtestado, getFaltasConflitantes, type SobreposicaoAtestado, type FaltaConflitante } from '@/app/(admin)/atestados/actions'
+import { registrarAtestadoComRetorno, getSobreposicoesAtestado, getFaltasConflitantes, type SobreposicaoAtestado, type FaltaConflitante } from '@/app/(admin)/atestados/actions'
+import { cn } from '@/lib/utils'
+import type { Preenchimento } from '@/lib/atestados/leitura/tipos'
 import type { FuncionarioRow } from './funcionarios-table'
 
 const fmt = (d: string) => d.split('-').reverse().join('/')
@@ -11,10 +12,20 @@ const fmt = (d: string) => d.split('-').reverse().join('/')
 type CidOpt = { codigo: string; descricao: string }
 
 interface Props {
-  funcionario: FuncionarioRow
+  /** O modal só usa estes quatro campos; o lançamento por foto não tem a linha completa do Efetivo. */
+  funcionario: Pick<FuncionarioRow, 'id' | 'nome' | 'status' | 'posto_id'>
   open: boolean
   onClose: () => void
   cids: CidOpt[]
+  /** Valores lidos da foto: início, dias, fim e CID já preenchidos; campos com aviso ficam em amarelo. */
+  inicial?: Preenchimento
+}
+
+const destaque = 'border-amber-400 bg-amber-50'
+
+function textoCid(codigo: string, cids: CidOpt[]): string {
+  const c = cids.find(x => x.codigo === codigo)
+  return c ? `${c.codigo} — ${c.descricao}` : codigo
 }
 
 const labelClass = 'mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-600'
@@ -27,20 +38,25 @@ function addDays(dateStr: string, days: number): string {
   return dt.toISOString().slice(0, 10)
 }
 
-export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
+export function ModalAtestado({ funcionario, open, onClose, cids, inicial }: Props) {
   const [pending, setPending]     = useState(false)
   const [erro, setErro]           = useState<string | null>(null)
-  const [cidBusca, setCidBusca]   = useState('')
-  const [cidCodigo, setCidCodigo] = useState('')
+  const [cidBusca, setCidBusca]   = useState(inicial?.cidCodigo ? textoCid(inicial.cidCodigo, cids) : '')
+  const [cidCodigo, setCidCodigo] = useState(inicial?.cidCodigo ?? '')
   const [cidAberto, setCidAberto] = useState(false)
   const [semCid, setSemCid]       = useState(false)
-  const [dataInicio, setDataInicio] = useState('')
-  const [dias, setDias]           = useState('')
-  const [dataFim, setDataFim]     = useState('')
+  const [dataInicio, setDataInicio] = useState(inicial?.dataInicio ?? '')
+  const [dias, setDias]           = useState(inicial?.dias ?? '')
+  const [dataFim, setDataFim]     = useState(inicial?.dataFim ?? '')
+  const [avisos, setAvisos]       = useState<Preenchimento['avisos']>(inicial?.avisos ?? { dataInicio: null, dias: null, cid: null })
   const [sobreposicoes, setSobreposicoes] = useState<SobreposicaoAtestado[]>([])
   const [faltasConf, setFaltasConf] = useState<FaltaConflitante[]>([])
   const [faltasAcao, setFaltasAcao] = useState<'' | 'remover' | 'manter'>('')
   const cidRef = useRef<HTMLDivElement>(null)
+
+  function limparAviso(campo: keyof Preenchimento['avisos']) {
+    setAvisos(a => ({ ...a, [campo]: null }))
+  }
 
   useEffect(() => {
     if (!dataInicio || !dataFim) { setSobreposicoes([]); setFaltasConf([]); return }
@@ -63,6 +79,7 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
   )
 
   function handleDiasChange(val: string) {
+    limparAviso('dias')
     setDias(val)
     const n = parseInt(val)
     if (dataInicio && n > 0) {
@@ -73,6 +90,7 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
   }
 
   function handleDataInicioChange(val: string) {
+    limparAviso('dataInicio')
     setDataInicio(val)
     const n = parseInt(dias)
     if (val && n > 0) {
@@ -81,12 +99,14 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
   }
 
   function selecionarCid(c: CidOpt) {
+    limparAviso('cid')
     setCidCodigo(c.codigo)
     setCidBusca(`${c.codigo} — ${c.descricao}`)
     setCidAberto(false)
   }
 
   function limparCid() {
+    limparAviso('cid')
     setCidCodigo('')
     setCidBusca('')
   }
@@ -122,7 +142,8 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
     setPending(true)
     setErro(null)
     try {
-      await registrarAtestado(data)
+      const r = await registrarAtestadoComRetorno(data)
+      if (r.erro) { setErro(r.erro); return }
       form.reset()
       resetState()
       onClose()
@@ -137,7 +158,7 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
     <Dialog.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) { resetState(); onClose() } }}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/50 z-40" />
-        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-6 shadow-xl">
+        <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-full max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
           <Dialog.Title className="mb-1 text-lg font-semibold">Registrar Atestado</Dialog.Title>
           <p className="mb-4 text-sm text-gray-500">{funcionario.nome}</p>
 
@@ -164,8 +185,9 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
                   required
                   value={dataInicio}
                   onChange={e => handleDataInicioChange(e.target.value)}
-                  className={inputClass}
+                  className={cn(inputClass, avisos.dataInicio && destaque)}
                 />
+                {avisos.dataInicio && <p className="mt-1 text-xs text-amber-700">⚠ {avisos.dataInicio}</p>}
               </div>
               <div>
                 <label className={labelClass}>Dias</label>
@@ -176,8 +198,9 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
                   placeholder="Ex: 15"
                   value={dias}
                   onChange={e => handleDiasChange(e.target.value)}
-                  className={inputClass}
+                  className={cn(inputClass, avisos.dias && destaque)}
                 />
+                {avisos.dias && <p className="mt-1 text-xs text-amber-700">⚠ {avisos.dias}</p>}
               </div>
             </div>
 
@@ -256,7 +279,7 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
                     checked={semCid}
                     onChange={e => {
                       setSemCid(e.target.checked)
-                      if (e.target.checked) limparCid()
+                      if (e.target.checked) { limparCid(); limparAviso('cid') }
                     }}
                     className="rounded"
                   />
@@ -277,7 +300,7 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
                   placeholder={semCid ? 'Sem CID informado' : 'Buscar por código ou descrição...'}
                   disabled={semCid}
                   autoComplete="off"
-                  className={`${inputClass} pr-8 ${semCid ? 'bg-gray-50 text-gray-400' : ''}`}
+                  className={cn(inputClass, 'pr-8', semCid && 'bg-gray-50 text-gray-400', !semCid && avisos.cid && destaque)}
                 />
                 {cidCodigo && !semCid && (
                   <button
@@ -305,6 +328,7 @@ export function ModalAtestado({ funcionario, open, onClose, cids }: Props) {
                   </div>
                 )}
                 <input type="hidden" name="cid_codigo" value={semCid ? '' : cidCodigo} />
+                {avisos.cid && !semCid && <p className="mt-1 text-xs text-amber-700">⚠ {avisos.cid}</p>}
               </div>
             </div>
 
