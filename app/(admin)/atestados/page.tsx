@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { AtestadosClient, type AtestadoRow } from '@/components/atestados/atestados-client'
 import { AtestadoPorFoto } from '@/components/atestados/atestado-por-foto'
 import { diasUnicosAtestados } from '@/lib/atestados/periodos'
+import { destinosAmbulatorio } from '@/lib/atestados/ambulatorio/destinatarios'
 
 type AtestadoRaw = {
   id: string
@@ -15,6 +16,7 @@ type AtestadoRaw = {
   motivo: string | null
   cid_codigo: string | null
   origem_ocupacional: string | null
+  ambulatorio_enviado_em: string | null
   funcionarios: { id: string; nome: string; status: string | null } | null
   postos: {
     nome: string
@@ -67,7 +69,7 @@ export default async function AtestadosPage({
       let q = supabase
         .from('atestados')
         .select(`
-          id, funcionario_id, posto_id, data_inicio, data_fim, motivo, cid_codigo, origem_ocupacional,
+          id, funcionario_id, posto_id, data_inicio, data_fim, motivo, cid_codigo, origem_ocupacional, ambulatorio_enviado_em,
           funcionarios!funcionario_id ( id, nome, status ),
           postos!posto_id (
             nome, secretaria,
@@ -206,6 +208,7 @@ export default async function AtestadosPage({
       cid_desc: cidDesc,
       nexo_ocupacional: a.cid_codigo ? (nexoMap.get(a.cid_codigo) ?? false) : false,
       tem_cobertura: temCobertura(a.funcionario_id, a.data_inicio, a.data_fim),
+      ambulatorio_enviado_em: a.ambulatorio_enviado_em,
     }
   })
 
@@ -326,7 +329,12 @@ export default async function AtestadosPage({
 
       {/* Tabela */}
       <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
-        <AtestadosClient atestados={rows} cids={cids} isAdmin={auth.perfil.role === 'admin'} />
+        <AtestadosClient
+          atestados={rows}
+          cids={cids}
+          isAdmin={auth.perfil.role === 'admin'}
+          ambulatorioAtivo={destinosAmbulatorio(auth.user.email).para.length > 0}
+        />
       </div>
     </div>
   )

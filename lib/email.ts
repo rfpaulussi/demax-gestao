@@ -63,6 +63,7 @@ export async function enviarEmail(opts: {
   subject: string
   html: string
   replyTo?: string
+  attachments?: { filename: string; content: Buffer }[]
 }): Promise<boolean> {
   if (!process.env.RESEND_API_KEY) {
     console.warn('[email] RESEND_API_KEY não configurada — e-mail ignorado')
@@ -79,6 +80,7 @@ export async function enviarEmail(opts: {
       subject: opts.subject,
       html: opts.html,
       ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
+      ...(opts.attachments?.length ? { attachments: opts.attachments } : {}),
     })
     if (error) {
       console.error('[email] Resend error:', error)

@@ -11,6 +11,7 @@ import { atestadosConflitam } from '@/lib/atestados/periodos'
 import { calcularEpisodioInss, type AtestadoParaEpisodio, type EpisodioInss } from '@/lib/atestados/episodio-inss'
 import { buscarPorNome, type CandidatoFuncionario } from '@/lib/atestados/leitura/casar-funcionario'
 import { carregarFuncionariosVisiveis } from '@/lib/atestados/leitura/funcionarios-visiveis'
+import { destinosAmbulatorio } from '@/lib/atestados/ambulatorio/destinatarios'
 import { registrarAtestado } from '@/app/(admin)/efetivo/actions'
 
 async function verificarAcessoAtestado(
@@ -239,12 +240,19 @@ export async function buscarFuncionariosParaAtestado(termo: string): Promise<Can
   return buscarPorNome(termo.slice(0, 60), await carregarFuncionariosVisiveis(auth))
 }
 
+/** O encaminhamento ao ambulatório só aparece quando há destinatário configurado e o usuário pode lançar. */
+export async function ambulatorioAtivo(): Promise<boolean> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role === 'viewer') return false
+  return destinosAmbulatorio(auth.user.email).para.length > 0
+}
+
 /** Chama `registrarAtestado` e devolve o erro como dado: em produção o Next esconde a mensagem de erros lançados por Server Action. */
-export async function registrarAtestadoComRetorno(formData: FormData): Promise<{ erro?: string }> {
+export async function registrarAtestadoComRetorno(formData: FormData): Promise<{ erro?: string; atestadoId?: string }> {
   try {
-    await registrarAtestado(formData)
+    const { id } = await registrarAtestado(formData)
     revalidatePath('/atestados')
-    return {}
+    return { atestadoId: id }
   } catch (e) {
     return { erro: e instanceof Error ? e.message : 'Erro ao registrar atestado' }
   }

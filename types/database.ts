@@ -193,6 +193,8 @@ export type Database = {
       }
       atestados: {
         Row: {
+          ambulatorio_enviado_em: string | null
+          ambulatorio_enviado_por: string | null
           cid: string | null
           cid_codigo: string | null
           created_at: string | null
@@ -207,6 +209,8 @@ export type Database = {
           sem_cid: boolean | null
         }
         Insert: {
+          ambulatorio_enviado_em?: string | null
+          ambulatorio_enviado_por?: string | null
           cid?: string | null
           cid_codigo?: string | null
           created_at?: string | null
@@ -221,6 +225,8 @@ export type Database = {
           sem_cid?: boolean | null
         }
         Update: {
+          ambulatorio_enviado_em?: string | null
+          ambulatorio_enviado_por?: string | null
           cid?: string | null
           cid_codigo?: string | null
           created_at?: string | null

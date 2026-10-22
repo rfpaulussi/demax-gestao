@@ -39,9 +39,11 @@ export function AtestadoPorFoto({ cids }: { cids: { codigo: string; descricao: s
   const [achados, setAchados] = useState<CandidatoFuncionario[]>([])
   const [buscando, setBuscando] = useState(false)
   const [termoBuscado, setTermoBuscado] = useState('')
+  // A foto já reduzida segue para o modal, que a envia ao ambulatório depois de salvar.
+  const [arquivoPronto, setArquivoPronto] = useState<File | null>(null)
 
   function fechar() {
-    setEtapa('fechado'); setErro(null); setLeitura(null); setEscolhido(null); setTermo(''); setAchados([]); setTermoBuscado('')
+    setEtapa('fechado'); setErro(null); setLeitura(null); setEscolhido(null); setTermo(''); setAchados([]); setTermoBuscado(''); setArquivoPronto(null)
   }
 
   async function aoEscolherArquivo(e: React.ChangeEvent<HTMLInputElement>) {
@@ -52,6 +54,7 @@ export function AtestadoPorFoto({ cids }: { cids: { codigo: string; descricao: s
     setEtapa('lendo')
     try {
       const pronto = await prepararArquivo(arquivo)
+      setArquivoPronto(pronto)
       const corpo = new FormData()
       corpo.set('arquivo', pronto)
       const resp = await fetch('/api/atestados/ler', { method: 'POST', body: corpo })
@@ -105,6 +108,7 @@ export function AtestadoPorFoto({ cids }: { cids: { codigo: string; descricao: s
         onClose={() => { fechar(); router.refresh() }}
         cids={cids}
         inicial={leitura.preenchimento}
+        arquivoInicial={arquivoPronto ?? undefined}
       />
     )
   }

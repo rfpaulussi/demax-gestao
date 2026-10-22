@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { deleteAtestado, calcularEpisodioInssAction } from '@/app/(admin)/atestados/actions'
 import { solicitarAfastamento } from '@/app/(admin)/efetivo/actions'
 import { ModalEditarAtestado } from './modal-editar-atestado'
+import { AmbulatorioCelula } from './ambulatorio-celula'
 import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dialog'
 import type { AtestadoParaEpisodio } from '@/lib/atestados/episodio-inss'
 
@@ -29,6 +30,7 @@ export type AtestadoRow = {
   cid_desc: string
   nexo_ocupacional: boolean
   tem_cobertura: boolean
+  ambulatorio_enviado_em: string | null
 }
 
 const ORIGEM_BADGE: Record<string, { label: string; className: string }> = {
@@ -71,6 +73,8 @@ interface Props {
   atestados: AtestadoRow[]
   cids: CidOpt[]
   isAdmin: boolean
+  /** Há destinatário do ambulatório configurado: mostra a coluna de envio. */
+  ambulatorioAtivo: boolean
 }
 
 type InssModalState = {
@@ -342,7 +346,10 @@ function RankingCard({
   )
 }
 
-export function AtestadosClient({ atestados, cids, isAdmin }: Props) {
+export function AtestadosClient({ atestados, cids, isAdmin, ambulatorioAtivo }: Props) {
+  const colunas = ambulatorioAtivo
+    ? [...COLS.slice(0, -1), { label: 'Ambulatório' }, COLS[COLS.length - 1]]
+    : COLS
   const [editando, setEditando] = useState<AtestadoRow | null>(null)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
   const [sortCol, setSortCol] = useState<SortCol>('data_inicio')
@@ -601,7 +608,7 @@ export function AtestadosClient({ atestados, cids, isAdmin }: Props) {
             <table className="w-full text-xs">
               <thead className="border-b border-gray-100 bg-slate-50">
                 <tr>
-                  {COLS.map(col => (
+                  {colunas.map(col => (
                     <th
                       key={col.label}
                       title={col.title}
@@ -695,6 +702,15 @@ export function AtestadosClient({ atestados, cids, isAdmin }: Props) {
                         )}
                       </div>
                     </td>
+                    {ambulatorioAtivo && (
+                      <td className="px-3 py-2">
+                        <AmbulatorioCelula
+                          atestadoId={a.id}
+                          funcionarioNome={a.funcionario_nome}
+                          enviadoEm={a.ambulatorio_enviado_em}
+                        />
+                      </td>
+                    )}
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap gap-1.5">
                         {isAdmin && ultimoAlertaIds.has(a.id) && (

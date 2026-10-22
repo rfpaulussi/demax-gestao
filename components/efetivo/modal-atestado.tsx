@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
-import { registrarAtestadoComRetorno, getSobreposicoesAtestado, getFaltasConflitantes, type SobreposicaoAtestado, type FaltaConflitante } from '@/app/(admin)/atestados/actions'
+import { registrarAtestadoComRetorno, getSobreposicoesAtestado, getFaltasConflitantes, ambulatorioAtivo, type SobreposicaoAtestado, type FaltaConflitante } from '@/app/(admin)/atestados/actions'
+import { enviarAoAmbulatorio } from '@/lib/atestados/ambulatorio/enviar-cliente'
 import { cn } from '@/lib/utils'
 import type { Preenchimento } from '@/lib/atestados/leitura/tipos'
 import { useBuscaCid } from '@/components/cid/use-busca-cid'
@@ -20,7 +21,13 @@ interface Props {
   cids: CidOpt[]
   /** Valores lidos da foto: início, dias, fim e CID já preenchidos; campos com aviso ficam em amarelo. */
   inicial?: Preenchimento
+  /** Foto/PDF já reduzido pelo lançamento por foto; segue por e-mail ao ambulatório depois de salvar. */
+  arquivoInicial?: File
 }
+
+type Envio = 'enviando' | 'ok' | 'erro'
+
+const MAX_ANEXO = 4 * 1024 * 1024
 
 const destaque = 'border-amber-400 bg-amber-50'
 
@@ -39,7 +46,14 @@ function addDays(dateStr: string, days: number): string {
   return dt.toISOString().slice(0, 10)
 }
 
-export function ModalAtestado({ funcionario, open, onClose, cids, inicial }: Props) {
+export function ModalAtestado({ funcionario, open, onClose, cids, inicial, arquivoInicial }: Props) {
+  const [ativo, setAtivo]         = useState(false)
+  const [arquivo, setArquivo]     = useState<File | null>(arquivoInicial ?? null)
+  const [erroArquivo, setErroArquivo] = useState<string | null>(null)
+  const [salvoId, setSalvoId]     = useState<string | null>(null)
+  const [envio, setEnvio]         = useState<Envio>('enviando')
+  const [erroEnvio, setErroEnvio] = useState<string | null>(null)
+  const arquivoRef = useRef<HTMLInputElement>(null)
   const [pending, setPending]     = useState(false)
   const [erro, setErro]           = useState<string | null>(null)
   const [cidBusca, setCidBusca]   = useState(inicial?.cidCodigo ? textoCid(inicial.cidCodigo, cids) : '')
@@ -58,6 +72,14 @@ export function ModalAtestado({ funcionario, open, onClose, cids, inicial }: Pro
   function limparAviso(campo: keyof Preenchimento['avisos']) {
     setAvisos(a => ({ ...a, [campo]: null }))
   }
+
+  // O campo de anexo só existe quando o servidor tem destinatário configurado.
+  useEffect(() => {
+    if (!open) return
+    let cancelado = false
+    ambulatorioAtivo().then(v => { if (!cancelado) setAtivo(v) }).catch(() => { if (!cancelado) setAtivo(false) })
+    return () => { cancelado = true }
+  }, [open])
 
   useEffect(() => {
     if (!dataInicio || !dataFim) { setSobreposicoes([]); setFaltasConf([]); return }
@@ -120,6 +142,36 @@ export function ModalAtestado({ funcionario, open, onClose, cids, inicial }: Pro
     setFaltasConf([])
     setFaltasAcao('')
     setErro(null)
+    setArquivo(arquivoInicial ?? null)
+    setErroArquivo(null)
+    setSalvoId(null)
+    setErroEnvio(null)
+  }
+
+  function escolherArquivo(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    if (f.type === 'application/pdf' && f.size > MAX_ANEXO) {
+      setErroArquivo('PDF grande demais (máximo 4 MB).')
+      return
+    }
+    setErroArquivo(null)
+    setArquivo(f)
+  }
+
+  async function enviarAgora(id: string, f: File) {
+    setEnvio('enviando')
+    setErroEnvio(null)
+    const r = await enviarAoAmbulatorio(id, f)
+    if (r.ok) { setEnvio('ok'); return }
+    setErroEnvio(r.erro)
+    setEnvio('erro')
+  }
+
+  function fecharTudo() {
+    resetState()
+    onClose()
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -141,6 +193,12 @@ export function ModalAtestado({ funcionario, open, onClose, cids, inicial }: Pro
     try {
       const r = await registrarAtestadoComRetorno(data)
       if (r.erro) { setErro(r.erro); return }
+      if (ativo && arquivo && r.atestadoId) {
+        // Atestado já salvo; o formulário dá lugar ao resultado do envio.
+        setSalvoId(r.atestadoId)
+        void enviarAgora(r.atestadoId, arquivo)
+        return
+      }
       form.reset()
       resetState()
       onClose()
@@ -152,12 +210,54 @@ export function ModalAtestado({ funcionario, open, onClose, cids, inicial }: Pro
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) { resetState(); onClose() } }}>
+    <Dialog.Root open={open} onOpenChange={(isOpen) => { if (!isOpen && !(salvoId && envio === 'enviando')) fecharTudo() }}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 bg-black/50 z-40" />
         <Dialog.Popup className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-full max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
           <Dialog.Title className="mb-1 text-lg font-semibold">Registrar Atestado</Dialog.Title>
           <p className="mb-4 text-sm text-gray-500">{funcionario.nome}</p>
+
+          {salvoId && arquivo ? (
+            <div className="space-y-4">
+              {envio === 'enviando' && (
+                <p className="rounded border border-blue-100 bg-blue-50 px-3 py-3 text-sm text-blue-800">
+                  ✓ Atestado salvo. Enviando ao ambulatório…
+                </p>
+              )}
+              {envio === 'ok' && (
+                <p className="rounded border border-green-200 bg-green-50 px-3 py-3 text-sm text-green-800">
+                  ✓ Atestado salvo e enviado ao ambulatório.
+                </p>
+              )}
+              {envio === 'erro' && (
+                <div className="rounded border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-900">
+                  <p className="font-semibold">✓ Atestado salvo, mas o envio ao ambulatório falhou.</p>
+                  {erroEnvio && <p className="mt-1 text-xs">{erroEnvio}</p>}
+                  <p className="mt-1 text-xs">Você pode tentar de novo agora ou enviar depois, pela lista de Atestados.</p>
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                {envio === 'erro' && (
+                  <button
+                    type="button"
+                    onClick={() => void enviarAgora(salvoId, arquivo)}
+                    className="rounded bg-amber-500 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-amber-400"
+                  >
+                    Tentar de novo
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={fecharTudo}
+                  disabled={envio === 'enviando'}
+                  className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          ) : (
+          <>
 
           {funcionario.status === 'afastado' && (
             <div className="mb-4 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -344,6 +444,33 @@ export function ModalAtestado({ funcionario, open, onClose, cids, inicial }: Pro
               </select>
             </div>
 
+            {ativo && (
+              <div>
+                <label className={labelClass}>
+                  Anexar atestado <span className="font-normal normal-case tracking-normal text-gray-400">(opcional — segue por e-mail ao ambulatório)</span>
+                </label>
+                <input ref={arquivoRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={escolherArquivo} />
+                {arquivo ? (
+                  <div className="flex items-center justify-between gap-2 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+                    <span className="truncate">📎 {arquivo.name}</span>
+                    <span className="flex shrink-0 gap-3">
+                      <button type="button" onClick={() => arquivoRef.current?.click()} className="font-medium text-blue-700 hover:underline">Trocar</button>
+                      <button type="button" onClick={() => { setArquivo(null); setErroArquivo(null) }} className="font-medium text-red-600 hover:underline">Remover</button>
+                    </span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => arquivoRef.current?.click()}
+                    className="w-full rounded border border-dashed border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                  >
+                    Escolher foto ou PDF
+                  </button>
+                )}
+                {erroArquivo && <p className="mt-1 text-xs text-red-600">{erroArquivo}</p>}
+              </div>
+            )}
+
             {erro && (
               <p className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                 {erro}
@@ -353,7 +480,7 @@ export function ModalAtestado({ funcionario, open, onClose, cids, inicial }: Pro
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => { resetState(); onClose() }}
+                onClick={fecharTudo}
                 className="rounded px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
               >
                 Cancelar
@@ -367,6 +494,8 @@ export function ModalAtestado({ funcionario, open, onClose, cids, inicial }: Pro
               </button>
             </div>
           </form>
+          </>
+          )}
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

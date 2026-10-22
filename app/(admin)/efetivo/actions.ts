@@ -112,7 +112,7 @@ export async function registrarAtestado(formData: FormData) {
     throw new Error('Apenas admin/coordenador podem manter faltas em período de atestado.')
   }
 
-  const { error: errAtestado } = await supabase.from('atestados').insert({
+  const { data: novoAtestado, error: errAtestado } = await supabase.from('atestados').insert({
     funcionario_id: funcionarioId,
     posto_id: postoId,
     data_inicio: dataInicio,
@@ -122,8 +122,8 @@ export async function registrarAtestado(formData: FormData) {
     sem_cid: semCid,
     origem_ocupacional: origemOcupacional,
     registrado_por: auth.user.id,
-  })
-  if (errAtestado) throw new Error(errAtestado.message)
+  }).select('id').single()
+  if (errAtestado || !novoAtestado) throw new Error(errAtestado?.message ?? 'Não foi possível salvar o atestado')
 
   if (faltasAcao === 'remover' && conflitantes.length > 0) {
     // Só remove faltas totalmente cobertas pelo atestado; parciais ficam para revisão manual.
@@ -171,6 +171,7 @@ export async function registrarAtestado(formData: FormData) {
   revalidatePath('/efetivo')
   revalidatePath('/dashboard')
   revalidatePath('/faltas')
+  return { id: novoAtestado.id }
 }
 
 export async function registrarFerias(formData: FormData) {
