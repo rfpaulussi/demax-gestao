@@ -89,7 +89,7 @@ export function prepararPreenchimento(leitura: LeituraAtestado, hoje: string, co
       cidCodigo = r.codigo
       if (r.aproximado) avisos.cid = `CID lido: ${r.lido?.slice(0, 12)}. Usei a categoria ${r.codigo}. Confira.`
     } else {
-      avisos.cid = `Li o CID ${(r.lido ?? leitura.cid).slice(0, 12)}, mas ele não está cadastrado no sistema. Escolha outro na lista ou peça ao administrador para cadastrá-lo.`
+      avisos.cid = `Li o CID ${(r.lido ?? leitura.cid).slice(0, 12)}, mas ele não está cadastrado na referência de CID. Escolha outro na lista ou peça ao administrador para cadastrá-lo.`
     }
   }
 

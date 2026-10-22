@@ -11,6 +11,8 @@ import type { RespostaLeitura } from '@/lib/atestados/leitura/tipos'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
+export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 const MAX_BYTES = 4 * 1024 * 1024
 const TIPOS: readonly string[] = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
