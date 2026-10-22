@@ -45,6 +45,19 @@ describe('normalizarCid', () => {
   it('aceita subcódigo de dois dígitos e cai na categoria', () => {
     expect(normalizarCid('J39.99', ref)).toEqual({ codigo: 'J39', lido: 'J39.99', aproximado: true })
   })
+  it('ignora prefixo "CID" e aceita outros separadores', () => {
+    expect(normalizarCid('CID: I517', ref)).toEqual({ codigo: 'I51.7', lido: 'I51.7', aproximado: false })
+    expect(normalizarCid('cid-10 a09', ref)).toEqual({ codigo: 'A09', lido: 'A09', aproximado: false })
+    expect(normalizarCid('I51-7', ref)).toEqual({ codigo: 'I51.7', lido: 'I51.7', aproximado: false })
+    expect(normalizarCid('I51/7', ref)).toEqual({ codigo: 'I51.7', lido: 'I51.7', aproximado: false })
+    expect(normalizarCid('I 51 7', ref)).toEqual({ codigo: 'I51.7', lido: 'I51.7', aproximado: false })
+  })
+  it('acha faixa cadastrada como está (ex.: S00-T98)', () => {
+    expect(normalizarCid('s00-t98', new Set(['S00-T98']))).toEqual({ codigo: 'S00-T98', lido: 'S00-T98', aproximado: false })
+  })
+  it('"CID" sozinho, sem código, vira ausente', () => {
+    expect(normalizarCid('CID', ref)).toEqual({ codigo: null, lido: null, aproximado: false })
+  })
   it('devolve código nulo quando não está na referência nem tem categoria', () => {
     expect(normalizarCid('K80', ref)).toEqual({ codigo: null, lido: 'K80', aproximado: false })
   })
@@ -132,6 +145,7 @@ describe('prepararPreenchimento', () => {
     const p = prepararPreenchimento(leitura({ cid: 'K80' }), HOJE, ref)
     expect(p.cidCodigo).toBe('')
     expect(p.avisos.cid).toContain('K80')
+    expect(p.avisos.cid).toContain('não está cadastrado')
   })
 
   it('CID lido muito longo é cortado no aviso', () => {

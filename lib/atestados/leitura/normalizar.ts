@@ -37,8 +37,13 @@ export interface ResultadoCid {
 /** "J399" → "J39.9"; procura exato e, se não houver, a categoria ("J39"). */
 export function normalizarCid(lido: string | null, referencia: ReadonlySet<string>): ResultadoCid {
   if (!lido) return { codigo: null, lido: null, aproximado: false }
-  const limpo = lido.replace(/\s+/g, '').replace(',', '.').toUpperCase()
-  const m = /^([A-Z])(\d{2})\.?(\d{1,2})?$/.exec(limpo)
+  // Sem espaços, em maiúsculas e sem o prefixo "CID" / "CID-10:" que alguns papéis trazem junto do código.
+  const limpo = lido.replace(/\s+/g, '').toUpperCase().replace(/^CID(?:-?10)?[:.\-]*/, '')
+  if (limpo === '') return { codigo: null, lido: null, aproximado: false }
+  // Faixas cadastradas (ex.: S00-T98) valem como estão.
+  if (referencia.has(limpo)) return { codigo: limpo, lido: limpo, aproximado: false }
+  // Aceita ponto, vírgula, hífen ou barra entre a categoria e a subcategoria.
+  const m = /^([A-Z])(\d{2})[.,\-/]?(\d{1,2})?$/.exec(limpo)
   if (!m) return { codigo: null, lido: limpo, aproximado: false }
   const categoria = `${m[1]}${m[2]}`
   const completo = m[3] ? `${categoria}.${m[3]}` : categoria
@@ -84,7 +89,7 @@ export function prepararPreenchimento(leitura: LeituraAtestado, hoje: string, co
       cidCodigo = r.codigo
       if (r.aproximado) avisos.cid = `CID lido: ${r.lido?.slice(0, 12)}. Usei a categoria ${r.codigo}. Confira.`
     } else {
-      avisos.cid = `CID lido: ${(r.lido ?? leitura.cid).slice(0, 12)}. Não está na referência; escolha na lista.`
+      avisos.cid = `Li o CID ${(r.lido ?? leitura.cid).slice(0, 12)}, mas ele não está cadastrado no sistema. Escolha outro na lista ou peça ao administrador para cadastrá-lo.`
     }
   }
 
