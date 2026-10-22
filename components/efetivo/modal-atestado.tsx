@@ -7,6 +7,7 @@ import { enviarAoAmbulatorio } from '@/lib/atestados/ambulatorio/enviar-cliente'
 import { cn } from '@/lib/utils'
 import type { Preenchimento } from '@/lib/atestados/leitura/tipos'
 import { useBuscaCid } from '@/components/cid/use-busca-cid'
+import { descricoesCids } from '@/app/(admin)/cids/actions'
 import type { FuncionarioRow } from './funcionarios-table'
 
 const fmt = (d: string) => d.split('-').reverse().join('/')
@@ -72,6 +73,22 @@ export function ModalAtestado({ funcionario, open, onClose, cids, inicial, arqui
   function limparAviso(campo: keyof Preenchimento['avisos']) {
     setAvisos(a => ({ ...a, [campo]: null }))
   }
+
+  // A página só carrega a descrição dos CIDs já usados em atestados. Um CID lido da foto que ainda
+  // não foi usado chega sem descrição; busca no servidor para mostrar "código — descrição".
+  useEffect(() => {
+    const codigo = inicial?.cidCodigo
+    if (!codigo || cids.some(c => c.codigo === codigo)) return
+    let cancelado = false
+    descricoesCids([codigo])
+      .then(r => {
+        const c = r[0]
+        // Só troca se o campo ainda mostra o código puro (o usuário pode ter mexido nele).
+        if (!cancelado && c) setCidBusca(atual => (atual === codigo ? `${c.codigo} — ${c.descricao}` : atual))
+      })
+      .catch(() => { /* sem descrição: o campo segue mostrando só o código */ })
+    return () => { cancelado = true }
+  }, [inicial?.cidCodigo, cids])
 
   // O campo de anexo só existe quando o servidor tem destinatário configurado.
   useEffect(() => {
