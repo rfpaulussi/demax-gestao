@@ -12,6 +12,7 @@ import { ConfirmarExclusaoDialog } from '@/components/ui/confirmar-exclusao-dial
 import { exportToExcel } from '@/lib/export-excel'
 import { SituacaoBadge, SITUACAO_OPCOES, situacaoLabel } from '@/components/ferias/situacao-badge'
 import { AvisoLimiteFerias } from '@/components/ferias/aviso-limite-ferias'
+import { prazoLabel } from '@/lib/ferias/prazo'
 import {
   buscarFeriasLista,
   buscarSupervisoresParaFiltro,
@@ -80,7 +81,15 @@ function LimiteBadge({ item }: { item: FeriasListaItem }) {
   const dataFormatada = formatDate(item.limite_gozo)
 
   if (level === 'neutro') {
-    return <span className="text-slate-500 text-sm">{dataFormatada}</span>
+    const rotulo = prazoLabel(item.status, item.limite_gozo)
+    return (
+      <div className="flex flex-col">
+        <span className="text-slate-400 text-sm">{dataFormatada}</span>
+        {['Gozado', 'Em gozo', 'Cancelado'].includes(rotulo) && (
+          <span className="text-[10px] text-slate-400">{rotulo.toLowerCase()}</span>
+        )}
+      </div>
+    )
   }
 
   if (level === 'vencido') {
@@ -155,6 +164,15 @@ function StatusBadge({ status }: { status: string }) {
       {label[status] ?? status}
     </span>
   )
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  disponivel: 'Disponível',
+  agendado: 'Agendado',
+  aprovado: 'Aprovado',
+  em_curso: 'Em Curso',
+  concluido: 'Concluído',
+  cancelado: 'Cancelado',
 }
 
 // ─── Tipo ordenação ───────────────────────────────────────────────────────────
@@ -476,6 +494,7 @@ function FeriasPageInner() {
         { label: 'Período', value: r => `${r.numero_periodo ?? ''}º` },
         { label: 'Período Aquisitivo', value: r => r.periodo_inicio && r.periodo_fim ? `${formatDate(r.periodo_inicio)} – ${formatDate(r.periodo_fim)}` : '', asText: true },
         { label: 'Limite Gozo', value: r => formatDate(r.limite_gozo), asText: true },
+        { label: 'Prazo', value: r => prazoLabel(r.status, r.limite_gozo) },
         { label: 'Dias', value: r => r.dias_direito ?? 0 },
         { label: 'Dias vendidos', value: r => r.dias_abono },
         { label: 'Faltas (RH)', value: r => r.dias_falta },
@@ -483,7 +502,7 @@ function FeriasPageInner() {
         { label: 'Obs. RH', value: r => r.obs_rh },
         { label: 'Início', value: r => formatDate(r.data_inicio), asText: true },
         { label: 'Fim', value: r => formatDate(r.data_fim), asText: true },
-        { label: 'Status', value: r => r.status },
+        { label: 'Status', value: r => STATUS_LABEL[r.status] ?? r.status },
       ],
       `ferias-${new Date().toISOString().split('T')[0]}.xlsx`
     )
@@ -527,6 +546,12 @@ function FeriasPageInner() {
             className="px-4 py-2 text-sm font-medium bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition"
           >
             ✦ Relação por Supervisor
+          </Link>
+          <Link
+            href="/ferias/panorama"
+            className="px-4 py-2 text-sm font-medium bg-orange-50 text-orange-700 border border-orange-200 rounded-lg hover:bg-orange-100 transition"
+          >
+            📅 Panorama a Vencer
           </Link>
           <Link
             href="/ferias/saldo"
