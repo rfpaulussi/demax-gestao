@@ -727,6 +727,7 @@ function TabAdvertencias() {
       natureza:       getCol(r, 'Natureza', 'natureza'),
       descricao:      getCol(r, 'Descricao', 'Descrição', 'descricao'),
       evidencias:     getCol(r, 'Evidencias', 'Evidências', 'evidencias'),
+      testemunhas:    getCol(r, 'Testemunhas', 'testemunhas'),
       nivel_sugerido: getCol(r, 'Nivel_Sugerido', 'Nível Sugerido', 'nivel_sugerido'),
       nivel_final:    getCol(r, 'Nivel_Final', 'Nível Final', 'nivel_final'),
       medida_final:   getCol(r, 'Medida_Final', 'Medida Final', 'medida_final'),

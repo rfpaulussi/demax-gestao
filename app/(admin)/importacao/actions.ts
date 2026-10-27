@@ -48,6 +48,7 @@ export interface AdvertenciaRow {
   natureza: string
   descricao: string
   evidencias: string
+  testemunhas: string
   nivel_sugerido: string
   nivel_final: string
   medida_final: string
@@ -318,6 +319,7 @@ export async function importarAdvertencias(
       horario_fato:        row.hora_fato || null,
       natureza:            row.natureza || null,
       relato:              row.descricao || null,
+      testemunha_1:        row.testemunhas || null,
       dias_suspensao:      row.dias_suspensao ? parseInt(row.dias_suspensao) || null : null,
       pdf_url:             row.link_pdf || null,
       status:              'gerada',

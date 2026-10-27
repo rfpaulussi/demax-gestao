@@ -56,9 +56,11 @@ const s = StyleSheet.create({
   label:           { width: 130, fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#374151' },
   value:           { flex: 1, fontSize: 9 },
   relato:          { fontSize: 9, lineHeight: 1.6, borderWidth: 1, borderColor: '#d1d5db', padding: 8, marginTop: 4, backgroundColor: '#f9fafb' },
+  ciencia:         { fontSize: 8, lineHeight: 1.7, color: '#4b5563', borderWidth: 1, borderColor: '#e5e7eb', padding: 8, backgroundColor: '#f9fafb' },
   sigGrid:         { flexDirection: 'row', marginTop: 8 },
-  sigBox:          { width: 260, borderTopWidth: 1, borderTopColor: '#9ca3af', paddingTop: 6 },
+  sigBox:          { flex: 1, borderTopWidth: 1, borderTopColor: '#9ca3af', paddingTop: 6, marginRight: 12 },
   sigName:         { fontSize: 8, fontFamily: 'Helvetica-Bold', marginTop: 20 },
+  sigRole:         { fontSize: 7, color: '#6b7280' },
   footer:          { position: 'absolute', bottom: 20, left: 40, right: 40, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 6 },
   footerText:      { fontSize: 7, color: '#9ca3af' },
 })
@@ -176,12 +178,53 @@ function AdvertenciaDocument({ adv }: { adv: AdvertenciaCompleta }) {
           ) : null}
         </View>
 
-        {/* Assinatura do colaborador */}
-        <View style={[s.section, { marginTop: 40 }]} wrap={false}>
+        {/* IV. Testemunhas */}
+        {(adv.testemunha_1 || adv.testemunha_2) ? (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>IV. TESTEMUNHAS</Text>
+            {adv.testemunha_1 ? (
+              <View style={s.row}>
+                <Text style={s.label}>Testemunha 1:</Text>
+                <Text style={s.value}>{adv.testemunha_1}</Text>
+              </View>
+            ) : null}
+            {adv.testemunha_2 ? (
+              <View style={s.row}>
+                <Text style={s.label}>Testemunha 2:</Text>
+                <Text style={s.value}>{adv.testemunha_2}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
+        {/* Ciência */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>V. CIÊNCIA</Text>
+          <Text style={s.ciencia}>
+            {`O(A) colaborador(a) declara ter recebido esta advertência e tomado ciência dos fatos nela descritos, estando ciente de que a reincidência em infrações disciplinares poderá resultar em medidas progressivamente mais severas, podendo culminar na rescisão do contrato de trabalho por justa causa, nos termos do art. 482 da Consolidação das Leis do Trabalho — CLT.\n\nA assinatura neste documento comprova apenas o recebimento e a ciência da medida, não representando concordância com a penalidade aplicada.`}
+          </Text>
+          <Text style={{ fontSize: 9, marginTop: 8 }}>
+            {`Mogi das Cruzes, ${new Date().toLocaleDateString('pt-BR')}.`}
+          </Text>
+        </View>
+
+        {/* Assinaturas */}
+        <View style={[s.section, { marginTop: 16 }]} wrap={false}>
           <View style={s.sigGrid}>
             <View style={s.sigBox}>
               <Text style={s.sigName}>{adv.funcionarios?.nome ?? '—'}</Text>
+              <Text style={s.sigRole}>Colaborador(a)</Text>
             </View>
+            <View style={s.sigBox}>
+              <Text style={s.sigName}>{adv.registrado_por ?? '—'}</Text>
+              <Text style={s.sigRole}>Responsável / Supervisor</Text>
+            </View>
+            {adv.testemunha_1 ? (
+              <View style={[s.sigBox, { marginRight: 0 }]}>
+                <Text style={s.sigName}>{adv.testemunha_1}</Text>
+                <Text style={s.sigRole}>Testemunha</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 

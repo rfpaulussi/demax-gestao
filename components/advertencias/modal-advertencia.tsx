@@ -348,6 +348,31 @@ export function ModalAdvertencia({ open, onClose, funcionarios, supervisores, re
               </div>
             </div>
 
+            {/* 4. Testemunhas */}
+            <div>
+              <p className={secTtl}>4. Testemunhas</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lbl}>Testemunha 1</label>
+                  <input
+                    type="text"
+                    name="testemunha_1"
+                    placeholder="Nome completo..."
+                    className={input}
+                  />
+                </div>
+                <div>
+                  <label className={lbl}>Testemunha 2</label>
+                  <input
+                    type="text"
+                    name="testemunha_2"
+                    placeholder="Nome completo..."
+                    className={input}
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Hidden inputs para campos controlados */}
             <input type="hidden" name="natureza" value={natureza} />
             <input type="hidden" name="relato" value={relato} />
