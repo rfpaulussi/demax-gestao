@@ -348,9 +348,9 @@ export function ModalAdvertencia({ open, onClose, funcionarios, supervisores, re
               </div>
             </div>
 
-            {/* 4. Testemunhas e Defesa */}
+            {/* 4. Testemunhas */}
             <div>
-              <p className={secTtl}>4. Testemunhas e Defesa</p>
+              <p className={secTtl}>4. Testemunhas</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={lbl}>Testemunha 1</label>
@@ -368,15 +368,6 @@ export function ModalAdvertencia({ open, onClose, funcionarios, supervisores, re
                     name="testemunha_2"
                     placeholder="Nome completo..."
                     className={input}
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className={lbl}>Defesa do Colaborador</label>
-                  <textarea
-                    name="defesa_colaborador"
-                    rows={3}
-                    placeholder="Registro da defesa apresentada pelo colaborador..."
-                    className={cn(input, 'h-auto py-2 resize-none')}
                   />
                 </div>
               </div>

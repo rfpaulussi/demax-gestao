@@ -73,7 +73,6 @@ export function ModalEditarAdvertencia({ adv, supervisores, onClose, onSuccess }
           registrado_por:     (fd.get('registrado_por') as string) || null,
           testemunha_1:       (fd.get('testemunha_1') as string) || null,
           testemunha_2:       (fd.get('testemunha_2') as string) || null,
-          defesa_colaborador: (fd.get('defesa_colaborador') as string) || null,
         })
         onSuccess()
         handleClose()
@@ -180,9 +179,9 @@ export function ModalEditarAdvertencia({ adv, supervisores, onClose, onSuccess }
             </div>
           </div>
 
-          {/* 3. Testemunhas e Defesa */}
+          {/* 3. Testemunhas */}
           <div>
-            <p className={secTtl}>3. Testemunhas e Defesa</p>
+            <p className={secTtl}>3. Testemunhas</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={lbl}>Testemunha 1</label>
@@ -195,13 +194,6 @@ export function ModalEditarAdvertencia({ adv, supervisores, onClose, onSuccess }
                 <input type="text" name="testemunha_2"
                   defaultValue={adv.testemunha_2 ?? ''}
                   placeholder="Nome completo..." className={input} />
-              </div>
-              <div className="col-span-2">
-                <label className={lbl}>Defesa do Colaborador</label>
-                <textarea name="defesa_colaborador" rows={3}
-                  defaultValue={adv.defesa_colaborador ?? ''}
-                  placeholder="Registro da defesa apresentada pelo colaborador..."
-                  className={cn(input, 'h-auto py-2 resize-none')} />
               </div>
             </div>
           </div>

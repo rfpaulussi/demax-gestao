@@ -197,19 +197,11 @@ function AdvertenciaDocument({ adv }: { adv: AdvertenciaCompleta }) {
           </View>
         ) : null}
 
-        {/* V. Defesa */}
-        {adv.defesa_colaborador ? (
-          <View style={s.section}>
-            <Text style={s.sectionTitle}>V. DEFESA DO COLABORADOR</Text>
-            <Text style={s.relato}>{adv.defesa_colaborador}</Text>
-          </View>
-        ) : null}
-
         {/* Ciência */}
         <View style={s.section}>
-          <Text style={s.sectionTitle}>VI. CIÊNCIA E CONCORDÂNCIA</Text>
+          <Text style={s.sectionTitle}>V. CIÊNCIA</Text>
           <Text style={s.ciencia}>
-            {`O(A) colaborador(a) declara ter tomado ciência desta advertência e dos fatos nela descritos, estando ciente de que a reincidência em infrações disciplinares poderá resultar em medidas progressivamente mais severas, podendo culminar na rescisão do contrato de trabalho por justa causa, nos termos do art. 482 da Consolidação das Leis do Trabalho — CLT.\n\nA presente medida disciplinar não implica confissão de culpa pelo empregador quanto a eventuais débitos trabalhistas, nem afasta o direito de defesa do(a) colaborador(a), que poderá apresentar justificativa por escrito no prazo de 48 (quarenta e oito) horas a contar do recebimento deste documento.`}
+            {`O(A) colaborador(a) declara ter recebido esta advertência e tomado ciência dos fatos nela descritos, estando ciente de que a reincidência em infrações disciplinares poderá resultar em medidas progressivamente mais severas, podendo culminar na rescisão do contrato de trabalho por justa causa, nos termos do art. 482 da Consolidação das Leis do Trabalho — CLT.\n\nA assinatura neste documento comprova apenas o recebimento e a ciência da medida, não representando concordância com a penalidade aplicada.`}
           </Text>
           <Text style={{ fontSize: 9, marginTop: 8 }}>
             {`Mogi das Cruzes, ${new Date().toLocaleDateString('pt-BR')}.`}
