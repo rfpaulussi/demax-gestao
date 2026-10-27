@@ -21,6 +21,7 @@ import {
   ESCALA_BADGE_CLASS,
   ESCALA_BORDER_CLASS,
   formatarResumoTurno,
+  isEscalaSeisDias,
 } from '@/lib/turnos/escala'
 import { cn } from '@/lib/utils'
 import type { TurnoPosto } from '@/types'
@@ -137,7 +138,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     setSaidaTocado(true)
     setPersonalizando(false)
     const pausaSexta = !!t.hora_inicio_almoco_sex && !!t.hora_fim_almoco_sex
-    const temSexta = resolverTipoEscalaPosto(t.tipo_escala) === '5x1' && (!!t.hora_entrada_sex || !!t.hora_saida_sex || pausaSexta)
+    const temSexta = isEscalaSeisDias(resolverTipoEscalaPosto(t.tipo_escala)) && (!!t.hora_entrada_sex || !!t.hora_saida_sex || pausaSexta)
     setSextaDistinta(temSexta)
     setHoraEntradaSex(t.hora_entrada_sex?.slice(0, 5) ?? '')
     setSextaTemPausa(pausaSexta)
@@ -201,9 +202,9 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
     setSaving(true)
     setErro(null)
     const temAlmoco = tipoEscalaForm !== '12x36'
-    const usaSextaDistinta = tipoEscalaForm === '5x1' && sextaDistinta
+    const usaSextaDistinta = isEscalaSeisDias(tipoEscalaForm) && sextaDistinta
     const temSaidaSex = tipoEscalaForm === '5x2' || usaSextaDistinta
-    const usaSabadoDistinto = tipoEscalaForm === '5x1' && sabadoDistinto
+    const usaSabadoDistinto = isEscalaSeisDias(tipoEscalaForm) && sabadoDistinto
     if (usaSextaDistinta && !horaEntradaSex && !horaSaidaSex && !sextaTemPausa) {
       setErro('Informe entrada, saída e/ou pausa de sexta, ou desmarque "sexta com horário diferente".')
       setSaving(false)
@@ -433,8 +434,8 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
                     type="time"
                     value={horaEntrada}
                     onChange={e => setHoraEntrada(e.target.value)}
-                    min={tipoEscalaForm === '5x1' ? '05:00' : undefined}
-                    max={tipoEscalaForm === '5x1' ? '16:00' : undefined}
+                    min={isEscalaSeisDias(tipoEscalaForm) ? '05:00' : undefined}
+                    max={isEscalaSeisDias(tipoEscalaForm) ? '16:00' : undefined}
                     className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-gray-400" />
                 </div>
               </div>
@@ -565,7 +566,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
               )}
 
               {/* sexta com horário próprio (entrada e/ou saída) — só no 5x1/6x1; no 5x2 a sexta com saída própria já é automática */}
-              {tipoEscalaForm === '5x1' && (
+              {isEscalaSeisDias(tipoEscalaForm) && (
                 <div className="space-y-3 rounded-lg border border-gray-200 bg-white px-3 py-3">
                   <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-600">
                     <input type="checkbox" checked={sextaDistinta}
@@ -634,7 +635,7 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
               )}
 
               {/* sábado com horário próprio — só faz sentido no regime 5x1/6x1 (5x2 não trabalha sábado; 12x36 é rotação por data, não por dia-da-semana) */}
-              {tipoEscalaForm === '5x1' && (
+              {isEscalaSeisDias(tipoEscalaForm) && (
                 <div className="space-y-3 rounded-lg border border-gray-200 bg-white px-3 py-3">
                   <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-600">
                     <input type="checkbox" checked={sabadoDistinto}

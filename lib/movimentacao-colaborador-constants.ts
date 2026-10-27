@@ -17,6 +17,7 @@ const SETOR_PREFIXES: [string, number][] = [
 export const REGIME_LABELS: Record<string, { escala: string; horario: string }> = {
   '5x2':   { escala: 'Segunda a Sexta',       horario: '07:00 às 17:00'          },
   '5x1':   { escala: 'Escala 5x1',            horario: 'Conforme turno do posto' },
+  '6x1':   { escala: 'Escala 6x1',            horario: 'Conforme turno do posto' },
   '12x36': { escala: '12x36',                 horario: '07:00 às 19:00'          },
 }
 export const REGIME_DEFAULT = REGIME_LABELS['5x2']

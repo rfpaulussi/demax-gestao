@@ -26,7 +26,7 @@ function pausa(inicio: string | null | undefined, fim: string | null | undefined
 
 /** Traduz um turno do catálogo para o bloco "HORÁRIO DE TRABALHO / TURNO" do Cadastro de Funcionários. */
 export function horarioParaCadastro(t: TurnoHorarios): HorarioCadastro {
-  const escala5x1 = t.tipo_escala === '5x1'
+  const escala5x1 = t.tipo_escala === '5x1' || t.tipo_escala === '6x1'
   const escalaOutra =
     t.tipo_escala === '5x2' ? '5x2'
       : t.tipo_escala === '12x36' ? '12x36'

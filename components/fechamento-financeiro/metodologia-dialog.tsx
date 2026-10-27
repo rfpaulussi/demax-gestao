@@ -60,7 +60,7 @@ export function MetodologiaFechamentoDialog() {
           <div className="space-y-5 border-t border-slate-100 pt-4">
             <Passo n={1} titulo="Regime e dias úteis">
               <p>
-                O regime de trabalho do posto (5x2, 5x1 ou 12x36) define quais dias contam como dia útil no
+                O regime de trabalho do posto (5x2, 5x1, 6x1 ou 12x36) define quais dias contam como dia útil no
                 mês, junto com o calendário de feriados nacionais e municipais.
               </p>
               <p className="mt-1 text-xs text-slate-400">

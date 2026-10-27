@@ -33,6 +33,7 @@ const STATUS_COLORS: Record<string, { fill: string; color: string }> = {
 const REGIME_COLORS: Record<string, { fill: string; color: string }> = {
   '5x2':            { fill: 'EFF6FF', color: '1D4ED8' },
   '5x1':            { fill: 'FAF5FF', color: '7E22CE' },
+  '6x1':            { fill: 'FDF2F8', color: 'BE185D' },
   '12x36':          { fill: 'FFF7ED', color: 'C2410C' },
   'jovem_aprendiz':  { fill: 'F0FDFA', color: '0F766E' },
 }

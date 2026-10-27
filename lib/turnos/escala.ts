@@ -1,7 +1,7 @@
 // lib/turnos/escala.ts
 
 /** Regimes atribuíveis a um posto (config_escalas_postos / seletor de regime do posto). */
-export const TIPOS_ESCALA_POSTO = ['5x2', '5x1', '12x36'] as const
+export const TIPOS_ESCALA_POSTO = ['5x2', '5x1', '6x1', '12x36'] as const
 export type TipoEscalaPosto = (typeof TIPOS_ESCALA_POSTO)[number]
 
 export function isTipoEscalaPosto(value: string | null | undefined): value is TipoEscalaPosto {
@@ -29,9 +29,15 @@ export function resolverTipoEscalaPosto(value: string | null | undefined): TipoE
   return isTipoEscalaPosto(value) ? value : '5x2'
 }
 
+/** 5x1 (5 dias + 1 folga, rodízio) e 6x1 (segunda a sábado) compartilham as regras de horário de semana de 6 dias; só diferem no cálculo de dias úteis. */
+export function isEscalaSeisDias(tipo: string | null | undefined): boolean {
+  return tipo === '5x1' || tipo === '6x1'
+}
+
 export const ESCALA_LABEL: Record<TipoEscala, string> = {
   '5x2': '5×2 · 44h/sem',
-  '5x1': '5×1 (6×1) · 44h/sem',
+  '5x1': '5×1 · 5 dias + 1 folga',
+  '6x1': '6×1 · 44h/sem',
   '12x36': '12×36',
   'jovem_aprendiz': 'Jovem Aprendiz',
 }
@@ -39,6 +45,7 @@ export const ESCALA_LABEL: Record<TipoEscala, string> = {
 export const ESCALA_BADGE_CLASS: Record<TipoEscala, string> = {
   '5x2': 'bg-blue-50 text-blue-700 ring-blue-200',
   '5x1': 'bg-purple-50 text-purple-700 ring-purple-200',
+  '6x1': 'bg-pink-50 text-pink-700 ring-pink-200',
   '12x36': 'bg-orange-50 text-orange-700 ring-orange-200',
   'jovem_aprendiz': 'bg-teal-50 text-teal-700 ring-teal-200',
 }
@@ -46,6 +53,7 @@ export const ESCALA_BADGE_CLASS: Record<TipoEscala, string> = {
 export const ESCALA_BORDER_CLASS: Record<TipoEscala, string> = {
   '5x2': 'border-blue-500',
   '5x1': 'border-purple-500',
+  '6x1': 'border-pink-500',
   '12x36': 'border-orange-500',
   'jovem_aprendiz': 'border-teal-500',
 }
@@ -113,7 +121,7 @@ const BASE_5X2_ALMOCO_FIM_MIN = 13 * 60 + 12
 const BASE_5X2_SAIDA_SEGQUI_MIN = 17 * 60
 const BASE_5X2_SAIDA_SEX_MIN = 17 * 60
 
-// 5x1 — 7h20 de trabalho/dia (44h ÷ 6 dias) + 1h de almoço, com o almoço começando 4h após a entrada.
+// 5x1 / 6x1 — 7h20 de trabalho/dia (44h ÷ 6 dias) + 1h de almoço, com o almoço começando 4h após a entrada.
 const CARGA_DIARIA_5X1_MIN = 7 * 60 + 20
 const ALMOCO_DURACAO_5X1_MIN = 60
 const ALMOCO_OFFSET_5X1_MIN = 4 * 60
@@ -129,7 +137,7 @@ const DURACAO_12X36_MIN = 13 * 60
 export function calcularHorariosDerivados(horaEntrada: string, tipoEscala: TipoEscalaPosto): HorariosDerivados {
   const entradaMin = horaParaMinutos(horaEntrada)
 
-  if (tipoEscala === '5x1') {
+  if (isEscalaSeisDias(tipoEscala)) {
     const almocoInicio = entradaMin + ALMOCO_OFFSET_5X1_MIN
     const almocoFim = almocoInicio + ALMOCO_DURACAO_5X1_MIN
     const saida = entradaMin + CARGA_DIARIA_5X1_MIN + ALMOCO_DURACAO_5X1_MIN

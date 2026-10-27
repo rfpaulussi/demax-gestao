@@ -103,6 +103,8 @@ export const CATALOGO_5X1: TurnoCatalogoItem[] = [
   { nome: 'Turno 14h 40m',    hora_entrada: '14:40', hora_inicio_almoco: '19:00', hora_fim_almoco: '20:00', hora_saida_seg_qui: '23:00', hora_saida_sex: null },
 ]
 
+export const CATALOGO_6X1: TurnoCatalogoItem[] = CATALOGO_5X1
+
 export const CATALOGO_JOVEM_APRENDIZ: TurnoCatalogoItem[] = [
   { nome: 'Turno Jovem Aprendiz 4h (a)', hora_entrada: '08:00', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '12:00', hora_saida_sex: '12:00' },
   { nome: 'Turno Jovem Aprendiz 4h (b)', hora_entrada: '07:00', hora_inicio_almoco: null, hora_fim_almoco: null, hora_saida_seg_qui: '11:00', hora_saida_sex: '11:00' },
@@ -126,6 +128,7 @@ export const CATALOGO_12X36: TurnoCatalogoItem[] = [
 export const CATALOGO_POR_REGIME: Partial<Record<string, TurnoCatalogoItem[]>> = {
   '5x2': CATALOGO_5X2,
   '5x1': CATALOGO_5X1,
+  '6x1': CATALOGO_6X1,
   '12x36': CATALOGO_12X36,
   jovem_aprendiz: CATALOGO_JOVEM_APRENDIZ,
 }

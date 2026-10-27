@@ -55,7 +55,7 @@ const EXPLICACOES: Record<string, Explicacao> = {
   },
   REGIME_NAO_ELEGIVEL: {
     origem: 'lei',
-    porque: 'Só escalas 5x2 e 5x1 entram neste acordo. 12x36 e jovem aprendiz ficam de fora (o RH valida a regra de cada um).',
+    porque: 'Só escalas 5x2, 5x1 e 6x1 entram neste acordo. 12x36 e jovem aprendiz ficam de fora (o RH valida a regra de cada um).',
   },
   TURNO_FORA_44H: {
     origem: 'cadastro',

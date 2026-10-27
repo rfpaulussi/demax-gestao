@@ -141,7 +141,7 @@ export function SituacaoCards({ selecionado, onSelect, grupoAberto, onGrupo, dia
       )}
 
       <p className="text-xs text-gray-500">
-        Só compensação em tempo (sem pagamento). Vale para 5x2 e 5x1; RH valida os limites.
+        Só compensação em tempo (sem pagamento). Vale para 5x2, 5x1 e 6x1; RH valida os limites.
       </p>
     </div>
   )

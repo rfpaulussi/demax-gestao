@@ -60,11 +60,18 @@ export function diasUteisNoPeriodo(
 ): number {
   if (start > end) return 0
   let count = 0
+  let indice = 0
   const d = new Date(start)
   while (d <= end) {
     const dateStr = d.toISOString().split('T')[0]
     const dow = d.getDay()
-    if (regime === '5x1' || regime === '12x36') {
+    if (regime === '5x1') {
+      // projeção da escala 5 dias de trabalho + 1 de folga, a partir do início do período; pula feriados
+      if (indice % 6 !== 5 && !feriados.has(dateStr)) count++
+    } else if (regime === '6x1') {
+      // segunda a sábado (domingo é a folga), pula feriados
+      if (dow !== 0 && !feriados.has(dateStr)) count++
+    } else if (regime === '12x36') {
       // dias corridos, mas pula feriados
       if (!feriados.has(dateStr)) count++
     } else {
@@ -72,6 +79,7 @@ export function diasUteisNoPeriodo(
       if (dow !== 0 && dow !== 6 && !feriados.has(dateStr)) count++
     }
     d.setDate(d.getDate() + 1)
+    indice++
   }
   return count
 }

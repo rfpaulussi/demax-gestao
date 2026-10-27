@@ -1,5 +1,6 @@
 import { DIAS_SEMANA, type DiaSemana, type DiaTurno, type SemanaTurno } from './tipos'
 import { hhmmParaMin } from './tempo'
+import { isEscalaSeisDias } from '@/lib/turnos/escala'
 
 /** Colunas de `turnos_postos` usadas aqui (horas podem vir como 'HH:MM:SS'). */
 export interface TurnoRow {
@@ -58,7 +59,7 @@ export function montarSemana(t: TurnoRow): SemanaTurno {
   let sab: DiaTurno
   if (sabadoDistinto) {
     sab = dia(hh(t.hora_entrada_sabado), hh(t.hora_inicio_almoco_sabado), hh(t.hora_fim_almoco_sabado), hh(t.hora_saida_sabado))
-  } else if (t.tipo_escala === '5x1') {
+  } else if (isEscalaSeisDias(t.tipo_escala)) {
     sab = { ...segQui }
   } else {
     sab = { ...FOLGA }

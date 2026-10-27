@@ -139,11 +139,18 @@ const REGIME_CONFIG: Record<string, {
     dotClass: 'bg-blue-500',
   },
   '5x1': {
-    badge: '6×1 · 44h/sem',
+    badge: '5×1 · 5 dias + 1 folga',
     badgeClass: 'bg-purple-50 text-purple-700 ring-purple-200',
+    diasLabel: 'Escala 5 dias de trabalho + 1 de folga',
+    diasAtivos: [true, true, true, true, true, true, true],
+    dotClass: 'bg-purple-500',
+  },
+  '6x1': {
+    badge: '6×1 · 44h/sem',
+    badgeClass: 'bg-pink-50 text-pink-700 ring-pink-200',
     diasLabel: 'Segunda a Sábado',
     diasAtivos: [false, true, true, true, true, true, true],
-    dotClass: 'bg-purple-500',
+    dotClass: 'bg-pink-500',
   },
   '12x36': {
     badge: '12×36',
