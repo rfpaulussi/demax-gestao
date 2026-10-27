@@ -105,7 +105,6 @@ const SECOES: Secao[] = [
       '👤 Busque e selecione o **funcionário** — o sistema já mostra o **histórico disciplinar** e reincidência',
       '📅 Informe **data e horário** da ocorrência e escolha a **natureza da infração** (o relato sugerido é preenchido automaticamente, mas pode editar)',
       '📌 Escolha o **grau**: verbal, escrita ou suspensão — e a **data de aplicação**',
-      '✍️ Preencha as **testemunhas**, se houver',
       '✅ Clique em **"Registrar Advertência"**',
     ],
     dica: 'Se o funcionário já teve advertências anteriores, um aviso vermelho de reincidência aparece antes de você continuar.',

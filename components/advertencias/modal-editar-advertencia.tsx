@@ -71,8 +71,6 @@ export function ModalEditarAdvertencia({ adv, supervisores, onClose, onSuccess }
           dias_suspensao:     grau === 'suspensao' ? Number(fd.get('dias_suspensao')) || null : null,
           data_aplicacao:     (fd.get('data_aplicacao') as string) || null,
           registrado_por:     (fd.get('registrado_por') as string) || null,
-          testemunha_1:       (fd.get('testemunha_1') as string) || null,
-          testemunha_2:       (fd.get('testemunha_2') as string) || null,
         })
         onSuccess()
         handleClose()
@@ -175,25 +173,6 @@ export function ModalEditarAdvertencia({ adv, supervisores, onClose, onSuccess }
                     <option key={s.id} value={s.nome}>{s.nome}</option>
                   ))}
                 </select>
-              </div>
-            </div>
-          </div>
-
-          {/* 3. Testemunhas */}
-          <div>
-            <p className={secTtl}>3. Testemunhas</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={lbl}>Testemunha 1</label>
-                <input type="text" name="testemunha_1"
-                  defaultValue={adv.testemunha_1 ?? ''}
-                  placeholder="Nome completo..." className={input} />
-              </div>
-              <div>
-                <label className={lbl}>Testemunha 2</label>
-                <input type="text" name="testemunha_2"
-                  defaultValue={adv.testemunha_2 ?? ''}
-                  placeholder="Nome completo..." className={input} />
               </div>
             </div>
           </div>

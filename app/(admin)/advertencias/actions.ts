@@ -19,8 +19,6 @@ export interface AdvertenciaCompleta {
   horario_fato: string | null
   natureza: string | null
   relato: string | null
-  testemunha_1: string | null
-  testemunha_2: string | null
   dias_suspensao: number | null
   data_aplicacao: string | null
   pdf_url: string | null
@@ -45,7 +43,7 @@ export interface FuncionarioOpt {
 
 const ADV_SELECT = `
   id, funcionario_id, tipo, grau, descricao, data_ocorrencia, horario_fato,
-  natureza, relato, testemunha_1, testemunha_2,
+  natureza, relato,
   dias_suspensao, data_aplicacao, pdf_url, status, criado_por, registrado_por, created_at,
   funcionarios!funcionario_id (
     id, nome, cpf,
@@ -125,8 +123,6 @@ export async function criarAdvertencia(formData: FormData) {
     horario_fato: (formData.get('horario_fato') as string) || null,
     natureza: (formData.get('natureza') as string) || null,
     relato: (formData.get('relato') as string) || null,
-    testemunha_1: (formData.get('testemunha_1') as string) || null,
-    testemunha_2: (formData.get('testemunha_2') as string) || null,
     dias_suspensao: diasRaw ? Number(diasRaw) : null,
     data_aplicacao: (formData.get('data_aplicacao') as string) || null,
     registrado_por: (formData.get('registrado_por') as string) || null,
@@ -285,8 +281,6 @@ export async function editarAdvertencia(data: {
   dias_suspensao?: number | null
   data_aplicacao?: string | null
   registrado_por?: string | null
-  testemunha_1?: string | null
-  testemunha_2?: string | null
 }) {
   const supabase = createClient()
   const auth = await getUser()
@@ -302,8 +296,6 @@ export async function editarAdvertencia(data: {
       dias_suspensao:     data.grau === 'suspensao' ? (data.dias_suspensao ?? null) : null,
       data_aplicacao:     data.data_aplicacao ?? null,
       registrado_por:     data.registrado_por ?? null,
-      testemunha_1:       data.testemunha_1 ?? null,
-      testemunha_2:       data.testemunha_2 ?? null,
     })
     .eq('id', data.id)
   if (error) throw new Error(error.message)
