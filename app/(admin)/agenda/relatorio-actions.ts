@@ -63,10 +63,19 @@ export type LinhaReplanejamento = {
   motivo: string
 }
 
+export type LinhaDia = {
+  data: string
+  cumpridas: number
+  faltas: number
+  extras: number
+  atencao: number
+}
+
 export type LinhaAlerta = {
   supervisor: string
   data: string
   posto: string
+  chave: string // status bruto da visita (falta, alerta, sem_foto, reposta, extra)
   status: string
   alertas: string
   justificativa: string
@@ -74,6 +83,9 @@ export type LinhaAlerta = {
 
 export type RelatorioMensal = {
   mes: string // YYYY-MM
+  parcial: boolean // mês em andamento: só conta o que já venceu até hoje
+  ateData: string // último dia considerado (hoje, se parcial; senão o fim do mês)
+  porDia: LinhaDia[]
   supervisores: LinhaSupervisor[]
   postos: LinhaPosto[]
   postosNaoVisitados: { postoId: string; nome: string; supervisor: string }[]
@@ -354,6 +366,7 @@ export async function carregarRelatorioMensal(
           supervisor: sup.nome ?? 'Supervisor',
           data: v.data,
           posto: v.posto_nome,
+          chave: v.status,
           status: STATUS_ROTULO[v.status] ?? v.status,
           alertas: v.alertas.join('; '),
           justificativa: v.justificativa ?? '',
@@ -363,6 +376,22 @@ export async function carregarRelatorioMensal(
     ocorrencias.sort((a, b) => a.data.localeCompare(b.data) || a.supervisor.localeCompare(b.supervisor))
     replanejamentos.sort((a, b) => a.data.localeCompare(b.data))
 
+    // Linha do tempo: visitas do mês por dia.
+    const diaAcc = new Map<string, LinhaDia>()
+    for (const sup of sups) {
+      for (const v of visitasPorSup.get(sup.id) ?? []) {
+        if (v.status === 'agendado') continue
+        const l = diaAcc.get(v.data) ?? { data: v.data, cumpridas: 0, faltas: 0, extras: 0, atencao: 0 }
+        if (v.status === 'ok' || v.status === 'reposta') l.cumpridas++
+        else if (v.status === 'alerta') { l.cumpridas++; l.atencao++ }
+        else if (v.status === 'falta' || v.status === 'sem_foto') l.faltas++
+        else if (v.status === 'extra') l.extras++
+        diaAcc.set(v.data, l)
+      }
+    }
+    const porDia = Array.from(diaAcc.values()).sort((a, b) => a.data.localeCompare(b.data))
+    const parcial = hoje >= inicio && hoje < fim
+
     const soma = (f: (l: LinhaSupervisor) => number) => linhas.reduce((t, l) => t + f(l), 0)
     const plan = soma(l => l.planejadas)
     const cump = soma(l => l.cumpridas)
@@ -371,6 +400,9 @@ export async function carregarRelatorioMensal(
       ok: true,
       dados: {
         mes,
+        parcial,
+        ateData: parcial ? hoje : fim,
+        porDia,
         supervisores: linhas,
         postos: Array.from(porPosto.values()).sort((a, b) => b.faltas - a.faltas || a.nome.localeCompare(b.nome)),
         postosNaoVisitados: naoVisitados.sort((a, b) => a.supervisor.localeCompare(b.supervisor) || a.nome.localeCompare(b.nome)),
