@@ -107,7 +107,7 @@ export function AgendaSupervisor({
             apoio postosHoje={postosHoje}
           />
         )}
-        <AbaMapa semanaInicio={semanaInicio} supervisorId={supervisor.id} dias={dias} />
+        <AbaMapa semanaInicio={semanaInicio} supervisorId={supervisor.id} dias={dias} apoio />
       </div>
     )
   }

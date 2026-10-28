@@ -55,7 +55,9 @@ function pino(cor: string, texto: string) {
   })
 }
 
-export default function MapaAgenda({ dados, dias }: { dados: MapaDados; dias: string[] }) {
+const COR_APOIO = { ok: '#10b981', atencao: '#f59e0b' }
+
+export default function MapaAgenda({ dados, dias, apoio = false }: { dados: MapaDados; dias: string[]; apoio?: boolean }) {
   const [dia, setDia] = useState<string>('todos')
   const [focoKey, setFocoKey] = useState<string | null>(null)
   const divRef = useRef<HTMLDivElement>(null)
@@ -64,6 +66,10 @@ export default function MapaAgenda({ dados, dias }: { dados: MapaDados; dias: st
   const posRef = useRef<Map<string, [number, number]>>(new Map())
 
   const { stats } = dados
+
+  // Supervisor de apoio: sem plano, então a cor mostra só se a visita teve sinal de atenção e o rótulo é a atividade.
+  const corDe = (v: VisitaView) => (apoio ? (v.alertas.length > 0 ? COR_APOIO.atencao : COR_APOIO.ok) : COR[v.status])
+  const rotuloDe = (v: VisitaView) => (apoio ? v.atividade ?? 'Sem atividade informada' : ROTULO[v.status])
   const visitas = useMemo(() => dados.visitas.filter(v => dia === 'todos' || v.data === dia), [dados.visitas, dia])
 
   useEffect(() => {
@@ -87,7 +93,7 @@ export default function MapaAgenda({ dados, dias }: { dados: MapaDados; dias: st
     const pontos: [number, number][] = []
 
     for (const v of visitas) {
-      const cor = COR[v.status]
+      const cor = corDe(v)
       if (v.lat_posto != null && v.lng_posto != null) {
         L.circle([v.lat_posto, v.lng_posto], {
           radius: v.raio_m, color: cor, weight: 2, dashArray: '6 6', fillColor: cor, fillOpacity: 0.1,
@@ -103,6 +109,8 @@ export default function MapaAgenda({ dados, dias }: { dados: MapaDados; dias: st
       if (v.lat_real != null && v.lng_real != null) {
         const detalhes = [
           `<b>${esc(v.posto_nome)}</b>`,
+          apoio ? `<i>${esc(v.atividade ?? 'Sem atividade informada')}</i>` : '',
+          apoio && v.atividade_obs ? esc(v.atividade_obs) : '',
           `${hora(v.entrada_em)}${v.saida_em ? ` – ${hora(v.saida_em)}` : ''}`,
           v.distancia_m != null ? `${formatarDistancia(v.distancia_m)} do posto` : '',
           ...v.alertas.map(a => `⚠️ ${esc(a)}`),
@@ -139,7 +147,18 @@ export default function MapaAgenda({ dados, dias }: { dados: MapaDados; dias: st
     if (p) mapRef.current?.setView(p, 17)
   }
 
-  const tiles = [
+  const feitas = dados.visitas.filter(v => v.entrada_em)
+  const tempos = feitas.map(v => v.tempo_min).filter((t): t is number => t !== null)
+  const tilesApoio = [
+    { label: 'Visitas', valor: String(feitas.length), cor: 'border-t-blue-500' },
+    { label: 'Postos distintos', valor: String(new Set(feitas.map(v => v.posto_id)).size), cor: 'border-t-emerald-500' },
+    { label: 'Tempo total', valor: tempos.length ? duracao(tempos.reduce((a, b) => a + b, 0)) ?? '—' : '—', cor: 'border-t-violet-500' },
+    { label: 'Tempo médio', valor: stats.tempoMedioMin === null ? '—' : duracao(stats.tempoMedioMin) ?? '—', cor: 'border-t-indigo-500' },
+    { label: 'Com atenção', valor: String(feitas.filter(v => v.alertas.length > 0).length), cor: 'border-t-amber-400' },
+    { label: 'Sem foto', valor: String(feitas.filter(v => v.fotos.length === 0).length), cor: 'border-t-orange-500' },
+    { label: 'Sem saída', valor: String(feitas.filter(v => !v.saida_em).length), cor: 'border-t-rose-500' },
+  ]
+  const tiles = apoio ? tilesApoio : [
     { label: 'Cumprimento', valor: stats.pct === null ? '—' : `${stats.pct}%`, cor: 'border-t-emerald-500' },
     { label: 'Cumpridas', valor: `${stats.cumpridas}/${stats.planejadas}`, cor: 'border-t-blue-500' },
     { label: 'Com atenção', valor: String(stats.atencao), cor: 'border-t-amber-400' },
@@ -153,7 +172,7 @@ export default function MapaAgenda({ dados, dias }: { dados: MapaDados; dias: st
 
   return (
     <div className="space-y-4">
-      {!stats.oficial && (
+      {!apoio && !stats.oficial && (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
           📝 Agenda em <b>rascunho</b>: as visitas aparecem como agendadas, mas só uma agenda <b>publicada</b> conta no cumprimento.
         </p>
@@ -186,7 +205,12 @@ export default function MapaAgenda({ dados, dias }: { dados: MapaDados; dias: st
           </button>
         ))}
         <span className="ml-auto flex flex-wrap gap-x-3 gap-y-1">
-          {(Object.keys(COR) as StatusVisita[]).map(s => (
+          {apoio ? (
+            <>
+              <span className="flex items-center gap-1.5 text-[11px] text-slate-500"><span className="h-2.5 w-2.5 rounded-full" style={{ background: COR_APOIO.ok }} /> Visita sem alertas</span>
+              <span className="flex items-center gap-1.5 text-[11px] text-slate-500"><span className="h-2.5 w-2.5 rounded-full" style={{ background: COR_APOIO.atencao }} /> Com sinal de atenção</span>
+            </>
+          ) : (Object.keys(COR) as StatusVisita[]).map(s => (
             <span key={s} className="flex items-center gap-1.5 text-[11px] text-slate-500">
               <span className="h-2.5 w-2.5 rounded-full" style={{ background: COR[s] }} /> {ROTULO[s]}
             </span>
@@ -200,7 +224,7 @@ export default function MapaAgenda({ dados, dias }: { dados: MapaDados; dias: st
         <div className="max-h-[560px] space-y-4 overflow-y-auto pr-1">
           {visitas.length === 0 && (
             <p className="rounded-2xl bg-white p-6 text-center text-sm text-slate-400 shadow-sm ring-1 ring-slate-200">
-              Nenhuma visita planejada ou registrada neste período.
+              {apoio ? 'Nenhuma visita registrada neste período.' : 'Nenhuma visita planejada ou registrada neste período.'}
             </p>
           )}
           {dataKeys.map(d => (
@@ -211,18 +235,19 @@ export default function MapaAgenda({ dados, dias }: { dados: MapaDados; dias: st
                   <li key={v.key}>
                     <button type="button" onClick={() => focar(v)}
                       className={`flex w-full items-start gap-2.5 rounded-xl bg-white p-2.5 text-left shadow-sm ring-1 transition hover:shadow-md ${focoKey === v.key ? 'ring-2 ring-slate-900' : 'ring-slate-200'}`}>
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black text-white" style={{ background: COR[v.status] }}>
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black text-white" style={{ background: corDe(v) }}>
                         {v.ordem ?? (v.status === 'falta' ? '!' : '·')}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-bold text-slate-800">{v.posto_nome}</span>
-                        <span className="block text-[11px] font-semibold" style={{ color: COR[v.status] }}>{ROTULO[v.status]}</span>
+                        <span className="block text-[11px] font-semibold" style={{ color: corDe(v) }}>{rotuloDe(v)}</span>
                         <span className="block text-[11px] text-slate-500">
                           {v.entrada_em ? `${hora(v.entrada_em)}${v.saida_em ? ` – ${hora(v.saida_em)}` : ''}` : v.periodos.map(p => ROTULO_PERIODO[p]).join(', ')}
                           {v.tempo_min != null && ` · ${duracao(v.tempo_min)}`}
                           {v.distancia_m != null && ` · ${formatarDistancia(v.distancia_m)} do posto`}
                         </span>
                         {v.focos.length > 0 && <span className="block truncate text-[11px] text-slate-400">{v.focos.join(' · ')}</span>}
+                        {apoio && v.atividade_obs && <span className="block text-[11px] text-slate-600">{v.atividade_obs}</span>}
                         {v.alertas.map(a => (
                           <span key={a} className="mt-0.5 block text-[11px] font-medium text-amber-700">⚠️ {a}</span>
                         ))}
