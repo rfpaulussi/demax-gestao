@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getUser } from '@/lib/auth/get-user'
 import { hojeBR } from '@/lib/agenda/datas'
 import { agendaDisponivel, carregarAgenda, carregarVisaoGeral } from './actions'
+import { listarPedidosMudanca } from './mudancas-actions'
 import { AgendaSupervisor } from '@/components/agenda/agenda-supervisor'
 import { VisaoGeral } from '@/components/agenda/visao-geral'
 
@@ -33,10 +34,13 @@ export default async function AgendaPage({
   }
 
   if (gestao && !searchParams.supervisor) {
-    const { semanaInicio, cards, tipos, feriados } = await carregarVisaoGeral(searchParams.semana)
+    const [{ semanaInicio, cards, tipos, feriados }, pedidos] = await Promise.all([
+      carregarVisaoGeral(searchParams.semana),
+      listarPedidosMudanca(),
+    ])
     return (
       <div className="p-6">
-        <VisaoGeral semanaInicio={semanaInicio} cards={cards} tipos={tipos} feriados={feriados} ehAdmin={role === 'admin'} />
+        <VisaoGeral semanaInicio={semanaInicio} cards={cards} tipos={tipos} feriados={feriados} ehAdmin={role === 'admin'} pedidos={pedidos} />
       </div>
     )
   }

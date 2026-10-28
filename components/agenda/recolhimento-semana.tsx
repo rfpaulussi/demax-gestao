@@ -60,7 +60,7 @@ export function RecolhimentoSemana({
   const intervaloValido = !!de && !!ate && de <= ate
   const alvo = dias.filter(d => d >= de && d <= ate && !(feriados[d] && feriados[d].tipo !== 'facultativo'))
   const pendentes = alvo.filter(d => !marcadoEm(d, periodosEscolhidos))
-  const precisaMotivo = publicada && motivo.trim().length < 5
+  const precisaMotivo = false // recolhimento é foco administrativo: motivo opcional, não conta como replanejamento
 
   function marcar() {
     setErro(null)
@@ -166,7 +166,7 @@ export function RecolhimentoSemana({
           value={motivo}
           onChange={e => setMotivo(e.target.value)}
           rows={2}
-          placeholder="Agenda publicada: motivo do replanejamento (obrigatório)"
+          placeholder="Observação (opcional)"
           className="w-full resize-none rounded-lg border border-amber-200 bg-white p-2 text-xs outline-none focus:border-amber-400"
         />
       )}

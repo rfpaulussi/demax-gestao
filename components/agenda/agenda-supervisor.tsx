@@ -27,7 +27,7 @@ export function AgendaSupervisor({
   const [slot, setSlot] = useState<SlotAberto | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [aba, setAba] = useState<'agenda' | 'mapa'>('agenda')
-  const { semanaInicio, semana, blocos, tipos, postos, sugestoes, comentarios, podeEditar, ehDono, supervisor, checkinsHoje, geoDisponivel, feriados, sede } = dados
+  const { semanaInicio, semana, blocos, tipos, postos, sugestoes, comentarios, podeEditar, ehDono, supervisor, checkinsHoje, geoDisponivel, feriados, sede, ehAdmin, mudancas } = dados
   const dias = diasDaSemana(semanaInicio)
   const publicada = semana.status === 'publicada'
   const [repostasLista, setRepostasLista] = useState<{ data: string; posto_id: string; reposta_em: string }[]>([])
@@ -132,7 +132,13 @@ export function AgendaSupervisor({
 
       {aba === 'agenda' && publicada && podeEditar && (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-          🔒 Agenda publicada. Qualquer alteração exige um motivo e fica registrada na linha do tempo.
+          🔒 Agenda publicada. Mudança em visita exige motivo e fica registrada na linha do tempo; dias que já passaram só o admin altera.
+          {ehDono && mudancas && (
+            <b className="ml-1">
+              Mudanças da semana: {mudancas.usadas} de {mudancas.limite + mudancas.extras}.
+              {mudancas.pedidoPendente ? ' Pedido aguardando a coordenação.' : ''}
+            </b>
+          )}
         </p>
       )}
       {aba === 'agenda' && aviso && <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800">{aviso}</p>}
@@ -188,6 +194,10 @@ export function AgendaSupervisor({
         sede={sede}
         podeMarcarSede={modoGestao}
         publicada={publicada}
+        hoje={hoje}
+        ehAdmin={ehAdmin}
+        ehDono={ehDono}
+        mudancas={mudancas}
         onClose={() => setSlot(null)}
       />
     </div>

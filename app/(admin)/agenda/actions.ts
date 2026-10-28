@@ -9,6 +9,8 @@ import { CORES_FOCO, SLOTS_MAX, type FeriadoDia, type Periodo } from '@/lib/agen
 import { ehDiaDaJanela, intervaloDoMes } from '@/lib/agenda/recolhimento'
 import { postosDoSupervisor, type PostoOpt } from '@/lib/agenda/postos'
 import { buscarSedeId } from '@/lib/agenda/sede'
+import { LIMITE_MUDANCAS_SEMANA, montarMotivo, restantes, type ResumoMudancas } from '@/lib/agenda/mudancas'
+import { contarMudanca, lerMudancas } from '@/lib/agenda/mudancas-db'
 import { dataBR, montarVisitas, type BlocoPlan, type CheckinRaw, type PostoGeo } from '@/lib/agenda/visitas'
 
 // As tabelas agenda_* ainda não estão em types/database.ts.
@@ -18,7 +20,7 @@ const db = () => createAdminClient() as unknown as AnyClient
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-export type Resultado = { ok: true } | { ok: false; erro: string }
+export type Resultado = { ok: true } | { ok: false; erro: string; limite?: boolean }
 
 export type TipoFoco = {
   id: string; nome: string; cor: string; icone: string; ativo: boolean; ordem: number
@@ -69,6 +71,8 @@ export type AgendaDados = {
   checkinsHoje: CheckinHoje[]
   geoDisponivel: boolean
   sede: PostoOpt | null // posto da sede/base (ADM): só aparece no check-in dos focos "sem posto"
+  ehAdmin: boolean // só o admin altera dias que já passaram numa agenda publicada
+  mudancas: ResumoMudancas | null // limite de mudanças depois de publicar; null = agenda em rascunho ou migração 20261030 pendente
 }
 
 export type CheckinHoje = {
@@ -228,6 +232,8 @@ export async function carregarAgenda(
       checkinsHoje,
       geoDisponivel,
       sede,
+      ehAdmin: role === 'admin',
+      mudancas: podeEditar && semanaRow?.id && semanaRow.status === 'publicada' ? await lerMudancas(admin, semanaRow.id) : null,
     },
   }
 }
@@ -475,6 +481,45 @@ async function contextoDono(semanaInicio: string, supervisorId?: string) {
   return { auth, admin, semana, alvoId, sufixo } as const
 }
 
+type AvaliacaoMudanca =
+  | { ok: true; motivo: string; replanejou: boolean; contar: boolean; usadas: number }
+  | { ok: false; erro: string; limite?: boolean }
+
+/**
+ * Regras de mudança em semana publicada (rascunho é livre):
+ * - dia que já passou: só o admin altera;
+ * - foco administrativo (sem posto: recolhimento, sede, audiência): livre, sem motivo, não conta como replanejamento;
+ * - demais focos: motivo por categoria; o supervisor tem LIMITE_MUDANCAS_SEMANA por semana (+ extras aprovadas),
+ *   a gestão que edita em nome dele não consome o limite.
+ */
+async function avaliarMudanca(
+  ctx: { auth: { perfil: { role: string | null } }; admin: AnyClient; semana: { id: string; status: 'rascunho' | 'publicada' } },
+  p: { datas: string[]; administrativo: boolean; categoria?: string; motivoTexto?: string },
+): Promise<AvaliacaoMudanca> {
+  if (ctx.semana.status !== 'publicada') return { ok: true, motivo: '', replanejou: false, contar: false, usadas: 0 }
+  const role = ctx.auth.perfil.role
+  const hoje = hojeBR()
+  if (p.datas.some(d => d < hoje) && role !== 'admin') {
+    return { ok: false, erro: 'Esse dia já passou: só o admin altera a agenda de dias passados.' }
+  }
+  if (p.administrativo) {
+    return { ok: true, motivo: (p.motivoTexto ?? '').trim().slice(0, 300), replanejou: false, contar: false, usadas: 0 }
+  }
+  const m = montarMotivo(p.categoria, p.motivoTexto)
+  if (!m.ok) return m
+  if (role !== 'supervisor') return { ok: true, motivo: m.motivo, replanejou: true, contar: false, usadas: 0 }
+
+  const resumo = await lerMudancas(ctx.admin, ctx.semana.id)
+  if (resumo && restantes(resumo) <= 0) {
+    return {
+      ok: false,
+      limite: true,
+      erro: `Você já usou as ${LIMITE_MUDANCAS_SEMANA} mudanças desta semana. Peça aprovação à coordenação para mudar de novo.`,
+    }
+  }
+  return { ok: true, motivo: m.motivo, replanejou: true, contar: !!resumo, usadas: resumo?.usadas ?? 0 }
+}
+
 async function registrarNota(admin: AnyClient, semanaId: string, autorId: string, texto: string) {
   await admin.from('agenda_comentarios').insert({ semana_id: semanaId, autor_id: autorId, texto })
 }
@@ -536,6 +581,7 @@ export async function salvarBloco(input: {
   postoIds: string[]
   observacao: string
   periodos?: Periodo[] // só recolhimento: manhã, tarde ou ambos
+  categoria?: string // categoria do motivo (agenda publicada)
   motivo?: string
   supervisorId?: string
 }): Promise<Resultado> {
@@ -554,8 +600,6 @@ export async function salvarBloco(input: {
   if (!Number.isInteger(input.ordem) || input.ordem < 1 || input.ordem > SLOTS_MAX) return { ok: false, erro: 'Posição inválida' }
 
   const publicada = semana.status === 'publicada'
-  const motivo = (input.motivo ?? '').trim()
-  if (publicada && motivo.length < 5) return { ok: false, erro: 'Agenda publicada: informe o motivo do replanejamento' }
 
   const { data: tipo } = await admin
     .from('agenda_tipos_foco')
@@ -563,6 +607,13 @@ export async function salvarBloco(input: {
     .eq('id', input.tipoFocoId)
     .maybeSingle()
   if (!tipo || tipo.ativo === false) return { ok: false, erro: 'Tipo de foco inválido' }
+
+  const av = await avaliarMudanca(ctx, {
+    datas: [input.data], administrativo: !!tipo.sem_posto, categoria: input.categoria, motivoTexto: input.motivo,
+  })
+  if (!av.ok) return av
+  const motivo = av.motivo
+  const replanejou = av.replanejou // foco administrativo não conta como replanejamento
 
   let postoIds: string[]
   if (tipo.usa_sede) {
@@ -587,12 +638,12 @@ export async function salvarBloco(input: {
     if (!periodosRec.every(p => PERIODOS_VALIDOS.includes(p))) return { ok: false, erro: 'Período inválido' }
     const r = await salvarRecolhimento(admin, {
       semanaId: semana.id, data: input.data, ordem: input.ordem, periodos: periodosRec, tipoId: tipo.id,
-      observacao, publicada, motivo,
+      observacao, publicada: replanejou, motivo,
     })
     if (!r.ok) return r
     if (publicada) {
       await registrarNota(admin, semana.id, auth.perfil.id,
-        `🔄 Replanejou ${input.data.split('-').reverse().slice(0, 2).join('/')} (${periodosRec.length === 2 ? 'dia inteiro' : ROTULO_PERIODO[periodosRec[0]]}): ${tipo.nome}. Motivo: ${motivo}${sufixo}`)
+        `🔄 Replanejou ${input.data.split('-').reverse().slice(0, 2).join('/')} (${periodosRec.length === 2 ? 'dia inteiro' : ROTULO_PERIODO[periodosRec[0]]}): ${tipo.nome}.${motivo ? ` Motivo: ${motivo}` : ''}${sufixo}`)
     }
     revalidatePath('/agenda')
     return { ok: true }
@@ -615,7 +666,7 @@ export async function salvarBloco(input: {
       .update({
         tipo_foco_id: input.tipoFocoId,
         observacao,
-        ...(publicada ? { replanejado: true, motivo_replanejamento: motivo } : {}),
+        ...(replanejou ? { replanejado: true, motivo_replanejamento: motivo } : {}),
       })
       .eq('id', blocoId)
     if (error) return { ok: false, erro: error.message }
@@ -630,8 +681,8 @@ export async function salvarBloco(input: {
         ordem: input.ordem,
         tipo_foco_id: input.tipoFocoId,
         observacao,
-        replanejado: publicada,
-        motivo_replanejamento: publicada ? motivo : null,
+        replanejado: replanejou,
+        motivo_replanejamento: replanejou ? motivo : null,
       })
       .select('id')
       .single()
@@ -648,20 +699,18 @@ export async function salvarBloco(input: {
 
   if (publicada) {
     await registrarNota(admin, semana.id, auth.perfil.id,
-      `🔄 Replanejou ${input.data.split('-').reverse().slice(0, 2).join('/')} (${ROTULO_PERIODO[input.periodo]}): ${tipo.nome}. Motivo: ${motivo}${sufixo}`)
+      `🔄 Replanejou ${input.data.split('-').reverse().slice(0, 2).join('/')} (${ROTULO_PERIODO[input.periodo]}): ${tipo.nome}.${motivo ? ` Motivo: ${motivo}` : ''}${sufixo}`)
   }
+  if (av.contar) await contarMudanca(admin, semana.id, av.usadas)
 
   revalidatePath('/agenda')
   return { ok: true }
 }
 
-export async function removerBloco(input: { semanaInicio: string; blocoId: string; motivo?: string; supervisorId?: string }): Promise<Resultado> {
+export async function removerBloco(input: { semanaInicio: string; blocoId: string; categoria?: string; motivo?: string; supervisorId?: string }): Promise<Resultado> {
   const ctx = await contextoDono(input.semanaInicio, input.supervisorId)
   if ('erro' in ctx) return { ok: false, erro: ctx.erro }
   const { auth, admin, semana, sufixo } = ctx
-
-  const motivo = (input.motivo ?? '').trim()
-  if (semana.status === 'publicada' && motivo.length < 5) return { ok: false, erro: 'Agenda publicada: informe o motivo' }
 
   const { data: bloco } = await admin
     .from('agenda_blocos')
@@ -671,7 +720,12 @@ export async function removerBloco(input: { semanaInicio: string; blocoId: strin
     .maybeSingle()
   if (!bloco) return { ok: false, erro: 'Bloco não encontrado' }
 
-  const { data: tipoBloco } = await admin.from('agenda_tipos_foco').select('dia_inteiro').eq('id', bloco.tipo_foco_id).maybeSingle()
+  const { data: tipoBloco } = await admin.from('agenda_tipos_foco').select('dia_inteiro, sem_posto').eq('id', bloco.tipo_foco_id).maybeSingle()
+  const av = await avaliarMudanca(ctx, {
+    datas: [bloco.data], administrativo: !!tipoBloco?.sem_posto, categoria: input.categoria, motivoTexto: input.motivo,
+  })
+  if (!av.ok) return av
+  const motivo = av.motivo
   // Foco de dia inteiro: remove a manhã e a tarde juntas.
   const { error } = tipoBloco?.dia_inteiro
     ? await admin.from('agenda_blocos').delete()
@@ -681,8 +735,9 @@ export async function removerBloco(input: { semanaInicio: string; blocoId: strin
 
   if (semana.status === 'publicada') {
     await registrarNota(admin, semana.id, auth.perfil.id,
-      `🗑️ Removeu bloco de ${bloco.data.split('-').reverse().slice(0, 2).join('/')} (${ROTULO_PERIODO[bloco.periodo as Periodo]}). Motivo: ${motivo}${sufixo}`)
+      `🗑️ Removeu bloco de ${bloco.data.split('-').reverse().slice(0, 2).join('/')} (${ROTULO_PERIODO[bloco.periodo as Periodo]}).${motivo ? ` Motivo: ${motivo}` : ''}${sufixo}`)
   }
+  if (av.contar) await contarMudanca(admin, semana.id, av.usadas)
   revalidatePath('/agenda')
   return { ok: true }
 }
@@ -709,8 +764,7 @@ export async function marcarRecolhimentoSemana(input: {
   const { auth, admin, semana, sufixo } = ctx
 
   const publicada = semana.status === 'publicada'
-  const motivo = (input.motivo ?? '').trim()
-  if (publicada && motivo.length < 5) return { ok: false, erro: 'Agenda publicada: informe o motivo do replanejamento' }
+  const motivo = (input.motivo ?? '').trim().slice(0, 300) // recolhimento é foco administrativo: motivo opcional
 
   const periodos = Array.from(new Set(input.periodos))
   if (periodos.length === 0 || !periodos.every(p => PERIODOS_VALIDOS.includes(p))) return { ok: false, erro: 'Escolha manhã, tarde ou dia inteiro' }
@@ -731,6 +785,8 @@ export async function marcarRecolhimentoSemana(input: {
   const feriados = await feriadosDaSemana(input.semanaInicio)
   const diasAlvo = Array.from({ length: 5 }, (_, i) => addDias(input.semanaInicio, i))
     .filter(d => d >= input.dataInicio && d <= input.dataFim && !ehFeriadoDeLei(feriados[d]))
+  const av = await avaliarMudanca(ctx, { datas: diasAlvo, administrativo: true, motivoTexto: motivo })
+  if (!av.ok) return av
 
   const { data: blocosRaw } = await admin
     .from('agenda_blocos')
@@ -763,8 +819,8 @@ export async function marcarRecolhimentoSemana(input: {
         ordem,
         tipo_foco_id: tipoId,
         observacao: null,
-        replanejado: publicada,
-        motivo_replanejamento: publicada ? motivo : null,
+        replanejado: false, // foco administrativo: não conta como replanejamento
+        motivo_replanejamento: null,
       })
     }
     marcados.push(data)
@@ -777,7 +833,7 @@ export async function marcarRecolhimentoSemana(input: {
       const lista = marcados.map(d => d.split('-').reverse().slice(0, 2).join('/')).join(', ')
       const quais = periodos.length === 2 ? 'dia inteiro' : ROTULO_PERIODO[periodos[0]]
       await registrarNota(admin, semana.id, auth.perfil.id,
-        `🔄 Marcou recolhimento de cartão (${quais}: ${lista}). Motivo: ${motivo}${sufixo}`)
+        `➕ Marcou recolhimento de cartão (${quais}: ${lista}).${motivo ? ` Motivo: ${motivo}` : ''}${sufixo}`)
     }
   }
 
@@ -796,12 +852,15 @@ export async function removerRecolhimentoSemana(input: {
   const { auth, admin, semana, sufixo } = ctx
 
   const publicada = semana.status === 'publicada'
-  const motivo = (input.motivo ?? '').trim()
-  if (publicada && motivo.length < 5) return { ok: false, erro: 'Agenda publicada: informe o motivo' }
+  const motivo = (input.motivo ?? '').trim().slice(0, 300) // foco administrativo: motivo opcional
 
   const { data: tiposRaw } = await admin.from('agenda_tipos_foco').select('id').eq('dia_inteiro', true)
   const ids = ((tiposRaw ?? []) as { id: string }[]).map(t => t.id)
   if (ids.length === 0) return { ok: true }
+
+  const { data: existentes } = await admin.from('agenda_blocos').select('data').eq('semana_id', semana.id).in('tipo_foco_id', ids)
+  const av = await avaliarMudanca(ctx, { datas: ((existentes ?? []) as { data: string }[]).map(b => b.data), administrativo: true, motivoTexto: motivo })
+  if (!av.ok) return av
 
   const { data: removidos, error } = await admin
     .from('agenda_blocos')
@@ -816,7 +875,7 @@ export async function removerRecolhimentoSemana(input: {
       .map(r => r.data).filter((d, i, arr) => arr.indexOf(d) === i)
       .map(d => d.split('-').reverse().slice(0, 2).join('/')).join(', ')
     await registrarNota(admin, semana.id, auth.perfil.id,
-      `🗑️ Removeu recolhimento de cartão (${lista}). Motivo: ${motivo}${sufixo}`)
+      `🗑️ Removeu recolhimento de cartão (${lista}).${motivo ? ` Motivo: ${motivo}` : ''}${sufixo}`)
   }
   revalidatePath('/agenda')
   return { ok: true }

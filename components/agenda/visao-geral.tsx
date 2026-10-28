@@ -4,6 +4,8 @@ import { PERIODOS, SLOTS_MIN, slotsDaSemana, temaDe } from '@/lib/agenda/tema'
 import { addDias, diaMes, diasDaSemana, hojeBR, rotuloSemana } from '@/lib/agenda/datas'
 import type { CardSupervisor, TipoFoco } from '@/app/(admin)/agenda/actions'
 import type { FeriadoDia } from '@/lib/agenda/tema'
+import type { PedidoMudanca } from '@/app/(admin)/agenda/mudancas-actions'
+import { PedidosMudanca } from '@/components/agenda/pedidos-mudanca'
 
 const STATUS = {
   publicada:  { label: 'Publicada',  badge: 'bg-emerald-100 text-emerald-700', topo: 'border-t-emerald-500' },
@@ -21,12 +23,14 @@ export function VisaoGeral({
   tipos,
   feriados,
   ehAdmin,
+  pedidos,
 }: {
   semanaInicio: string
   cards: CardSupervisor[]
   tipos: TipoFoco[]
   feriados: Record<string, FeriadoDia>
   ehAdmin: boolean
+  pedidos: PedidoMudanca[]
 }) {
   const dias = diasDaSemana(semanaInicio)
   const hoje = hojeBR()
@@ -89,6 +93,8 @@ export function VisaoGeral({
           </div>
         ))}
       </div>
+
+      <PedidosMudanca pedidos={pedidos} />
 
       {alertas.length > 0 && (
         <div className="rounded-2xl border border-rose-200 border-t-4 border-t-rose-500 bg-white p-4 shadow-sm">

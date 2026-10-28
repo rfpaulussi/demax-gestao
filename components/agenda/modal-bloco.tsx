@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { PERIODOS, temaDe, type Periodo } from '@/lib/agenda/tema'
 import { diaMes } from '@/lib/agenda/datas'
 import { removerBloco, salvarBloco } from '@/app/(admin)/agenda/actions'
+import { pedirMudancaExtra } from '@/app/(admin)/agenda/mudancas-actions'
+import { CATEGORIAS_MOTIVO, restantes, type ResumoMudancas } from '@/lib/agenda/mudancas'
 import { buscarEndereco, salvarLocalPosto } from '@/app/(admin)/agenda/geo-actions'
 import type { ResultadoEndereco } from '@/app/(admin)/agenda/geo-actions'
 import type { BlocoView, PostoOpt, TipoFoco } from '@/app/(admin)/agenda/actions'
@@ -31,6 +33,10 @@ export function ModalBloco({
   sede,
   podeMarcarSede,
   publicada,
+  hoje,
+  ehAdmin,
+  ehDono,
+  mudancas,
   onClose,
 }: {
   slot: SlotAberto | null
@@ -41,6 +47,10 @@ export function ModalBloco({
   sede: PostoOpt | null
   podeMarcarSede: boolean
   publicada: boolean
+  hoje: string
+  ehAdmin: boolean
+  ehDono: boolean // supervisor editando a própria agenda: sujeito ao limite de mudanças
+  mudancas: ResumoMudancas | null
   onClose: () => void
 }) {
   return (
@@ -56,6 +66,10 @@ export function ModalBloco({
           sede={sede}
           podeMarcarSede={podeMarcarSede}
           publicada={publicada}
+          hoje={hoje}
+          ehAdmin={ehAdmin}
+          ehDono={ehDono}
+          mudancas={mudancas}
           onClose={onClose}
         />
       )}
@@ -142,7 +156,7 @@ function LocalSede({ sede }: { sede: PostoOpt }) {
 }
 
 function Conteudo({
-  slot, semanaInicio, supervisorId, tipos, postos, sede, podeMarcarSede, publicada, onClose,
+  slot, semanaInicio, supervisorId, tipos, postos, sede, podeMarcarSede, publicada, hoje, ehAdmin, ehDono, mudancas, onClose,
 }: {
   slot: SlotAberto
   semanaInicio: string
@@ -152,6 +166,10 @@ function Conteudo({
   sede: PostoOpt | null
   podeMarcarSede: boolean
   publicada: boolean
+  hoje: string
+  ehAdmin: boolean
+  ehDono: boolean
+  mudancas: ResumoMudancas | null
   onClose: () => void
 }) {
   const router = useRouter()
@@ -165,6 +183,9 @@ function Conteudo({
     slot.grupoPeriodos && slot.grupoPeriodos.length === 2 ? 'dia' : slot.grupoPeriodos?.[0] ?? (slot.bloco ? slot.periodo : 'dia'),
   )
   const [motivo, setMotivo] = useState('')
+  const [categoria, setCategoria] = useState('')
+  const [pedido, setPedido] = useState('')
+  const [pedidoEnviado, setPedidoEnviado] = useState(false)
   const [busca, setBusca] = useState('')
   const [erro, setErro] = useState<string | null>(null)
 
@@ -185,6 +206,11 @@ function Conteudo({
 
   const tipoSel = tipos.find(t => t.id === tipoId)
   const semPosto = !!tipoSel?.sem_posto
+  // Regras da agenda publicada: foco administrativo (sem posto) é livre; dia passado só o admin; supervisor tem limite.
+  const passadoTravado = publicada && slot.data < hoje && !ehAdmin
+  const pedeMotivo = publicada && !semPosto && !passadoTravado
+  const limiteAtingido = pedeMotivo && ehDono && !!mudancas && restantes(mudancas) <= 0
+  const travado = passadoTravado || limiteAtingido
   const notaSemPosto = tipoSel?.usa_sede
     ? '🏢 Foco feito na sede/base da administração: o posto é definido automaticamente. No dia, o check-in exige GPS dentro do raio da sede e foto.'
     : tipoSel?.dia_inteiro
@@ -195,26 +221,44 @@ function Conteudo({
     setErro(null)
     if (!tipoId) return setErro('Escolha o tipo de foco')
     if (!semPosto && sel.size === 0) return setErro('Escolha ao menos um posto')
+    if (pedeMotivo && !categoria) return setErro('Escolha o motivo da mudança')
     start(async () => {
       const periodos: Periodo[] | undefined = tipoSel?.dia_inteiro
         ? (escolha === 'dia' ? ['manha', 'tarde'] : [escolha])
         : undefined
       const r = await salvarBloco({
         semanaInicio, data: slot.data, periodo: slot.periodo, ordem: slot.ordem,
-        tipoFocoId: tipoId, postoIds: Array.from(sel), observacao: obs, periodos, motivo, supervisorId,
+        tipoFocoId: tipoId, postoIds: Array.from(sel), observacao: obs, periodos, categoria: pedeMotivo ? categoria : undefined, motivo, supervisorId,
       })
-      if (!r.ok) return setErro(r.erro)
+      if (!r.ok) {
+        if (r.limite) router.refresh()
+        return setErro(r.erro)
+      }
       router.refresh()
       onClose()
+    })
+  }
+
+  function pedirExtra() {
+    setErro(null)
+    start(async () => {
+      const r = await pedirMudancaExtra({ semanaInicio, motivo: pedido })
+      if (!r.ok) return setErro(r.erro)
+      setPedidoEnviado(true)
+      router.refresh()
     })
   }
 
   function remover() {
     if (!slot.bloco) return
     setErro(null)
+    if (pedeMotivo && !categoria) return setErro('Escolha o motivo da mudança')
     start(async () => {
-      const r = await removerBloco({ semanaInicio, blocoId: slot.bloco!.id, motivo, supervisorId })
-      if (!r.ok) return setErro(r.erro)
+      const r = await removerBloco({ semanaInicio, blocoId: slot.bloco!.id, categoria: pedeMotivo ? categoria : undefined, motivo, supervisorId })
+      if (!r.ok) {
+        if (r.limite) router.refresh()
+        return setErro(r.erro)
+      }
       router.refresh()
       onClose()
     })
@@ -341,18 +385,61 @@ function Conteudo({
             />
           </section>
 
-          {publicada && (
+          {passadoTravado && (
+            <section className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-medium text-rose-800">
+              🔒 Este dia já passou. Numa agenda publicada, dias passados só o admin altera.
+            </section>
+          )}
+
+          {pedeMotivo && !limiteAtingido && (
             <section className="rounded-xl border border-amber-300 bg-amber-50 p-3">
               <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-amber-800">
                 <AlertTriangle className="h-3.5 w-3.5" /> Agenda publicada — replanejamento
               </p>
+              {ehDono && mudancas && (
+                <p className="mb-2 text-xs text-amber-900">
+                  Esta é a mudança <b>{mudancas.usadas + 1}</b> de <b>{mudancas.limite + mudancas.extras}</b> permitidas nesta semana.
+                  Depois do limite, só com aprovação da coordenação.
+                </p>
+              )}
+              <select value={categoria} onChange={e => setCategoria(e.target.value)}
+                className="mb-2 w-full rounded-lg border border-amber-200 bg-white p-2 text-sm outline-none focus:border-amber-400">
+                <option value="">Motivo da mudança (obrigatório)…</option>
+                {CATEGORIAS_MOTIVO.map(c => <option key={c.id} value={c.id}>{c.rotulo}</option>)}
+              </select>
               <textarea
                 value={motivo}
                 onChange={e => setMotivo(e.target.value)}
                 rows={2}
-                placeholder="Informe o motivo da mudança (obrigatório)"
+                placeholder={categoria === 'outro' ? 'Descreva o motivo (obrigatório)' : 'Detalhes (opcional)'}
                 className="w-full resize-none rounded-lg border border-amber-200 bg-white p-2.5 text-sm outline-none focus:border-amber-400"
               />
+            </section>
+          )}
+
+          {limiteAtingido && mudancas && (
+            <section className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+              <p className="mb-1.5 text-xs font-bold uppercase tracking-widest text-rose-800">Limite de mudanças da semana atingido</p>
+              <p className="mb-2 text-sm text-rose-900">
+                Você já usou {mudancas.usadas} de {mudancas.limite + mudancas.extras} mudanças. Para mudar de novo, peça aprovação à coordenação.
+              </p>
+              {mudancas.pedidoPendente || pedidoEnviado ? (
+                <p className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-700">⏳ Pedido enviado: aguardando a coordenação.</p>
+              ) : (
+                <>
+                  <textarea
+                    value={pedido}
+                    onChange={e => setPedido(e.target.value)}
+                    rows={2}
+                    placeholder="O que precisa mudar e por quê?"
+                    className="w-full resize-none rounded-lg border border-rose-200 bg-white p-2.5 text-sm outline-none focus:border-rose-400"
+                  />
+                  <button type="button" onClick={pedirExtra} disabled={pending || pedido.trim().length < 10}
+                    className="mt-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40">
+                    Pedir aprovação
+                  </button>
+                </>
+              )}
             </section>
           )}
 
@@ -364,7 +451,7 @@ function Conteudo({
             <button
               type="button"
               onClick={remover}
-              disabled={pending}
+              disabled={pending || travado}
               className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
             >
               <Trash2 className="h-4 w-4" /> Remover
@@ -377,7 +464,7 @@ function Conteudo({
             <button
               type="button"
               onClick={salvar}
-              disabled={pending}
+              disabled={pending || travado}
               className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-50"
             >
               {pending ? 'Salvando…' : 'Salvar bloco'}
