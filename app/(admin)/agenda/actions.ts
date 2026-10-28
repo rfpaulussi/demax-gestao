@@ -8,6 +8,7 @@ import { ehFeriadoDeLei, feriadosDaSemana } from '@/lib/agenda/feriados'
 import { CORES_FOCO, SLOTS_MAX, type FeriadoDia, type Periodo } from '@/lib/agenda/tema'
 import { ehDiaDaJanela, intervaloDoMes } from '@/lib/agenda/recolhimento'
 import { postosDoSupervisor, type PostoOpt } from '@/lib/agenda/postos'
+import { buscarSedeId } from '@/lib/agenda/sede'
 import { dataBR, montarVisitas, type BlocoPlan, type CheckinRaw, type PostoGeo } from '@/lib/agenda/visitas'
 
 // As tabelas agenda_* ainda não estão em types/database.ts.
@@ -239,12 +240,13 @@ async function buscarSede(): Promise<PostoOpt | null> {
     .eq('sede_base', true)
     .maybeSingle()
   if (error || !data) return null
+  const temLocal = data.latitude != null && data.longitude != null
   return {
     id: data.id,
     nome: data.nome,
     secretaria: data.secretaria ?? null,
-    tem_local: data.latitude != null && data.longitude != null,
-    a_conferir: false,
+    tem_local: temLocal,
+    a_conferir: temLocal && data.geo_confirmado === false,
   }
 }
 
@@ -360,6 +362,7 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
   }
   const nomeTipo = new Map(tipos.map(t => [t.id, t.nome]))
   const exigeFotoTipo = new Map(tipos.map(t => [t.id, !!t.exige_foto]))
+  const sedeId = await buscarSedeId(admin)
 
   // Recolhimento de cartão: pendente se hoje está na janela sugerida e o supervisor não marcou nenhum no mês.
   const idsDiaInteiro = tipos.filter(t => t.dia_inteiro).map(t => t.id)
@@ -400,6 +403,7 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
       postos: new Map<string, PostoGeo>(),
       hoje: hojeStr,
       publicada: sem?.status === 'publicada',
+      sedeId,
     })
     return {
       id: s.id,

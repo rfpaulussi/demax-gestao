@@ -201,6 +201,14 @@ export function CheckinPainel({
   const [pendentesCheckin, setPendentesCheckin] = useState<CheckinPendente[]>([])
   const [erroFila, setErroFila] = useState<string | null>(null)
   const sincronizando = useRef(false)
+  // Lembrete de check-in pendente a partir das 16h (só no cliente: depende do relógio do aparelho).
+  const [fimDeTarde, setFimDeTarde] = useState(false)
+  useEffect(() => {
+    const avaliar = () => setFimDeTarde(new Date().getHours() >= 16)
+    avaliar()
+    const t = window.setInterval(avaliar, 5 * 60_000)
+    return () => window.clearInterval(t)
+  }, [])
 
   async function atualizarPendentesFoto() {
     const itens = await listarFotosPendentes()
@@ -322,6 +330,7 @@ export function CheckinPainel({
   const todos = [...postos, ...(sede ? [sede] : [])]
   const planejados = todos.filter(p => plan.has(p.id))
   const extras = todos.filter(p => !plan.has(p.id))
+  const semCheckin = planejados.filter(p => !exibidos.some(c => c.posto_id === p.id && c.tipo === 'entrada'))
 
   function situacao(postoId: string) {
     const doPosto = exibidos.filter(c => c.posto_id === postoId)
@@ -559,9 +568,9 @@ export function CheckinPainel({
                 </p>
               )
             )}
-            {g?.exigeFoto && (
+            {(g?.exigeFoto || posto.id === sede?.id) && (
               <p className={`mt-0.5 text-[11px] font-bold ${entrada && !entrada.tem_foto && !saida?.tem_foto ? 'text-orange-600' : 'text-slate-400'}`}>
-                📷 Foto obrigatória neste foco{entrada && !entrada.tem_foto && !saida?.tem_foto ? ' — anexe para a visita contar' : ''}
+                📷 {posto.id === sede?.id ? 'Foto sempre obrigatória na sede' : 'Foto obrigatória neste foco'}{entrada && !entrada.tem_foto && !saida?.tem_foto ? ' — anexe para a visita contar' : ''}
               </p>
             )}
             {entrada && (
@@ -572,7 +581,7 @@ export function CheckinPainel({
             )}
           </div>
 
-          {!posto.tem_local && posto.id !== sede?.id ? (
+          {!posto.tem_local ? (
             <button type="button" disabled={!!busy} onClick={() => marcarLocal(posto.id)}
               className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-slate-900 transition hover:bg-amber-400 disabled:opacity-50">
               <MapPinOff className="h-4 w-4" /> {carregando ? 'Localizando…' : 'Marcar local aqui'}
@@ -594,7 +603,7 @@ export function CheckinPainel({
           )}
         </div>
 
-        {!posto.tem_local && posto.id !== sede?.id && (
+        {!posto.tem_local && (
           <p className="mt-2 text-[11px] text-slate-500">
             Este posto ainda não tem localização. Estando no posto, toque em <b>Marcar local aqui</b>: o GPS registra o ponto e a coordenação confere depois.
           </p>
@@ -705,6 +714,12 @@ export function CheckinPainel({
       <div className="space-y-2 p-3">
         {!geoDisponivel && (
           <p className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-500">Check-in será habilitado após a atualização do banco de dados.</p>
+        )}
+        {fimDeTarde && semCheckin.length > 0 && (
+          <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+            ⏰ Falta check-in em {semCheckin.length === 1 ? '1 visita planejada' : `${semCheckin.length} visitas planejadas`} de hoje ({semCheckin.map(p => p.nome).join(', ')}).
+            Visita sem check-in não conta no cumprimento. Visitou algum posto fora do plano? Faça o check-in em &quot;+ Visita extra&quot;.
+          </p>
         )}
         {aviso && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">{aviso}</p>}
         {erroFila && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{erroFila}</p>}

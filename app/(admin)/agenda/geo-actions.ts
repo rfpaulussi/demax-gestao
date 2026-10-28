@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { addDias, ehData, hojeBR, segundaDe } from '@/lib/agenda/datas'
 import { coordenadaValida, dentroDoRaio, distanciaM, PRECISAO_RUIM_M } from '@/lib/agenda/geo'
 import { postosDoSupervisor } from '@/lib/agenda/postos'
+import { buscarSedeId } from '@/lib/agenda/sede'
 import {
   dataBR, montarVisitas,
   type BlocoPlan, type CheckinRaw, type MapaStats, type PostoGeo, type VisitaView,
@@ -140,10 +141,14 @@ export async function marcarLocalPosto(input: {
     }
   }
 
-  const permitidos = await postosDoSupervisor(auth.perfil.id)
-  if (!permitidos.some(p => p.id === input.postoId)) return { ok: false, erro: 'Posto não pertence ao supervisor' }
-
   const admin = db()
+  // A sede/base não é posto do supervisor: qualquer supervisor, estando lá, marca o local (fica "a conferir").
+  const ehSede = (await buscarSedeId(admin)) === input.postoId
+  if (!ehSede) {
+    const permitidos = await postosDoSupervisor(auth.perfil.id)
+    if (!permitidos.some(p => p.id === input.postoId)) return { ok: false, erro: 'Posto não pertence ao supervisor' }
+  }
+
   const { data: posto, error: pErr } = await admin
     .from('postos')
     .select('id, latitude, longitude, geo_confirmado')
@@ -583,6 +588,7 @@ export async function carregarMapa(
 
   const { visitas, stats } = montarVisitas({
     planos, checkins, historico, postos, hoje: hojeBR(), publicada: sem?.status === 'publicada',
+    sedeId: await buscarSedeId(admin),
   })
 
   // Fotos: troca o caminho no bucket privado por URL assinada (1 h).

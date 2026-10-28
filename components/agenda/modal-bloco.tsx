@@ -286,7 +286,7 @@ function Conteudo({
               {tipoSel?.usa_sede && sede && podeMarcarSede && <LocalSede sede={sede} />}
               {tipoSel?.usa_sede && sede && !podeMarcarSede && !sede.tem_local && (
                 <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs font-medium text-amber-800">
-                  A sede ainda não tem local marcado. Peça à coordenação para marcar, senão o check-in não funciona.
+                  A sede ainda não tem local marcado. Estando na sede, toque em &quot;Marcar local aqui&quot; no painel do check-in: o GPS registra o ponto e a coordenação confere depois.
                 </p>
               )}
             </>

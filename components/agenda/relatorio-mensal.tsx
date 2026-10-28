@@ -13,7 +13,7 @@ const th = 'px-3 py-2 text-left text-xs font-semibold uppercase tracking-widest 
 const td = 'px-3 py-2 text-sm text-slate-700'
 
 export function RelatorioMensal({ dados }: { dados: Dados }) {
-  const { mes, supervisores, postos, postosNaoVisitados, replanejamentos, ocorrencias, totais } = dados
+  const { mes, supervisores, postos, postosNaoVisitados, postosBaixaFrequencia, metaVisitasPosto, porFoco, replanejamentos, ocorrencias, totais } = dados
   const pctTxt = (p: number | null) => (p === null ? '—' : `${p}%`)
 
   const kpis = [
@@ -68,6 +68,28 @@ export function RelatorioMensal({ dados }: { dados: Dados }) {
         columns: [
           { label: 'Posto', value: p => p.nome },
           { label: 'Supervisor', value: p => p.supervisor },
+        ],
+      },
+      {
+        name: 'Baixa frequência',
+        data: postosBaixaFrequencia,
+        columns: [
+          { label: 'Posto', value: p => p.nome },
+          { label: 'Supervisor', value: p => p.supervisor },
+          { label: 'Dias com visita', value: p => p.visitas },
+          { label: 'Meta no mês', value: () => metaVisitasPosto },
+        ],
+      },
+      {
+        name: 'Por foco',
+        data: porFoco,
+        columns: [
+          { label: 'Foco', value: f => f.foco },
+          { label: 'Planejadas', value: f => f.planejadas },
+          { label: 'Cumpridas', value: f => f.cumpridas },
+          { label: 'Faltas', value: f => f.faltas },
+          { label: 'Sem foto', value: f => f.semFoto },
+          { label: 'Cumprimento (%)', value: f => f.pct },
         ],
       },
       {
@@ -176,6 +198,43 @@ export function RelatorioMensal({ dados }: { dados: Dados }) {
             ))}
             {postosNaoVisitados.length === 0 && <li className="py-2 text-sm text-slate-500">Todos os postos tiveram visita.</li>}
           </ul>
+        </section>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section className="rounded-2xl border border-slate-200 border-t-4 border-t-orange-500 bg-white p-4 shadow-sm">
+          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-500">
+            Baixa frequência <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[11px] text-orange-700">{postosBaixaFrequencia.length}</span>
+          </p>
+          <p className="mb-2 text-[11px] text-slate-500">Postos visitados, mas com menos de {metaVisitasPosto} dias de visita no mês.</p>
+          <ul className="max-h-72 divide-y divide-slate-100 overflow-y-auto">
+            {postosBaixaFrequencia.map(p => (
+              <li key={`${p.supervisor}|${p.postoId}`} className="flex items-center justify-between gap-3 py-1.5 text-sm">
+                <span><b>{p.nome}</b> <span className="text-xs text-slate-500">· {p.supervisor}</span></span>
+                <span className="text-xs font-bold text-orange-600">{p.visitas} de {metaVisitasPosto}</span>
+              </li>
+            ))}
+            {postosBaixaFrequencia.length === 0 && <li className="py-2 text-sm text-slate-500">Nenhum posto abaixo da meta.</li>}
+          </ul>
+        </section>
+
+        <section className="overflow-x-auto rounded-2xl border border-slate-200 border-t-4 border-t-teal-500 bg-white shadow-sm">
+          <p className="px-4 pt-3 text-xs font-bold uppercase tracking-widest text-slate-500">Cumprimento por tipo de foco</p>
+          <table className="w-full min-w-[420px]">
+            <thead><tr>{['Foco', 'Plan.', 'Faltas', 'Sem foto', 'Cumprim.'].map(h => <th key={h} className={th}>{h}</th>)}</tr></thead>
+            <tbody className="divide-y divide-slate-100">
+              {porFoco.map(f => (
+                <tr key={f.foco}>
+                  <td className={`${td} font-semibold`}>{f.foco}</td>
+                  <td className={td}>{f.planejadas}</td>
+                  <td className={`${td} ${f.faltas ? 'font-bold text-rose-600' : ''}`}>{f.faltas}</td>
+                  <td className={`${td} ${f.semFoto ? 'text-orange-600' : ''}`}>{f.semFoto}</td>
+                  <td className={`${td} font-bold ${corPct(f.pct)}`}>{pctTxt(f.pct)}</td>
+                </tr>
+              ))}
+              {porFoco.length === 0 && <tr><td className={td} colSpan={5}>Sem visitas planejadas vencidas no mês.</td></tr>}
+            </tbody>
+          </table>
         </section>
       </div>
 

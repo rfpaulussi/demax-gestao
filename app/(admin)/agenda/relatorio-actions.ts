@@ -4,8 +4,9 @@ import { getUser } from '@/lib/auth/get-user'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { addDias, hojeBR, mesValido, segundaDe } from '@/lib/agenda/datas'
+import { buscarSedeId } from '@/lib/agenda/sede'
 import {
-  dataBR, montarVisitas,
+  dataBR, META_VISITAS_POSTO_MES, montarVisitas,
   type BlocoPlan, type CheckinRaw, type PostoGeo, type VisitaView,
 } from '@/lib/agenda/visitas'
 import type { Periodo } from '@/lib/agenda/tema'
@@ -45,6 +46,15 @@ export type LinhaPosto = {
   ultimaVisita: string | null
 }
 
+export type LinhaFoco = {
+  foco: string
+  planejadas: number
+  cumpridas: number
+  faltas: number
+  semFoto: number
+  pct: number | null
+}
+
 export type LinhaReplanejamento = {
   supervisor: string
   data: string
@@ -67,6 +77,9 @@ export type RelatorioMensal = {
   supervisores: LinhaSupervisor[]
   postos: LinhaPosto[]
   postosNaoVisitados: { postoId: string; nome: string; supervisor: string }[]
+  postosBaixaFrequencia: { postoId: string; nome: string; supervisor: string; visitas: number }[]
+  metaVisitasPosto: number
+  porFoco: LinhaFoco[]
   replanejamentos: LinhaReplanejamento[]
   ocorrencias: LinhaAlerta[]
   totais: { planejadas: number; cumpridas: number; faltas: number; extras: number; atencao: number; semFoto: number; pct: number | null }
@@ -110,6 +123,7 @@ export async function carregarRelatorioMensal(
       ),
     ])
 
+    const sedeId = await buscarSedeId(admin)
     const sups = (supsRaw ?? []) as { id: string; nome: string | null }[]
     const nomeSup = new Map(sups.map(s => [s.id, s.nome ?? 'Supervisor']))
     const tipos = (tiposRaw ?? []) as { id: string; nome: string; exige_foto?: boolean }[]
@@ -223,6 +237,7 @@ export async function carregarRelatorioMensal(
           postos: postosGeo,
           hoje,
           publicada: sem.status === 'publicada',
+          sedeId,
         })
         visitasMes.push(...visitas.filter(v => v.data >= inicio && v.data <= fim))
       }
@@ -237,6 +252,7 @@ export async function carregarRelatorioMensal(
           postos: postosGeo,
           hoje,
           publicada: false,
+          sedeId,
         })
         visitasMes.push(...visitas.filter(v => v.data >= inicio && v.data <= fim))
       }
@@ -286,12 +302,47 @@ export async function carregarRelatorioMensal(
       }
     }
     const visitados = new Set(Array.from(porPosto.entries()).filter(([, l]) => l.ultimaVisita).map(([k]) => k))
+    // Dias com visita iniciada (check-in de entrada) por supervisor × posto.
+    const diasComVisita = new Map<string, number>()
+    for (const sup of sups) {
+      for (const v of visitasPorSup.get(sup.id) ?? []) {
+        if (!v.entrada_em) continue
+        const k = `${sup.id}|${v.posto_id}`
+        diasComVisita.set(k, (diasComVisita.get(k) ?? 0) + 1)
+      }
+    }
     const naoVisitados: RelatorioMensal['postosNaoVisitados'] = []
+    const baixaFrequencia: RelatorioMensal['postosBaixaFrequencia'] = []
     for (const v of (vinculosRaw ?? []) as { supervisor_id: string; posto_id: string; postos: { id: string; nome: string; ativo: boolean | null } | null }[]) {
       if (!v.postos || v.postos.ativo === false || /^afastado/i.test(v.postos.nome)) continue
-      if (!nomeSup.has(v.supervisor_id) || visitados.has(`${v.supervisor_id}|${v.posto_id}`)) continue
-      naoVisitados.push({ postoId: v.posto_id, nome: v.postos.nome, supervisor: nomeSup.get(v.supervisor_id)! })
+      if (!nomeSup.has(v.supervisor_id)) continue
+      const chave = `${v.supervisor_id}|${v.posto_id}`
+      const feitas = diasComVisita.get(chave) ?? 0
+      if (!visitados.has(chave)) {
+        naoVisitados.push({ postoId: v.posto_id, nome: v.postos.nome, supervisor: nomeSup.get(v.supervisor_id)! })
+      } else if (feitas < META_VISITAS_POSTO_MES) {
+        baixaFrequencia.push({ postoId: v.posto_id, nome: v.postos.nome, supervisor: nomeSup.get(v.supervisor_id)!, visitas: feitas })
+      }
     }
+
+    // Cumprimento por tipo de foco (um bloco com vários focos conta em cada um).
+    const focoAcc = new Map<string, LinhaFoco>()
+    for (const sup of sups) {
+      for (const v of visitasPorSup.get(sup.id) ?? []) {
+        if (!['ok', 'alerta', 'sem_foto', 'falta', 'reposta'].includes(v.status)) continue
+        for (const nome of v.focos.length ? v.focos : ['(sem foco)']) {
+          const l = focoAcc.get(nome) ?? { foco: nome, planejadas: 0, cumpridas: 0, faltas: 0, semFoto: 0, pct: null }
+          l.planejadas++
+          if (['ok', 'alerta', 'reposta'].includes(v.status)) l.cumpridas++
+          if (v.status === 'falta') l.faltas++
+          if (v.status === 'sem_foto') l.semFoto++
+          focoAcc.set(nome, l)
+        }
+      }
+    }
+    const porFoco = Array.from(focoAcc.values())
+      .map(l => ({ ...l, pct: l.planejadas > 0 ? Math.round((l.cumpridas / l.planejadas) * 100) : null }))
+      .sort((a, b) => (a.pct ?? 101) - (b.pct ?? 101) || b.planejadas - a.planejadas)
     for (const l of linhas) l.postosSemVisita = naoVisitados.filter(n => n.supervisor === l.nome).length
 
     const ocorrencias: LinhaAlerta[] = []
@@ -323,6 +374,9 @@ export async function carregarRelatorioMensal(
         supervisores: linhas,
         postos: Array.from(porPosto.values()).sort((a, b) => b.faltas - a.faltas || a.nome.localeCompare(b.nome)),
         postosNaoVisitados: naoVisitados.sort((a, b) => a.supervisor.localeCompare(b.supervisor) || a.nome.localeCompare(b.nome)),
+        postosBaixaFrequencia: baixaFrequencia.sort((a, b) => a.visitas - b.visitas || a.nome.localeCompare(b.nome)),
+        metaVisitasPosto: META_VISITAS_POSTO_MES,
+        porFoco,
         replanejamentos,
         ocorrencias,
         totais: {

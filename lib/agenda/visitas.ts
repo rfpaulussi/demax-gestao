@@ -4,6 +4,8 @@ import { diaMes, segundaDe } from '@/lib/agenda/datas'
 
 /** Permanência mínima esperada entre chegada e saída (abaixo disso vira sinal de atenção). */
 export const MIN_PERMANENCIA_MIN = 10
+/** Meta mínima de visitas por posto no mês; abaixo disso o posto entra em "baixa frequência" no relatório mensal. */
+export const META_VISITAS_POSTO_MES = 2
 /** Velocidade acima da qual dois check-ins consecutivos são considerados fisicamente improváveis. */
 export const VELOCIDADE_MAX_KMH = 120
 
@@ -102,8 +104,10 @@ export function montarVisitas(args: {
   postos: Map<string, PostoGeo>
   hoje: string
   publicada: boolean
+  /** Posto da sede/base: o check-in nele sempre exige foto. */
+  sedeId?: string | null
 }): { visitas: VisitaView[]; stats: MapaStats } {
-  const { planos, checkins, postos, hoje, publicada } = args
+  const { planos, checkins, postos, hoje, publicada, sedeId } = args
   const historico = args.historico ?? []
 
   const plan = new Map<string, { data: string; posto_id: string; periodos: Set<Periodo>; focos: Set<string>; exigeFoto: boolean }>()
@@ -165,8 +169,13 @@ export function montarVisitas(args: {
       if (tempo !== null && tempo < MIN_PERMANENCIA_MIN) alertas.push(`Permanência curta: ${tempo} min (mínimo ${MIN_PERMANENCIA_MIN})`)
       if ((coordDias.get(chaveCoord(entrada))?.size ?? 0) > 1) alertas.push('Coordenada idêntica à de outro dia (o GPS real sempre varia um pouco)')
 
-      if (modo === 'extra' || modo === 'rascunho') status = 'extra'
-      else if (exigeFoto && !entrada.foto_path && !saida?.foto_path) {
+      // Na sede a foto é sempre obrigatória (planejada ou extra).
+      const exige = exigeFoto || (!!sedeId && postoId === sedeId)
+      const semFoto = !entrada.foto_path && !saida?.foto_path
+      if (modo === 'extra' || modo === 'rascunho') {
+        status = 'extra'
+        if (exige && semFoto) alertas.push('Check-in na sede sem a foto obrigatória')
+      } else if (exige && semFoto) {
         status = 'sem_foto'
         alertas.push('Foco exige foto e nenhuma foi anexada')
       } else status = alertas.length > 0 ? 'alerta' : 'ok'
