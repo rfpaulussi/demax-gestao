@@ -7,6 +7,7 @@ import { addDias, ehData, hojeBR, segundaDe } from '@/lib/agenda/datas'
 import { coordenadaValida, dentroDoRaio, distanciaM, PRECISAO_RUIM_M } from '@/lib/agenda/geo'
 import { postosDoSupervisor } from '@/lib/agenda/postos'
 import { buscarSedeId } from '@/lib/agenda/sede'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import {
   dataBR, montarVisitas,
   type BlocoPlan, type CheckinRaw, type MapaStats, type PostoGeo, type VisitaView,
@@ -19,6 +20,11 @@ const db = () => createAdminClient() as unknown as AnyClient
 
 function ehGestao(role: string | null | undefined) {
   return role === 'admin' || role === 'coordenador'
+}
+
+/** Supervisor de apoio: sem agenda, faz check-in em qualquer posto e informa a atividade (coluna perfis.apoio, migração 20261031). */
+function ehApoio(auth: { perfil: object }): boolean {
+  return (auth.perfil as { apoio?: boolean | null }).apoio === true
 }
 
 const MSG_MIGRACAO = 'Recurso indisponível: aplique a migração 20261012_agenda_checkins.sql no Supabase Studio.'
@@ -144,7 +150,7 @@ export async function marcarLocalPosto(input: {
   const admin = db()
   // A sede/base não é posto do supervisor: qualquer supervisor, estando lá, marca o local (fica "a conferir").
   const ehSede = (await buscarSedeId(admin)) === input.postoId
-  if (!ehSede) {
+  if (!ehSede && !ehApoio(auth)) {
     const permitidos = await postosDoSupervisor(auth.perfil.id)
     if (!permitidos.some(p => p.id === input.postoId)) return { ok: false, erro: 'Posto não pertence ao supervisor' }
   }
@@ -216,6 +222,43 @@ export async function marcarLocalPosto(input: {
 }
 
 // ─── Check-in (supervisor) ────────────────────────────────────────────────────
+
+// ─── Supervisor de apoio: escolher o posto onde está ─────────────────────────────
+
+export type PostoApoio = {
+  id: string
+  nome: string
+  secretaria: string | null
+  latitude: number | null
+  longitude: number | null
+  raio: number
+}
+
+/**
+ * Todos os postos ativos com local, para o supervisor de apoio escolher onde está. O aparelho guarda a lista
+ * e calcula os mais próximos do GPS sozinho: funciona sem sinal. Só para supervisor de apoio.
+ */
+export async function listarPostosApoio(): Promise<{ ok: true; postos: PostoApoio[] } | { ok: false; erro: string }> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role !== 'supervisor' || !ehApoio(auth)) return { ok: false, erro: 'Recurso exclusivo do supervisor de apoio' }
+  try {
+    const lista = await fetchAllRows<{ id: string; nome: string; secretaria: string | null; latitude: number | null; longitude: number | null; raio_m: number | null }>((de, ate) =>
+      db()
+        .from('postos')
+        .select('id, nome, secretaria, latitude, longitude, raio_m')
+        .eq('ativo', true)
+        .not('nome', 'ilike', 'AFASTADO%') // grupos de afastados não são locais físicos
+        .order('nome')
+        .range(de, ate),
+    )
+    return {
+      ok: true,
+      postos: lista.map(p => ({ id: p.id, nome: p.nome, secretaria: p.secretaria, latitude: p.latitude, longitude: p.longitude, raio: p.raio_m ?? 150 })),
+    }
+  } catch {
+    return { ok: false, erro: 'Não foi possível buscar a lista de postos agora.' }
+  }
+}
 
 // ─── Propostas de local (supervisor marcou longe do endereço cadastrado) ─────────
 
@@ -327,6 +370,8 @@ export async function registrarCheckin(input: {
   justificativa?: string
   localId?: string // id gerado no aparelho: reenvio do mesmo check-in não duplica
   capturadoEm?: string // ISO: momento do GPS (check-in guardado sem sinal)
+  focoId?: string // supervisor de apoio: atividade da visita (obrigatória na entrada)
+  atividadeObs?: string
 }): Promise<ResultadoCheckin> {
   const auth = await getUser()
   if (!auth) return { ok: false, erro: 'Não autenticado' }
@@ -335,6 +380,7 @@ export async function registrarCheckin(input: {
   }
   if (input.tipo !== 'entrada' && input.tipo !== 'saida') return { ok: false, erro: 'Tipo inválido' }
   if (!coordenadaValida(input.latitude, input.longitude)) return { ok: false, erro: 'Localização inválida' }
+  const apoio = ehApoio(auth)
 
   // Horário da captura: no check-in offline é o momento do GPS, não o do envio. Aceita até 7 dias atrás
   // (um fim de semana sem sinal não pode perder o check-in de sexta).
@@ -376,7 +422,7 @@ export async function registrarCheckin(input: {
   // Sede/base (ADM) não é posto do supervisor: o check-in dela é liberado para todo supervisor (planejado ou extra).
   const { data: sedeRow } = await admin.from('postos').select('id').eq('sede_base', true).maybeSingle()
   const ehSede = sedeRow?.id === input.postoId
-  if (!ehSede) {
+  if (!ehSede && !apoio) {
     const permitidos = await postosDoSupervisor(auth.perfil.id)
     if (!permitidos.some(p => p.id === input.postoId)) return { ok: false, erro: 'Posto não pertence ao supervisor' }
   }
@@ -389,6 +435,14 @@ export async function registrarCheckin(input: {
   if (postoErr) return { ok: false, erro: MSG_MIGRACAO }
   if (!posto || posto.latitude == null || posto.longitude == null) {
     return { ok: false, erro: 'Este posto ainda não tem localização cadastrada. Peça à coordenação.' }
+  }
+
+  // Supervisor de apoio: a entrada precisa informar o que foi fazer (foco da agenda).
+  const atividadeObs = (input.atividadeObs ?? '').trim().slice(0, 300)
+  if (apoio && input.tipo === 'entrada') {
+    if (!input.focoId) return { ok: false, erro: 'Escolha a atividade deste check-in.' }
+    const { data: foco } = await admin.from('agenda_tipos_foco').select('id, ativo, dia_inteiro').eq('id', input.focoId).maybeSingle()
+    if (!foco || foco.ativo === false || foco.dia_inteiro) return { ok: false, erro: 'Atividade inválida.' }
   }
 
   // Trava duplo toque / reenvio (compara com o momento da captura).
@@ -448,6 +502,7 @@ export async function registrarCheckin(input: {
       justificativa: justificativa || null,
       created_at: momento,
       local_id: input.localId ?? null,
+      ...(apoio && input.tipo === 'entrada' ? { foco_id: input.focoId, atividade_obs: atividadeObs || null } : {}),
     })
     .select('id')
     .single()
@@ -554,6 +609,12 @@ export async function carregarMapa(
     )
   }
 
+  // Supervisor de apoio: toda visita exige foto e mostra a atividade informada (perfis.apoio existe após a migração 20261031).
+  const { data: perfilAlvo } = await admin.from('perfis').select('apoio').eq('id', supervisorId).maybeSingle()
+  const apoioDono = perfilAlvo?.apoio === true
+  const { data: focosRaw } = await admin.from('agenda_tipos_foco').select('id, nome')
+  const focoPorId = new Map(((focosRaw ?? []) as { id: string; nome: string }[]).map(f => [f.id, f.nome]))
+
   const colunas = 'id, supervisor_id, posto_id, tipo, latitude, longitude, precisao_m, distancia_m, dentro_raio, baixa_precisao, justificativa, created_at'
   const buscarCheckins = (cols: string) =>
     admin
@@ -563,8 +624,9 @@ export async function carregarMapa(
       .gte('created_at', `${addDias(semanaInicio, -1)}T00:00:00Z`)
       .lte('created_at', `${addDias(fim, 1)}T23:59:59Z`)
       .order('created_at', { ascending: true })
-  // Com foto_path; se a migração 20261013 ainda não rodou, cai para o select sem a coluna.
-  let { data: cksRaw, error: cksErr } = await buscarCheckins(`${colunas}, foto_path`)
+  // Com atividade (migração 20261031) e foto_path (20261013); sem elas, cai para o select mais simples.
+  let { data: cksRaw, error: cksErr } = await buscarCheckins(`${colunas}, foto_path, foco_id, atividade_obs`)
+  if (cksErr) ({ data: cksRaw, error: cksErr } = await buscarCheckins(`${colunas}, foto_path`))
   if (cksErr) ({ data: cksRaw, error: cksErr } = await buscarCheckins(colunas))
   if (cksErr) return { ok: false, erro: MSG_MIGRACAO }
   const checkins = ((cksRaw ?? []) as CheckinRaw[]).filter(c => {
@@ -594,6 +656,8 @@ export async function carregarMapa(
   const { visitas, stats } = montarVisitas({
     planos, checkins, historico, postos, hoje: hojeBR(), publicada: sem?.status === 'publicada',
     sedeId: await buscarSedeId(admin),
+    fotoSempre: apoioDono,
+    focoPorId,
   })
 
   // Fotos: troca o caminho no bucket privado por URL assinada (1 h).

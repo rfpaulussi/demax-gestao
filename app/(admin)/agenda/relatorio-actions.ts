@@ -63,6 +63,33 @@ export type LinhaReplanejamento = {
   motivo: string
 }
 
+export type VisitaApoio = {
+  data: string
+  posto: string
+  atividade: string
+  obs: string
+  entrada: string | null // ISO
+  saida: string | null // ISO
+  tempoMin: number | null
+  alertas: string
+}
+
+/** Resumo de atividades de um supervisor de apoio (sem agenda: o que vale é o que ele registrou). */
+export type LinhaApoio = {
+  id: string
+  nome: string
+  diasEmCampo: number
+  visitas: number
+  postosDistintos: number
+  tempoTotalMin: number
+  tempoMedioMin: number | null
+  foraRaio: number
+  semFoto: number
+  semSaida: number
+  porAtividade: { atividade: string; visitas: number }[]
+  detalhe: VisitaApoio[]
+}
+
 export type LinhaDia = {
   data: string
   cumpridas: number
@@ -87,6 +114,7 @@ export type RelatorioMensal = {
   ateData: string // último dia considerado (hoje, se parcial; senão o fim do mês)
   porDia: LinhaDia[]
   supervisores: LinhaSupervisor[]
+  apoio: LinhaApoio[]
   postos: LinhaPosto[]
   postosNaoVisitados: { postoId: string; nome: string; supervisor: string }[]
   postosBaixaFrequencia: { postoId: string; nome: string; supervisor: string; visitas: number }[]
@@ -136,7 +164,12 @@ export async function carregarRelatorioMensal(
     ])
 
     const sedeId = await buscarSedeId(admin)
-    const sups = (supsRaw ?? []) as { id: string; nome: string | null }[]
+    // Supervisor de apoio (perfis.apoio, migração 20261031) não tem agenda: fica fora do cumprimento e tem resumo próprio.
+    const { data: apoioRows } = await admin.from('perfis').select('id').eq('role', 'supervisor').eq('apoio', true)
+    const idsApoio = new Set(((apoioRows ?? []) as { id: string }[]).map(r => r.id))
+    const supsTodos = (supsRaw ?? []) as { id: string; nome: string | null }[]
+    const sups = supsTodos.filter(s => !idsApoio.has(s.id))
+    const supsApoio = supsTodos.filter(s => idsApoio.has(s.id))
     const nomeSup = new Map(sups.map(s => [s.id, s.nome ?? 'Supervisor']))
     const tipos = (tiposRaw ?? []) as { id: string; nome: string; exige_foto?: boolean }[]
     const nomeTipo = new Map(tipos.map(t => [t.id, t.nome]))
@@ -175,7 +208,11 @@ export async function carregarRelatorioMensal(
       )
     // foto_path só existe após a migração 20261013.
     let cks: CheckinRaw[]
-    try { cks = await buscar(`${colunas}, foto_path`) } catch { cks = await buscar(colunas) }
+    try {
+      cks = await buscar(`${colunas}, foto_path, foco_id, atividade_obs`)
+    } catch {
+      try { cks = await buscar(`${colunas}, foto_path`) } catch { cks = await buscar(colunas) }
+    }
 
     const cksPorSupSemana = new Map<string, CheckinRaw[]>()
     const histPorSup = new Map<string, CheckinRaw[]>()
@@ -376,6 +413,55 @@ export async function carregarRelatorioMensal(
     ocorrencias.sort((a, b) => a.data.localeCompare(b.data) || a.supervisor.localeCompare(b.supervisor))
     replanejamentos.sort((a, b) => a.data.localeCompare(b.data))
 
+    // Supervisores de apoio: todas as visitas são check-ins sem plano; a foto é obrigatória em toda visita.
+    const apoio: LinhaApoio[] = supsApoio.map(sup => {
+      const visitas: VisitaView[] = []
+      for (const seg of segundas) {
+        const r = montarVisitas({
+          planos: [],
+          checkins: cksPorSupSemana.get(`${sup.id}|${seg}`) ?? [],
+          historico: histPorSup.get(sup.id) ?? [],
+          postos: postosGeo,
+          hoje,
+          publicada: false,
+          sedeId,
+          fotoSempre: true,
+          focoPorId: nomeTipo,
+        })
+        visitas.push(...r.visitas.filter(v => v.data >= inicio && v.data <= fim && v.entrada_em))
+      }
+      visitas.sort((a, b) => (a.entrada_em ?? '').localeCompare(b.entrada_em ?? ''))
+      const tempos = visitas.map(v => v.tempo_min).filter((x): x is number => x !== null)
+      const porAtiv = new Map<string, number>()
+      for (const v of visitas) {
+        const k = v.atividade ?? 'Sem atividade informada'
+        porAtiv.set(k, (porAtiv.get(k) ?? 0) + 1)
+      }
+      return {
+        id: sup.id,
+        nome: sup.nome ?? 'Supervisor',
+        diasEmCampo: new Set(visitas.map(v => v.data)).size,
+        visitas: visitas.length,
+        postosDistintos: new Set(visitas.map(v => v.posto_id)).size,
+        tempoTotalMin: tempos.reduce((a, b) => a + b, 0),
+        tempoMedioMin: tempos.length ? Math.round(tempos.reduce((a, b) => a + b, 0) / tempos.length) : null,
+        foraRaio: visitas.filter(v => v.alertas.includes('Fora do raio do posto')).length,
+        semFoto: visitas.filter(v => v.fotos.length === 0).length,
+        semSaida: visitas.filter(v => !v.saida_em).length,
+        porAtividade: Array.from(porAtiv.entries()).map(([atividade, n]) => ({ atividade, visitas: n })).sort((a, b) => b.visitas - a.visitas),
+        detalhe: visitas.map(v => ({
+          data: v.data,
+          posto: v.posto_nome,
+          atividade: v.atividade ?? 'Sem atividade informada',
+          obs: v.atividade_obs ?? '',
+          entrada: v.entrada_em,
+          saida: v.saida_em,
+          tempoMin: v.tempo_min,
+          alertas: v.alertas.join('; '),
+        })),
+      }
+    })
+
     // Linha do tempo: visitas do mês por dia.
     const diaAcc = new Map<string, LinhaDia>()
     for (const sup of sups) {
@@ -404,6 +490,7 @@ export async function carregarRelatorioMensal(
         ateData: parcial ? hoje : fim,
         porDia,
         supervisores: linhas,
+        apoio,
         postos: Array.from(porPosto.values()).sort((a, b) => b.faltas - a.faltas || a.nome.localeCompare(b.nome)),
         postosNaoVisitados: naoVisitados.sort((a, b) => a.supervisor.localeCompare(b.supervisor) || a.nome.localeCompare(b.nome)),
         postosBaixaFrequencia: baixaFrequencia.sort((a, b) => a.visitas - b.visitas || a.nome.localeCompare(b.nome)),

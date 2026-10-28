@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, Camera, CheckCircle2, Clock, LogIn, LogOut, MapPinOff, Navigation, RefreshCw, ShieldCheck } from 'lucide-react'
 import { formatarDistancia, PRECISAO_RUIM_M } from '@/lib/agenda/geo'
@@ -8,6 +8,7 @@ import { diaMes } from '@/lib/agenda/datas'
 import { PERIODOS } from '@/lib/agenda/tema'
 import { marcarLocalPosto, registrarCheckin } from '@/app/(admin)/agenda/geo-actions'
 import { comprimirImagem } from '@/lib/agenda/imagem'
+import { NovoCheckinApoio } from './novo-checkin-apoio'
 import { listarFotosPendentes, salvarFotoPendente } from '@/lib/agenda/fila-fotos'
 import { listarCheckinsPendentes, salvarCheckinPendente, type CheckinPendente } from '@/lib/agenda/fila-checkins'
 import { enviarFotoCheckin, EVENTO_FILA, sincronizarFilas, type DetalheEventoFila } from '@/lib/agenda/sync-fila'
@@ -168,6 +169,8 @@ export function CheckinPainel({
   sede,
   checkins,
   geoDisponivel,
+  apoio = false,
+  postosHoje = [],
 }: {
   hoje: string
   blocos: BlocoView[]
@@ -176,6 +179,8 @@ export function CheckinPainel({
   sede: PostoOpt | null
   checkins: CheckinHoje[]
   geoDisponivel: boolean
+  apoio?: boolean // supervisor de apoio: sem agenda, escolhe o posto onde está e informa a atividade
+  postosHoje?: PostoOpt[]
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState<string | null>(null)
@@ -191,6 +196,8 @@ export function CheckinPainel({
   const [pendentesFoto, setPendentesFoto] = useState<Set<string>>(new Set())
   const [pendentesCheckin, setPendentesCheckin] = useState<CheckinPendente[]>([])
   const [erroFila, setErroFila] = useState<string | null>(null)
+  // Apoio: atividade escolhida por posto, lida em acionar() (ref: precisa estar pronta na mesma chamada).
+  const atividadesRef = useRef<Record<string, { focoId: string; obs: string; postoNome: string }>>({})
   // Lembrete de check-in pendente a partir das 16h (só no cliente: depende do relógio do aparelho).
   const [fimDeTarde, setFimDeTarde] = useState(false)
   useEffect(() => {
@@ -252,8 +259,19 @@ export function CheckinPainel({
   // A sede não é posto do supervisor: com bloco "Check-in Sede / Base" planejado hoje conta como planejada;
   // sem bloco, aparece como visita extra.
   const todos = [...postos, ...(sede ? [sede] : [])]
-  const planejados = todos.filter(p => plan.has(p.id))
-  const extras = todos.filter(p => !plan.has(p.id))
+  // Apoio: não há plano; a lista do dia são os postos onde ele já fez check-in (inclusive os guardados no aparelho).
+  const visitadosApoio: PostoOpt[] = apoio
+    ? (() => {
+        const m = new Map<string, PostoOpt>()
+        for (const p of postosHoje) m.set(p.id, p)
+        for (const c of pendentesCheckin) {
+          if (!c.recusado && !m.has(c.postoId)) m.set(c.postoId, { id: c.postoId, nome: c.postoNome ?? 'Posto', secretaria: null, tem_local: true, a_conferir: false })
+        }
+        return Array.from(m.values())
+      })()
+    : []
+  const planejados = apoio ? visitadosApoio : todos.filter(p => plan.has(p.id))
+  const extras = apoio ? [] : todos.filter(p => !plan.has(p.id))
   const semCheckin = planejados.filter(p => !exibidos.some(c => c.posto_id === p.id && c.tipo === 'entrada'))
 
   function situacao(postoId: string) {
@@ -404,6 +422,7 @@ export function CheckinPainel({
   }
 
   async function acionar(postoId: string, tipo: 'entrada' | 'saida', coordsPrev?: Coords, justificativa?: string) {
+    const atv = tipo === 'entrada' ? atividadesRef.current[postoId] : undefined
     setErro(null)
     setAviso(null)
     setAprox(null)
@@ -419,6 +438,9 @@ export function CheckinPainel({
         precisaoM: coords.precisao,
         capturadoEm: new Date().toISOString(),
         justificativa,
+        focoId: atv?.focoId,
+        atividadeObs: atv?.obs,
+        postoNome: atv?.postoNome ?? [...postos, ...visitadosApoio].find(p => p.id === postoId)?.nome,
       }
       if (semConexao()) return await guardarCheckin(item, tipo)
 
@@ -426,7 +448,7 @@ export function CheckinPainel({
       try {
         r = await comTempoLimite(registrarCheckin({
           postoId, tipo, latitude: coords.lat, longitude: coords.lng, precisaoM: coords.precisao, justificativa,
-          localId: item.localId, capturadoEm: item.capturadoEm,
+          localId: item.localId, capturadoEm: item.capturadoEm, focoId: item.focoId, atividadeObs: item.atividadeObs,
         }))
       } catch {
         // Sem sinal ou servidor sem resposta: guarda e tenta depois (o servidor não duplica).
@@ -474,7 +496,7 @@ export function CheckinPainel({
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-bold text-slate-800">{posto.nome}</p>
             <p className="truncate text-[11px] text-slate-500">
-              {extra ? 'Visita extra' : `${g?.periodos.join(' + ')} · ${g?.focos.join(' · ')}`}
+              {apoio ? 'Atividade de apoio' : extra ? 'Visita extra' : `${g?.periodos.join(' + ')} · ${g?.focos.join(' · ')}`}
             </p>
             {entrada && (
               entrada.pendente ? (
@@ -492,9 +514,9 @@ export function CheckinPainel({
                 </p>
               )
             )}
-            {(g?.exigeFoto || posto.id === sede?.id) && (
+            {(g?.exigeFoto || posto.id === sede?.id || apoio) && (
               <p className={`mt-0.5 text-[11px] font-bold ${entrada && !entrada.tem_foto && !saida?.tem_foto ? 'text-orange-600' : 'text-slate-400'}`}>
-                📷 {posto.id === sede?.id ? 'Foto sempre obrigatória na sede' : 'Foto obrigatória neste foco'}{entrada && !entrada.tem_foto && !saida?.tem_foto ? ' — anexe para a visita contar' : ''}
+                📷 {posto.id === sede?.id ? 'Foto sempre obrigatória na sede' : apoio ? 'Foto obrigatória em toda visita' : 'Foto obrigatória neste foco'}{entrada && !entrada.tem_foto && !saida?.tem_foto ? ' — anexe para a visita contar' : ''}
               </p>
             )}
             {entrada && (
@@ -627,7 +649,9 @@ export function CheckinPainel({
         <div className="mr-auto">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-emerald-100">Seu dia em campo · {diaMes(hoje)}</p>
           <p className="text-lg font-black leading-tight">
-            {planejados.length === 0 ? 'Nenhuma visita planejada hoje' : `${concluidos}/${planejados.length} visitas iniciadas`}
+            {apoio
+              ? (planejados.length === 0 ? 'Nenhum posto visitado hoje' : `${planejados.length} ${planejados.length === 1 ? 'posto visitado' : 'postos visitados'} hoje`)
+              : planejados.length === 0 ? 'Nenhuma visita planejada hoje' : `${concluidos}/${planejados.length} visitas iniciadas`}
           </p>
         </div>
         <span className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-medium">
@@ -647,6 +671,20 @@ export function CheckinPainel({
         )}
         {aviso && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">{aviso}</p>}
         {erroFila && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{erroFila}</p>}
+
+        {apoio && geoDisponivel && (
+          <NovoCheckinApoio
+            tipos={tipos}
+            ocupado={!!busy}
+            jaHoje={planejados.map(p => p.id)}
+            lerGps={lerPosicao}
+            onConfirmar={(posto, coords, focoId, obs) => {
+              atividadesRef.current[posto.id] = { focoId, obs, postoNome: posto.nome }
+              void acionar(posto.id, 'entrada', coords)
+            }}
+            onMarcarLocal={id => void marcarLocal(id)}
+          />
+        )}
 
         {geoDisponivel && (
           <>

@@ -23,6 +23,8 @@ export type CheckinRaw = {
   justificativa: string | null
   created_at: string
   foto_path?: string | null
+  foco_id?: string | null // atividade informada no check-in do supervisor de apoio
+  atividade_obs?: string | null
 }
 
 export type BlocoPlan = {
@@ -65,6 +67,8 @@ export type VisitaView = {
   lng_real: number | null
   ordem: number | null
   fotos: string[]
+  atividade: string | null // supervisor de apoio: o que foi fazer no posto
+  atividade_obs: string | null
   reposta_em: string | null // dia em que a visita reposta foi de fato feita (status 'reposta')
 }
 
@@ -106,8 +110,12 @@ export function montarVisitas(args: {
   publicada: boolean
   /** Posto da sede/base: o check-in nele sempre exige foto. */
   sedeId?: string | null
+  /** Supervisor de apoio: toda visita exige foto. */
+  fotoSempre?: boolean
+  /** Nome do foco por id, para mostrar a atividade do check-in de apoio. */
+  focoPorId?: Map<string, string>
 }): { visitas: VisitaView[]; stats: MapaStats } {
-  const { planos, checkins, postos, hoje, publicada, sedeId } = args
+  const { planos, checkins, postos, hoje, publicada, sedeId, fotoSempre, focoPorId } = args
   const historico = args.historico ?? []
 
   const plan = new Map<string, { data: string; posto_id: string; periodos: Set<Periodo>; focos: Set<string>; exigeFoto: boolean }>()
@@ -170,11 +178,12 @@ export function montarVisitas(args: {
       if ((coordDias.get(chaveCoord(entrada))?.size ?? 0) > 1) alertas.push('Coordenada idêntica à de outro dia (o GPS real sempre varia um pouco)')
 
       // Na sede a foto é sempre obrigatória (planejada ou extra).
-      const exige = exigeFoto || (!!sedeId && postoId === sedeId)
+      const naSede = !!sedeId && postoId === sedeId
+      const exige = exigeFoto || naSede || !!fotoSempre
       const semFoto = !entrada.foto_path && !saida?.foto_path
       if (modo === 'extra' || modo === 'rascunho') {
         status = 'extra'
-        if (exige && semFoto) alertas.push('Check-in na sede sem a foto obrigatória')
+        if (exige && semFoto) alertas.push(naSede ? 'Check-in na sede sem a foto obrigatória' : 'Check-in sem a foto obrigatória')
       } else if (exige && semFoto) {
         status = 'sem_foto'
         alertas.push('Foco exige foto e nenhuma foi anexada')
@@ -208,6 +217,8 @@ export function montarVisitas(args: {
       ordem: null,
       reposta_em: null,
       fotos: [entrada?.foto_path, saida?.foto_path].filter((f): f is string => !!f),
+      atividade: entrada?.foco_id ? focoPorId?.get(entrada.foco_id) ?? null : null,
+      atividade_obs: entrada?.atividade_obs ?? null,
     }
   }
 

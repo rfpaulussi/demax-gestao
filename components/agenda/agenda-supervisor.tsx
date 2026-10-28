@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { diasDaSemana } from '@/lib/agenda/datas'
+import Link from 'next/link'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { addDias, diasDaSemana, rotuloSemana } from '@/lib/agenda/datas'
 import { PERIODOS, SLOTS_MAX, type Periodo } from '@/lib/agenda/tema'
 import type { AgendaDados } from '@/app/(admin)/agenda/actions'
 import { GradeSemanal } from './grade-semanal'
@@ -27,7 +29,7 @@ export function AgendaSupervisor({
   const [slot, setSlot] = useState<SlotAberto | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [aba, setAba] = useState<'agenda' | 'mapa'>('agenda')
-  const { semanaInicio, semana, blocos, tipos, postos, sugestoes, comentarios, podeEditar, ehDono, supervisor, checkinsHoje, geoDisponivel, feriados, sede, ehAdmin, mudancas } = dados
+  const { semanaInicio, semana, blocos, tipos, postos, sugestoes, comentarios, podeEditar, ehDono, supervisor, checkinsHoje, geoDisponivel, feriados, sede, ehAdmin, mudancas, apoio, postosHoje } = dados
   const dias = diasDaSemana(semanaInicio)
   const publicada = semana.status === 'publicada'
   const [repostasLista, setRepostasLista] = useState<{ data: string; posto_id: string; reposta_em: string }[]>([])
@@ -76,6 +78,38 @@ export function AgendaSupervisor({
       }
     }
     setAviso('Não há horário livre nesta semana (a partir de hoje). Navegue para a próxima semana.')
+  }
+
+  // Supervisor de apoio: não tem agenda. Só check-in por posto e o histórico de visitas da semana.
+  if (apoio) {
+    return (
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">Supervisor de apoio</p>
+            <h1 className="text-2xl font-bold text-slate-900">{supervisor.nome}</h1>
+            <p className="text-sm text-slate-500">Sem agenda: faça check-in em cada posto que visitar e informe a atividade.</p>
+          </div>
+          <div className="flex items-center gap-1.5 rounded-xl bg-slate-900 p-1 text-white">
+            <Link href={hrefSemana(addDias(semanaInicio, -7))} className="rounded-lg p-2 hover:bg-white/10" aria-label="Semana anterior"><ChevronLeft className="h-4 w-4" /></Link>
+            <span className="min-w-36 text-center text-sm font-bold">{rotuloSemana(semanaInicio)}</span>
+            <Link href={hrefSemana(addDias(semanaInicio, 7))} className="rounded-lg p-2 hover:bg-white/10" aria-label="Próxima semana"><ChevronRight className="h-4 w-4" /></Link>
+          </div>
+        </div>
+        {modoGestao && (
+          <p className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm text-sky-900">
+            🧭 Supervisor de apoio: não tem agenda nem cobrança de cumprimento. Abaixo, as visitas que ele registrou. O relatório mensal traz o resumo de atividades.
+          </p>
+        )}
+        {ehDono && (
+          <CheckinPainel
+            hoje={hoje} blocos={[]} tipos={tipos} postos={[]} sede={sede} checkins={checkinsHoje} geoDisponivel={geoDisponivel}
+            apoio postosHoje={postosHoje}
+          />
+        )}
+        <AbaMapa semanaInicio={semanaInicio} supervisorId={supervisor.id} dias={dias} />
+      </div>
+    )
   }
 
   return (

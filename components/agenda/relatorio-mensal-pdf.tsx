@@ -183,6 +183,26 @@ export function RelatorioMensalDoc({ data }: { data: RelatorioPdfData }) {
           {d.replanejamentos.length > 25 && <Text style={s.nota}>+ {d.replanejamentos.length - 25} replanejamentos na planilha Excel.</Text>}
         </View>
 
+        {d.apoio.length > 0 && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>VIII. SUPERVISORES DE APOIO (SEM AGENDA)</Text>
+            <Tabela
+              cols={[
+                { t: 'Supervisor', w: 120 }, { t: 'Dias em campo', w: 70 }, { t: 'Visitas', w: 50 }, { t: 'Postos', w: 50 },
+                { t: 'Tempo total', w: 65 }, { t: 'Tempo medio', w: 65 }, { t: 'Sem foto', w: 50 }, { t: 'Sem saida', w: 55 }, { t: 'Atividades', w: 250 },
+              ]}
+              linhas={d.apoio.map(a => [
+                a.nome, a.diasEmCampo, a.visitas, a.postosDistintos,
+                `${Math.floor(a.tempoTotalMin / 60)}h${String(a.tempoTotalMin % 60).padStart(2, '0')}`,
+                a.tempoMedioMin === null ? '-' : `${a.tempoMedioMin} min`,
+                a.semFoto, a.semSaida,
+                a.porAtividade.map(x => `${x.atividade} (${x.visitas})`).join(', ') || '-',
+              ])}
+            />
+            <Text style={s.nota}>Lista completa das visitas, com posto, horario e observacao, na planilha Excel.</Text>
+          </View>
+        )}
+
         <View style={s.footer} fixed>
           <Text style={s.footerText}>Relatorio mensal de supervisao · {periodo}</Text>
           <Text style={s.footerText}>Emitido em {emitido}</Text>

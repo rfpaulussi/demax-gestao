@@ -38,8 +38,10 @@ export function VisaoGeral({
   const feriadosDeLei = dias.filter(d => feriados[d] && feriados[d].tipo !== 'facultativo')
   const metaSemana = slotsDaSemana(feriadosDeLei.length)
 
+  // Supervisor de apoio não tem agenda: fica fora de alertas, contagens e cumprimento.
+  const cardsAgenda = cards.filter(c => !c.apoio)
   const alertas: { id: string; nome: string; texto: string; nivel: 'alto' | 'medio' }[] = []
-  for (const c of cards) {
+  for (const c of cardsAgenda) {
     if (c.status === 'sem_agenda' && semanaJaComecou) alertas.push({ id: c.id, nome: c.nome, texto: 'não montou a agenda desta semana', nivel: 'alto' })
     else if (c.status === 'rascunho' && semanaJaComecou) alertas.push({ id: c.id, nome: c.nome, texto: 'agenda ainda em rascunho (não publicada)', nivel: 'medio' })
     if (c.recolhimentoPendente) alertas.push({ id: c.id, nome: c.nome, texto: 'sem recolhimento de cartão marcado neste mês (janela sugerida: dias 15 a 21)', nivel: 'alto' })
@@ -49,10 +51,10 @@ export function VisaoGeral({
   }
   alertas.sort((a, b) => (a.nivel === b.nivel ? a.nome.localeCompare(b.nome) : a.nivel === 'alto' ? -1 : 1))
 
-  const n =(s: CardSupervisor['status']) => cards.filter(c => c.status === s).length
+  const n =(s: CardSupervisor['status']) => cardsAgenda.filter(c => c.status === s).length
 
   const kpis = [
-    { label: 'Supervisores', valor: cards.length, topo: 'border-t-blue-500' },
+    { label: 'Supervisores', valor: cardsAgenda.length, topo: 'border-t-blue-500' },
     { label: 'Publicadas', valor: n('publicada'), topo: 'border-t-emerald-500' },
     { label: 'Em rascunho', valor: n('rascunho'), topo: 'border-t-amber-400' },
     { label: 'Sem agenda', valor: n('sem_agenda'), topo: 'border-t-rose-500' },
@@ -145,6 +147,27 @@ export function VisaoGeral({
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {cards.map(c => {
+            if (c.apoio) {
+              return (
+                <Link
+                  key={c.id}
+                  href={`/agenda?supervisor=${c.id}&semana=${semanaInicio}`}
+                  className="group rounded-2xl border border-slate-200 border-t-4 border-t-sky-500 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-700 to-sky-700 text-sm font-black text-white">
+                      {iniciais(c.nome)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-bold text-slate-900">{c.nome}</p>
+                      <span className="inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-sky-700">🧭 Apoio</span>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-[11px] text-slate-500">Sem agenda: faz check-in em qualquer posto e informa a atividade. O resumo está no relatório mensal.</p>
+                  <p className="mt-2 text-right text-[11px] font-semibold text-slate-400 transition group-hover:text-slate-900">Ver visitas →</p>
+                </Link>
+              )
+            }
             const st = STATUS[c.status]
             return (
               <Link

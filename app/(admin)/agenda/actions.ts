@@ -73,6 +73,8 @@ export type AgendaDados = {
   sede: PostoOpt | null // posto da sede/base (ADM): só aparece no check-in dos focos "sem posto"
   ehAdmin: boolean // só o admin altera dias que já passaram numa agenda publicada
   mudancas: ResumoMudancas | null // limite de mudanças depois de publicar; null = agenda em rascunho ou migração 20261030 pendente
+  apoio: boolean // supervisor de apoio: sem agenda, check-in em qualquer posto (perfis.apoio, migração 20261031)
+  postosHoje: PostoOpt[] // apoio: postos onde já fez check-in hoje
 }
 
 export type CheckinHoje = {
@@ -101,6 +103,7 @@ export type CardSupervisor = {
   atencao: number // visitas com sinal de atenção (fora do raio, permanência curta, deslocamento improvável…)
   semFoto: number // visitas de foco que exige foto, sem foto
   recolhimentoPendente: boolean // hoje está na janela do recolhimento de cartão e não há recolhimento marcado no mês
+  apoio: boolean // supervisor de apoio: não tem agenda, fica fora dos alertas e do cumprimento
 }
 
 const PERIODOS_VALIDOS: Periodo[] = ['manha', 'tarde']
@@ -136,6 +139,9 @@ export async function carregarAgenda(
 
   const { data: sup } = await admin.from('perfis').select('id, nome, role').eq('id', supervisorId).maybeSingle()
   if (!sup || sup.role !== 'supervisor') return { ok: false, erro: 'Supervisor não encontrado' }
+  // Coluna criada pela migração 20261031: se faltar, ninguém é de apoio.
+  const { data: apoioRow } = await admin.from('perfis').select('apoio').eq('id', supervisorId).maybeSingle()
+  const apoio = apoioRow?.apoio === true
 
   const { data: semanaRow } = await admin
     .from('agenda_semanas')
@@ -180,8 +186,8 @@ export async function carregarAgenda(
 
   const ehDono = role === 'supervisor' && auth.perfil.id === supervisorId
   const podeEditar = ehDono || ehGestao(role)
-  const postos = podeEditar ? await postosDoSupervisor(supervisorId) : []
-  const sugestoes = podeEditar ? await calcularSugestoes(supervisorId, semanaInicio, postos, blocos) : []
+  const postos = podeEditar && !apoio ? await postosDoSupervisor(supervisorId) : []
+  const sugestoes = podeEditar && !apoio ? await calcularSugestoes(supervisorId, semanaInicio, postos, blocos) : []
   const sede = podeEditar ? await buscarSede() : null
 
   // Tipos desativados só aparecem se ainda usados na semana.
@@ -233,9 +239,24 @@ export async function carregarAgenda(
       geoDisponivel,
       sede,
       ehAdmin: role === 'admin',
+      apoio,
+      postosHoje: apoio && ehDono ? await postosDosCheckins(admin, checkinsHoje.map(c => c.posto_id)) : [],
       mudancas: podeEditar && semanaRow?.id && semanaRow.status === 'publicada' ? await lerMudancas(admin, semanaRow.id) : null,
     },
   }
+}
+
+/** Postos (para o painel do supervisor de apoio) a partir dos ids dos check-ins. */
+async function postosDosCheckins(admin: AnyClient, ids: string[]): Promise<PostoOpt[]> {
+  const unicos = Array.from(new Set(ids))
+  if (unicos.length === 0) return []
+  const { data } = await admin.from('postos').select('id, nome, secretaria, latitude, longitude, geo_confirmado').in('id', unicos)
+  return ((data ?? []) as { id: string; nome: string; secretaria: string | null; latitude: number | null; longitude: number | null; geo_confirmado: boolean | null }[])
+    .map(p => {
+      const tem = p.latitude != null && p.longitude != null
+      return { id: p.id, nome: p.nome, secretaria: p.secretaria, tem_local: tem, a_conferir: tem && p.geo_confirmado === false }
+    })
+    .sort((a, b) => a.nome.localeCompare(b.nome))
 }
 
 /** Posto da sede/base (ADM). Null se a migração 20261013 ainda não foi aplicada ou não há sede marcada. */
@@ -314,6 +335,8 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
   const semanaInicio = segundaDe(ehData(semanaParam) ? semanaParam : hojeBR())
   const admin = db()
 
+  const { data: apoioRows } = await admin.from('perfis').select('id, apoio').eq('role', 'supervisor').eq('apoio', true)
+  const idsApoio = new Set(((apoioRows ?? []) as { id: string }[]).map(r => r.id))
   const [{ data: sups }, { data: semanas }, { data: tiposRaw }, { data: vinculos }] = await Promise.all([
     admin.from('perfis').select('id, nome').eq('role', 'supervisor').eq('ativo', true).order('nome'),
     admin
@@ -425,7 +448,8 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
       faltas: stats.faltas,
       atencao: stats.atencao,
       semFoto: stats.semFoto,
-      recolhimentoPendente: idsDiaInteiro.length > 0 && ehDiaDaJanela(hojeStr) && !comRecolhimento.has(s.id),
+      recolhimentoPendente: !idsApoio.has(s.id) && idsDiaInteiro.length > 0 && ehDiaDaJanela(hojeStr) && !comRecolhimento.has(s.id),
+      apoio: idsApoio.has(s.id),
     }
   })
 

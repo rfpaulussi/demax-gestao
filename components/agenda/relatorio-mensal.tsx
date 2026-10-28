@@ -8,7 +8,7 @@ import {
 import { addDias, addMeses, diaMes, numeroDia, rotuloMes } from '@/lib/agenda/datas'
 import { exportToExcelSheets } from '@/lib/export-excel'
 import { CUMPRIMENTO_MINIMO, gerarInsights } from '@/lib/agenda/relatorio-insights'
-import type { RelatorioMensal as Dados, LinhaAlerta, LinhaSupervisor } from '@/app/(admin)/agenda/relatorio-actions'
+import type { RelatorioMensal as Dados, LinhaAlerta, LinhaSupervisor, VisitaApoio } from '@/app/(admin)/agenda/relatorio-actions'
 
 const th = 'whitespace-nowrap px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-widest text-slate-500'
 const td = 'px-3 py-2.5 text-sm text-slate-700'
@@ -67,8 +67,15 @@ const COR_SITUACAO: Record<string, string> = {
 
 type Ordem = 'pior' | 'faltas' | 'nome'
 
+type VisitaApoioExcel = VisitaApoio & { supervisor: string }
+
+const horaBR = (iso: string | null) =>
+  iso ? new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }).format(new Date(iso)) : ''
+
+const duracao = (min: number | null) => (min === null ? '—' : min < 60 ? `${min} min` : `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`)
+
 export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: Dados | null }) {
-  const { mes, parcial, ateData, supervisores, postos, postosNaoVisitados, postosBaixaFrequencia, metaVisitasPosto, porFoco, porDia, replanejamentos, ocorrencias, totais } = dados
+  const { mes, parcial, ateData, supervisores, apoio, postos, postosNaoVisitados, postosBaixaFrequencia, metaVisitasPosto, porFoco, porDia, replanejamentos, ocorrencias, totais } = dados
   const [gerandoPdf, setGerandoPdf] = useState(false)
   const [erroPdf, setErroPdf] = useState<string | null>(null)
   const [ordem, setOrdem] = useState<Ordem>('pior')
@@ -204,6 +211,40 @@ export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: D
           { label: 'Postos sem visita no mês', value: s => s.postosSemVisita },
         ],
       },
+      ...(apoio.length > 0
+        ? [
+            {
+              name: 'Apoio - resumo',
+              data: apoio,
+              columns: [
+                { label: 'Supervisor de apoio', value: (a: (typeof apoio)[number]) => a.nome },
+                { label: 'Dias em campo', value: (a: (typeof apoio)[number]) => a.diasEmCampo },
+                { label: 'Visitas', value: (a: (typeof apoio)[number]) => a.visitas },
+                { label: 'Postos distintos', value: (a: (typeof apoio)[number]) => a.postosDistintos },
+                { label: 'Tempo total (min)', value: (a: (typeof apoio)[number]) => a.tempoTotalMin },
+                { label: 'Tempo médio (min)', value: (a: (typeof apoio)[number]) => a.tempoMedioMin },
+                { label: 'Fora do raio', value: (a: (typeof apoio)[number]) => a.foraRaio },
+                { label: 'Sem foto', value: (a: (typeof apoio)[number]) => a.semFoto },
+                { label: 'Sem saída', value: (a: (typeof apoio)[number]) => a.semSaida },
+              ],
+            },
+            {
+              name: 'Apoio - visitas',
+              data: apoio.flatMap(a => a.detalhe.map(d => ({ ...d, supervisor: a.nome }))),
+              columns: [
+                { label: 'Data', value: (d: VisitaApoioExcel) => d.data, asText: true },
+                { label: 'Supervisor', value: (d: VisitaApoioExcel) => d.supervisor },
+                { label: 'Posto', value: (d: VisitaApoioExcel) => d.posto },
+                { label: 'Atividade', value: (d: VisitaApoioExcel) => d.atividade },
+                { label: 'Observação', value: (d: VisitaApoioExcel) => d.obs },
+                { label: 'Entrada', value: (d: VisitaApoioExcel) => horaBR(d.entrada) },
+                { label: 'Saída', value: (d: VisitaApoioExcel) => horaBR(d.saida) },
+                { label: 'Tempo (min)', value: (d: VisitaApoioExcel) => d.tempoMin },
+                { label: 'Sinais', value: (d: VisitaApoioExcel) => d.alertas },
+              ],
+            },
+          ]
+        : []),
       {
         name: 'Por foco',
         data: porFoco,
@@ -469,6 +510,63 @@ export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: D
           </table>
         </div>
       </section>
+
+      {/* Supervisores de apoio */}
+      {apoio.map(a => (
+        <section key={a.id} className={`${card} border-t-4 border-t-sky-500 p-5`}>
+          <Cabecalho titulo={`🧭 Atividades de apoio · ${a.nome}`} detalhe="Sem agenda e sem cumprimento: o que vale é o que foi registrado em campo." />
+          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
+            {[
+              { l: 'Dias em campo', v: a.diasEmCampo, alerta: false },
+              { l: 'Visitas', v: a.visitas, alerta: false },
+              { l: 'Postos distintos', v: a.postosDistintos, alerta: false },
+              { l: 'Tempo total', v: duracao(a.tempoTotalMin), alerta: false },
+              { l: 'Tempo médio', v: duracao(a.tempoMedioMin), alerta: false },
+              { l: 'Sem foto', v: a.semFoto, alerta: a.semFoto > 0 },
+              { l: 'Sem saída', v: a.semSaida, alerta: a.semSaida > 0 },
+            ].map(k => (
+              <div key={k.l} className="rounded-xl border border-slate-200 bg-white p-3">
+                <p className={`text-2xl font-black ${k.alerta ? 'text-orange-600' : 'text-slate-900'}`}>{k.v}</p>
+                <p className="text-[11px] uppercase tracking-widest text-slate-500">{k.l}</p>
+              </div>
+            ))}
+          </div>
+          {a.porAtividade.length > 0 && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              {a.porAtividade.map(x => (
+                <span key={x.atividade} className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-800">
+                  {x.atividade} <b>{x.visitas}</b>
+                </span>
+              ))}
+            </div>
+          )}
+          {a.detalhe.length === 0 ? (
+            <Vazio>Nenhuma visita registrada neste mês.</Vazio>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px]">
+                <thead className="border-y border-slate-100 bg-slate-50/60"><tr>{['Data', 'Posto', 'Atividade', 'Entrada', 'Saída', 'Tempo', 'Observação / sinais'].map(h => <th key={h} className={th}>{h}</th>)}</tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {a.detalhe.map((d, i) => (
+                    <tr key={i} className="align-top">
+                      <td className={`${td} whitespace-nowrap`}>{diaMes(d.data)}</td>
+                      <td className={`${td} font-semibold`}>{d.posto}</td>
+                      <td className={td}>{d.atividade}</td>
+                      <td className={td}>{horaBR(d.entrada)}</td>
+                      <td className={td}>{d.saida ? horaBR(d.saida) : <span className="text-orange-600">sem saída</span>}</td>
+                      <td className={td}>{duracao(d.tempoMin)}</td>
+                      <td className={`${td} text-xs`}>
+                        {d.obs || <span className="text-slate-300">—</span>}
+                        {d.alertas && <span className="mt-0.5 block text-amber-700">{d.alertas}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ))}
 
       {/* Focos e postos com faltas */}
       <div className="grid gap-5 lg:grid-cols-2">
