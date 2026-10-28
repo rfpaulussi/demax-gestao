@@ -169,6 +169,18 @@ export async function criarInsalubridade(formData: FormData): Promise<{ error?: 
     return { error: mensagemUltrapassaMes(periodo, dataCobertura) }
   }
 
+  // Agente de Higienização já recebe insalubridade pela própria função: cobertura insalubre
+  // só faz sentido para quem cobre de outra função (ex.: Ajudante de Limpeza).
+  const { data: funcData } = await adminSupabase
+    .from('funcionarios')
+    .select('funcoes!funcionarios_funcao_id_fkey(nome)')
+    .eq('id', funcionarioId)
+    .maybeSingle()
+  const funcaoNome = ((funcData as unknown as { funcoes: { nome: string } | null } | null)?.funcoes?.nome ?? '').toUpperCase()
+  if (funcaoNome.includes('AGENTE') || funcaoNome.includes('HIGIENIZA')) {
+    return { error: 'Este funcionário já é Agente de Higienização e recebe insalubridade pela função. Cobertura insalubre não se aplica.' }
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (adminSupabase as any).from('insalubridade_coberturas').insert({
     funcionario_id: funcionarioId,

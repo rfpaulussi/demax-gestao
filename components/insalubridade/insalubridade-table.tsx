@@ -471,6 +471,11 @@ export function InsalubridadeTable({ grupos, mes, ano, funcionariosOpt, postos, 
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-gray-900">{grupo.funcionario_nome}</p>
                         {grupo.funcao && <p className="truncate text-xs text-gray-400">{grupo.funcao}</p>}
+                        {/AGENTE|HIGIENIZA/i.test(grupo.funcao ?? '') && (
+                          <p className="truncate text-[10px] font-semibold text-amber-600" title="Agente já recebe insalubridade pela função">
+                            ⚠ Já é Agente — verificar
+                          </p>
+                        )}
                       </div>
                       <div className="min-w-0">
                         <p className="truncate text-sm text-gray-700">{grupo.posto_nome ?? '—'}</p>

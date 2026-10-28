@@ -451,6 +451,11 @@ export function ModalNovaInsalubridade({ open, onClose, funcionariosOpt, postos,
                     }
                     linhas={
                       <>
+                        {/AGENTE|HIGIENIZA/i.test(substituto.funcoes?.nome ?? '') && (
+                          <p className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">
+                            Já é Agente de Higienização e recebe insalubridade pela função. Cobertura insalubre não se aplica.
+                          </p>
+                        )}
                         {substituto.registro && (
                           <p className="mt-1 text-xs text-gray-500">
                             RE: <span className="font-medium text-gray-700">{substituto.registro}</span>
