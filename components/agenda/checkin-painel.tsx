@@ -317,9 +317,11 @@ export function CheckinPainel({
       plan.set(p.id, g)
     }
   }
-  // A sede não é posto do supervisor: entra só quando há bloco de foco "sem posto" planejado hoje.
-  const planejados = [...postos, ...(sede ? [sede] : [])].filter(p => plan.has(p.id))
-  const extras = postos.filter(p => !plan.has(p.id))
+  // A sede não é posto do supervisor: com bloco "Check-in Sede / Base" planejado hoje conta como planejada;
+  // sem bloco, aparece como visita extra.
+  const todos = [...postos, ...(sede ? [sede] : [])]
+  const planejados = todos.filter(p => plan.has(p.id))
+  const extras = todos.filter(p => !plan.has(p.id))
 
   function situacao(postoId: string) {
     const doPosto = exibidos.filter(c => c.posto_id === postoId)

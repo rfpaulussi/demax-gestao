@@ -185,6 +185,8 @@ export function AgendaSupervisor({
         supervisorId={supervisor.id}
         tipos={tipos.filter(t => t.ativo || slot?.bloco?.tipo_foco_id === t.id)}
         postos={postos}
+        sede={sede}
+        podeMarcarSede={modoGestao}
         publicada={publicada}
         onClose={() => setSlot(null)}
       />

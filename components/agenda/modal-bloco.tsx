@@ -2,11 +2,13 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, Search, Trash2 } from 'lucide-react'
+import { AlertTriangle, MapPin, Search, Trash2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { PERIODOS, temaDe, type Periodo } from '@/lib/agenda/tema'
 import { diaMes } from '@/lib/agenda/datas'
 import { removerBloco, salvarBloco } from '@/app/(admin)/agenda/actions'
+import { buscarEndereco, salvarLocalPosto } from '@/app/(admin)/agenda/geo-actions'
+import type { ResultadoEndereco } from '@/app/(admin)/agenda/geo-actions'
 import type { BlocoView, PostoOpt, TipoFoco } from '@/app/(admin)/agenda/actions'
 
 export type SlotAberto = {
@@ -26,6 +28,8 @@ export function ModalBloco({
   supervisorId,
   tipos,
   postos,
+  sede,
+  podeMarcarSede,
   publicada,
   onClose,
 }: {
@@ -34,6 +38,8 @@ export function ModalBloco({
   supervisorId: string
   tipos: TipoFoco[]
   postos: PostoOpt[]
+  sede: PostoOpt | null
+  podeMarcarSede: boolean
   publicada: boolean
   onClose: () => void
 }) {
@@ -47,6 +53,8 @@ export function ModalBloco({
           supervisorId={supervisorId}
           tipos={tipos}
           postos={postos}
+          sede={sede}
+          podeMarcarSede={podeMarcarSede}
           publicada={publicada}
           onClose={onClose}
         />
@@ -55,14 +63,94 @@ export function ModalBloco({
   )
 }
 
+const ENDERECO_SEDE = 'Rua Carlos Lacerda, 71, Brás Cubas, Mogi das Cruzes - SP'
+
+/** Marca o local (GPS do check-in) da sede/base pela busca de endereço. Só coordenação. */
+function LocalSede({ sede }: { sede: PostoOpt }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
+  const [consulta, setConsulta] = useState(ENDERECO_SEDE)
+  const [achados, setAchados] = useState<ResultadoEndereco[]>([])
+  const [buscando, setBuscando] = useState(false)
+  const [salvo, setSalvo] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const marcado = sede.tem_local || salvo
+
+  async function pesquisar() {
+    setMsg(null)
+    setBuscando(true)
+    const r = await buscarEndereco(consulta)
+    setBuscando(false)
+    if (!r.ok) return setMsg(r.erro)
+    setAchados(r.itens)
+    if (r.itens.length === 0) setMsg('Nenhum endereço encontrado. Tente sem o número ou ajuste o ponto em Localização dos postos.')
+  }
+
+  function usar(a: ResultadoEndereco) {
+    setMsg(null)
+    start(async () => {
+      const r = await salvarLocalPosto({ postoId: sede.id, latitude: a.lat, longitude: a.lng, raioM: 150, enderecoRef: a.nome })
+      if (!r.ok) return setMsg(r.erro)
+      setSalvo(true)
+      setAchados([])
+      router.refresh()
+    })
+  }
+
+  return (
+    <section className={`rounded-xl border p-3 ${marcado ? 'border-emerald-200 bg-emerald-50' : 'border-amber-300 bg-amber-50'}`}>
+      <p className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-slate-700">
+        <MapPin className="h-3.5 w-3.5" /> Local da sede/base
+      </p>
+      {marcado && (
+        <p className="mb-2 text-xs text-emerald-800">
+          ✅ Local marcado: o check-in valida o GPS dentro do raio. Para trocar, busque e escolha outro ponto.
+        </p>
+      )}
+      {!marcado && (
+        <p className="mb-2 text-xs text-amber-800">
+          A sede ainda não tem local marcado: sem ele ninguém consegue fazer check-in. Busque o endereço e escolha o ponto correto.
+        </p>
+      )}
+      <div className="flex gap-2">
+        <input
+          value={consulta}
+          onChange={e => setConsulta(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); pesquisar() } }}
+          className="flex-1 rounded-lg border border-slate-200 bg-white p-2 text-sm outline-none focus:border-slate-400"
+        />
+        <button type="button" onClick={pesquisar} disabled={buscando || pending}
+          className="rounded-lg bg-slate-900 px-3 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
+          {buscando ? '…' : 'Buscar'}
+        </button>
+      </div>
+      {achados.length > 0 && (
+        <ul className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+          {achados.map((a, i) => (
+            <li key={i}>
+              <button type="button" disabled={pending} onClick={() => usar(a)}
+                className="w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-emerald-50 disabled:opacity-50">
+                {a.nome}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {msg && <p className="mt-2 text-xs font-medium text-red-700">{msg}</p>}
+    </section>
+  )
+}
+
 function Conteudo({
-  slot, semanaInicio, supervisorId, tipos, postos, publicada, onClose,
+  slot, semanaInicio, supervisorId, tipos, postos, sede, podeMarcarSede, publicada, onClose,
 }: {
   slot: SlotAberto
   semanaInicio: string
   supervisorId: string
   tipos: TipoFoco[]
   postos: PostoOpt[]
+  sede: PostoOpt | null
+  podeMarcarSede: boolean
   publicada: boolean
   onClose: () => void
 }) {
@@ -98,7 +186,7 @@ function Conteudo({
   const tipoSel = tipos.find(t => t.id === tipoId)
   const semPosto = !!tipoSel?.sem_posto
   const notaSemPosto = tipoSel?.usa_sede
-    ? '🏢 Foco feito na sede/base da administração: o posto é definido automaticamente. No dia, o check-in exige GPS dentro do raio da sede.'
+    ? '🏢 Foco feito na sede/base da administração: o posto é definido automaticamente. No dia, o check-in exige GPS dentro do raio da sede e foto.'
     : tipoSel?.dia_inteiro
       ? '🕒 Recolhimento de cartão: sem postos e sem check-in, registro manual. Escolha o período abaixo.'
       : '📝 Foco sem posto: registro manual, sem check-in.'
@@ -191,9 +279,17 @@ function Conteudo({
           )}
 
           {semPosto ? (
-            <section className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-              {notaSemPosto}
-            </section>
+            <>
+              <section className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                {notaSemPosto}
+              </section>
+              {tipoSel?.usa_sede && sede && podeMarcarSede && <LocalSede sede={sede} />}
+              {tipoSel?.usa_sede && sede && !podeMarcarSede && !sede.tem_local && (
+                <p className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs font-medium text-amber-800">
+                  A sede ainda não tem local marcado. Peça à coordenação para marcar, senão o check-in não funciona.
+                </p>
+              )}
+            </>
           ) : (
           <section>
             <div className="mb-2 flex items-center justify-between">

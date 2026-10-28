@@ -363,7 +363,7 @@ export async function registrarCheckin(input: {
     }
   }
 
-  // Sede/base (ADM) não é posto do supervisor: o check-in dela é liberado pelo foco "sem posto" (ver abaixo).
+  // Sede/base (ADM) não é posto do supervisor: o check-in dela é liberado para todo supervisor (planejado ou extra).
   const { data: sedeRow } = await admin.from('postos').select('id').eq('sede_base', true).maybeSingle()
   const ehSede = sedeRow?.id === input.postoId
   if (!ehSede) {
@@ -419,10 +419,8 @@ export async function registrarCheckin(input: {
     .eq('agenda_semanas.supervisor_id', auth.perfil.id)
     .eq('agenda_blocos_postos.posto_id', input.postoId)
     .limit(1)
+  // Sem bloco planejado (ex.: visita extra na sede), o check-in fica sem vínculo e conta como extra.
   const blocoId = ((blocosDia ?? []) as { id: string }[])[0]?.id ?? null
-  if (ehSede && !blocoId) {
-    return { ok: false, erro: 'Check-in na sede só existe com o foco "Check-in Sede / Base" planejado para hoje.' }
-  }
 
   const { data: criado, error } = await admin
     .from('agenda_checkins')
