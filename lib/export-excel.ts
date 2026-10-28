@@ -24,12 +24,26 @@ function maxWidth(values: (string | number | null | undefined)[], label: string)
   return Math.min(max + 2, 50)
 }
 
+export type ExcelSheet<T = any> = { name: string; data: T[]; columns: ExcelColumn<T>[] } // eslint-disable-line @typescript-eslint/no-explicit-any
+
+/** Várias abas num único arquivo. */
+export function exportToExcelSheets(sheets: ExcelSheet[], filename: string): void {
+  const wb = XLSX.utils.book_new()
+  for (const s of sheets) XLSX.utils.book_append_sheet(wb, buildSheet(s.data, s.columns), s.name.slice(0, 31))
+  XLSX.writeFile(wb, filename)
+}
+
 export function exportToExcel<T>(
   data: T[],
   columns: ExcelColumn<T>[],
   filename: string,
 ): void {
   const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, buildSheet(data, columns), 'Dados')
+  XLSX.writeFile(wb, filename)
+}
+
+function buildSheet<T>(data: T[], columns: ExcelColumn<T>[]): XLSX.WorkSheet {
   const ws: XLSX.WorkSheet = {}
   const nRows = data.length
   const nCols = columns.length
@@ -67,6 +81,5 @@ export function exportToExcel<T>(
   ws['!autofilter'] = { ref: XLSX.utils.encode_range({ r: 0, c: 0 }, { r: 0, c: nCols - 1 }) }
   ws['!freeze'] = { xSplit: 0, ySplit: 1 }
 
-  XLSX.utils.book_append_sheet(wb, ws, 'Dados')
-  XLSX.writeFile(wb, filename)
+  return ws
 }

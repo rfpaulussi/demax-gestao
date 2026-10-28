@@ -31,6 +31,25 @@ export function ehData(s: string | undefined | null): s is string {
   return !!s && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(parse(s).getTime())
 }
 
+/** Mês no formato YYYY-MM. */
+export function mesValido(m: string | undefined | null): m is string {
+  return !!m && /^\d{4}-(0[1-9]|1[0-2])$/.test(m)
+}
+
+/** Soma `n` meses a um YYYY-MM. */
+export function addMeses(mes: string, n: number): string {
+  const [a, m] = mes.split('-').map(Number)
+  const dt = new Date(Date.UTC(a, m - 1 + n, 1))
+  return dt.toISOString().slice(0, 7)
+}
+
+const MESES_LONGOS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
+
+export function rotuloMes(mes: string): string {
+  const [a, m] = mes.split('-').map(Number)
+  return `${MESES_LONGOS[m - 1]} de ${a}`
+}
+
 /** Dias úteis da semana (seg–sex). Supervisores não trabalham aos sábados. */
 export function diasDaSemana(segunda: string): string[] {
   return Array.from({ length: 5 }, (_, i) => addDias(segunda, i))
