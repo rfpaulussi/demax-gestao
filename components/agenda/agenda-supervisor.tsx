@@ -29,7 +29,7 @@ export function AgendaSupervisor({
   const [slot, setSlot] = useState<SlotAberto | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [aba, setAba] = useState<'agenda' | 'mapa'>('agenda')
-  const { semanaInicio, semana, blocos, tipos, postos, sugestoes, comentarios, podeEditar, ehDono, supervisor, checkinsHoje, geoDisponivel, feriados, sede, ehAdmin, mudancas, apoio, postosHoje } = dados
+  const { semanaInicio, semana, blocos, tipos, postos, sugestoes, comentarios, podeEditar, ehDono, supervisor, checkinsHoje, geoDisponivel, feriados, sede, ehAdmin, mudancas, apoio, postosHoje, liberados } = dados
   const dias = diasDaSemana(semanaInicio)
   const publicada = semana.status === 'publicada'
   const [repostasLista, setRepostasLista] = useState<{ data: string; posto_id: string; reposta_em: string }[]>([])
@@ -232,6 +232,8 @@ export function AgendaSupervisor({
         ehAdmin={ehAdmin}
         ehDono={ehDono}
         mudancas={mudancas}
+        liberados={liberados}
+        podeLiberar={ehAdmin && !ehDono}
         onClose={() => setSlot(null)}
       />
     </div>

@@ -7,7 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { PERIODOS, temaDe, type Periodo } from '@/lib/agenda/tema'
 import { diaMes } from '@/lib/agenda/datas'
 import { removerBloco, salvarBloco } from '@/app/(admin)/agenda/actions'
-import { pedirMudancaExtra } from '@/app/(admin)/agenda/mudancas-actions'
+import { liberarDia, pedirMudancaExtra } from '@/app/(admin)/agenda/mudancas-actions'
+import type { DiaLiberado } from '@/lib/agenda/mudancas-db'
 import { CATEGORIAS_MOTIVO, restantes, type ResumoMudancas } from '@/lib/agenda/mudancas'
 import { buscarEndereco, salvarLocalPosto } from '@/app/(admin)/agenda/geo-actions'
 import type { ResultadoEndereco } from '@/app/(admin)/agenda/geo-actions'
@@ -37,6 +38,8 @@ export function ModalBloco({
   ehAdmin,
   ehDono,
   mudancas,
+  liberados,
+  podeLiberar,
   onClose,
 }: {
   slot: SlotAberto | null
@@ -51,6 +54,8 @@ export function ModalBloco({
   ehAdmin: boolean
   ehDono: boolean // supervisor editando a própria agenda: sujeito ao limite de mudanças
   mudancas: ResumoMudancas | null
+  liberados: DiaLiberado[]
+  podeLiberar: boolean // admin editando a agenda de um supervisor: pode liberar dia passado
   onClose: () => void
 }) {
   return (
@@ -70,6 +75,8 @@ export function ModalBloco({
           ehAdmin={ehAdmin}
           ehDono={ehDono}
           mudancas={mudancas}
+          liberados={liberados}
+          podeLiberar={podeLiberar}
           onClose={onClose}
         />
       )}
@@ -156,7 +163,7 @@ function LocalSede({ sede }: { sede: PostoOpt }) {
 }
 
 function Conteudo({
-  slot, semanaInicio, supervisorId, tipos, postos, sede, podeMarcarSede, publicada, hoje, ehAdmin, ehDono, mudancas, onClose,
+  slot, semanaInicio, supervisorId, tipos, postos, sede, podeMarcarSede, publicada, hoje, ehAdmin, ehDono, mudancas, liberados, podeLiberar, onClose,
 }: {
   slot: SlotAberto
   semanaInicio: string
@@ -170,6 +177,8 @@ function Conteudo({
   ehAdmin: boolean
   ehDono: boolean
   mudancas: ResumoMudancas | null
+  liberados: DiaLiberado[]
+  podeLiberar: boolean
   onClose: () => void
 }) {
   const router = useRouter()
@@ -207,7 +216,9 @@ function Conteudo({
   const tipoSel = tipos.find(t => t.id === tipoId)
   const semPosto = !!tipoSel?.sem_posto
   // Regras da agenda publicada: foco administrativo (sem posto) é livre; dia passado só o admin; supervisor tem limite.
-  const passadoTravado = publicada && slot.data < hoje && !ehAdmin
+  const diaPassado = publicada && slot.data < hoje
+  const liberacao = liberados.find(l => l.data === slot.data) ?? null
+  const passadoTravado = diaPassado && !ehAdmin && !liberacao
   const pedeMotivo = publicada && !semPosto && !passadoTravado
   const limiteAtingido = pedeMotivo && ehDono && !!mudancas && restantes(mudancas) <= 0
   const travado = passadoTravado || limiteAtingido
@@ -236,6 +247,15 @@ function Conteudo({
       }
       router.refresh()
       onClose()
+    })
+  }
+
+  function liberar() {
+    setErro(null)
+    start(async () => {
+      const r = await liberarDia({ semanaInicio, supervisorId, data: slot.data })
+      if (!r.ok) return setErro(r.erro)
+      router.refresh()
     })
   }
 
@@ -387,7 +407,26 @@ function Conteudo({
 
           {passadoTravado && (
             <section className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-medium text-rose-800">
-              🔒 Este dia já passou. Numa agenda publicada, dias passados só o admin altera.
+              🔒 Este dia já passou. Numa agenda publicada, dias passados só o admin altera. Peça ao admin para liberar este dia se precisar corrigir.
+            </section>
+          )}
+
+          {diaPassado && liberacao && (
+            <section className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm font-medium text-sky-900">
+              🔓 Dia liberado pelo admin até {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }).format(new Date(liberacao.ate))}.
+              {ehDono ? ' A correção conta como uma das suas mudanças da semana.' : ''}
+            </section>
+          )}
+
+          {diaPassado && podeLiberar && !liberacao && (
+            <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="mb-2 text-sm text-slate-700">
+                Este dia já passou. Você (admin) pode corrigir agora, ou liberar o dia para o supervisor corrigir por 48 h.
+              </p>
+              <button type="button" onClick={liberar} disabled={pending}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
+                🔓 Liberar este dia para o supervisor (48 h)
+              </button>
             </section>
           )}
 

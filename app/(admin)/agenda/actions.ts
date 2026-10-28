@@ -10,7 +10,7 @@ import { ehDiaDaJanela, intervaloDoMes } from '@/lib/agenda/recolhimento'
 import { postosDoSupervisor, type PostoOpt } from '@/lib/agenda/postos'
 import { buscarSedeId } from '@/lib/agenda/sede'
 import { LIMITE_MUDANCAS_SEMANA, montarMotivo, restantes, type ResumoMudancas } from '@/lib/agenda/mudancas'
-import { contarMudanca, lerMudancas } from '@/lib/agenda/mudancas-db'
+import { contarMudanca, lerLiberacoes, lerMudancas, type DiaLiberado } from '@/lib/agenda/mudancas-db'
 import { dataBR, montarVisitas, type BlocoPlan, type CheckinRaw, type PostoGeo } from '@/lib/agenda/visitas'
 
 // As tabelas agenda_* ainda não estão em types/database.ts.
@@ -75,6 +75,7 @@ export type AgendaDados = {
   mudancas: ResumoMudancas | null // limite de mudanças depois de publicar; null = agenda em rascunho ou migração 20261030 pendente
   apoio: boolean // supervisor de apoio: sem agenda, check-in em qualquer posto (perfis.apoio, migração 20261031)
   postosHoje: PostoOpt[] // apoio: postos onde já fez check-in hoje
+  liberados: DiaLiberado[] // dias passados que o admin liberou para correção (migração 20261101)
 }
 
 export type CheckinHoje = {
@@ -240,6 +241,7 @@ export async function carregarAgenda(
       sede,
       ehAdmin: role === 'admin',
       apoio,
+      liberados: podeEditar && semanaRow?.id && semanaRow.status === 'publicada' ? await lerLiberacoes(admin, semanaRow.id) : [],
       postosHoje: apoio && ehDono ? await postosDosCheckins(admin, checkinsHoje.map(c => c.posto_id)) : [],
       mudancas: podeEditar && semanaRow?.id && semanaRow.status === 'publicada' ? await lerMudancas(admin, semanaRow.id) : null,
     },
@@ -523,8 +525,13 @@ async function avaliarMudanca(
   if (ctx.semana.status !== 'publicada') return { ok: true, motivo: '', replanejou: false, contar: false, usadas: 0 }
   const role = ctx.auth.perfil.role
   const hoje = hojeBR()
-  if (p.datas.some(d => d < hoje) && role !== 'admin') {
-    return { ok: false, erro: 'Esse dia já passou: só o admin altera a agenda de dias passados.' }
+  const passadas = p.datas.filter(d => d < hoje)
+  if (passadas.length > 0 && role !== 'admin') {
+    // Dia passado: só o admin altera, ou o supervisor num dia que o admin liberou (por tempo limitado).
+    const liberados = await lerLiberacoes(ctx.admin, ctx.semana.id)
+    if (!passadas.every(d => liberados.some(l => l.data === d))) {
+      return { ok: false, erro: 'Esse dia já passou: só o admin altera. Peça ao admin para liberar o dia.' }
+    }
   }
   if (p.administrativo) {
     return { ok: true, motivo: (p.motivoTexto ?? '').trim().slice(0, 300), replanejou: false, contar: false, usadas: 0 }

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { getUser } from '@/lib/auth/get-user'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { ehData, segundaDe } from '@/lib/agenda/datas'
+import { ehData, hojeBR, segundaDe } from '@/lib/agenda/datas'
 import { lerMudancas } from '@/lib/agenda/mudancas-db'
 import { restantes } from '@/lib/agenda/mudancas'
 
@@ -51,6 +51,41 @@ export async function pedirMudancaExtra(input: { semanaInicio: string; motivo: s
   if (error) return { ok: false, erro: MSG_MIGRACAO }
   await admin.from('agenda_comentarios').insert({
     semana_id: semana.id, autor_id: auth.perfil.id, texto: `🙋 Pediu mudança além do limite: ${motivo}`,
+  })
+  revalidatePath('/agenda')
+  return { ok: true }
+}
+
+/** Horas de validade da liberação de um dia passado. */
+const HORAS_LIBERACAO = 48
+
+/** Admin libera um dia que já passou, numa agenda publicada, para o supervisor corrigir por 48 h. */
+export async function liberarDia(input: { semanaInicio: string; supervisorId: string; data: string }): Promise<Resultado> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role !== 'admin' || auth.perfil.ativo === false) return { ok: false, erro: 'Só o admin libera dias passados' }
+  if (!ehData(input.semanaInicio) || segundaDe(input.semanaInicio) !== input.semanaInicio) return { ok: false, erro: 'Semana inválida' }
+  if (!ehData(input.data) || segundaDe(input.data) !== input.semanaInicio) return { ok: false, erro: 'Data fora da semana' }
+  if (input.data >= hojeBR()) return { ok: false, erro: 'Só dias que já passaram precisam de liberação' }
+
+  const admin = db()
+  const { data: semana } = await admin
+    .from('agenda_semanas')
+    .select('id, status')
+    .eq('supervisor_id', input.supervisorId)
+    .eq('semana_inicio', input.semanaInicio)
+    .maybeSingle()
+  if (!semana || semana.status !== 'publicada') return { ok: false, erro: 'A agenda desta semana não está publicada' }
+
+  const expira = new Date(Date.now() + HORAS_LIBERACAO * 3_600_000).toISOString()
+  const { error } = await admin
+    .from('agenda_liberacoes_dia')
+    .insert({ semana_id: semana.id, data: input.data, liberado_por: auth.perfil.id, expira_em: expira })
+  if (error) return { ok: false, erro: 'Recurso indisponível: aplique a migração 20261101_agenda_liberacao_dia.sql no Supabase Studio.' }
+
+  await admin.from('agenda_comentarios').insert({
+    semana_id: semana.id,
+    autor_id: auth.perfil.id,
+    texto: `🔓 Liberou ${input.data.split('-').reverse().slice(0, 2).join('/')} para o supervisor corrigir (vale por ${HORAS_LIBERACAO} h).`,
   })
   revalidatePath('/agenda')
   return { ok: true }

@@ -27,6 +27,19 @@ export async function lerMudancas(admin: AnyClient, semanaId: string): Promise<R
   }
 }
 
+export type DiaLiberado = { data: string; ate: string } // ate = ISO de quando a liberação expira
+
+/** Dias passados liberados pelo admin e ainda dentro do prazo. Vazio se a migração 20261101 ainda não foi aplicada. */
+export async function lerLiberacoes(admin: AnyClient, semanaId: string): Promise<DiaLiberado[]> {
+  const { data, error } = await admin
+    .from('agenda_liberacoes_dia')
+    .select('data, expira_em')
+    .eq('semana_id', semanaId)
+    .gt('expira_em', new Date().toISOString())
+  if (error) return []
+  return ((data ?? []) as { data: string; expira_em: string }[]).map(r => ({ data: r.data, ate: r.expira_em }))
+}
+
 /** Conta mais uma mudança do supervisor na semana (depois de a alteração ter dado certo). */
 export async function contarMudanca(admin: AnyClient, semanaId: string, atual: number): Promise<void> {
   await admin.from('agenda_semanas').update({ mudancas_pos_publicacao: atual + 1 }).eq('id', semanaId)
