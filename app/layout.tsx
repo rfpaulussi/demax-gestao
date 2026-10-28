@@ -8,6 +8,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 export const metadata: Metadata = {
   title: "DEMAX Gestão",
   description: "Sistema de gestão DEMAX",
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({

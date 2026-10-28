@@ -16,6 +16,7 @@ export type CheckinPendente = {
   precisaJustificar?: boolean // servidor pediu justificativa (fora do raio)
   distancia?: number
   foto?: Blob // foto tirada enquanto o check-in estava pendente
+  recusado?: string // motivo da recusa do servidor: fica guardado (nunca apagado sozinho) até o supervisor decidir
 }
 
 function disponivel(): boolean {

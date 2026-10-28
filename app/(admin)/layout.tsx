@@ -8,6 +8,8 @@ import { SidebarNav } from '@/components/admin/sidebar-nav'
 import { SidebarProvider, SidebarContent, SidebarToggle } from '@/components/admin/sidebar-context'
 import { NotificacoesBell } from '@/components/admin/notificacoes-bell'
 import type { LogAcao } from '@/components/admin/notificacoes-bell'
+import { RegistrarSW } from '@/components/admin/registrar-sw'
+import { SincronizadorOffline } from '@/components/agenda/sincronizador-offline'
 import { SupervisorBell } from '@/components/admin/supervisor-bell'
 import type { SolicitacaoNotif, AlertaSupervisor } from '@/components/admin/supervisor-bell'
 import { contarTermosPendentes } from '@/lib/termos/listar-termos'
@@ -193,6 +195,12 @@ export default async function AdminLayout({
         </header>
 
         <main className="flex-1 p-3 md:p-4">{children}</main>
+        {perfil.role === 'supervisor' && (
+          <>
+            <RegistrarSW />
+            <SincronizadorOffline />
+          </>
+        )}
       </SidebarContent>
     </div>
     </SidebarProvider>

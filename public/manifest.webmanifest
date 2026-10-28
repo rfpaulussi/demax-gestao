@@ -1,0 +1,13 @@
+{
+  "name": "DEMAX Gestão",
+  "short_name": "DEMAX",
+  "description": "Sistema de gestão DEMAX",
+  "start_url": "/agenda",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "icons": [
+    { "src": "/logo-demax.jpg", "sizes": "any", "type": "image/jpeg" }
+  ]
+}

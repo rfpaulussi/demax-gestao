@@ -336,13 +336,18 @@ export async function registrarCheckin(input: {
   if (input.tipo !== 'entrada' && input.tipo !== 'saida') return { ok: false, erro: 'Tipo inválido' }
   if (!coordenadaValida(input.latitude, input.longitude)) return { ok: false, erro: 'Localização inválida' }
 
-  // Horário da captura: no check-in offline é o momento do GPS, não o do envio. Aceita até 72 h atrás.
+  // Horário da captura: no check-in offline é o momento do GPS, não o do envio. Aceita até 7 dias atrás
+  // (um fim de semana sem sinal não pode perder o check-in de sexta).
   const agora = Date.now()
   let capturado = agora
   if (input.capturadoEm) {
     capturado = Date.parse(input.capturadoEm)
-    if (!Number.isFinite(capturado) || capturado > agora + 5 * 60_000 || capturado < agora - 72 * 3_600_000) {
-      return { ok: false, erro: 'Horário do check-in inválido. Refaça o registro.' }
+    if (!Number.isFinite(capturado)) return { ok: false, erro: 'Horário do check-in inválido. Refaça o registro.' }
+    if (capturado > agora + 5 * 60_000) {
+      return { ok: false, erro: 'O relógio do aparelho estava adiantado quando este check-in foi feito. Acerte a data e a hora do celular e fale com a coordenação para registrar.' }
+    }
+    if (capturado < agora - 7 * 24 * 3_600_000) {
+      return { ok: false, erro: 'Check-in guardado há mais de 7 dias: fale com a coordenação para registrar manualmente.' }
     }
   }
   const momento = new Date(capturado).toISOString()

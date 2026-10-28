@@ -1,17 +1,16 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertTriangle, Camera, CheckCircle2, Clock, LogIn, LogOut, MapPinOff, Navigation, RefreshCw, ShieldCheck } from 'lucide-react'
 import { formatarDistancia, PRECISAO_RUIM_M } from '@/lib/agenda/geo'
 import { diaMes } from '@/lib/agenda/datas'
 import { PERIODOS } from '@/lib/agenda/tema'
-import { anexarFotoCheckin, marcarLocalPosto, registrarCheckin } from '@/app/(admin)/agenda/geo-actions'
+import { marcarLocalPosto, registrarCheckin } from '@/app/(admin)/agenda/geo-actions'
 import { comprimirImagem } from '@/lib/agenda/imagem'
-import { listarFotosPendentes, removerFotoPendente, salvarFotoPendente } from '@/lib/agenda/fila-fotos'
-import {
-  listarCheckinsPendentes, removerCheckinPendente, salvarCheckinPendente, type CheckinPendente,
-} from '@/lib/agenda/fila-checkins'
+import { listarFotosPendentes, salvarFotoPendente } from '@/lib/agenda/fila-fotos'
+import { listarCheckinsPendentes, salvarCheckinPendente, type CheckinPendente } from '@/lib/agenda/fila-checkins'
+import { enviarFotoCheckin, EVENTO_FILA, sincronizarFilas, type DetalheEventoFila } from '@/lib/agenda/sync-fila'
 import { comTempoLimite, semConexao } from '@/lib/agenda/rede'
 import type { BlocoView, CheckinHoje, PostoOpt, TipoFoco } from '@/app/(admin)/agenda/actions'
 
@@ -147,14 +146,6 @@ function gerarIdLocal(): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
 }
 
-/** Envia a foto de um check-in. Lança erro se não chegar ao servidor (sem sinal ou tempo limite). */
-async function enviarFotoCheckin(checkinId: string, blob: Blob): Promise<{ ok: true } | { ok: false; erro: string }> {
-  const fd = new FormData()
-  fd.append('checkinId', checkinId)
-  fd.append('foto', new File([blob], 'foto.jpg', { type: 'image/jpeg' }))
-  return comTempoLimite(anexarFotoCheckin(fd))
-}
-
 function comoExibido(p: CheckinPendente): CheckinExibido {
   return {
     id: p.localId,
@@ -200,7 +191,6 @@ export function CheckinPainel({
   const [pendentesFoto, setPendentesFoto] = useState<Set<string>>(new Set())
   const [pendentesCheckin, setPendentesCheckin] = useState<CheckinPendente[]>([])
   const [erroFila, setErroFila] = useState<string | null>(null)
-  const sincronizando = useRef(false)
   // Lembrete de check-in pendente a partir das 16h (só no cliente: depende do relógio do aparelho).
   const [fimDeTarde, setFimDeTarde] = useState(false)
   useEffect(() => {
@@ -219,98 +209,32 @@ export function CheckinPainel({
     setPendentesCheckin(await listarCheckinsPendentes())
   }
 
-  // Envia os check-ins guardados sem sinal, na ordem em que foram feitos. Para no primeiro erro de rede.
-  async function processarFilaCheckins() {
-    const itens = await listarCheckinsPendentes()
-    const falhas: string[] = []
-    let enviou = false
-    for (const item of itens) {
-      if (item.precisaJustificar && !item.justificativa) continue // aguarda o supervisor justificar
-      let r: Awaited<ReturnType<typeof registrarCheckin>>
-      try {
-        r = await comTempoLimite(registrarCheckin({
-          postoId: item.postoId, tipo: item.tipo, latitude: item.latitude, longitude: item.longitude,
-          precisaoM: item.precisaoM, justificativa: item.justificativa, localId: item.localId, capturadoEm: item.capturadoEm,
-        }))
-      } catch {
-        break // ainda sem sinal: o check-in continua guardado
-      }
-      if (r.ok) {
-        enviou = true
-        await removerCheckinPendente(item.localId)
-        if (item.foto) {
-          try {
-            const rf = await enviarFotoCheckin(r.checkinId, item.foto)
-            if (!rf.ok && !/já tem foto/i.test(rf.erro)) falhas.push(rf.erro)
-          } catch {
-            await salvarFotoPendente(r.checkinId, item.foto) // foto segue na fila de fotos
-          }
-        }
-      } else if (r.precisaJustificar) {
-        await salvarCheckinPendente({ ...item, precisaJustificar: true, distancia: r.distancia, justificativa: undefined })
-      } else {
-        await removerCheckinPendente(item.localId) // recusado pelo servidor: não adianta insistir
-        falhas.push(r.erro)
-      }
-    }
-    if (enviou) setAviso('✅ Check-ins guardados no aparelho foram enviados.')
-    await atualizarPendentesCheckin()
-    if (enviou) router.refresh()
-    return falhas
+  function sincronizar() {
+    void sincronizarFilas()
   }
 
-  // Envia as fotos guardadas sem sinal. Para no primeiro erro de rede e tenta de novo depois.
-  async function processarFilaFotos() {
-    const itens = await listarFotosPendentes()
-    const falhas: string[] = []
-    let enviou = false
-    for (const item of itens) {
-      let r: { ok: true } | { ok: false; erro: string }
-      try {
-        r = await enviarFotoCheckin(item.checkinId, item.blob)
-      } catch {
-        break // ainda sem sinal: a foto continua guardada
-      }
-      if (r.ok) enviou = true
-      else if (!/já tem foto/i.test(r.erro)) falhas.push(r.erro)
-      await removerFotoPendente(item.checkinId) // enviada, ou recusada pelo servidor (não adianta insistir)
-    }
-    await atualizarPendentesFoto()
-    if (enviou) router.refresh()
-    return falhas
-  }
-
-  async function sincronizar() {
-    if (sincronizando.current) return
-    sincronizando.current = true
-    try {
-      const falhas = [...(await processarFilaCheckins()), ...(await processarFilaFotos())]
-      setErroFila(falhas.length > 0 ? `Item guardado não pôde ser enviado: ${falhas[0]}` : null)
-    } catch {
-      // IndexedDB indisponível: nada a reenviar
-    } finally {
-      sincronizando.current = false
-    }
-  }
-
+  // O envio da fila roda em qualquer tela (SincronizadorOffline); aqui só reagimos ao resultado.
   useEffect(() => {
     void atualizarPendentesCheckin()
-    void sincronizar()
-    const timer = window.setInterval(() => void sincronizar(), 15000)
-    const aoVoltarSinal = () => void sincronizar()
-    const aoVoltarTela = () => { if (document.visibilityState === 'visible') void sincronizar() }
-    window.addEventListener('online', aoVoltarSinal)
-    document.addEventListener('visibilitychange', aoVoltarTela)
-    return () => {
-      window.clearInterval(timer)
-      window.removeEventListener('online', aoVoltarSinal)
-      document.removeEventListener('visibilitychange', aoVoltarTela)
+    void atualizarPendentesFoto()
+    const aoAtualizar = (e: Event) => {
+      const d = (e as CustomEvent<DetalheEventoFila>).detail
+      void atualizarPendentesCheckin()
+      void atualizarPendentesFoto()
+      if (d?.enviou) {
+        setAviso('✅ Check-ins guardados no aparelho foram enviados.')
+        router.refresh()
+      }
+      setErroFila(d?.falhas?.length ? `Item guardado não pôde ser enviado: ${d.falhas[0]}` : null)
     }
+    window.addEventListener(EVENTO_FILA, aoAtualizar)
+    void sincronizarFilas()
+    return () => window.removeEventListener(EVENTO_FILA, aoAtualizar)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Check-ins do servidor + os que estão guardados no aparelho (aparecem como "aguardando envio").
-  const exibidos: CheckinExibido[] = [...checkins, ...pendentesCheckin.map(comoExibido)]
+  const exibidos: CheckinExibido[] = [...checkins, ...pendentesCheckin.filter(p => !p.recusado).map(comoExibido)]
 
   const nomeTipo = new Map(tipos.map(t => [t.id, `${t.icone} ${t.nome}`]))
   const exigeFotoTipo = new Map(tipos.map(t => [t.id, !!t.exige_foto]))
@@ -452,7 +376,7 @@ export function CheckinPainel({
       return (
         <button
           type="button"
-          onClick={() => void sincronizar()}
+          onClick={sincronizar}
           className="flex w-fit items-center gap-1 rounded-md bg-amber-100 px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-200"
         >
           <RefreshCw className="h-3 w-3" /> Foto da {rotulo} aguardando sinal · tentar agora
