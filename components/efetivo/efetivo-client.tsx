@@ -8,7 +8,7 @@ import { FiltrosEfetivo } from './filtros-efetivo'
 import type { FiltrosValues, FiltrosCounts } from './filtros-efetivo'
 import { FuncionariosTable } from './funcionarios-table'
 import type { FuncionarioRow } from './funcionarios-table'
-import { exportToExcel } from '@/lib/export-excel'
+import { exportToExcelSheets } from '@/lib/export-excel'
 
 const STATUS_LABELS: Record<string, string> = {
   ativo:             'Ativo',
@@ -162,10 +162,47 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
     setValues(prev => ({ ...prev, [key]: value }))
   }
 
+  function buildResumoSupervisores() {
+    type Resumo = {
+      nome: string
+      total: number
+      status: Record<string, number>
+      funcoes: Record<string, number>
+      postos: Set<string>
+      pcd: number
+    }
+    const map = new Map<string, Resumo>()
+    const novo = (nome: string): Resumo => ({ nome, total: 0, status: {}, funcoes: {}, postos: new Set(), pcd: 0 })
+    for (const s of supervisores) map.set(s.id, novo(s.nome ?? '(sem nome)'))
+    const SEM = '__sem__'
+    for (const f of funcionarios) {
+      const key = f.supervisor_id ?? SEM
+      let r = map.get(key)
+      if (!r) {
+        r = novo(f.supervisor_id ? (f.supervisor_nome ?? '(sem nome)') : 'Sem supervisor')
+        map.set(key, r)
+      }
+      r.total++
+      const st = f.status ?? 'ativo'
+      r.status[st] = (r.status[st] ?? 0) + 1
+      const fn = f.funcoes?.nome ?? 'Sem função'
+      r.funcoes[fn] = (r.funcoes[fn] ?? 0) + 1
+      if (f.postos?.nome) r.postos.add(f.postos.nome)
+      if (f.pcd) r.pcd++
+    }
+    return Array.from(map.values())
+      .filter(r => r.total > 0)
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }))
+  }
+
   function handleExport() {
-    exportToExcel(
-      sorted,
-      [
+    const resumo = buildResumoSupervisores()
+    const statusKeys = Object.keys(STATUS_LABELS)
+    exportToExcelSheets([
+      {
+        name: 'Efetivo',
+        data: sorted,
+        columns: [
         { label: 'Registro',   value: r => r.registro ?? '', asText: true },
         { label: 'Nome',       value: r => r.nome },
         {
@@ -188,9 +225,32 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
           value: r => r.turno_atual_resumo ?? '',
           cellStyle: r => r.turno_atual_regime ? REGIME_COLORS[r.turno_atual_regime] : undefined,
         },
-      ],
-      todayFilename(),
-    )
+        ],
+      },
+      {
+        name: 'Resumo Supervisores',
+        data: resumo,
+        columns: [
+          { label: 'Supervisor', value: r => r.nome },
+          { label: 'Total', value: r => r.total },
+          ...statusKeys.map(k => ({
+            label: STATUS_LABELS[k],
+            value: (r: typeof resumo[number]) => r.status[k] ?? 0,
+            cellStyle: (r: typeof resumo[number]) => (r.status[k] ? STATUS_COLORS[k] : undefined),
+          })),
+          { label: 'PCD', value: r => r.pcd },
+          { label: 'Qtd. Postos', value: r => r.postos.size },
+          { label: 'Postos', value: r => Array.from(r.postos).sort().join('; ') },
+          {
+            label: 'Funções',
+            value: r => Object.entries(r.funcoes as Record<string, number>)
+              .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'))
+              .map(([nome, qtd]) => `${nome} (${qtd})`)
+              .join('; '),
+          },
+        ],
+      },
+    ], todayFilename())
   }
 
   return (
