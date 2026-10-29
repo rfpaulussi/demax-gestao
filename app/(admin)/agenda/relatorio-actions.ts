@@ -66,6 +66,7 @@ export type LinhaReplanejamento = {
 export type VisitaApoio = {
   data: string
   posto: string
+  responsavel: string // supervisor responsável pelo posto (quem o apoio ajudou)
   atividade: string
   obs: string
   entrada: string | null // ISO
@@ -87,6 +88,7 @@ export type LinhaApoio = {
   semFoto: number
   semSaida: number
   porAtividade: { atividade: string; visitas: number }[]
+  porSupervisor: { supervisor: string; visitas: number; postos: number; tempoMin: number }[] // quem o apoio mais ajudou
   detalhe: VisitaApoio[]
 }
 
@@ -413,6 +415,14 @@ export async function carregarRelatorioMensal(
     ocorrencias.sort((a, b) => a.data.localeCompare(b.data) || a.supervisor.localeCompare(b.supervisor))
     replanejamentos.sort((a, b) => a.data.localeCompare(b.data))
 
+    // Supervisor responsável por cada posto (para saber quem o apoio ajudou). Sem vínculo (ex.: sede) = "Sem supervisor".
+    const respPorPosto = new Map<string, string>()
+    for (const v of (vinculosRaw ?? []) as { supervisor_id: string; posto_id: string }[]) {
+      const nome = nomeSup.get(v.supervisor_id)
+      if (nome && !respPorPosto.has(v.posto_id)) respPorPosto.set(v.posto_id, nome)
+    }
+    const SEM_RESPONSAVEL = 'Sem supervisor (sede/outros)'
+
     // Supervisores de apoio: todas as visitas são check-ins sem plano; a foto é obrigatória em toda visita.
     const apoio: LinhaApoio[] = supsApoio.map(sup => {
       const visitas: VisitaView[] = []
@@ -437,6 +447,15 @@ export async function carregarRelatorioMensal(
         const k = v.atividade ?? 'Sem atividade informada'
         porAtiv.set(k, (porAtiv.get(k) ?? 0) + 1)
       }
+      const porSup = new Map<string, { visitas: number; postos: Set<string>; tempoMin: number }>()
+      for (const v of visitas) {
+        const k = respPorPosto.get(v.posto_id) ?? SEM_RESPONSAVEL
+        const acc = porSup.get(k) ?? { visitas: 0, postos: new Set<string>(), tempoMin: 0 }
+        acc.visitas++
+        acc.postos.add(v.posto_id)
+        acc.tempoMin += v.tempo_min ?? 0
+        porSup.set(k, acc)
+      }
       return {
         id: sup.id,
         nome: sup.nome ?? 'Supervisor',
@@ -449,9 +468,13 @@ export async function carregarRelatorioMensal(
         semFoto: visitas.filter(v => v.fotos.length === 0).length,
         semSaida: visitas.filter(v => !v.saida_em).length,
         porAtividade: Array.from(porAtiv.entries()).map(([atividade, n]) => ({ atividade, visitas: n })).sort((a, b) => b.visitas - a.visitas),
+        porSupervisor: Array.from(porSup.entries())
+          .map(([supervisor, a]) => ({ supervisor, visitas: a.visitas, postos: a.postos.size, tempoMin: a.tempoMin }))
+          .sort((a, b) => b.visitas - a.visitas || a.supervisor.localeCompare(b.supervisor)),
         detalhe: visitas.map(v => ({
           data: v.data,
           posto: v.posto_nome,
+          responsavel: respPorPosto.get(v.posto_id) ?? SEM_RESPONSAVEL,
           atividade: v.atividade ?? 'Sem atividade informada',
           obs: v.atividade_obs ?? '',
           entrada: v.entrada_em,

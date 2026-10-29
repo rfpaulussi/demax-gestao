@@ -188,8 +188,8 @@ export function RelatorioMensalDoc({ data }: { data: RelatorioPdfData }) {
             <Text style={s.sectionTitle}>VIII. SUPERVISORES DE APOIO (SEM AGENDA)</Text>
             <Tabela
               cols={[
-                { t: 'Supervisor', w: 120 }, { t: 'Dias em campo', w: 70 }, { t: 'Visitas', w: 50 }, { t: 'Postos', w: 50 },
-                { t: 'Tempo total', w: 65 }, { t: 'Tempo medio', w: 65 }, { t: 'Sem foto', w: 50 }, { t: 'Sem saida', w: 55 }, { t: 'Atividades', w: 250 },
+                { t: 'Supervisor', w: 90 }, { t: 'Dias em campo', w: 50 }, { t: 'Visitas', w: 42 }, { t: 'Postos', w: 42 },
+                { t: 'Tempo total', w: 50 }, { t: 'Tempo medio', w: 50 }, { t: 'Sem foto', w: 42 }, { t: 'Sem saida', w: 45 }, { t: 'Atividades', w: 160 }, { t: 'Quem ajudou (visitas)', w: 170 },
               ]}
               linhas={d.apoio.map(a => [
                 a.nome, a.diasEmCampo, a.visitas, a.postosDistintos,
@@ -197,6 +197,7 @@ export function RelatorioMensalDoc({ data }: { data: RelatorioPdfData }) {
                 a.tempoMedioMin === null ? '-' : `${a.tempoMedioMin} min`,
                 a.semFoto, a.semSaida,
                 a.porAtividade.map(x => `${x.atividade} (${x.visitas})`).join(', ') || '-',
+                a.porSupervisor.map(x => `${x.supervisor} (${x.visitas})`).join(', ') || '-',
               ])}
             />
             <Text style={s.nota}>Lista completa das visitas, com posto, horario e observacao, na planilha Excel.</Text>

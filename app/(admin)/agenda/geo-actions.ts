@@ -560,6 +560,8 @@ export type MapaDados = {
   visitas: VisitaView[]
   stats: MapaStats
   semLocal: string[] // postos planejados sem coordenada
+  /** Supervisor de apoio: supervisor responsável por cada posto visitado (para colorir o mapa por quem ele ajudou). */
+  responsaveis?: Record<string, { id: string; nome: string }>
 }
 
 export async function carregarMapa(
@@ -674,5 +676,21 @@ export async function carregarMapa(
     .map(p => p.nome)
     .sort((a, b) => a.localeCompare(b))
 
-  return { ok: true, dados: { visitas, stats, semLocal } }
+  // Supervisor de apoio: quem é o supervisor responsável por cada posto visitado.
+  let responsaveis: Record<string, { id: string; nome: string }> | undefined
+  if (apoioDono && visitas.length > 0) {
+    const idsVisitados = Array.from(new Set(visitas.map(v => v.posto_id)))
+    const { data: vinculos } = await admin
+      .from('config_supervisores_postos')
+      .select('posto_id, supervisor_id, perfis!supervisor_id(nome, apoio)')
+      .in('posto_id', idsVisitados)
+      .eq('ativo', true)
+    responsaveis = {}
+    for (const v of (vinculos ?? []) as { posto_id: string; supervisor_id: string; perfis: { nome: string | null; apoio?: boolean | null } | null }[]) {
+      if (v.supervisor_id === supervisorId || v.perfis?.apoio === true || responsaveis[v.posto_id]) continue
+      responsaveis[v.posto_id] = { id: v.supervisor_id, nome: v.perfis?.nome ?? 'Supervisor' }
+    }
+  }
+
+  return { ok: true, dados: { visitas, stats, semLocal, responsaveis } }
 }

@@ -229,12 +229,24 @@ export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: D
               ],
             },
             {
+              name: 'Apoio - por supervisor',
+              data: apoio.flatMap(a => a.porSupervisor.map(s => ({ ...s, apoio: a.nome }))),
+              columns: [
+                { label: 'Supervisor de apoio', value: (s: { apoio: string }) => s.apoio },
+                { label: 'Supervisor atendido', value: (s: { supervisor: string }) => s.supervisor },
+                { label: 'Visitas', value: (s: { visitas: number }) => s.visitas },
+                { label: 'Postos distintos', value: (s: { postos: number }) => s.postos },
+                { label: 'Tempo (min)', value: (s: { tempoMin: number }) => s.tempoMin },
+              ],
+            },
+            {
               name: 'Apoio - visitas',
               data: apoio.flatMap(a => a.detalhe.map(d => ({ ...d, supervisor: a.nome }))),
               columns: [
                 { label: 'Data', value: (d: VisitaApoioExcel) => d.data, asText: true },
                 { label: 'Supervisor', value: (d: VisitaApoioExcel) => d.supervisor },
                 { label: 'Posto', value: (d: VisitaApoioExcel) => d.posto },
+                { label: 'Supervisor responsável', value: (d: VisitaApoioExcel) => d.responsavel },
                 { label: 'Atividade', value: (d: VisitaApoioExcel) => d.atividade },
                 { label: 'Observação', value: (d: VisitaApoioExcel) => d.obs },
                 { label: 'Entrada', value: (d: VisitaApoioExcel) => horaBR(d.entrada) },
@@ -531,6 +543,24 @@ export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: D
               </div>
             ))}
           </div>
+          {a.porSupervisor.length > 0 && (
+            <div className="mb-4">
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-slate-500">Quem o apoio mais ajudou</p>
+              <ul className="space-y-1.5">
+                {a.porSupervisor.map(s => (
+                  <li key={s.supervisor} className="flex items-center gap-3 text-sm">
+                    <span className="w-44 shrink-0 truncate font-semibold text-slate-800 sm:w-56">{s.supervisor}</span>
+                    <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                      <span className="block h-full rounded-full bg-sky-500" style={{ width: `${(s.visitas / Math.max(1, a.porSupervisor[0].visitas)) * 100}%` }} />
+                    </span>
+                    <span className="w-28 shrink-0 text-right text-xs text-slate-500">
+                      <b className="text-slate-800">{s.visitas}</b> {s.visitas === 1 ? 'visita' : 'visitas'} · {s.postos} {s.postos === 1 ? 'posto' : 'postos'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {a.porAtividade.length > 0 && (
             <div className="mb-4 flex flex-wrap gap-2">
               {a.porAtividade.map(x => (
@@ -544,13 +574,14 @@ export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: D
             <Vazio>Nenhuma visita registrada neste mês.</Vazio>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px]">
-                <thead className="border-y border-slate-100 bg-slate-50/60"><tr>{['Data', 'Posto', 'Atividade', 'Entrada', 'Saída', 'Tempo', 'Observação / sinais'].map(h => <th key={h} className={th}>{h}</th>)}</tr></thead>
+              <table className="w-full min-w-[860px]">
+                <thead className="border-y border-slate-100 bg-slate-50/60"><tr>{['Data', 'Posto', 'Supervisor', 'Atividade', 'Entrada', 'Saída', 'Tempo', 'Observação / sinais'].map(h => <th key={h} className={th}>{h}</th>)}</tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {a.detalhe.map((d, i) => (
                     <tr key={i} className="align-top">
                       <td className={`${td} whitespace-nowrap`}>{diaMes(d.data)}</td>
                       <td className={`${td} font-semibold`}>{d.posto}</td>
+                      <td className={`${td} text-xs`}>{d.responsavel}</td>
                       <td className={td}>{d.atividade}</td>
                       <td className={td}>{horaBR(d.entrada)}</td>
                       <td className={td}>{d.saida ? horaBR(d.saida) : <span className="text-orange-600">sem saída</span>}</td>

@@ -9,6 +9,7 @@ import { diaMes } from '@/lib/agenda/datas'
 import { removerBloco, salvarBloco } from '@/app/(admin)/agenda/actions'
 import { liberarDia, pedirMudancaExtra } from '@/app/(admin)/agenda/mudancas-actions'
 import type { DiaLiberado } from '@/lib/agenda/mudancas-db'
+import { CampoObservacao } from './campo-observacao'
 import { CATEGORIAS_MOTIVO, restantes, type ResumoMudancas } from '@/lib/agenda/mudancas'
 import { buscarEndereco, salvarLocalPosto } from '@/app/(admin)/agenda/geo-actions'
 import type { ResultadoEndereco } from '@/app/(admin)/agenda/geo-actions'
@@ -395,13 +396,12 @@ function Conteudo({
 
           <section>
             <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">Observação</p>
-            <textarea
+            <CampoObservacao
               value={obs}
-              onChange={e => setObs(e.target.value)}
+              onChange={setObs}
               maxLength={500}
-              rows={2}
+              rows={3}
               placeholder="O que precisa ser visto/feito nessa visita? (opcional)"
-              className="w-full resize-none rounded-lg border border-slate-200 p-2.5 text-sm outline-none focus:border-slate-400"
             />
           </section>
 

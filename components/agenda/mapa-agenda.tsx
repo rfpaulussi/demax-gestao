@@ -55,7 +55,9 @@ function pino(cor: string, texto: string) {
   })
 }
 
-const COR_APOIO = { ok: '#10b981', atencao: '#f59e0b' }
+// Apoio: cada supervisor atendido ganha uma cor; cinza = posto sem supervisor (ex.: sede).
+const PALETA_APOIO = ['#2563eb', '#db2777', '#16a34a', '#ea580c', '#7c3aed', '#0891b2', '#ca8a04', '#dc2626', '#0d9488', '#9333ea']
+const COR_SEM_RESPONSAVEL = '#6b7280'
 
 export default function MapaAgenda({ dados, dias, apoio = false }: { dados: MapaDados; dias: string[]; apoio?: boolean }) {
   const [dia, setDia] = useState<string>('todos')
@@ -68,7 +70,14 @@ export default function MapaAgenda({ dados, dias, apoio = false }: { dados: Mapa
   const { stats } = dados
 
   // Supervisor de apoio: sem plano, então a cor mostra só se a visita teve sinal de atenção e o rótulo é a atividade.
-  const corDe = (v: VisitaView) => (apoio ? (v.alertas.length > 0 ? COR_APOIO.atencao : COR_APOIO.ok) : COR[v.status])
+  const responsaveis = dados.responsaveis ?? {}
+  const supervisoresAtendidos = Array.from(new Map(Object.values(responsaveis).map(r => [r.id, r.nome])).entries())
+    .sort((a, b) => a[1].localeCompare(b[1]))
+  const corDoResponsavel = (id: string | undefined) => {
+    const i = id ? supervisoresAtendidos.findIndex(([sid]) => sid === id) : -1
+    return i >= 0 ? PALETA_APOIO[i % PALETA_APOIO.length] : COR_SEM_RESPONSAVEL
+  }
+  const corDe = (v: VisitaView) => (apoio ? corDoResponsavel(responsaveis[v.posto_id]?.id) : COR[v.status])
   const rotuloDe = (v: VisitaView) => (apoio ? v.atividade ?? 'Sem atividade informada' : ROTULO[v.status])
   const visitas = useMemo(() => dados.visitas.filter(v => dia === 'todos' || v.data === dia), [dados.visitas, dia])
 
@@ -109,6 +118,7 @@ export default function MapaAgenda({ dados, dias, apoio = false }: { dados: Mapa
       if (v.lat_real != null && v.lng_real != null) {
         const detalhes = [
           `<b>${esc(v.posto_nome)}</b>`,
+          apoio ? `Apoio a: <b>${esc(responsaveis[v.posto_id]?.nome ?? 'sem supervisor')}</b>` : '',
           apoio ? `<i>${esc(v.atividade ?? 'Sem atividade informada')}</i>` : '',
           apoio && v.atividade_obs ? esc(v.atividade_obs) : '',
           `${hora(v.entrada_em)}${v.saida_em ? ` – ${hora(v.saida_em)}` : ''}`,
@@ -178,10 +188,10 @@ export default function MapaAgenda({ dados, dias, apoio = false }: { dados: Mapa
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
+      <div className="grid grid-cols-3 gap-2 md:grid-cols-4 md:gap-3 xl:grid-cols-7">
         {tiles.map(t => (
           <div key={t.label} className={`rounded-xl border border-slate-200 border-t-4 bg-white p-3 shadow-sm ${t.cor}`}>
-            <p className="text-2xl font-black text-slate-900">{t.valor}</p>
+            <p className="text-xl font-black text-slate-900 sm:text-2xl">{t.valor}</p>
             <p className="mt-0.5 text-[10px] uppercase tracking-widest text-slate-500">{t.label}</p>
           </div>
         ))}
@@ -207,8 +217,16 @@ export default function MapaAgenda({ dados, dias, apoio = false }: { dados: Mapa
         <span className="ml-auto flex flex-wrap gap-x-3 gap-y-1">
           {apoio ? (
             <>
-              <span className="flex items-center gap-1.5 text-[11px] text-slate-500"><span className="h-2.5 w-2.5 rounded-full" style={{ background: COR_APOIO.ok }} /> Visita sem alertas</span>
-              <span className="flex items-center gap-1.5 text-[11px] text-slate-500"><span className="h-2.5 w-2.5 rounded-full" style={{ background: COR_APOIO.atencao }} /> Com sinal de atenção</span>
+              {supervisoresAtendidos.map(([id, nome]) => (
+                <span key={id} className="flex items-center gap-1.5 text-[11px] text-slate-600">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: corDoResponsavel(id) }} /> {nome}
+                  <b>{dados.visitas.filter(v => v.entrada_em && responsaveis[v.posto_id]?.id === id).length}</b>
+                </span>
+              ))}
+              <span className="flex items-center gap-1.5 text-[11px] text-slate-600">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: COR_SEM_RESPONSAVEL }} /> Sem supervisor
+                <b>{dados.visitas.filter(v => v.entrada_em && !responsaveis[v.posto_id]).length}</b>
+              </span>
             </>
           ) : (Object.keys(COR) as StatusVisita[]).map(s => (
             <span key={s} className="flex items-center gap-1.5 text-[11px] text-slate-500">
@@ -240,7 +258,8 @@ export default function MapaAgenda({ dados, dias, apoio = false }: { dados: Mapa
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-bold text-slate-800">{v.posto_nome}</span>
-                        <span className="block text-[11px] font-semibold" style={{ color: corDe(v) }}>{rotuloDe(v)}</span>
+                        {apoio && <span className="block text-[11px] font-bold" style={{ color: corDe(v) }}>Apoio a {responsaveis[v.posto_id]?.nome ?? 'sem supervisor'}</span>}
+                        <span className="block text-[11px] font-semibold" style={apoio ? undefined : { color: corDe(v) }}>{rotuloDe(v)}</span>
                         <span className="block text-[11px] text-slate-500">
                           {v.entrada_em ? `${hora(v.entrada_em)}${v.saida_em ? ` – ${hora(v.saida_em)}` : ''}` : v.periodos.map(p => ROTULO_PERIODO[p]).join(', ')}
                           {v.tempo_min != null && ` · ${duracao(v.tempo_min)}`}

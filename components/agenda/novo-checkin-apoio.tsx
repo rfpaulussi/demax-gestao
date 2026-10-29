@@ -7,6 +7,7 @@ import { buscarPorNome, guardarPostos, lerPostosGuardados, listaVencida, postosP
 import { formatarDistancia } from '@/lib/agenda/geo'
 import { comTempoLimite, semConexao } from '@/lib/agenda/rede'
 import type { TipoFoco } from '@/app/(admin)/agenda/actions'
+import { CampoObservacao } from './campo-observacao'
 
 type Coords = { lat: number; lng: number; precisao: number | null }
 
@@ -109,7 +110,7 @@ export function NovoCheckinApoio({
             ativo ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-800 hover:border-slate-400'
           } disabled:opacity-40`}>
           <span className="min-w-0">
-            <b className="block truncate">{p.nome}</b>
+            <b className="block break-words leading-tight">{p.nome}</b>
             <span className={`text-[11px] ${ativo ? 'text-white/70' : 'text-slate-500'}`}>{p.secretaria ?? 'Sem secretaria'}{feito ? ' · já visitado hoje' : ''}</span>
           </span>
           {distancia !== undefined && <span className={`shrink-0 text-xs font-bold ${ativo ? 'text-white' : 'text-emerald-700'}`}>{formatarDistancia(distancia)}</span>}
@@ -166,9 +167,8 @@ export function NovoCheckinApoio({
                 <option value="">Atividade (obrigatório)…</option>
                 {atividades.map(a => <option key={a.id} value={a.id}>{a.icone} {a.nome}</option>)}
               </select>
-              <textarea value={obs} onChange={e => setObs(e.target.value)} rows={2} maxLength={300}
-                placeholder="Observação (opcional): o que foi feito ou combinado"
-                className="w-full resize-none rounded-lg border border-slate-200 p-2 text-sm outline-none focus:border-slate-400" />
+              <CampoObservacao value={obs} onChange={setObs} maxLength={300}
+                placeholder="Observação (opcional): o que foi feito ou combinado. Toque em Falar para ditar." />
               <button type="button" disabled={!focoId || ocupado} onClick={confirmar}
                 className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:opacity-40">
                 Fazer check-in de chegada

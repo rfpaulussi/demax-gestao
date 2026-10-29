@@ -516,9 +516,9 @@ export function CheckinPainel({
           <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${saida ? 'bg-emerald-500' : entrada ? 'bg-sky-500' : 'bg-slate-200'} text-white`}>
             {saida ? <CheckCircle2 className="h-5 w-5" /> : entrada ? <Clock className="h-5 w-5" /> : <Navigation className="h-4 w-4 text-slate-500" />}
           </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-bold text-slate-800">{posto.nome}</p>
-            <p className="truncate text-[11px] text-slate-500">
+          <div className="min-w-[11rem] flex-1">
+            <p className="break-words text-sm font-bold leading-tight text-slate-800">{posto.nome}</p>
+            <p className="text-[11px] text-slate-500">
               {apoio ? 'Atividade de apoio' : extra ? 'Visita extra' : `${g?.periodos.join(' + ')} · ${g?.focos.join(' · ')}`}
             </p>
             {entrada && (
@@ -538,7 +538,7 @@ export function CheckinPainel({
               )
             )}
             {exigeF && (
-              <p className={`mt-0.5 text-[11px] font-bold ${entrada && !fotoOk ? 'text-orange-600' : 'text-slate-400'}`}>
+              <p className={`mt-0.5 text-[11px] font-bold ${entrada && !fotoOk ? 'text-orange-600' : 'text-slate-600'}`}>
                 📷 {posto.id === sede?.id ? 'Foto sempre obrigatória na sede' : apoio ? 'Foto obrigatória em toda visita' : 'Foto obrigatória neste foco'}{entrada && !fotoOk ? ' — anexe para a visita contar' : ''}
               </p>
             )}
