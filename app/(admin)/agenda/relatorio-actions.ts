@@ -158,7 +158,7 @@ export async function carregarRelatorioMensal(
   try {
     const [{ data: supsRaw }, { data: tiposRaw }, { data: vinculosRaw }, semanasRaw] = await Promise.all([
       admin.from('perfis').select('id, nome').eq('role', 'supervisor').eq('ativo', true).order('nome'),
-      admin.from('agenda_tipos_foco').select('id, nome, exige_foto'),
+      admin.from('agenda_tipos_foco').select('*'),
       admin.from('config_supervisores_postos').select('supervisor_id, posto_id, postos(id, nome, ativo)').eq('ativo', true),
       fetchAllRows<{ id: string; supervisor_id: string; semana_inicio: string; status: 'rascunho' | 'publicada' }>((de, ate) =>
         admin
@@ -178,7 +178,8 @@ export async function carregarRelatorioMensal(
     const sups = supsTodos.filter(s => !idsApoio.has(s.id))
     const supsApoio = supsTodos.filter(s => idsApoio.has(s.id))
     const nomeSup = new Map(sups.map(s => [s.id, s.nome ?? 'Supervisor']))
-    const tipos = (tiposRaw ?? []) as { id: string; nome: string; exige_foto?: boolean }[]
+    const tipos = (tiposRaw ?? []) as { id: string; nome: string; exige_foto?: boolean; permanencia_minima_min?: number | null }[]
+    const minPorFoco = new Map(tipos.filter(t => t.permanencia_minima_min != null).map(t => [t.nome, t.permanencia_minima_min as number]))
     const nomeTipo = new Map(tipos.map(t => [t.id, t.nome]))
     const exigeFoto = new Map(tipos.map(t => [t.id, !!t.exige_foto]))
 
@@ -216,9 +217,13 @@ export async function carregarRelatorioMensal(
     // foto_path só existe após a migração 20261013.
     let cks: CheckinRaw[]
     try {
-      cks = await buscar(`${colunas}, foto_path, foco_id, atividade_obs`)
+      cks = await buscar(`${colunas}, foto_path, foco_id, atividade_obs, recebido_em`)
     } catch {
-      try { cks = await buscar(`${colunas}, foto_path`) } catch { cks = await buscar(colunas) }
+      try {
+        cks = await buscar(`${colunas}, foto_path, foco_id, atividade_obs`)
+      } catch {
+        try { cks = await buscar(`${colunas}, foto_path`) } catch { cks = await buscar(colunas) }
+      }
     }
 
     const cksPorSupSemana = new Map<string, CheckinRaw[]>()
@@ -309,6 +314,7 @@ export async function carregarRelatorioMensal(
           hoje,
           publicada: sem.status === 'publicada',
           sedeId,
+          minPorFoco,
           justificativas: justPorSemana.get(sem.id),
         })
         visitasMes.push(...visitas.filter(v => v.data >= inicio && v.data <= fim))
@@ -325,6 +331,7 @@ export async function carregarRelatorioMensal(
           hoje,
           publicada: false,
           sedeId,
+          minPorFoco,
         })
         visitasMes.push(...visitas.filter(v => v.data >= inicio && v.data <= fim))
       }
@@ -461,6 +468,7 @@ export async function carregarRelatorioMensal(
           sedeId,
           fotoSempre: true,
           focoPorId: nomeTipo,
+          minPorFoco,
         })
         visitas.push(...r.visitas.filter(v => v.data >= inicio && v.data <= fim && v.entrada_em))
       }

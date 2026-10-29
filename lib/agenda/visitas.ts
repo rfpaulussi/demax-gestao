@@ -4,6 +4,8 @@ import { diaMes, segundaDe } from '@/lib/agenda/datas'
 
 /** Permanência mínima esperada entre chegada e saída (abaixo disso vira sinal de atenção). */
 export const MIN_PERMANENCIA_MIN = 10
+/** Check-in recebido pelo servidor com mais horas que isso depois da captura vira sinal de atenção. */
+export const LIMITE_ATRASO_H = 6
 /** Meta mínima de visitas por posto no mês; abaixo disso o posto entra em "baixa frequência" no relatório mensal. */
 export const META_VISITAS_POSTO_MES = 2
 /** Velocidade acima da qual dois check-ins consecutivos são considerados fisicamente improváveis. */
@@ -24,6 +26,7 @@ export type CheckinRaw = {
   created_at: string
   foto_path?: string | null
   foco_id?: string | null // atividade informada no check-in do supervisor de apoio
+  recebido_em?: string | null // quando o servidor recebeu (created_at é a hora da captura no aparelho)
   atividade_obs?: string | null
 }
 
@@ -116,10 +119,12 @@ export function montarVisitas(args: {
   fotoSempre?: boolean
   /** Nome do foco por id, para mostrar a atividade do check-in de apoio. */
   focoPorId?: Map<string, string>
+  /** Permanência mínima (min) por nome de foco; foco ausente usa o padrão. 0 desliga o alerta. */
+  minPorFoco?: Map<string, number>
   /** Justificativas do "Fechar o dia", por "data|posto_id". */
   justificativas?: Map<string, { tipo: string; texto: string | null }>
 }): { visitas: VisitaView[]; stats: MapaStats } {
-  const { planos, checkins, postos, hoje, publicada, sedeId, fotoSempre, focoPorId, justificativas } = args
+  const { planos, checkins, postos, hoje, publicada, sedeId, fotoSempre, focoPorId, justificativas, minPorFoco } = args
   const historico = args.historico ?? []
 
   const plan = new Map<string, { data: string; posto_id: string; periodos: Set<Periodo>; focos: Set<string>; exigeFoto: boolean }>()
@@ -178,7 +183,18 @@ export function montarVisitas(args: {
     if (entrada) {
       if (!entrada.dentro_raio) alertas.push('Fora do raio do posto')
       if (entrada.baixa_precisao) alertas.push('GPS com baixa precisão')
-      if (tempo !== null && tempo < MIN_PERMANENCIA_MIN) alertas.push(`Permanência curta: ${tempo} min (mínimo ${MIN_PERMANENCIA_MIN})`)
+      // Mínimo de permanência: o menor entre os focos da visita (ou da atividade, no apoio).
+      const atividadeNome = entrada.foco_id ? focoPorId?.get(entrada.foco_id) : undefined
+      const nomesFoco = focos.length > 0 ? focos : atividadeNome ? [atividadeNome] : []
+      const minimo = nomesFoco.length > 0 ? Math.min(...nomesFoco.map(n => minPorFoco?.get(n) ?? MIN_PERMANENCIA_MIN)) : MIN_PERMANENCIA_MIN
+      if (minimo > 0 && tempo !== null && tempo < minimo) alertas.push(`Permanência curta: ${tempo} min (mínimo ${minimo})`)
+      // Check-in feito sem sinal e enviado muito depois: horário e posição vêm do celular.
+      if (entrada.recebido_em) {
+        const atrasoH = (Date.parse(entrada.recebido_em) - Date.parse(entrada.created_at)) / 3_600_000
+        if (atrasoH >= LIMITE_ATRASO_H) {
+          alertas.push(`Enviado ${atrasoH >= 48 ? `${Math.round(atrasoH / 24)} dias` : `${Math.round(atrasoH)} h`} depois da captura (check-in feito sem sinal)`)
+        }
+      }
       if ((coordDias.get(chaveCoord(entrada))?.size ?? 0) > 1) alertas.push('Coordenada idêntica à de outro dia (o GPS real sempre varia um pouco)')
 
       // Na sede a foto é sempre obrigatória (planejada ou extra).

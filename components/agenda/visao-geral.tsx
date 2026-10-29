@@ -71,6 +71,9 @@ export function VisaoGeral({
           <Link href="/agenda/locais" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
             📍 Localização dos postos
           </Link>
+          <Link href="/agenda/hoje" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            🛰️ Hoje em campo
+          </Link>
           <Link href="/agenda/relatorio" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
             📊 Relatório mensal
           </Link>

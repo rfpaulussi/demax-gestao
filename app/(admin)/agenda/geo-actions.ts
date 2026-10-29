@@ -553,12 +553,28 @@ export async function anexarFotoCheckin(formData: FormData): Promise<{ ok: true 
 
   const caminho = `${auth.perfil.id}/${checkinId}.jpg`
   const bytes = new Uint8Array(await arquivo.arrayBuffer())
+
+  // A mesma foto não vale para duas visitas (impressão digital SHA-256). Sem a migração 20261104, não confere.
+  const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), b => b.toString(16).padStart(2, '0')).join('')
+  const { data: repetida, error: repetidaErr } = await admin
+    .from('agenda_checkins')
+    .select('id')
+    .eq('foto_hash', hash)
+    .neq('id', checkinId)
+    .limit(1)
+  if (!repetidaErr && (repetida ?? []).length > 0) {
+    return { ok: false, erro: 'Esta foto já foi usada em outra visita. Tire uma foto nova neste posto.' }
+  }
+
   const { error: upErr } = await createAdminClient().storage
     .from(BUCKET_FOTOS)
     .upload(caminho, bytes, { contentType: 'image/jpeg', upsert: true })
   if (upErr) return { ok: false, erro: 'Falha ao enviar a foto. Tente novamente.' }
 
-  const { error } = await admin.from('agenda_checkins').update({ foto_path: caminho }).eq('id', checkinId)
+  let { error } = await admin.from('agenda_checkins').update({ foto_path: caminho, foto_hash: hash }).eq('id', checkinId)
+  if (error && String(error.message).includes('foto_hash')) {
+    ;({ error } = await admin.from('agenda_checkins').update({ foto_path: caminho }).eq('id', checkinId))
+  }
   if (error) return { ok: false, erro: error.message }
 
   revalidatePath('/agenda')
@@ -625,8 +641,10 @@ export async function carregarMapa(
   // Supervisor de apoio: toda visita exige foto e mostra a atividade informada (perfis.apoio existe após a migração 20261031).
   const { data: perfilAlvo } = await admin.from('perfis').select('apoio').eq('id', supervisorId).maybeSingle()
   const apoioDono = perfilAlvo?.apoio === true
-  const { data: focosRaw } = await admin.from('agenda_tipos_foco').select('id, nome')
-  const focoPorId = new Map(((focosRaw ?? []) as { id: string; nome: string }[]).map(f => [f.id, f.nome]))
+  const { data: focosRaw } = await admin.from('agenda_tipos_foco').select('*')
+  const focosLista = (focosRaw ?? []) as { id: string; nome: string; permanencia_minima_min?: number | null }[]
+  const focoPorId = new Map(focosLista.map(f => [f.id, f.nome]))
+  const minPorFoco = new Map(focosLista.filter(f => f.permanencia_minima_min != null).map(f => [f.nome, f.permanencia_minima_min as number]))
 
   const colunas = 'id, supervisor_id, posto_id, tipo, latitude, longitude, precisao_m, distancia_m, dentro_raio, baixa_precisao, justificativa, created_at'
   const buscarCheckins = (cols: string) =>
@@ -637,8 +655,9 @@ export async function carregarMapa(
       .gte('created_at', `${addDias(semanaInicio, -1)}T00:00:00Z`)
       .lte('created_at', `${addDias(fim, 1)}T23:59:59Z`)
       .order('created_at', { ascending: true })
-  // Com atividade (migração 20261031) e foto_path (20261013); sem elas, cai para o select mais simples.
-  let { data: cksRaw, error: cksErr } = await buscarCheckins(`${colunas}, foto_path, foco_id, atividade_obs`)
+  // Com recebido_em (20261102), atividade (20261031) e foto_path (20261013); sem elas, cai para o select mais simples.
+  let { data: cksRaw, error: cksErr } = await buscarCheckins(`${colunas}, foto_path, foco_id, atividade_obs, recebido_em`)
+  if (cksErr) ({ data: cksRaw, error: cksErr } = await buscarCheckins(`${colunas}, foto_path, foco_id, atividade_obs`))
   if (cksErr) ({ data: cksRaw, error: cksErr } = await buscarCheckins(`${colunas}, foto_path`))
   if (cksErr) ({ data: cksRaw, error: cksErr } = await buscarCheckins(colunas))
   if (cksErr) return { ok: false, erro: MSG_MIGRACAO }
@@ -680,6 +699,7 @@ export async function carregarMapa(
     sedeId: await buscarSedeId(admin),
     fotoSempre: apoioDono,
     focoPorId,
+    minPorFoco,
     justificativas: justificativasSemana,
   })
 

@@ -25,6 +25,7 @@ export type Resultado = { ok: true } | { ok: false; erro: string; limite?: boole
 export type TipoFoco = {
   id: string; nome: string; cor: string; icone: string; ativo: boolean; ordem: number
   exige_foto?: boolean; sem_posto?: boolean; usa_sede?: boolean; dia_inteiro?: boolean
+  permanencia_minima_min?: number | null // vazio = padrão de 10 min; 0 = sem alerta
 }
 export type { PostoOpt }
 
@@ -382,8 +383,9 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
         .select(cols)
         .gte('created_at', `${addDias(semanaInicio, -31)}T00:00:00Z`)
         .lte('created_at', `${addDias(fimSemana, 1)}T23:59:59Z`)
-    // foto_path só existe após a migração 20261013.
-    let { data: cks, error: cksErr } = await buscar(`${colunas}, foto_path`)
+    // recebido_em (20261102) e foto_path (20261013) só existem após as migrações.
+    let { data: cks, error: cksErr } = await buscar(`${colunas}, foto_path, recebido_em`)
+    if (cksErr) ({ data: cks, error: cksErr } = await buscar(`${colunas}, foto_path`))
     if (cksErr) ({ data: cks, error: cksErr } = await buscar(colunas))
     for (const c of (cks ?? []) as CheckinRaw[]) {
       const d = dataBR(c.created_at)
@@ -394,6 +396,7 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
   const nomeTipo = new Map(tipos.map(t => [t.id, t.nome]))
   const exigeFotoTipo = new Map(tipos.map(t => [t.id, !!t.exige_foto]))
   const sedeId = await buscarSedeId(admin)
+  const minPorFoco = new Map(tipos.filter(t => t.permanencia_minima_min != null).map(t => [t.nome, t.permanencia_minima_min as number]))
 
   // Recolhimento de cartão: pendente se hoje está na janela sugerida e o supervisor não marcou nenhum no mês.
   const idsDiaInteiro = tipos.filter(t => t.dia_inteiro).map(t => t.id)
@@ -435,6 +438,7 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
       hoje: hojeStr,
       publicada: sem?.status === 'publicada',
       sedeId,
+      minPorFoco,
     })
     return {
       id: s.id,
@@ -1034,6 +1038,7 @@ export async function salvarTipoFoco(input: {
   icone: string
   ordem: number
   exigeFoto: boolean
+  permanenciaMin?: number | null // vazio = padrão de 10 min; 0 = sem alerta de permanência curta
 }): Promise<Resultado> {
   const auth = await getUser()
   if (!auth || auth.perfil.role !== 'admin') return { ok: false, erro: 'Somente administrador' }
@@ -1045,9 +1050,16 @@ export async function salvarTipoFoco(input: {
   const payload = { nome, cor: input.cor, icone, ordem: Math.trunc(input.ordem) || 0, exige_foto: !!input.exigeFoto }
 
   const admin = db()
-  const { error } = input.id
-    ? await admin.from('agenda_tipos_foco').update(payload).eq('id', input.id)
-    : await admin.from('agenda_tipos_foco').insert(payload)
+  const permanencia = input.permanenciaMin == null || Number.isNaN(input.permanenciaMin) ? null : Math.trunc(input.permanenciaMin)
+  if (permanencia !== null && (permanencia < 0 || permanencia > 480)) return { ok: false, erro: 'Permanência mínima deve ficar entre 0 e 480 minutos' }
+  const gravar = (dados: Record<string, unknown>) =>
+    input.id ? admin.from('agenda_tipos_foco').update(dados).eq('id', input.id) : admin.from('agenda_tipos_foco').insert(dados)
+  let { error } = await gravar({ ...payload, permanencia_minima_min: permanencia })
+  // Sem a migração 20261104 a coluna não existe: salva o resto e só recusa se o admin tentou definir um mínimo.
+  if (error && String(error.message).includes('permanencia_minima_min')) {
+    if (permanencia !== null) return { ok: false, erro: 'Aplique a migração 20261104_agenda_integridade_permanencia.sql no Supabase Studio.' }
+    ;({ error } = await gravar(payload))
+  }
   if (error) {
     if (error.code === '23505') return { ok: false, erro: 'Já existe um tipo com esse nome' }
     if (String(error.message).includes('exige_foto')) return { ok: false, erro: 'Aplique a migração 20261015_agenda_foto_obrigatoria.sql no Supabase Studio.' }

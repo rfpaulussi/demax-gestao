@@ -6,8 +6,8 @@ import { CORES_FOCO, TEMAS, temaDe } from '@/lib/agenda/tema'
 import { alternarTipoFoco, salvarTipoFoco } from '@/app/(admin)/agenda/actions'
 import type { TipoFoco } from '@/app/(admin)/agenda/actions'
 
-type Form = { id?: string; nome: string; cor: string; icone: string; ordem: number; exigeFoto: boolean }
-const VAZIO: Form = { nome: '', cor: 'blue', icone: '📌', ordem: 0, exigeFoto: false }
+type Form = { id?: string; nome: string; cor: string; icone: string; ordem: number; exigeFoto: boolean; permanenciaMin: string }
+const VAZIO: Form = { nome: '', cor: 'blue', icone: '📌', ordem: 0, exigeFoto: false, permanenciaMin: '' }
 
 export function TiposFocoAdmin({ tipos }: { tipos: TipoFoco[] }) {
   const router = useRouter()
@@ -18,7 +18,7 @@ export function TiposFocoAdmin({ tipos }: { tipos: TipoFoco[] }) {
   function salvar() {
     setErro(null)
     start(async () => {
-      const r = await salvarTipoFoco(form)
+      const r = await salvarTipoFoco({ ...form, permanenciaMin: form.permanenciaMin.trim() === '' ? null : Number(form.permanenciaMin) })
       if (!r.ok) return setErro(r.erro)
       setForm({ ...VAZIO, ordem: tipos.length + 2 })
       router.refresh()
@@ -43,9 +43,9 @@ export function TiposFocoAdmin({ tipos }: { tipos: TipoFoco[] }) {
               <span className="text-2xl">{t.icone}</span>
               <div className="flex-1">
                 <p className="font-bold">{t.nome}</p>
-                <p className="text-[11px] opacity-70">ordem {t.ordem} · {t.ativo ? 'ativo' : 'desativado'}{t.exige_foto ? ' · 📷 exige foto' : ''}</p>
+                <p className="text-[11px] opacity-70">ordem {t.ordem} · {t.ativo ? 'ativo' : 'desativado'}{t.exige_foto ? ' · 📷 exige foto' : ''}{t.permanencia_minima_min != null ? ` · ⏱️ mín. ${t.permanencia_minima_min} min` : ''}</p>
               </div>
-              <button type="button" onClick={() => setForm({ id: t.id, nome: t.nome, cor: t.cor, icone: t.icone, ordem: t.ordem, exigeFoto: !!t.exige_foto })}
+              <button type="button" onClick={() => setForm({ id: t.id, nome: t.nome, cor: t.cor, icone: t.icone, ordem: t.ordem, exigeFoto: !!t.exige_foto, permanenciaMin: t.permanencia_minima_min != null ? String(t.permanencia_minima_min) : '' })}
                 className="rounded-lg bg-white/70 px-3 py-1.5 text-xs font-semibold hover:bg-white">Editar</button>
               <button type="button" disabled={pending} onClick={() => alternar(t)}
                 className="rounded-lg bg-white/70 px-3 py-1.5 text-xs font-semibold hover:bg-white disabled:opacity-50">
@@ -86,6 +86,13 @@ export function TiposFocoAdmin({ tipos }: { tipos: TipoFoco[] }) {
               <span className="block text-xs text-slate-400">Sem foto na chegada ou na saída, a visita fica pendente.</span>
             </span>
           </label>
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-slate-500">Permanência mínima (min)</p>
+            <input type="number" min={0} max={480} value={form.permanenciaMin} placeholder="padrão: 10"
+              onChange={e => setForm({ ...form, permanenciaMin: e.target.value })}
+              className="w-28 rounded-lg border border-slate-200 p-2 text-sm outline-none focus:border-slate-400" />
+            <p className="mt-1 text-xs text-slate-400">Abaixo disso a visita ganha o alerta de permanência curta. Vazio = 10 min; 0 = sem alerta.</p>
+          </div>
           {erro && <p className="text-sm font-medium text-red-600">{erro}</p>}
           <div className="flex gap-2">
             <button type="button" disabled={pending} onClick={salvar}
