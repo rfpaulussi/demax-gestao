@@ -162,42 +162,115 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
     setValues(prev => ({ ...prev, [key]: value }))
   }
 
+  type Cont = { total: number; status: Record<string, number>; pcd: number }
+  type LinhaResumo = { supervisor: string; item: string; extra: string; cont: Cont; subtotal: boolean }
+
+  function novoCont(): Cont { return { total: 0, status: {}, pcd: 0 } }
+
+  // total = quadro sem desligados; desligados aparecem só na coluna própria
+  function somar(c: Cont, f: FuncionarioRow) {
+    const st = f.status ?? 'ativo'
+    c.status[st] = (c.status[st] ?? 0) + 1
+    if (st === 'desligado') return
+    c.total++
+    if (f.pcd) c.pcd++
+  }
+
+  function somarCont(destino: Cont, origem: Cont) {
+    destino.total += origem.total
+    destino.pcd += origem.pcd
+    for (const [k, v] of Object.entries(origem.status)) destino.status[k] = (destino.status[k] ?? 0) + v
+  }
+
+  const collator = new Intl.Collator('pt-BR', { sensitivity: 'base' })
+  const nomeSupervisor = (f: FuncionarioRow) => (f.supervisor_id ? (f.supervisor_nome ?? '(sem nome)') : 'Sem supervisor')
+
+  // Análise 1: uma linha por supervisor
   function buildResumoSupervisores() {
-    type Resumo = {
-      nome: string
-      total: number
-      status: Record<string, number>
-      funcoes: Record<string, number>
-      postos: Set<string>
-      pcd: number
-    }
-    const map = new Map<string, Resumo>()
-    const novo = (nome: string): Resumo => ({ nome, total: 0, status: {}, funcoes: {}, postos: new Set(), pcd: 0 })
-    for (const s of supervisores) map.set(s.id, novo(s.nome ?? '(sem nome)'))
-    const SEM = '__sem__'
+    const map = new Map<string, { cont: Cont; postos: Set<string>; funcoes: Set<string> }>()
     for (const f of funcionarios) {
-      const key = f.supervisor_id ?? SEM
-      let r = map.get(key)
-      if (!r) {
-        r = novo(f.supervisor_id ? (f.supervisor_nome ?? '(sem nome)') : 'Sem supervisor')
-        map.set(key, r)
+      const nome = nomeSupervisor(f)
+      let r = map.get(nome)
+      if (!r) { r = { cont: novoCont(), postos: new Set(), funcoes: new Set() }; map.set(nome, r) }
+      somar(r.cont, f)
+      if (f.status !== 'desligado') {
+        if (f.postos?.nome) r.postos.add(f.postos.nome)
+        if (f.funcoes?.nome) r.funcoes.add(f.funcoes.nome)
       }
-      r.total++
-      const st = f.status ?? 'ativo'
-      r.status[st] = (r.status[st] ?? 0) + 1
-      const fn = f.funcoes?.nome ?? 'Sem função'
-      r.funcoes[fn] = (r.funcoes[fn] ?? 0) + 1
-      if (f.postos?.nome) r.postos.add(f.postos.nome)
-      if (f.pcd) r.pcd++
     }
-    return Array.from(map.values())
-      .filter(r => r.total > 0)
-      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }))
+    return Array.from(map.entries())
+      .sort((a, b) => collator.compare(a[0], b[0]))
+      .map(([supervisor, r]) => ({ supervisor, cont: r.cont, qtdPostos: r.postos.size, qtdFuncoes: r.funcoes.size }))
+  }
+
+  // Análises 2 e 3: supervisor x (função | posto), com subtotal por supervisor
+  function buildDetalhe(itemDe: (f: FuncionarioRow) => string, extraDe: (f: FuncionarioRow) => string): LinhaResumo[] {
+    const sup = new Map<string, Map<string, { extra: string; cont: Cont }>>()
+    for (const f of funcionarios) {
+      const nome = nomeSupervisor(f)
+      let itens = sup.get(nome)
+      if (!itens) { itens = new Map(); sup.set(nome, itens) }
+      const item = itemDe(f)
+      let it = itens.get(item)
+      if (!it) { it = { extra: extraDe(f), cont: novoCont() }; itens.set(item, it) }
+      somar(it.cont, f)
+    }
+    const linhas: LinhaResumo[] = []
+    for (const [supervisor, itens] of Array.from(sup.entries()).sort((a, b) => collator.compare(a[0], b[0]))) {
+      const subtotal = novoCont()
+      const ordenados = Array.from(itens.entries()).sort((a, b) => b[1].cont.total - a[1].cont.total || collator.compare(a[0], b[0]))
+      for (const [item, it] of ordenados) {
+        linhas.push({ supervisor, item, extra: it.extra, cont: it.cont, subtotal: false })
+        somarCont(subtotal, it.cont)
+      }
+      linhas.push({ supervisor, item: 'TOTAL', extra: '', cont: subtotal, subtotal: true })
+    }
+    return linhas
+  }
+
+  // Análises 4 e 5: agrupamento simples (secretaria | função) sem supervisor
+  function buildGrupo(itemDe: (f: FuncionarioRow) => string): LinhaResumo[] {
+    const map = new Map<string, Cont>()
+    for (const f of funcionarios) {
+      const item = itemDe(f)
+      let c = map.get(item)
+      if (!c) { c = novoCont(); map.set(item, c) }
+      somar(c, f)
+    }
+    const linhas = Array.from(map.entries())
+      .sort((a, b) => b[1].total - a[1].total || collator.compare(a[0], b[0]))
+      .map(([item, cont]): LinhaResumo => ({ supervisor: '', item, extra: '', cont, subtotal: false }))
+    const geral = novoCont()
+    for (const l of linhas) somarCont(geral, l.cont)
+    linhas.push({ supervisor: '', item: 'TOTAL', extra: '', cont: geral, subtotal: true })
+    return linhas
+  }
+
+  const SUBTOTAL_STYLE = { fill: 'E2E8F0', color: '0F172A' }
+  const pct = (parte: number, total: number) => (total > 0 ? Math.round((parte / total) * 1000) / 10 : 0)
+
+  // Colunas padrão de análise: total, um por status, PCD, % ativos e % ausentes
+  function colunasAnalise<T>(get: (r: T) => Cont, sub: (r: T) => boolean) {
+    const st = (r: T) => (sub(r) ? SUBTOTAL_STYLE : undefined)
+    return [
+      { label: 'Total (sem desligados)', value: (r: T) => get(r).total, cellStyle: st },
+      ...Object.keys(STATUS_LABELS).map(k => ({
+        label: STATUS_LABELS[k],
+        value: (r: T) => get(r).status[k] ?? 0,
+        cellStyle: (r: T) => (sub(r) ? SUBTOTAL_STYLE : get(r).status[k] ? STATUS_COLORS[k] : undefined),
+      })),
+      { label: 'PCD', value: (r: T) => get(r).pcd, cellStyle: st },
+      { label: '% Ativos', value: (r: T) => pct(get(r).status.ativo ?? 0, get(r).total), cellStyle: st },
+      { label: '% Ausentes', value: (r: T) => pct(get(r).total - (get(r).status.ativo ?? 0), get(r).total), cellStyle: st },
+    ]
   }
 
   function handleExport() {
     const resumo = buildResumoSupervisores()
-    const statusKeys = Object.keys(STATUS_LABELS)
+    const porSupFuncao = buildDetalhe(f => f.funcoes?.nome ?? "Sem função", () => "")
+    const porSupPosto = buildDetalhe(f => f.postos?.nome ?? "Sem posto", f => f.postos?.secretaria ?? "")
+    const porSecretaria = buildGrupo(f => f.postos?.secretaria ?? "Sem secretaria")
+    const porFuncao = buildGrupo(f => f.funcoes?.nome ?? "Sem função")
     exportToExcelSheets([
       {
         name: 'Efetivo',
@@ -231,23 +304,45 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
         name: 'Resumo Supervisores',
         data: resumo,
         columns: [
-          { label: 'Supervisor', value: r => r.nome },
-          { label: 'Total', value: r => r.total },
-          ...statusKeys.map(k => ({
-            label: STATUS_LABELS[k],
-            value: (r: typeof resumo[number]) => r.status[k] ?? 0,
-            cellStyle: (r: typeof resumo[number]) => (r.status[k] ? STATUS_COLORS[k] : undefined),
-          })),
-          { label: 'PCD', value: r => r.pcd },
-          { label: 'Qtd. Postos', value: r => r.postos.size },
-          { label: 'Postos', value: r => Array.from(r.postos).sort().join('; ') },
-          {
-            label: 'Funções',
-            value: r => Object.entries(r.funcoes as Record<string, number>)
-              .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'))
-              .map(([nome, qtd]) => `${nome} (${qtd})`)
-              .join('; '),
-          },
+          { label: 'Supervisor', value: r => r.supervisor },
+          ...colunasAnalise<typeof resumo[number]>(r => r.cont, () => false),
+          { label: 'Qtd. Postos', value: r => r.qtdPostos },
+          { label: 'Qtd. Funções', value: r => r.qtdFuncoes },
+        ],
+      },
+      {
+        name: 'Supervisor x Função',
+        data: porSupFuncao,
+        columns: [
+          { label: 'Supervisor', value: r => r.supervisor, cellStyle: r => (r.subtotal ? SUBTOTAL_STYLE : undefined) },
+          { label: 'Função', value: r => r.item, cellStyle: r => (r.subtotal ? SUBTOTAL_STYLE : undefined) },
+          ...colunasAnalise<LinhaResumo>(r => r.cont, r => r.subtotal),
+        ],
+      },
+      {
+        name: 'Supervisor x Posto',
+        data: porSupPosto,
+        columns: [
+          { label: 'Supervisor', value: r => r.supervisor, cellStyle: r => (r.subtotal ? SUBTOTAL_STYLE : undefined) },
+          { label: 'Posto', value: r => r.item, cellStyle: r => (r.subtotal ? SUBTOTAL_STYLE : undefined) },
+          { label: 'Secretaria', value: r => r.extra, cellStyle: r => (r.subtotal ? SUBTOTAL_STYLE : undefined) },
+          ...colunasAnalise<LinhaResumo>(r => r.cont, r => r.subtotal),
+        ],
+      },
+      {
+        name: 'Por Secretaria',
+        data: porSecretaria,
+        columns: [
+          { label: 'Secretaria', value: r => r.item, cellStyle: r => (r.subtotal ? SUBTOTAL_STYLE : undefined) },
+          ...colunasAnalise<LinhaResumo>(r => r.cont, r => r.subtotal),
+        ],
+      },
+      {
+        name: 'Por Função',
+        data: porFuncao,
+        columns: [
+          { label: 'Função', value: r => r.item, cellStyle: r => (r.subtotal ? SUBTOTAL_STYLE : undefined) },
+          ...colunasAnalise<LinhaResumo>(r => r.cont, r => r.subtotal),
         ],
       },
     ], todayFilename())
