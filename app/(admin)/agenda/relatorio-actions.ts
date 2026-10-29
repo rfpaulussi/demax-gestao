@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { addDias, hojeBR, mesValido, segundaDe } from '@/lib/agenda/datas'
 import { buscarSedeId } from '@/lib/agenda/sede'
+import { ROTULO_CURTO_JUSTIFICATIVA } from '@/lib/agenda/justificativas'
 import {
   dataBR, META_VISITAS_POSTO_MES, montarVisitas,
   type BlocoPlan, type CheckinRaw, type PostoGeo, type VisitaView,
@@ -33,6 +34,8 @@ export type LinhaSupervisor = {
   tempoMedioMin: number | null
   replanejamentos: number
   postosSemVisita: number
+  faltasSemMotivo: number // faltas sem justificativa no "Fechar o dia"
+  fuiSemRegistro: number // faltas em que o supervisor disse ter ido sem registrar o check-in
 }
 
 export type LinhaPosto = {
@@ -105,6 +108,7 @@ export type LinhaAlerta = {
   data: string
   posto: string
   chave: string // status bruto da visita (falta, alerta, sem_foto, reposta, extra)
+  motivo: string // justificativa da falta no "Fechar o dia"
   status: string
   alertas: string
   justificativa: string
@@ -122,6 +126,7 @@ export type RelatorioMensal = {
   postosBaixaFrequencia: { postoId: string; nome: string; supervisor: string; visitas: number }[]
   metaVisitasPosto: number
   porFoco: LinhaFoco[]
+  faltasPorMotivo: { motivo: string; rotulo: string; faltas: number }[]
   replanejamentos: LinhaReplanejamento[]
   ocorrencias: LinhaAlerta[]
   totais: { planejadas: number; cumpridas: number; faltas: number; extras: number; atencao: number; semFoto: number; pct: number | null }
@@ -244,6 +249,21 @@ export async function carregarRelatorioMensal(
     const segundas: string[] = []
     for (let s = primeiraSegunda; s <= fim; s = addDias(s, 7)) segundas.push(s)
 
+    // Justificativas do "Fechar o dia" (tabela da migração 20261103; sem ela, tudo fica "sem justificativa").
+    const justPorSemana = new Map<string, Map<string, { tipo: string; texto: string | null }>>()
+    for (let i = 0; i < semIds.length; i += 100) {
+      const { data: js, error: errJ } = await admin
+        .from('agenda_justificativas_falta')
+        .select('semana_id, data, posto_id, tipo, texto')
+        .in('semana_id', semIds.slice(i, i + 100))
+      if (errJ) break
+      for (const j of (js ?? []) as { semana_id: string; data: string; posto_id: string; tipo: string; texto: string | null }[]) {
+        const m = justPorSemana.get(j.semana_id) ?? new Map<string, { tipo: string; texto: string | null }>()
+        m.set(`${j.data}|${j.posto_id}`, { tipo: j.tipo, texto: j.texto })
+        justPorSemana.set(j.semana_id, m)
+      }
+    }
+
     const linhas: LinhaSupervisor[] = []
     const visitasPorSup = new Map<string, VisitaView[]>()
     const replanejamentos: LinhaReplanejamento[] = []
@@ -289,6 +309,7 @@ export async function carregarRelatorioMensal(
           hoje,
           publicada: sem.status === 'publicada',
           sedeId,
+          justificativas: justPorSemana.get(sem.id),
         })
         visitasMes.push(...visitas.filter(v => v.data >= inicio && v.data <= fim))
       }
@@ -332,6 +353,8 @@ export async function carregarRelatorioMensal(
         tempoMedioMin: tempos.length ? Math.round(tempos.reduce((a, b) => a + b, 0) / tempos.length) : null,
         replanejamentos: replan,
         postosSemVisita: 0,
+        faltasSemMotivo: visitasMes.filter(v => v.status === 'falta' && !v.motivo_falta).length,
+        fuiSemRegistro: visitasMes.filter(v => v.status === 'falta' && v.motivo_falta === 'fui_sem_registro').length,
       })
     }
 
@@ -409,6 +432,7 @@ export async function carregarRelatorioMensal(
           status: STATUS_ROTULO[v.status] ?? v.status,
           alertas: v.alertas.join('; '),
           justificativa: v.justificativa ?? '',
+          motivo: v.motivo_falta ? `${ROTULO_CURTO_JUSTIFICATIVA[v.motivo_falta] ?? v.motivo_falta}${v.motivo_texto ? `: ${v.motivo_texto}` : ''}` : '',
         })
       }
     }
@@ -485,6 +509,19 @@ export async function carregarRelatorioMensal(
       }
     })
 
+    // Motivos das faltas (do "Fechar o dia"): onde está o problema, no uso do sistema ou na rotina.
+    const motivoAcc = new Map<string, number>()
+    for (const sup of sups) {
+      for (const v of visitasPorSup.get(sup.id) ?? []) {
+        if (v.status !== 'falta') continue
+        const k = v.motivo_falta ?? 'sem_motivo'
+        motivoAcc.set(k, (motivoAcc.get(k) ?? 0) + 1)
+      }
+    }
+    const faltasPorMotivo = Array.from(motivoAcc.entries())
+      .map(([motivo, faltas]) => ({ motivo, rotulo: ROTULO_CURTO_JUSTIFICATIVA[motivo] ?? motivo, faltas }))
+      .sort((a, b) => b.faltas - a.faltas)
+
     // Linha do tempo: visitas do mês por dia.
     const diaAcc = new Map<string, LinhaDia>()
     for (const sup of sups) {
@@ -519,6 +556,7 @@ export async function carregarRelatorioMensal(
         postosBaixaFrequencia: baixaFrequencia.sort((a, b) => a.visitas - b.visitas || a.nome.localeCompare(b.nome)),
         metaVisitasPosto: META_VISITAS_POSTO_MES,
         porFoco,
+        faltasPorMotivo,
         replanejamentos,
         ocorrencias,
         totais: {

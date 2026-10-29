@@ -5,6 +5,7 @@ import L from 'leaflet'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { diaMes } from '@/lib/agenda/datas'
 import { formatarDistancia } from '@/lib/agenda/geo'
+import { ROTULO_CURTO_JUSTIFICATIVA } from '@/lib/agenda/justificativas'
 import { DIAS_CURTOS, PERIODOS } from '@/lib/agenda/tema'
 import type { StatusVisita, VisitaView } from '@/lib/agenda/visitas'
 import type { MapaDados } from '@/app/(admin)/agenda/geo-actions'
@@ -267,6 +268,11 @@ export default function MapaAgenda({ dados, dias, apoio = false }: { dados: Mapa
                         </span>
                         {v.focos.length > 0 && <span className="block truncate text-[11px] text-slate-400">{v.focos.join(' · ')}</span>}
                         {apoio && v.atividade_obs && <span className="block text-[11px] text-slate-600">{v.atividade_obs}</span>}
+                        {v.motivo_falta && (
+                          <span className="block text-[11px] font-semibold text-indigo-700">
+                            Motivo: {ROTULO_CURTO_JUSTIFICATIVA[v.motivo_falta] ?? v.motivo_falta}{v.motivo_texto ? `: ${v.motivo_texto}` : ''}
+                          </span>
+                        )}
                         {v.alertas.map(a => (
                           <span key={a} className="mt-0.5 block text-[11px] font-medium text-amber-700">⚠️ {a}</span>
                         ))}

@@ -666,11 +666,21 @@ export async function carregarMapa(
   const histRaw = comFoto.error ? (await buscarHist(colunas)).data : comFoto.data
   const historico = ((histRaw ?? []) as CheckinRaw[]).filter(c => dataBR(c.created_at) < semanaInicio)
 
+  // Justificativas do "Fechar o dia" desta semana (tabela da migração 20261103; sem ela, vazio).
+  const justificativasSemana = new Map<string, { tipo: string; texto: string | null }>()
+  if (sem) {
+    const { data: js } = await admin.from('agenda_justificativas_falta').select('data, posto_id, tipo, texto').eq('semana_id', sem.id)
+    for (const j of (js ?? []) as { data: string; posto_id: string; tipo: string; texto: string | null }[]) {
+      justificativasSemana.set(`${j.data}|${j.posto_id}`, { tipo: j.tipo, texto: j.texto })
+    }
+  }
+
   const { visitas, stats } = montarVisitas({
     planos, checkins, historico, postos, hoje: hojeBR(), publicada: sem?.status === 'publicada',
     sedeId: await buscarSedeId(admin),
     fotoSempre: apoioDono,
     focoPorId,
+    justificativas: justificativasSemana,
   })
 
   // Fotos: troca o caminho no bucket privado por URL assinada (1 h).

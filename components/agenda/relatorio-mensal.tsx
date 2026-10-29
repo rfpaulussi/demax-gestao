@@ -75,7 +75,7 @@ const horaBR = (iso: string | null) =>
 const duracao = (min: number | null) => (min === null ? '—' : min < 60 ? `${min} min` : `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`)
 
 export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: Dados | null }) {
-  const { mes, parcial, ateData, supervisores, apoio, postos, postosNaoVisitados, postosBaixaFrequencia, metaVisitasPosto, porFoco, porDia, replanejamentos, ocorrencias, totais } = dados
+  const { mes, parcial, ateData, supervisores, apoio, postos, postosNaoVisitados, postosBaixaFrequencia, metaVisitasPosto, porFoco, faltasPorMotivo, porDia, replanejamentos, ocorrencias, totais } = dados
   const [gerandoPdf, setGerandoPdf] = useState(false)
   const [erroPdf, setErroPdf] = useState<string | null>(null)
   const [ordem, setOrdem] = useState<Ordem>('pior')
@@ -258,6 +258,14 @@ export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: D
           ]
         : []),
       {
+        name: 'Motivos das faltas',
+        data: faltasPorMotivo,
+        columns: [
+          { label: 'Motivo', value: m => m.rotulo },
+          { label: 'Faltas', value: m => m.faltas },
+        ],
+      },
+      {
         name: 'Por foco',
         data: porFoco,
         columns: [
@@ -308,6 +316,7 @@ export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: D
           { label: 'Supervisor', value: o => o.supervisor },
           { label: 'Posto', value: o => o.posto },
           { label: 'Situação', value: o => o.status },
+          { label: 'Motivo da falta', value: o => o.motivo },
           { label: 'Sinais', value: o => o.alertas },
           { label: 'Justificativa', value: o => o.justificativa },
         ],
@@ -599,6 +608,30 @@ export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: D
         </section>
       ))}
 
+      {/* Motivos das faltas */}
+      {faltasPorMotivo.length > 0 && (
+        <section className={`${card} border-t-4 border-t-indigo-500 p-5`}>
+          <Cabecalho titulo="Motivos das faltas" detalhe={'Do "Fechar o dia": o supervisor diz se foi e não registrou ou por que não foi. A falta continua contando no cumprimento.'} />
+          <ul className="space-y-1.5">
+            {faltasPorMotivo.map(m => (
+              <li key={m.motivo} className="flex items-center gap-3 text-sm">
+                <span className={`w-44 shrink-0 font-semibold sm:w-56 ${m.motivo === 'sem_motivo' ? 'text-rose-700' : m.motivo === 'fui_sem_registro' ? 'text-amber-700' : 'text-slate-800'}`}>{m.rotulo}</span>
+                <span className="h-2.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                  <span
+                    className={`block h-full rounded-full ${m.motivo === 'sem_motivo' ? 'bg-rose-500' : m.motivo === 'fui_sem_registro' ? 'bg-amber-400' : 'bg-indigo-500'}`}
+                    style={{ width: `${(m.faltas / Math.max(1, faltasPorMotivo[0].faltas)) * 100}%` }}
+                  />
+                </span>
+                <b className="w-8 shrink-0 text-right text-slate-800">{m.faltas}</b>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-[11px] text-slate-400">
+            &quot;Foi, mas não registrou&quot; indica problema de uso do sistema. &quot;Sem justificativa&quot; indica que o supervisor ainda não usou o &quot;Fechar o dia&quot;.
+          </p>
+        </section>
+      )}
+
       {/* Focos e postos com faltas */}
       <div className="grid gap-5 lg:grid-cols-2">
         <section className={`${card} overflow-hidden border-t-4 border-t-teal-500`}>
@@ -718,7 +751,8 @@ export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: D
                   <td className={td}>{o.posto}</td>
                   <td className={td}><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${COR_SITUACAO[o.chave] ?? 'bg-slate-100 text-slate-600'}`}>{o.status}</span></td>
                   <td className={`${td} text-xs`}>
-                    {o.alertas || <span className="text-slate-300">—</span>}
+                    {o.motivo && <span className="mb-0.5 block font-semibold text-indigo-700">Motivo: {o.motivo}</span>}
+                    {o.alertas || (!o.motivo && <span className="text-slate-300">—</span>)}
                     {o.justificativa && <span className="mt-0.5 block text-slate-500">Justificativa: {o.justificativa}</span>}
                   </td>
                 </tr>

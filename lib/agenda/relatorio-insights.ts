@@ -29,6 +29,12 @@ export function gerarInsights(d: RelatorioMensal, anterior: RelatorioMensal | nu
           : `cumprimento de ${s.pct}% (${plural(s.faltas, 'falta', 'faltas')} em ${s.planejadas} planejadas)`,
       })
     }
+    if (s.faltas >= 3 && s.faltasSemMotivo / s.faltas >= 0.6) {
+      r.push({ nivel: 'medio', supervisor: s.nome, texto: `${plural(s.faltasSemMotivo, 'falta', 'faltas')} de ${s.faltas} sem justificativa no "Fechar o dia"` })
+    }
+    if (s.fuiSemRegistro >= 2) {
+      r.push({ nivel: 'medio', supervisor: s.nome, texto: `diz ter ido ao posto sem registrar o check-in em ${plural(s.fuiSemRegistro, 'visita', 'visitas')} (problema de uso do sistema, não de presença)` })
+    }
     if (s.semFoto > 0) r.push({ nivel: 'medio', supervisor: s.nome, texto: `${plural(s.semFoto, 'visita', 'visitas')} sem a foto obrigatória` })
     if (s.tempoMedioMin !== null && s.tempoMedioMin < MIN_PERMANENCIA_MIN) {
       r.push({ nivel: 'medio', supervisor: s.nome, texto: `tempo médio de ${s.tempoMedioMin} min nos postos, abaixo do mínimo de ${MIN_PERMANENCIA_MIN} min` })

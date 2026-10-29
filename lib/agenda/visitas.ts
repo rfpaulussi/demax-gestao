@@ -69,6 +69,8 @@ export type VisitaView = {
   fotos: string[]
   atividade: string | null // supervisor de apoio: o que foi fazer no posto
   atividade_obs: string | null
+  motivo_falta: string | null // justificativa do "Fechar o dia" (tipo) quando não houve check-in
+  motivo_texto: string | null
   reposta_em: string | null // dia em que a visita reposta foi de fato feita (status 'reposta')
 }
 
@@ -114,8 +116,10 @@ export function montarVisitas(args: {
   fotoSempre?: boolean
   /** Nome do foco por id, para mostrar a atividade do check-in de apoio. */
   focoPorId?: Map<string, string>
+  /** Justificativas do "Fechar o dia", por "data|posto_id". */
+  justificativas?: Map<string, { tipo: string; texto: string | null }>
 }): { visitas: VisitaView[]; stats: MapaStats } {
-  const { planos, checkins, postos, hoje, publicada, sedeId, fotoSempre, focoPorId } = args
+  const { planos, checkins, postos, hoje, publicada, sedeId, fotoSempre, focoPorId, justificativas } = args
   const historico = args.historico ?? []
 
   const plan = new Map<string, { data: string; posto_id: string; periodos: Set<Periodo>; focos: Set<string>; exigeFoto: boolean }>()
@@ -219,6 +223,8 @@ export function montarVisitas(args: {
       fotos: [entrada?.foto_path, saida?.foto_path].filter((f): f is string => !!f),
       atividade: entrada?.foco_id ? focoPorId?.get(entrada.foco_id) ?? null : null,
       atividade_obs: entrada?.atividade_obs ?? null,
+      motivo_falta: entrada ? null : justificativas?.get(`${data}|${postoId}`)?.tipo ?? null,
+      motivo_texto: entrada ? null : justificativas?.get(`${data}|${postoId}`)?.texto ?? null,
     }
   }
 

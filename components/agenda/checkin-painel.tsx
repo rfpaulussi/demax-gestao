@@ -10,6 +10,7 @@ import { marcarLocalPosto, registrarCheckin } from '@/app/(admin)/agenda/geo-act
 import { comprimirImagem } from '@/lib/agenda/imagem'
 import { MIN_PERMANENCIA_MIN } from '@/lib/agenda/visitas'
 import { NovoCheckinApoio } from './novo-checkin-apoio'
+import { FecharDia } from './fechar-dia'
 import { listarFotosPendentes, salvarFotoPendente } from '@/lib/agenda/fila-fotos'
 import { listarCheckinsPendentes, salvarCheckinPendente, type CheckinPendente } from '@/lib/agenda/fila-checkins'
 import { enviarFotoCheckin, EVENTO_FILA, sincronizarFilas, type DetalheEventoFila } from '@/lib/agenda/sync-fila'
@@ -698,6 +699,7 @@ export function CheckinPainel({
             Visita sem check-in não conta no cumprimento. Visitou algum posto fora do plano? Faça o check-in em &quot;+ Visita extra&quot;.
           </p>
         )}
+        {!apoio && <FecharDia hoje={hoje} fimDeTarde={fimDeTarde} />}
         {emAndamento.length > 0 && (
           <div className="rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm text-sky-900">
             {emAndamento.map(({ posto, entrada }) => (

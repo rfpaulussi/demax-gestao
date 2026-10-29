@@ -146,6 +146,16 @@ export function RelatorioMensalDoc({ data }: { data: RelatorioPdfData }) {
           />
         </View>
 
+        {d.faltasPorMotivo.length > 0 && (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>IV-B. MOTIVOS DAS FALTAS (FECHAR O DIA)</Text>
+            <Tabela
+              cols={[{ t: 'Motivo', w: 260 }, { t: 'Faltas', w: 60 }]}
+              linhas={d.faltasPorMotivo.map(m => [m.rotulo.normalize('NFD').replace(/[\u0300-\u036f]/g, ''), m.faltas])}
+            />
+          </View>
+        )}
+
         <View style={s.footer} fixed>
           <Text style={s.footerText}>Relatorio mensal de supervisao · {periodo}</Text>
           <Text style={s.footerText}>Emitido em {emitido}</Text>
