@@ -297,6 +297,58 @@ function Conteudo({
         </DialogHeader>
 
         <div className="space-y-5 px-5 py-4">
+          {passadoTravado && (
+            <section className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-medium text-rose-800">
+              🔒 Este dia já passou. Numa agenda publicada, dias passados só o admin altera. Peça ao admin para liberar este dia se precisar corrigir.
+            </section>
+          )}
+
+          {diaPassado && liberacao && (
+            <section className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm font-medium text-sky-900">
+              🔓 Dia liberado pelo admin até {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }).format(new Date(liberacao.ate))}.
+              {ehDono ? ' A correção conta como uma das suas mudanças da semana.' : ''}
+            </section>
+          )}
+
+          {diaPassado && podeLiberar && !liberacao && (
+            <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p className="mb-2 text-sm text-slate-700">
+                Este dia já passou. Você (admin) pode corrigir agora, ou liberar o dia para o supervisor corrigir por 48 h.
+              </p>
+              <button type="button" onClick={liberar} disabled={pending}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
+                🔓 Liberar este dia para o supervisor (48 h)
+              </button>
+            </section>
+          )}
+
+          {limiteAtingido && mudancas && (
+            <section className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+              <p className="mb-1.5 text-xs font-bold uppercase tracking-widest text-rose-800">Limite de mudanças da semana atingido</p>
+              <p className="mb-2 text-sm text-rose-900">
+                Você já usou {mudancas.usadas} de {mudancas.limite + mudancas.extras} mudanças. Para mudar de novo, peça aprovação à coordenação.
+              </p>
+              {mudancas.pedidoPendente || pedidoEnviado ? (
+                <p className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-700">⏳ Pedido enviado: aguardando a coordenação.</p>
+              ) : (
+                <>
+                  <textarea
+                    value={pedido}
+                    onChange={e => setPedido(e.target.value)}
+                    rows={2}
+                    placeholder="O que precisa mudar e por quê?"
+                    className="w-full resize-none rounded-lg border border-rose-200 bg-white p-2.5 text-sm outline-none focus:border-rose-400"
+                  />
+                  <button type="button" onClick={pedirExtra} disabled={pending || pedido.trim().length < 10}
+                    className="mt-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40">
+                    Pedir aprovação
+                  </button>
+                </>
+              )}
+            </section>
+          )}
+
+
           <section>
             <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">Tipo de foco</p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -370,7 +422,7 @@ function Conteudo({
                 className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-8 pr-3 text-sm outline-none focus:border-slate-400"
               />
             </div>
-            <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto rounded-xl bg-slate-50 p-2">
+            <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto rounded-xl bg-slate-50 p-2 sm:max-h-44">
               {visiveis.length === 0 && <p className="p-2 text-xs text-slate-400">Nenhum posto encontrado.</p>}
               {visiveis.map(p => {
                 const ativo = sel.has(p.id)
@@ -392,42 +444,6 @@ function Conteudo({
               })}
             </div>
           </section>
-          )}
-
-          <section>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">Observação</p>
-            <CampoObservacao
-              value={obs}
-              onChange={setObs}
-              maxLength={500}
-              rows={3}
-              placeholder="O que precisa ser visto/feito nessa visita? (opcional)"
-            />
-          </section>
-
-          {passadoTravado && (
-            <section className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-medium text-rose-800">
-              🔒 Este dia já passou. Numa agenda publicada, dias passados só o admin altera. Peça ao admin para liberar este dia se precisar corrigir.
-            </section>
-          )}
-
-          {diaPassado && liberacao && (
-            <section className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm font-medium text-sky-900">
-              🔓 Dia liberado pelo admin até {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }).format(new Date(liberacao.ate))}.
-              {ehDono ? ' A correção conta como uma das suas mudanças da semana.' : ''}
-            </section>
-          )}
-
-          {diaPassado && podeLiberar && !liberacao && (
-            <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <p className="mb-2 text-sm text-slate-700">
-                Este dia já passou. Você (admin) pode corrigir agora, ou liberar o dia para o supervisor corrigir por 48 h.
-              </p>
-              <button type="button" onClick={liberar} disabled={pending}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
-                🔓 Liberar este dia para o supervisor (48 h)
-              </button>
-            </section>
           )}
 
           {pedeMotivo && !limiteAtingido && (
@@ -456,36 +472,22 @@ function Conteudo({
             </section>
           )}
 
-          {limiteAtingido && mudancas && (
-            <section className="rounded-xl border border-rose-200 bg-rose-50 p-3">
-              <p className="mb-1.5 text-xs font-bold uppercase tracking-widest text-rose-800">Limite de mudanças da semana atingido</p>
-              <p className="mb-2 text-sm text-rose-900">
-                Você já usou {mudancas.usadas} de {mudancas.limite + mudancas.extras} mudanças. Para mudar de novo, peça aprovação à coordenação.
-              </p>
-              {mudancas.pedidoPendente || pedidoEnviado ? (
-                <p className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-700">⏳ Pedido enviado: aguardando a coordenação.</p>
-              ) : (
-                <>
-                  <textarea
-                    value={pedido}
-                    onChange={e => setPedido(e.target.value)}
-                    rows={2}
-                    placeholder="O que precisa mudar e por quê?"
-                    className="w-full resize-none rounded-lg border border-rose-200 bg-white p-2.5 text-sm outline-none focus:border-rose-400"
-                  />
-                  <button type="button" onClick={pedirExtra} disabled={pending || pedido.trim().length < 10}
-                    className="mt-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40">
-                    Pedir aprovação
-                  </button>
-                </>
-              )}
-            </section>
-          )}
+          <section>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">Observação</p>
+            <CampoObservacao
+              value={obs}
+              onChange={setObs}
+              maxLength={500}
+              rows={3}
+              placeholder="O que precisa ser visto/feito nessa visita? (opcional)"
+            />
+          </section>
 
-          {erro && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{erro}</p>}
         </div>
 
-        <div className="sticky bottom-0 flex items-center justify-between gap-2 border-t border-slate-100 bg-white px-5 py-3">
+        <div className="sticky bottom-0 border-t border-slate-100 bg-white">
+          {erro && <p className="mx-5 mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{erro}</p>}
+        <div className="flex items-center justify-between gap-2 px-5 py-3">
           {slot.bloco ? (
             <button
               type="button"
@@ -509,6 +511,7 @@ function Conteudo({
               {pending ? 'Salvando…' : 'Salvar bloco'}
             </button>
           </div>
+        </div>
         </div>
       </div>
     </DialogContent>
