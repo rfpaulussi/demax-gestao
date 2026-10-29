@@ -183,7 +183,11 @@ export function EfetivoClient({ funcionarios, supervisores, postos, funcoes, cid
   }
 
   const collator = new Intl.Collator('pt-BR', { sensitivity: 'base' })
-  const nomeSupervisor = (f: FuncionarioRow) => (f.supervisor_id ? (f.supervisor_nome ?? '(sem nome)') : 'Sem supervisor')
+  // Posto SEDE tem grupo próprio (não entra na linha do supervisor responsável)
+  const nomeSupervisor = (f: FuncionarioRow) =>
+    f.postos?.nome?.trim().toUpperCase() === 'SEDE'
+      ? 'SEDE'
+      : f.supervisor_id ? (f.supervisor_nome ?? '(sem nome)') : 'Sem supervisor'
 
   // Análise 1: uma linha por supervisor
   function buildResumoSupervisores() {
