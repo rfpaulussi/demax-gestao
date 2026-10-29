@@ -530,15 +530,26 @@ export async function anexarFotoCheckin(formData: FormData): Promise<{ ok: true 
   if (arquivo.size === 0 || arquivo.size > MAX_FOTO_BYTES) return { ok: false, erro: 'Foto muito grande' }
 
   const admin = db()
-  const { data: ck, error: ckErr } = await admin
+  // recebido_em (migração 20261102) = quando o servidor recebeu o check-in. created_at é a hora da captura no
+  // aparelho: num check-in feito offline e enviado dias depois, contar o prazo dela perderia a foto.
+  let { data: ck, error: ckErr } = await admin
     .from('agenda_checkins')
-    .select('id, supervisor_id, foto_path, created_at')
+    .select('id, supervisor_id, foto_path, created_at, recebido_em')
     .eq('id', checkinId)
     .maybeSingle()
+  if (ckErr) {
+    ;({ data: ck, error: ckErr } = await admin
+      .from('agenda_checkins')
+      .select('id, supervisor_id, foto_path, created_at')
+      .eq('id', checkinId)
+      .maybeSingle())
+  }
   if (ckErr) return { ok: false, erro: 'Recurso indisponível: aplique a migração 20261013_agenda_fotos.sql no Supabase Studio.' }
   if (!ck || ck.supervisor_id !== auth.perfil.id) return { ok: false, erro: 'Check-in não encontrado' }
   if (ck.foto_path) return { ok: false, erro: 'Este check-in já tem foto' }
-  if (Date.now() - Date.parse(ck.created_at) > 24 * 3_600_000) return { ok: false, erro: 'Prazo para anexar foto expirou (24 h)' }
+  // Check-ins antigos (sem recebido_em) e bancos sem a migração: cai para a hora da captura.
+  const referencia = Date.parse(ck.recebido_em ?? ck.created_at)
+  if (Date.now() - referencia > 24 * 3_600_000) return { ok: false, erro: 'Prazo para anexar foto expirou (24 h)' }
 
   const caminho = `${auth.perfil.id}/${checkinId}.jpg`
   const bytes = new Uint8Array(await arquivo.arrayBuffer())
