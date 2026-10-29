@@ -8,6 +8,7 @@ import { diaMes } from '@/lib/agenda/datas'
 import { PERIODOS } from '@/lib/agenda/tema'
 import { marcarLocalPosto, registrarCheckin } from '@/app/(admin)/agenda/geo-actions'
 import { comprimirImagem } from '@/lib/agenda/imagem'
+import { MIN_PERMANENCIA_MIN } from '@/lib/agenda/visitas'
 import { NovoCheckinApoio } from './novo-checkin-apoio'
 import { listarFotosPendentes, salvarFotoPendente } from '@/lib/agenda/fila-fotos'
 import { listarCheckinsPendentes, salvarCheckinPendente, type CheckinPendente } from '@/lib/agenda/fila-checkins'
@@ -272,6 +273,11 @@ export function CheckinPainel({
     : []
   const planejados = apoio ? visitadosApoio : todos.filter(p => plan.has(p.id))
   const extras = apoio ? [] : todos.filter(p => !plan.has(p.id))
+  // Visitas com chegada e sem saída (lembrete fixo no topo: a saída é o que fecha a visita e o tempo de permanência).
+  const emAndamento = [...planejados, ...extras]
+    .map(posto => ({ posto, entrada: exibidos.find(c => c.posto_id === posto.id && c.tipo === 'entrada') }))
+    .filter((x): x is { posto: PostoOpt; entrada: CheckinExibido } =>
+      !!x.entrada && !exibidos.some(c => c.posto_id === x.posto.id && c.tipo === 'saida' && c.created_at > x.entrada!.created_at))
   const semCheckin = planejados.filter(p => !exibidos.some(c => c.posto_id === p.id && c.tipo === 'entrada'))
 
   function situacao(postoId: string) {
@@ -370,7 +376,11 @@ export function CheckinPainel({
     void sincronizar()
   }
 
-  function botaoFoto(postoId: string, ck: CheckinExibido, rotulo: string) {
+  function botaoFoto(postoId: string, ck: CheckinExibido, rotulo: string, obrig = false) {
+    const classeBotao = obrig
+      ? 'flex w-fit cursor-pointer items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-orange-400'
+      : 'flex w-fit cursor-pointer items-center gap-1 rounded-md bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
+    const textoFoto = obrig ? `Anexar foto da ${rotulo} (obrigatória)` : `Foto da ${rotulo} (opcional)`
     if (ck.pendente) {
       const item = pendentesCheckin.find(p => p.localId === ck.id)
       if (!item) return null
@@ -378,8 +388,8 @@ export function CheckinPainel({
         return <span className="flex items-center gap-1 text-[11px] font-semibold text-sky-800"><Camera className="h-3 w-3" /> foto da {rotulo} guardada · vai com o check-in</span>
       }
       return (
-        <label className="flex w-fit cursor-pointer items-center gap-1 rounded-md bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50">
-          <Camera className="h-3 w-3" /> {fotoBusy === item.localId ? 'Guardando…' : `Foto da ${rotulo} (opcional)`}
+        <label className={classeBotao}>
+          <Camera className="h-3.5 w-3.5" /> {fotoBusy === item.localId ? 'Guardando…' : textoFoto}
           <input
             type="file" accept="image/*" capture="environment" className="hidden" disabled={!!fotoBusy}
             onChange={e => { void anexarFotoPendente(item, e.target.files?.[0]); e.target.value = '' }}
@@ -402,8 +412,8 @@ export function CheckinPainel({
       )
     }
     return (
-      <label className="flex w-fit cursor-pointer items-center gap-1 rounded-md bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50">
-        <Camera className="h-3 w-3" /> {fotoBusy === ck.id ? 'Enviando…' : `Foto da ${rotulo} (opcional)`}
+      <label className={classeBotao}>
+        <Camera className="h-3.5 w-3.5" /> {fotoBusy === ck.id ? 'Enviando…' : textoFoto}
         <input
           type="file" accept="image/*" capture="environment" className="hidden" disabled={!!fotoBusy}
           onChange={e => { void enviarFoto(postoId, ck.id, e.target.files?.[0]); e.target.value = '' }}
@@ -486,6 +496,19 @@ export function CheckinPainel({
       .map(c => (c?.pendente ? pendentesCheckin.find(p => p.localId === c.id) : undefined))
       .find(p => p?.precisaJustificar && !p.justificativa)
     const pendenteAlgum = !!(entrada?.pendente || saida?.pendente)
+    const exigeF = !!(g?.exigeFoto || posto.id === sede?.id || apoio)
+    const fotoOk = !!(entrada?.tem_foto || saida?.tem_foto)
+    // Uma foto basta (chegada ou saída): oferece um botão só, para a etapa em que a pessoa está.
+    const ckFoto = entrada ? (entrada.tem_foto ? entrada : saida ?? entrada) : null
+    const rotuloFoto = ckFoto && ckFoto === entrada ? 'chegada' : 'saída'
+
+    function sair() {
+      if (entrada && !entrada.pendente) {
+        const min = Math.floor((Date.now() - Date.parse(entrada.created_at)) / 60000)
+        if (min < MIN_PERMANENCIA_MIN && !window.confirm(`Você chegou há ${min < 1 ? 'menos de 1 minuto' : `${min} min`}. Só toque em "Saí" quando terminar a visita neste posto.\n\nRegistrar a saída agora?`)) return
+      }
+      void acionar(posto.id, 'saida')
+    }
 
     return (
       <li key={posto.id} className={`rounded-xl p-3 ring-1 ${saida ? 'bg-emerald-50 ring-emerald-200' : entrada ? 'bg-sky-50 ring-sky-200' : 'bg-white ring-slate-200'}`}>
@@ -514,15 +537,21 @@ export function CheckinPainel({
                 </p>
               )
             )}
-            {(g?.exigeFoto || posto.id === sede?.id || apoio) && (
-              <p className={`mt-0.5 text-[11px] font-bold ${entrada && !entrada.tem_foto && !saida?.tem_foto ? 'text-orange-600' : 'text-slate-400'}`}>
-                📷 {posto.id === sede?.id ? 'Foto sempre obrigatória na sede' : apoio ? 'Foto obrigatória em toda visita' : 'Foto obrigatória neste foco'}{entrada && !entrada.tem_foto && !saida?.tem_foto ? ' — anexe para a visita contar' : ''}
+            {exigeF && (
+              <p className={`mt-0.5 text-[11px] font-bold ${entrada && !fotoOk ? 'text-orange-600' : 'text-slate-400'}`}>
+                📷 {posto.id === sede?.id ? 'Foto sempre obrigatória na sede' : apoio ? 'Foto obrigatória em toda visita' : 'Foto obrigatória neste foco'}{entrada && !fotoOk ? ' — anexe para a visita contar' : ''}
               </p>
             )}
             {entrada && (
+              <ol className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] font-semibold">
+                <li className="text-emerald-700">① Chegada ✓ {hora(entrada.created_at)}</li>
+                {exigeF && <li className={fotoOk ? 'text-emerald-700' : 'text-orange-600'}>② Foto {fotoOk ? '✓' : 'pendente'}</li>}
+                <li className={saida ? 'text-emerald-700' : 'text-sky-700'}>{exigeF ? '③' : '②'} Saída {saida ? `✓ ${hora(saida.created_at)}` : 'pendente'}</li>
+              </ol>
+            )}
+            {entrada && ckFoto && (
               <div className="mt-1.5 flex flex-wrap gap-2">
-                {botaoFoto(posto.id, entrada, 'chegada')}
-                {saida && botaoFoto(posto.id, saida, 'saída')}
+                {botaoFoto(posto.id, ckFoto, rotuloFoto, exigeF && !fotoOk)}
               </div>
             )}
           </div>
@@ -538,9 +567,9 @@ export function CheckinPainel({
               <LogIn className="h-4 w-4" /> {carregando ? 'Localizando…' : 'Cheguei'}
             </button>
           ) : !saida ? (
-            <button type="button" disabled={!!busy} onClick={() => acionar(posto.id, 'saida')}
-              className="flex items-center gap-1.5 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50">
-              <LogOut className="h-4 w-4" /> {carregando ? 'Localizando…' : 'Saí'}
+            <button type="button" disabled={!!busy} onClick={sair}
+              className="flex items-center gap-1.5 rounded-lg bg-sky-600 px-5 py-2.5 text-base font-bold text-white shadow-sm ring-2 ring-sky-300 transition hover:bg-sky-500 disabled:opacity-50">
+              <LogOut className="h-5 w-5" /> {carregando ? 'Localizando…' : 'Saí do posto'}
             </button>
           ) : (
             <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700">
@@ -668,6 +697,16 @@ export function CheckinPainel({
             ⏰ Falta check-in em {semCheckin.length === 1 ? '1 visita planejada' : `${semCheckin.length} visitas planejadas`} de hoje ({semCheckin.map(p => p.nome).join(', ')}).
             Visita sem check-in não conta no cumprimento. Visitou algum posto fora do plano? Faça o check-in em &quot;+ Visita extra&quot;.
           </p>
+        )}
+        {emAndamento.length > 0 && (
+          <div className="rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+            {emAndamento.map(({ posto, entrada }) => (
+              <p key={posto.id}>
+                📍 Você está em <b>{posto.nome}</b> desde {hora(entrada.created_at)}. Quando terminar a visita, toque em <b>&quot;Saí do posto&quot;</b>
+                {apoio || posto.id === sede?.id ? ' e anexe a foto' : ''}.
+              </p>
+            ))}
+          </div>
         )}
         {aviso && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">{aviso}</p>}
         {erroFila && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{erroFila}</p>}
