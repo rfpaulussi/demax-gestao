@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { RefreshCw, WifiOff } from 'lucide-react'
-import { listarCheckinsPendentes, type CheckinPendente } from '@/lib/agenda/fila-checkins'
+import { listarCheckinsPendentes, salvarCheckinPendente, type CheckinPendente } from '@/lib/agenda/fila-checkins'
 import { listarFotosPendentes } from '@/lib/agenda/fila-fotos'
 import { semConexao } from '@/lib/agenda/rede'
 import { descartarCheckin, EVENTO_FILA, sincronizarFilas, tentarDeNovo } from '@/lib/agenda/sync-fila'
@@ -23,6 +23,17 @@ export function SincronizadorOffline() {
   const [fotos, setFotos] = useState(0)
   const [offline, setOffline] = useState(false)
   const [enviando, setEnviando] = useState(false)
+  const [justificativas, setJustificativas] = useState<Record<string, string>>({})
+
+  // Justifica aqui mesmo: vale para check-in de qualquer dia, inclusive os que o painel de hoje não mostra.
+  async function justificar(item: CheckinPendente) {
+    const texto = (justificativas[item.localId] ?? '').trim()
+    if (texto.length < 5) return
+    await salvarCheckinPendente({ ...item, justificativa: texto, precisaJustificar: false })
+    setJustificativas(j => { const n = { ...j }; delete n[item.localId]; return n })
+    await atualizar()
+    void enviar()
+  }
 
   const atualizar = useCallback(async () => {
     setPendentes(await listarCheckinsPendentes())
@@ -108,12 +119,27 @@ export function SincronizadorOffline() {
           <Link href="/agenda#checkin-hoje" className="block text-[11px] font-bold text-sky-800 underline">Ver na agenda do dia</Link>
         )}
 
-        {precisamJustificar.length > 0 && (
-          <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-800">
-            {precisamJustificar.length} {precisamJustificar.length === 1 ? 'check-in está' : 'check-ins estão'} fora do raio e precisa{precisamJustificar.length === 1 ? '' : 'm'} de justificativa.{' '}
-            <Link href="/agenda#checkin-hoje" className="font-bold underline">Abrir a agenda do dia</Link>
-          </p>
-        )}
+        {precisamJustificar.map(p => (
+          <div key={p.localId} className="rounded-lg border border-amber-300 bg-amber-50 p-2.5">
+            <p className="text-[11px] font-bold text-amber-800">
+              {p.tipo === 'entrada' ? 'Chegada' : 'Saída'} de {hora(p.capturadoEm)} fora do raio{p.distancia != null ? ` (${Math.round(p.distancia)} m do posto)` : ''}. Justifique para enviar.
+            </p>
+            <textarea value={justificativas[p.localId] ?? ''} onChange={e => setJustificativas(j => ({ ...j, [p.localId]: e.target.value }))} rows={2}
+              placeholder="Ex.: acesso fechado, atendimento na rua ao lado…"
+              className="mt-1.5 w-full resize-none rounded-md border border-amber-200 bg-white p-2 text-xs outline-none focus:border-amber-400" />
+            <div className="mt-1.5 flex gap-2">
+              <button type="button" disabled={(justificativas[p.localId] ?? '').trim().length < 5} onClick={() => void justificar(p)}
+                className="rounded-md bg-amber-500 px-3 py-1 text-[11px] font-semibold text-slate-900 hover:bg-amber-400 disabled:opacity-40">
+                Enviar com justificativa
+              </button>
+              <button type="button"
+                onClick={() => { if (window.confirm('Descartar este check-in do aparelho? Ele será perdido.')) void descartarCheckin(p.localId) }}
+                className="rounded-md px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-white">
+                Descartar
+              </button>
+            </div>
+          </div>
+        ))}
 
         {recusados.map(p => (
           <div key={p.localId} className="rounded-lg border border-rose-200 bg-rose-50 p-2.5">
