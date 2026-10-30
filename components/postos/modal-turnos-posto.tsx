@@ -26,6 +26,7 @@ import {
 import { cn } from '@/lib/utils'
 import type { TurnoPosto } from '@/types'
 import { CATALOGO_POR_REGIME, type TurnoCatalogoItem } from '@/lib/turnos/catalogo-padrao'
+import { avisoCargaSemanal, formatarCargaSemanal } from '@/lib/turnos/carga-semanal'
 
 interface Props {
   postoId: string
@@ -352,10 +353,11 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               {turnos.map(t => {
                 const tipoTurno = resolverTipoEscala(t.tipo_escala)
+                const aviso = avisoCargaSemanal(t)
                 return (
                   <div key={t.id} className={cn(
-                    'flex items-start justify-between gap-2 rounded-lg border-l-4 bg-gray-50 px-4 py-3',
-                    ESCALA_BORDER_CLASS[tipoTurno],
+                    'flex items-start justify-between gap-2 rounded-lg border-l-4 px-4 py-3',
+                    aviso ? 'border-red-500 bg-red-50 ring-1 ring-red-200' : cn('bg-gray-50', ESCALA_BORDER_CLASS[tipoTurno]),
                   )}>
                     <div className="flex items-start gap-2.5">
                       <Clock className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
@@ -368,6 +370,14 @@ export function ModalTurnosPosto({ postoId, postoNome, open, onClose, role }: Pr
                           )}>
                             {ESCALA_LABEL[tipoTurno]}
                           </span>
+                          {aviso && (
+                            <span
+                              title={`Este turno fecha ${formatarCargaSemanal(aviso.min)} na semana, ${aviso.difMin > 0 ? 'acima' : 'abaixo'} das 44h do regime.`}
+                              className="inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold text-red-700 ring-1 ring-inset ring-red-300"
+                            >
+                              ⚠ {formatarCargaSemanal(aviso.min)}/sem · fora de 44h
+                            </span>
+                          )}
                         </div>
                         <p className="mt-0.5 text-sm font-medium text-gray-600">{formatarResumoTurno(t)}</p>
                       </div>
