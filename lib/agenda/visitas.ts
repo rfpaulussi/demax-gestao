@@ -127,26 +127,37 @@ export function montarVisitas(args: {
   const { planos, checkins, postos, hoje, publicada, sedeId, fotoSempre, focoPorId, justificativas, minPorFoco } = args
   const historico = args.historico ?? []
 
-  const plan = new Map<string, { data: string; posto_id: string; periodos: Set<Periodo>; focos: Set<string>; exigeFoto: boolean }>()
+  // Um posto pode ser planejado (e visitado) mais de uma vez no mesmo dia: cada bloco é uma visita esperada.
+  type PlanoVisita = { periodo: Periodo; foco: string; exigeFoto: boolean }
+  const plan = new Map<string, { data: string; posto_id: string; visitas: PlanoVisita[] }>()
   for (const p of planos) {
     const k = `${p.data}|${p.posto_id}`
-    const g = plan.get(k) ?? { data: p.data, posto_id: p.posto_id, periodos: new Set<Periodo>(), focos: new Set<string>(), exigeFoto: false }
-    g.periodos.add(p.periodo)
-    g.focos.add(p.foco)
-    if (p.exige_foto) g.exigeFoto = true
+    const g = plan.get(k) ?? { data: p.data, posto_id: p.posto_id, visitas: [] }
+    g.visitas.push({ periodo: p.periodo, foco: p.foco, exigeFoto: !!p.exige_foto })
     plan.set(k, g)
   }
+  plan.forEach(g => g.visitas.sort((a, b) => a.periodo.localeCompare(b.periodo)))
 
+  // Cada entrada abre uma visita e a saída seguinte a fecha. Entrada nova com a anterior ainda aberta
+  // é tratada como toque repetido (não cria visita).
+  type Sessao = { entrada: CheckinRaw; saida: CheckinRaw | null }
   const ordenados = [...checkins].sort((a, b) => a.created_at.localeCompare(b.created_at))
-  const cks = new Map<string, CheckinRaw[]>()
+  const sessoes = new Map<string, Sessao[]>()
   for (const c of ordenados) {
     const k = `${dataBR(c.created_at)}|${c.posto_id}`
-    cks.set(k, [...(cks.get(k) ?? []), c])
+    const lista = sessoes.get(k) ?? []
+    const ultima = lista[lista.length - 1]
+    if (c.tipo === 'entrada') {
+      if (!ultima || ultima.saida) lista.push({ entrada: c, saida: null })
+    } else if (ultima && !ultima.saida) {
+      ultima.saida = c
+    }
+    sessoes.set(k, lista)
   }
 
   // Deslocamento improvável: velocidade implícita entre dois check-ins consecutivos.
-  const alertaPorKey = new Map<string, string[]>()
-  const addAlerta = (k: string, texto: string) => alertaPorKey.set(k, [...(alertaPorKey.get(k) ?? []), texto])
+  const alertaPorCheckin = new Map<string, string[]>()
+  const addAlerta = (id: string, texto: string) => alertaPorCheckin.set(id, [...(alertaPorCheckin.get(id) ?? []), texto])
   for (let i = 1; i < ordenados.length; i++) {
     const a = ordenados[i - 1]
     const b = ordenados[i]
@@ -154,7 +165,7 @@ export function montarVisitas(args: {
     const horas = (Date.parse(b.created_at) - Date.parse(a.created_at)) / 3_600_000
     if (dist >= 1000 && horas > 0 && dist / 1000 / horas > VELOCIDADE_MAX_KMH) {
       const min = Math.max(1, Math.round(horas * 60))
-      addAlerta(`${dataBR(b.created_at)}|${b.posto_id}`, `Deslocamento improvável: ${formatarDistancia(dist)} em ${min} min desde o check-in anterior`)
+      addAlerta(b.id, `Deslocamento improvável: ${formatarDistancia(dist)} em ${min} min desde o check-in anterior`)
     }
   }
 
@@ -169,14 +180,13 @@ export function montarVisitas(args: {
     coordDias.set(k, s)
   }
 
-  const montar = (k: string, data: string, postoId: string, periodos: Periodo[], focos: string[], modo: Modo, exigeFoto: boolean): VisitaView | null => {
-    const lista = cks.get(k) ?? []
-    const entrada = lista.find(c => c.tipo === 'entrada') ?? null
-    const saida = entrada ? lista.find(c => c.tipo === 'saida' && c.created_at > entrada.created_at) ?? null : null
+  const montar = (k: string, data: string, postoId: string, periodos: Periodo[], focos: string[], modo: Modo, exigeFoto: boolean, sessao: Sessao | null): VisitaView | null => {
+    const entrada = sessao?.entrada ?? null
+    const saida = sessao?.saida ?? null
     if (modo === 'extra' && !entrada) return null
     const posto = postos.get(postoId)
 
-    const alertas: string[] = [...(alertaPorKey.get(k) ?? [])]
+    const alertas: string[] = [...(entrada ? alertaPorCheckin.get(entrada.id) ?? [] : []), ...(saida ? alertaPorCheckin.get(saida.id) ?? [] : [])]
     const tempo = entrada && saida ? Math.max(1, Math.round((Date.parse(saida.created_at) - Date.parse(entrada.created_at)) / 60000)) : null
 
     let status: StatusVisita
@@ -245,15 +255,22 @@ export function montarVisitas(args: {
   }
 
   const visitas: VisitaView[] = []
-  plan.forEach((g, k) => {
-    const v = montar(k, g.data, g.posto_id, Array.from(g.periodos), Array.from(g.focos), publicada ? 'oficial' : 'rascunho', g.exigeFoto)
-    if (v) visitas.push(v)
-  })
-  cks.forEach((_, k) => {
-    if (plan.has(k)) return
+  const exigeFotoPorKey = new Map<string, boolean>()
+  new Set([...Array.from(plan.keys()), ...Array.from(sessoes.keys())]).forEach(k => {
+    const g = plan.get(k)
+    const ss = sessoes.get(k) ?? []
     const [data, postoId] = k.split('|')
-    const v = montar(k, data, postoId, [], [], 'extra', false)
-    if (v) visitas.push(v)
+    // As visitas do dia casam em ordem com as sessões de check-in; as que sobram são extras.
+    const total = Math.max(g?.visitas.length ?? 0, ss.length)
+    for (let i = 0; i < total; i++) {
+      const plano = g?.visitas[i] ?? null
+      const vk = i === 0 ? k : `${k}|${i + 1}`
+      const modo: Modo = plano ? (publicada ? 'oficial' : 'rascunho') : 'extra'
+      const v = montar(vk, data, postoId, plano ? [plano.periodo] : [], plano ? [plano.foco] : [], modo, plano?.exigeFoto ?? false, ss[i] ?? null)
+      if (!v) continue
+      exigeFotoPorKey.set(vk, plano?.exigeFoto ?? false)
+      visitas.push(v)
+    }
   })
 
   visitas.sort((a, b) => a.data.localeCompare(b.data) || (a.entrada_em ?? 'z').localeCompare(b.entrada_em ?? 'z'))
@@ -272,7 +289,7 @@ export function montarVisitas(args: {
       v.posto_id === falta.posto_id && segundaDe(v.data) === semana,
     )
     if (!extra) continue
-    if (plan.get(falta.key)?.exigeFoto && extra.fotos.length === 0) continue
+    if (exigeFotoPorKey.get(falta.key) && extra.fotos.length === 0) continue
     consumidas.add(extra.key)
     Object.assign(falta, {
       status: 'reposta' as StatusVisita,

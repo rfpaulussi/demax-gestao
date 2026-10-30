@@ -276,16 +276,18 @@ export function CheckinPainel({
   const extras = apoio ? [] : todos.filter(p => !plan.has(p.id))
   // Visitas com chegada e sem saída (lembrete fixo no topo: a saída é o que fecha a visita e o tempo de permanência).
   const emAndamento = [...planejados, ...extras]
-    .map(posto => ({ posto, entrada: exibidos.find(c => c.posto_id === posto.id && c.tipo === 'entrada') }))
-    .filter((x): x is { posto: PostoOpt; entrada: CheckinExibido } =>
-      !!x.entrada && !exibidos.some(c => c.posto_id === x.posto.id && c.tipo === 'saida' && c.created_at > x.entrada!.created_at))
+    .map(posto => ({ posto, ...situacao(posto.id) }))
+    .filter((x): x is { posto: PostoOpt; entrada: CheckinExibido; saida: null; visitas: number } => !!x.entrada && !x.saida)
+    .map(({ posto, entrada }) => ({ posto, entrada }))
   const semCheckin = planejados.filter(p => !exibidos.some(c => c.posto_id === p.id && c.tipo === 'entrada'))
 
+  // Um posto pode ser visitado mais de uma vez no dia: a linha mostra a visita mais recente (última chegada).
   function situacao(postoId: string) {
-    const doPosto = exibidos.filter(c => c.posto_id === postoId)
-    const entrada = doPosto.find(c => c.tipo === 'entrada') ?? null
+    const doPosto = exibidos.filter(c => c.posto_id === postoId).sort((a, b) => a.created_at.localeCompare(b.created_at))
+    const entradas = doPosto.filter(c => c.tipo === 'entrada')
+    const entrada = entradas[entradas.length - 1] ?? null
     const saida = entrada ? doPosto.find(c => c.tipo === 'saida' && c.created_at > entrada.created_at) ?? null : null
-    return { entrada, saida }
+    return { entrada, saida, visitas: entradas.length }
   }
   const concluidos = planejados.filter(p => situacao(p.id).entrada).length
 
@@ -488,7 +490,7 @@ export function CheckinPainel({
   }
 
   function linha(posto: PostoOpt, extra = false) {
-    const { entrada, saida } = situacao(posto.id)
+    const { entrada, saida, visitas } = situacao(posto.id)
     const g = plan.get(posto.id)
     const carregando = busy === posto.id
     const precisaJust = pend?.postoId === posto.id ? pend : null
@@ -521,6 +523,7 @@ export function CheckinPainel({
             <p className="break-words text-sm font-bold leading-tight text-slate-800">{posto.nome}</p>
             <p className="text-[11px] text-slate-500">
               {apoio ? 'Atividade de apoio' : extra ? 'Visita extra' : `${g?.periodos.join(' + ')} · ${g?.focos.join(' · ')}`}
+              {visitas > 1 && ` · ${visitas}ª visita do dia`}
             </p>
             {entrada && (
               entrada.pendente ? (
@@ -573,9 +576,15 @@ export function CheckinPainel({
               <LogOut className="h-5 w-5" /> {carregando ? 'Localizando…' : 'Saí do posto'}
             </button>
           ) : (
-            <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700">
-              {pendenteAlgum ? 'aguardando envio' : 'concluído'}
-            </span>
+            <div className="flex flex-col items-end gap-1.5">
+              <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                {pendenteAlgum ? 'aguardando envio' : 'concluído'}
+              </span>
+              {!apoio && <button type="button" disabled={!!busy} onClick={() => acionar(posto.id, 'entrada')}
+                className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-50">
+                <LogIn className="h-3.5 w-3.5" /> {carregando ? 'Localizando…' : 'Voltei ao posto (nova visita)'}
+              </button>}
+            </div>
           )}
         </div>
 

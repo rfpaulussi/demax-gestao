@@ -36,7 +36,7 @@ export function NovoCheckinApoio({
 }: {
   tipos: TipoFoco[]
   ocupado: boolean
-  jaHoje: string[] // postos que já têm check-in hoje (não repetir)
+  jaHoje: string[] // postos que já têm check-in hoje (só sinaliza: o posto pode ser visitado de novo)
   lerGps: () => Promise<Coords>
   onConfirmar: (posto: { id: string; nome: string }, coords: Coords, focoId: string, obs: string) => void
   onMarcarLocal: (postoId: string) => void
@@ -105,13 +105,13 @@ export function NovoCheckinApoio({
     const feito = visitados.has(p.id)
     return (
       <li key={p.id}>
-        <button type="button" disabled={feito} onClick={() => setEscolhido(p)}
+        <button type="button" onClick={() => setEscolhido(p)}
           className={`flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${
             ativo ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-800 hover:border-slate-400'
-          } disabled:opacity-40`}>
+          }`}>
           <span className="min-w-0">
             <b className="block break-words leading-tight">{p.nome}</b>
-            <span className={`text-[11px] ${ativo ? 'text-white/70' : 'text-slate-500'}`}>{p.secretaria ?? 'Sem secretaria'}{feito ? ' · já visitado hoje' : ''}</span>
+            <span className={`text-[11px] ${ativo ? 'text-white/70' : 'text-slate-500'}`}>{p.secretaria ?? 'Sem secretaria'}{feito ? ' · já visitado hoje (nova visita)' : ''}</span>
           </span>
           {distancia !== undefined && <span className={`shrink-0 text-xs font-bold ${ativo ? 'text-white' : 'text-emerald-700'}`}>{formatarDistancia(distancia)}</span>}
           {distancia === undefined && p.latitude == null && <span className="shrink-0 text-[10px] font-bold text-amber-700">sem local</span>}

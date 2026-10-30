@@ -48,10 +48,12 @@ async function calcularPendencias(admin: AnyClient, supervisorId: string): Promi
     agenda_blocos_postos: { posto_id: string; postos: { nome: string } | null }[]
   }
   const planejadas = new Map<string, PendenciaDia>()
+  const vezesPlanejadas = new Map<string, number>() // o mesmo posto pode ser visitado mais de uma vez no dia
   for (const b of (blocos ?? []) as Bl[]) {
     if (b.agenda_tipos_foco?.sem_posto) continue // foco administrativo não tem visita a posto
     for (const p of b.agenda_blocos_postos) {
       const k = `${b.data}|${p.posto_id}`
+      vezesPlanejadas.set(k, (vezesPlanejadas.get(k) ?? 0) + 1)
       if (!planejadas.has(k)) {
         planejadas.set(k, { semanaId: b.semana_id, data: b.data, postoId: p.posto_id, postoNome: p.postos?.nome ?? 'Posto', foco: b.agenda_tipos_foco?.nome ?? '' })
       }
@@ -64,7 +66,11 @@ async function calcularPendencias(admin: AnyClient, supervisorId: string): Promi
     .eq('supervisor_id', supervisorId)
     .eq('tipo', 'entrada')
     .gte('created_at', `${addDias(desde, -1)}T00:00:00Z`)
-  const feitas = new Set(((cks ?? []) as { posto_id: string; created_at: string }[]).map(c => `${dataBR(c.created_at)}|${c.posto_id}`))
+  const feitas = new Map<string, number>()
+  for (const c of (cks ?? []) as { posto_id: string; created_at: string }[]) {
+    const k = `${dataBR(c.created_at)}|${c.posto_id}`
+    feitas.set(k, (feitas.get(k) ?? 0) + 1)
+  }
 
   const { data: justs, error: errJust } = await admin
     .from('agenda_justificativas_falta')
@@ -74,7 +80,7 @@ async function calcularPendencias(admin: AnyClient, supervisorId: string): Promi
   const justificadas = new Set(((justs ?? []) as { data: string; posto_id: string }[]).map(j => `${j.data}|${j.posto_id}`))
 
   const pendencias = Array.from(planejadas.entries())
-    .filter(([k]) => !feitas.has(k) && !justificadas.has(k))
+    .filter(([k]) => (feitas.get(k) ?? 0) < (vezesPlanejadas.get(k) ?? 1) && !justificadas.has(k))
     .map(([, v]) => v)
     .sort((a, b) => a.data.localeCompare(b.data) || a.postoNome.localeCompare(b.postoNome))
   return { ok: true, pendencias }
