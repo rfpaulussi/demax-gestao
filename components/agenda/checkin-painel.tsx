@@ -8,7 +8,7 @@ import { diaMes } from '@/lib/agenda/datas'
 import { PERIODOS } from '@/lib/agenda/tema'
 import { marcarLocalPosto, registrarCheckin } from '@/app/(admin)/agenda/geo-actions'
 import { comprimirImagem } from '@/lib/agenda/imagem'
-import { MIN_PERMANENCIA_MIN } from '@/lib/agenda/visitas'
+import { dataBR, MIN_PERMANENCIA_MIN } from '@/lib/agenda/visitas'
 import { NovoCheckinApoio } from './novo-checkin-apoio'
 import { FecharDia } from './fechar-dia'
 import { listarFotosPendentes, salvarFotoPendente } from '@/lib/agenda/fila-fotos'
@@ -243,7 +243,9 @@ export function CheckinPainel({
   }, [])
 
   // Check-ins do servidor + os que estão guardados no aparelho (aparecem como "aguardando envio").
-  const exibidos: CheckinExibido[] = [...checkins, ...pendentesCheckin.filter(p => !p.recusado).map(comoExibido)]
+  // Só os de hoje: um guardado de outro dia não pode contar como visita de hoje (o aviso flutuante lista todos).
+  const pendentesHoje = pendentesCheckin.filter(p => !p.recusado && dataBR(p.capturadoEm) === hoje)
+  const exibidos: CheckinExibido[] = [...checkins, ...pendentesHoje.map(comoExibido)]
 
   const nomeTipo = new Map(tipos.map(t => [t.id, `${t.icone} ${t.nome}`]))
   const exigeFotoTipo = new Map(tipos.map(t => [t.id, !!t.exige_foto]))
@@ -273,7 +275,17 @@ export function CheckinPainel({
       })()
     : []
   const planejados = apoio ? visitadosApoio : todos.filter(p => plan.has(p.id))
-  const extras = apoio ? [] : todos.filter(p => !plan.has(p.id))
+  // Guardado no aparelho para um posto que não está na lista do dia (nem planejado): entra como visita extra, para não sumir.
+  const conhecidos = new Set(todos.map(p => p.id))
+  const pendentesForaDaLista = new Map<string, PostoOpt>()
+  for (const c of pendentesHoje) {
+    if (!conhecidos.has(c.postoId) && !pendentesForaDaLista.has(c.postoId)) {
+      pendentesForaDaLista.set(c.postoId, { id: c.postoId, nome: c.postoNome ?? 'Posto', secretaria: null, tem_local: true, a_conferir: false })
+    }
+  }
+  const extras = apoio ? [] : [...todos.filter(p => !plan.has(p.id)), ...Array.from(pendentesForaDaLista.values())]
+  // A caixa de extras abre sozinha quando há visita em andamento ou guardada nela.
+  const extrasComMovimento = extras.some(p => exibidos.some(c => c.posto_id === p.id))
   // Visitas com chegada e sem saída (lembrete fixo no topo: a saída é o que fecha a visita e o tempo de permanência).
   const emAndamento = [...planejados, ...extras]
     .map(posto => ({ posto, ...situacao(posto.id) }))
@@ -514,7 +526,7 @@ export function CheckinPainel({
     }
 
     return (
-      <li key={posto.id} className={`rounded-xl p-3 ring-1 ${saida ? 'bg-emerald-50 ring-emerald-200' : entrada ? 'bg-sky-50 ring-sky-200' : 'bg-white ring-slate-200'}`}>
+      <li key={posto.id} className={`rounded-xl p-3 ring-1 ${pendenteAlgum ? 'bg-amber-50 ring-2 ring-amber-300' : saida ? 'bg-emerald-50 ring-emerald-200' : entrada ? 'bg-sky-50 ring-sky-200' : 'bg-white ring-slate-200'}`}>
         <div className="flex flex-wrap items-center gap-3">
           <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${saida ? 'bg-emerald-500' : entrada ? 'bg-sky-500' : 'bg-slate-200'} text-white`}>
             {saida ? <CheckCircle2 className="h-5 w-5" /> : entrada ? <Clock className="h-5 w-5" /> : <Navigation className="h-4 w-4 text-slate-500" />}
@@ -682,7 +694,7 @@ export function CheckinPainel({
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div id="checkin-hoje" className="scroll-mt-20 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center gap-3 bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-3 text-white">
         <Navigation className="h-5 w-5" />
         <div className="mr-auto">
@@ -740,7 +752,7 @@ export function CheckinPainel({
           <>
             {planejados.length > 0 && <ul className="space-y-2">{planejados.map(p => linha(p))}</ul>}
             {extras.length > 0 && (
-              <details className="group rounded-xl bg-slate-50 p-2">
+              <details className="group rounded-xl bg-slate-50 p-2" open={extrasComMovimento || undefined}>
                 <summary className="cursor-pointer px-2 py-1 text-xs font-semibold uppercase tracking-widest text-slate-500">
                   + Visita extra (não planejada)
                 </summary>

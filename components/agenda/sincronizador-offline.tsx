@@ -91,10 +91,27 @@ export function SincronizadorOffline() {
           </div>
         )}
 
+        {aguardando.length > 0 && (
+          <ul className="space-y-1">
+            {aguardando.map(p => (
+              <li key={p.localId} className="flex items-center justify-between gap-2 rounded-lg bg-sky-50 px-2.5 py-1.5 text-[11px] text-sky-900">
+                <span className="min-w-0">
+                  <b>{p.tipo === 'entrada' ? 'Chegada' : 'Saída'}</b> · {p.postoNome ?? 'Posto'} · {hora(p.capturadoEm)}
+                </span>
+                {p.precisaJustificar && !p.justificativa && <span className="shrink-0 font-bold text-amber-700">justificar</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {aguardando.length > 0 && precisamJustificar.length === 0 && (
+          <Link href="/agenda#checkin-hoje" className="block text-[11px] font-bold text-sky-800 underline">Ver na agenda do dia</Link>
+        )}
+
         {precisamJustificar.length > 0 && (
           <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-800">
             {precisamJustificar.length} {precisamJustificar.length === 1 ? 'check-in está' : 'check-ins estão'} fora do raio e precisa{precisamJustificar.length === 1 ? '' : 'm'} de justificativa.{' '}
-            <Link href="/agenda" className="font-bold underline">Abrir a agenda</Link>
+            <Link href="/agenda#checkin-hoje" className="font-bold underline">Abrir a agenda do dia</Link>
           </p>
         )}
 
