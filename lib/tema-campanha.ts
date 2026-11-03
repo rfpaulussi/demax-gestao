@@ -5,6 +5,7 @@
 export type TemaCampanha = {
   campanha: string
   accent: string  // cor-base da campanha
+  padrao?: 'flor' | 'barras' | 'pontos'
 }
 
 const TEMAS: Record<number, TemaCampanha> = {
@@ -17,8 +18,8 @@ const TEMAS: Record<number, TemaCampanha> = {
   7:  { campanha: 'Julho Amarelo',      accent: '#fbbf24' },
   8:  { campanha: 'Agosto Dourado',     accent: '#d4a437' },
   9:  { campanha: 'Setembro Amarelo',   accent: '#a3e635' },
-  10: { campanha: 'Outubro Rosa',       accent: '#f472b6' },
-  11: { campanha: 'Novembro Azul',      accent: '#38bdf8' },
+  10: { campanha: 'Outubro Rosa',       accent: '#f472b6', padrao: 'flor' },
+  11: { campanha: 'Novembro Azul',      accent: '#1d4ed8', padrao: 'barras' },
   12: { campanha: 'Dezembro Vermelho',  accent: '#fb7185' },
 }
 
@@ -53,6 +54,30 @@ function padraoFlores([r, g, b]: [number, number, number]): string {
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
 }
 
+// Pontos sutis — padrão neutro, default para campanhas sem padrão próprio.
+function padraoPontos([r, g, b]: [number, number, number]): string {
+  const c = `rgb(${r},${g},${b})`
+  const svg =
+    `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28'>` +
+    `<circle cx='4' cy='4' r='2.4' fill='${c}' fill-opacity='0.24'/>` +
+    `<circle cx='18' cy='16' r='2.4' fill='${c}' fill-opacity='0.24'/>` +
+    `</svg>`
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
+}
+
+// Barras diagonais robustas — visual mais sóbrio/masculino que o padrão de flores.
+function padraoBarras([r, g, b]: [number, number, number]): string {
+  const c = `rgb(${r},${g},${b})`
+  const svg =
+    `<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48'>` +
+    `<g stroke='${c}' stroke-opacity='0.22' stroke-width='10'>` +
+    `<line x1='-6' y1='54' x2='54' y2='-6'/>` +
+    `<line x1='18' y1='54' x2='78' y2='-6'/>` +
+    `<line x1='-30' y1='54' x2='30' y2='-6'/>` +
+    `</g></svg>`
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
+}
+
 /** Variáveis CSS consumidas pela sidebar. */
 export function varsDoTema(t: TemaCampanha): Record<string, string> {
   const base = rgb(t.accent)
@@ -67,6 +92,9 @@ export function varsDoTema(t: TemaCampanha): Record<string, string> {
     '--nav-accent-soft': `rgba(${r},${g},${b},0.22)`,
     '--nav-label': t.accent,
     '--nav-text': `rgb(${txt.join(',')})`,
-    '--nav-pattern': padraoFlores(base),
+    '--nav-pattern':
+      t.padrao === 'flor' ? padraoFlores(base) :
+      t.padrao === 'barras' ? padraoBarras(base) :
+      padraoPontos(base),
   }
 }
