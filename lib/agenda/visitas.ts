@@ -10,6 +10,8 @@ export const LIMITE_ATRASO_H = 6
 export const META_VISITAS_POSTO_MES = 2
 /** Velocidade acima da qual dois check-ins consecutivos são considerados fisicamente improváveis. */
 export const VELOCIDADE_MAX_KMH = 120
+/** Texto do alerta quando o sistema fecha a saída sozinho (supervisor abriu check-in em outro posto). */
+export const SAIDA_FORCADA_ALERTA = 'Saída fechada automaticamente: foi para outro posto sem registrar a saída aqui'
 
 export type CheckinRaw = {
   id: string
@@ -28,6 +30,7 @@ export type CheckinRaw = {
   foco_id?: string | null // atividade informada no check-in do supervisor de apoio
   recebido_em?: string | null // quando o servidor recebeu (created_at é a hora da captura no aparelho)
   atividade_obs?: string | null
+  fechamento_automatico?: boolean | null // saída (tipo='saida') criada pelo sistema ao abrir check-in em outro posto
 }
 
 export type BlocoPlan = {
@@ -75,6 +78,7 @@ export type VisitaView = {
   motivo_falta: string | null // justificativa do "Fechar o dia" (tipo) quando não houve check-in
   motivo_texto: string | null
   reposta_em: string | null // dia em que a visita reposta foi de fato feita (status 'reposta')
+  saida_forcada: boolean // saída fechada pelo sistema porque o supervisor abriu check-in em outro posto sem fechar esta
 }
 
 export type MapaStats = {
@@ -206,6 +210,7 @@ export function montarVisitas(args: {
         }
       }
       if ((coordDias.get(chaveCoord(entrada))?.size ?? 0) > 1) alertas.push('Coordenada idêntica à de outro dia (o GPS real sempre varia um pouco)')
+      if (saida?.fechamento_automatico) alertas.push(SAIDA_FORCADA_ALERTA)
 
       // Na sede a foto é sempre obrigatória (planejada ou extra).
       const naSede = !!sedeId && postoId === sedeId
@@ -251,6 +256,7 @@ export function montarVisitas(args: {
       atividade_obs: entrada?.atividade_obs ?? null,
       motivo_falta: entrada ? null : justificativas?.get(`${data}|${postoId}`)?.tipo ?? null,
       motivo_texto: entrada ? null : justificativas?.get(`${data}|${postoId}`)?.texto ?? null,
+      saida_forcada: !!saida?.fechamento_automatico,
     }
   }
 
@@ -303,6 +309,7 @@ export function montarVisitas(args: {
       lng_real: extra.lng_real,
       fotos: extra.fotos,
       reposta_em: extra.data,
+      saida_forcada: extra.saida_forcada,
       alertas: [`Reposição: visita planejada para ${diaMes(falta.data)} feita em ${diaMes(extra.data)}`, ...extra.alertas],
     })
   }

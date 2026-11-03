@@ -127,11 +127,11 @@ export function RelatorioMensalDoc({ data }: { data: RelatorioPdfData }) {
           <Tabela
             cols={[
               { t: 'Supervisor', w: 150 }, { t: 'Cumprim.', w: 55 }, { t: 'Plan.', w: 40 }, { t: 'Faltas', w: 40 }, { t: 'Extras', w: 40 },
-              { t: 'Atencao', w: 45 }, { t: 'Sem foto', w: 45 }, { t: 'Tempo med.', w: 55 }, { t: 'Replan.', w: 45 },
+              { t: 'Atencao', w: 45 }, { t: 'Sem foto', w: 45 }, { t: 'Saida forcada', w: 55 }, { t: 'Tempo med.', w: 55 }, { t: 'Replan.', w: 45 },
               { t: 'Agenda pub/rasc/sem', w: 95 }, { t: 'Postos s/ visita', w: 70 },
             ]}
             linhas={supervisores.map(v => [
-              v.nome, pct(v.pct), v.planejadas, v.faltas, v.extras, v.atencao, v.semFoto,
+              v.nome, pct(v.pct), v.planejadas, v.faltas, v.extras, v.atencao, v.semFoto, v.saidaForcada,
               v.tempoMedioMin === null ? '-' : `${v.tempoMedioMin} min`, v.replanejamentos,
               `${v.semanasPublicadas}/${v.semanasRascunho}/${v.semanasSemAgenda}`, v.postosSemVisita,
             ])}
@@ -199,13 +199,13 @@ export function RelatorioMensalDoc({ data }: { data: RelatorioPdfData }) {
             <Tabela
               cols={[
                 { t: 'Supervisor', w: 90 }, { t: 'Dias em campo', w: 50 }, { t: 'Visitas', w: 42 }, { t: 'Postos', w: 42 },
-                { t: 'Tempo total', w: 50 }, { t: 'Tempo medio', w: 50 }, { t: 'Sem foto', w: 42 }, { t: 'Sem saida', w: 45 }, { t: 'Atividades', w: 160 }, { t: 'Quem ajudou (visitas)', w: 170 },
+                { t: 'Tempo total', w: 50 }, { t: 'Tempo medio', w: 50 }, { t: 'Sem foto', w: 42 }, { t: 'Sem saida', w: 45 }, { t: 'Saida forcada', w: 50 }, { t: 'Atividades', w: 140 }, { t: 'Quem ajudou (visitas)', w: 150 },
               ]}
               linhas={d.apoio.map(a => [
                 a.nome, a.diasEmCampo, a.visitas, a.postosDistintos,
                 `${Math.floor(a.tempoTotalMin / 60)}h${String(a.tempoTotalMin % 60).padStart(2, '0')}`,
                 a.tempoMedioMin === null ? '-' : `${a.tempoMedioMin} min`,
-                a.semFoto, a.semSaida,
+                a.semFoto, a.semSaida, a.saidaForcada,
                 a.porAtividade.map(x => `${x.atividade} (${x.visitas})`).join(', ') || '-',
                 a.porSupervisor.map(x => `${x.supervisor} (${x.visitas})`).join(', ') || '-',
               ])}

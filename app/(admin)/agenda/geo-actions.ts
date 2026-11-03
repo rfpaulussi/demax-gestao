@@ -475,6 +475,37 @@ export async function registrarCheckin(input: {
     }
   }
 
+  // Entrada em outro posto com uma visita ainda aberta: fecha a anterior sozinho (saída forçada),
+  // marcada para a coordenação cobrar o supervisor de registrar a saída antes de seguir viagem.
+  if (input.tipo === 'entrada') {
+    const { data: ultimoGeral } = await admin
+      .from('agenda_checkins')
+      .select('id, posto_id, tipo, created_at')
+      .eq('supervisor_id', auth.perfil.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const antes = ultimoGeral ? Date.parse(ultimoGeral.created_at) : NaN
+    if (ultimoGeral && ultimoGeral.tipo === 'entrada' && ultimoGeral.posto_id !== input.postoId && antes < capturado - 1) {
+      const saidaMs = Math.min(capturado - 1, Math.max(antes + 1, capturado - 1000))
+      await admin.from('agenda_checkins').insert({
+        supervisor_id: auth.perfil.id,
+        posto_id: ultimoGeral.posto_id,
+        bloco_id: null,
+        tipo: 'saida',
+        latitude: input.latitude,
+        longitude: input.longitude,
+        precisao_m: input.precisaoM,
+        distancia_m: null,
+        dentro_raio: false,
+        baixa_precisao: baixa,
+        justificativa: 'Fechamento automático: supervisor fez check-in em outro posto sem registrar a saída.',
+        created_at: new Date(saidaMs).toISOString(),
+        fechamento_automatico: true,
+      })
+    }
+  }
+
   // Vincula ao bloco planejado do dia da captura (se houver).
   const { data: blocosDia } = await admin
     .from('agenda_blocos')

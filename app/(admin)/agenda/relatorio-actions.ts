@@ -36,6 +36,7 @@ export type LinhaSupervisor = {
   postosSemVisita: number
   faltasSemMotivo: number // faltas sem justificativa no "Fechar o dia"
   fuiSemRegistro: number // faltas em que o supervisor disse ter ido sem registrar o check-in
+  saidaForcada: number // visitas em que o sistema fechou a saída sozinho (foi para outro posto sem registrar)
 }
 
 export type LinhaPosto = {
@@ -90,6 +91,7 @@ export type LinhaApoio = {
   foraRaio: number
   semFoto: number
   semSaida: number
+  saidaForcada: number // visitas em que o sistema fechou a saída sozinho (foi para outro posto sem registrar)
   porAtividade: { atividade: string; visitas: number }[]
   porSupervisor: { supervisor: string; visitas: number; postos: number; tempoMin: number }[] // quem o apoio mais ajudou
   detalhe: VisitaApoio[]
@@ -362,6 +364,7 @@ export async function carregarRelatorioMensal(
         postosSemVisita: 0,
         faltasSemMotivo: visitasMes.filter(v => v.status === 'falta' && !v.motivo_falta).length,
         fuiSemRegistro: visitasMes.filter(v => v.status === 'falta' && v.motivo_falta === 'fui_sem_registro').length,
+        saidaForcada: visitasMes.filter(v => v.saida_forcada).length,
       })
     }
 
@@ -499,6 +502,7 @@ export async function carregarRelatorioMensal(
         foraRaio: visitas.filter(v => v.alertas.includes('Fora do raio do posto')).length,
         semFoto: visitas.filter(v => v.fotos.length === 0).length,
         semSaida: visitas.filter(v => !v.saida_em).length,
+        saidaForcada: visitas.filter(v => v.saida_forcada).length,
         porAtividade: Array.from(porAtiv.entries()).map(([atividade, n]) => ({ atividade, visitas: n })).sort((a, b) => b.visitas - a.visitas),
         porSupervisor: Array.from(porSup.entries())
           .map(([supervisor, a]) => ({ supervisor, visitas: a.visitas, postos: a.postos.size, tempoMin: a.tempoMin }))

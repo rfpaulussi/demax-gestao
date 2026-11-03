@@ -203,6 +203,7 @@ export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: D
           { label: 'Com atenção', value: s => s.atencao },
           { label: 'Sem foto', value: s => s.semFoto },
           { label: 'Fora do raio', value: s => s.foraRaio },
+          { label: 'Saída forçada', value: s => s.saidaForcada },
           { label: 'Tempo médio (min)', value: s => s.tempoMedioMin },
           { label: 'Replanejamentos', value: s => s.replanejamentos },
           { label: 'Semanas publicadas', value: s => s.semanasPublicadas },
@@ -226,6 +227,7 @@ export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: D
                 { label: 'Fora do raio', value: (a: (typeof apoio)[number]) => a.foraRaio },
                 { label: 'Sem foto', value: (a: (typeof apoio)[number]) => a.semFoto },
                 { label: 'Sem saída', value: (a: (typeof apoio)[number]) => a.semSaida },
+                { label: 'Saída forçada', value: (a: (typeof apoio)[number]) => a.saidaForcada },
               ],
             },
             {
@@ -482,6 +484,7 @@ export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: D
                 <th className={th} title="Check-ins em posto fora do plano">Extras</th>
                 <th className={th} title="Cumpridas com sinal de atenção: fora do raio, permanência curta, GPS ruim">Atenção</th>
                 <th className={th}>Sem foto</th>
+                <th className={th} title="Sistema fechou a saída sozinho: supervisor abriu check-in em outro posto sem registrar a saída">Saída forçada</th>
                 <th className={th}>Tempo méd.</th>
                 <th className={th}>Replan.</th>
                 <th className={th} title="Semanas do mês: publicadas / em rascunho / sem agenda">Agenda</th>
@@ -513,6 +516,7 @@ export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: D
                     <td className={td}>{s.extras}</td>
                     <td className={`${td} ${s.atencao ? 'font-semibold text-amber-600' : 'text-slate-400'}`}>{s.atencao}</td>
                     <td className={`${td} ${s.semFoto ? 'font-semibold text-orange-600' : 'text-slate-400'}`}>{s.semFoto}</td>
+                    <td className={`${td} ${s.saidaForcada ? 'font-semibold text-rose-600' : 'text-slate-400'}`}>{s.saidaForcada}</td>
                     <td className={td}>{s.tempoMedioMin !== null ? `${s.tempoMedioMin} min` : '—'}</td>
                     <td className={td}>{s.replanejamentos}</td>
                     <td className={td}>
@@ -526,7 +530,7 @@ export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: D
                   </tr>
                 )
               })}
-              {supervisores.length === 0 && <tr><td className={td} colSpan={11}>Nenhum supervisor ativo.</td></tr>}
+              {supervisores.length === 0 && <tr><td className={td} colSpan={12}>Nenhum supervisor ativo.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -536,7 +540,7 @@ export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: D
       {apoio.map(a => (
         <section key={a.id} className={`${card} border-t-4 border-t-sky-500 p-5`}>
           <Cabecalho titulo={`🧭 Atividades de apoio · ${a.nome}`} detalhe="Sem agenda e sem cumprimento: o que vale é o que foi registrado em campo." />
-          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
+          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-8">
             {[
               { l: 'Dias em campo', v: a.diasEmCampo, alerta: false },
               { l: 'Visitas', v: a.visitas, alerta: false },
@@ -545,6 +549,7 @@ export function RelatorioMensal({ dados, anterior }: { dados: Dados; anterior: D
               { l: 'Tempo médio', v: duracao(a.tempoMedioMin), alerta: false },
               { l: 'Sem foto', v: a.semFoto, alerta: a.semFoto > 0 },
               { l: 'Sem saída', v: a.semSaida, alerta: a.semSaida > 0 },
+              { l: 'Saída forçada', v: a.saidaForcada, alerta: a.saidaForcada > 0 },
             ].map(k => (
               <div key={k.l} className="rounded-xl border border-slate-200 bg-white p-3">
                 <p className={`text-2xl font-black ${k.alerta ? 'text-orange-600' : 'text-slate-900'}`}>{k.v}</p>
