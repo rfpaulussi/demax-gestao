@@ -21,14 +21,18 @@ export function AgendaSupervisor({
   dados,
   hoje,
   modoGestao,
+  abaInicial,
+  diaInicial,
 }: {
   dados: AgendaDados
   hoje: string
   modoGestao: boolean
+  abaInicial?: 'agenda' | 'mapa'
+  diaInicial?: string // veio do alerta do painel: abre o mapa já filtrado neste dia
 }) {
   const [slot, setSlot] = useState<SlotAberto | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
-  const [aba, setAba] = useState<'agenda' | 'mapa'>('agenda')
+  const [aba, setAba] = useState<'agenda' | 'mapa'>(abaInicial ?? 'agenda')
   const { semanaInicio, semana, blocos, tipos, postos, sugestoes, comentarios, podeEditar, ehDono, supervisor, checkinsHoje, geoDisponivel, feriados, sede, ehAdmin, mudancas, apoio, postosHoje, liberados } = dados
   const dias = diasDaSemana(semanaInicio)
   const publicada = semana.status === 'publicada'
@@ -107,7 +111,7 @@ export function AgendaSupervisor({
             apoio postosHoje={postosHoje}
           />
         )}
-        <AbaMapa semanaInicio={semanaInicio} supervisorId={supervisor.id} dias={dias} apoio />
+        <AbaMapa semanaInicio={semanaInicio} supervisorId={supervisor.id} dias={dias} apoio diaInicial={diaInicial} />
       </div>
     )
   }
@@ -152,7 +156,7 @@ export function AgendaSupervisor({
         />
       </div>
 
-      {aba === 'mapa' && <AbaMapa semanaInicio={semanaInicio} supervisorId={supervisor.id} dias={dias} />}
+      {aba === 'mapa' && <AbaMapa semanaInicio={semanaInicio} supervisorId={supervisor.id} dias={dias} diaInicial={diaInicial} />}
 
       {aba === 'agenda' && modoGestao && podeEditar && (
         <p className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm text-sky-900">

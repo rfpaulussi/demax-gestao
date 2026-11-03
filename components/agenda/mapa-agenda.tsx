@@ -60,8 +60,15 @@ function pino(cor: string, texto: string) {
 const PALETA_APOIO = ['#2563eb', '#db2777', '#16a34a', '#ea580c', '#7c3aed', '#0891b2', '#ca8a04', '#dc2626', '#0d9488', '#9333ea']
 const COR_SEM_RESPONSAVEL = '#6b7280'
 
-export default function MapaAgenda({ dados, dias, apoio = false }: { dados: MapaDados; dias: string[]; apoio?: boolean }) {
-  const [dia, setDia] = useState<string>('todos')
+export default function MapaAgenda({
+  dados, dias, apoio = false, diaInicial,
+}: {
+  dados: MapaDados
+  dias: string[]
+  apoio?: boolean
+  diaInicial?: string // veio do alerta do painel: já abre filtrado neste dia
+}) {
+  const [dia, setDia] = useState<string>(diaInicial && dias.includes(diaInicial) ? diaInicial : 'todos')
   const [focoKey, setFocoKey] = useState<string | null>(null)
   const divRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)

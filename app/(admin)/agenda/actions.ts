@@ -106,6 +106,13 @@ export type CardSupervisor = {
   semFoto: number // visitas de foco que exige foto, sem foto
   recolhimentoPendente: boolean // hoje está na janela do recolhimento de cartão e não há recolhimento marcado no mês
   apoio: boolean // supervisor de apoio: não tem agenda, fica fora dos alertas e do cumprimento
+  ocorrencias: OcorrenciaCard[] // falta/sem_foto/alerta desta semana, com dia e posto, para o alerta do painel apontar o caso exato
+}
+
+export type OcorrenciaCard = {
+  data: string
+  posto: string
+  status: 'falta' | 'sem_foto' | 'alerta'
 }
 
 const PERIODOS_VALIDOS: Periodo[] = ['manha', 'tarde']
@@ -398,6 +405,16 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
   const sedeId = await buscarSedeId(admin)
   const minPorFoco = new Map(tipos.filter(t => t.permanencia_minima_min != null).map(t => [t.nome, t.permanencia_minima_min as number]))
 
+  // Nome dos postos envolvidos na semana (planejados ou com check-in), para identificar o posto nos alertas do painel.
+  const idsPostoSemana = new Set<string>()
+  for (const b of blocos) b.agenda_blocos_postos.forEach(p => idsPostoSemana.add(p.posto_id))
+  for (const cks of Array.from(cksPorSup.values())) for (const c of cks) idsPostoSemana.add(c.posto_id)
+  const postosGeo = new Map<string, PostoGeo>()
+  if (idsPostoSemana.size > 0) {
+    const { data: ps } = await admin.from('postos').select('id, nome, latitude, longitude, raio_m').in('id', Array.from(idsPostoSemana))
+    for (const p of (ps ?? []) as PostoGeo[]) postosGeo.set(p.id, { ...p, raio_m: p.raio_m ?? 150 })
+  }
+
   // Recolhimento de cartão: pendente se hoje está na janela sugerida e o supervisor não marcou nenhum no mês.
   const idsDiaInteiro = tipos.filter(t => t.dia_inteiro).map(t => t.id)
   const mes = intervaloDoMes(hojeStr)
@@ -430,16 +447,20 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
         exige_foto: exigeFotoTipo.get(b.tipo_foco_id) ?? false,
       })),
     )
-    const { stats } = montarVisitas({
+    const { stats, visitas } = montarVisitas({
       planos,
       checkins: cksPorSup.get(s.id) ?? [],
       historico: histPorSup.get(s.id) ?? [],
-      postos: new Map<string, PostoGeo>(),
+      postos: postosGeo,
       hoje: hojeStr,
       publicada: sem?.status === 'publicada',
       sedeId,
       minPorFoco,
     })
+    const ocorrencias: OcorrenciaCard[] = visitas
+      .filter((v): v is typeof v & { status: 'falta' | 'sem_foto' | 'alerta' } => v.status === 'falta' || v.status === 'sem_foto' || v.status === 'alerta')
+      .map(v => ({ data: v.data, posto: v.posto_nome, status: v.status }))
+      .sort((a, b) => a.data.localeCompare(b.data))
     return {
       id: s.id,
       nome: s.nome ?? 'Supervisor',
@@ -456,6 +477,7 @@ export async function carregarVisaoGeral(semanaParam: string | undefined): Promi
       semFoto: stats.semFoto,
       recolhimentoPendente: !idsApoio.has(s.id) && idsDiaInteiro.length > 0 && ehDiaDaJanela(hojeStr) && !comRecolhimento.has(s.id),
       apoio: idsApoio.has(s.id),
+      ocorrencias,
     }
   })
 

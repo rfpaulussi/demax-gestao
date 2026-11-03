@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 export default async function AgendaPage({
   searchParams,
 }: {
-  searchParams: { semana?: string; supervisor?: string }
+  searchParams: { semana?: string; supervisor?: string; aba?: string; dia?: string }
 }) {
   const auth = await getUser()
   if (!auth) redirect('/login')
@@ -56,7 +56,13 @@ export default async function AgendaPage({
 
   return (
     <div className="p-6">
-      <AgendaSupervisor dados={r.dados} hoje={hojeBR()} modoGestao={gestao} />
+      <AgendaSupervisor
+        dados={r.dados}
+        hoje={hojeBR()}
+        modoGestao={gestao}
+        abaInicial={searchParams.aba === 'mapa' ? 'mapa' : undefined}
+        diaInicial={searchParams.dia}
+      />
     </div>
   )
 }

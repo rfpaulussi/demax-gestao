@@ -11,7 +11,15 @@ const MapaAgenda = dynamic(() => import('./mapa-agenda'), {
   loading: () => <div className="h-96 animate-pulse rounded-2xl bg-slate-100" />,
 })
 
-export function AbaMapa({ semanaInicio, supervisorId, dias, apoio = false }: { semanaInicio: string; supervisorId: string; dias: string[]; apoio?: boolean }) {
+export function AbaMapa({
+  semanaInicio, supervisorId, dias, apoio = false, diaInicial,
+}: {
+  semanaInicio: string
+  supervisorId: string
+  dias: string[]
+  apoio?: boolean
+  diaInicial?: string
+}) {
   const [estado, setEstado] = useState<{ carregando: boolean; erro: string | null; dados: MapaDados | null }>({
     carregando: true, erro: null, dados: null,
   })
@@ -28,5 +36,5 @@ export function AbaMapa({ semanaInicio, supervisorId, dias, apoio = false }: { s
 
   if (estado.carregando) return <div className="h-96 animate-pulse rounded-2xl bg-slate-100" />
   if (estado.erro) return <p className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">{estado.erro}</p>
-  return <MapaAgenda dados={estado.dados!} dias={dias} apoio={apoio} />
+  return <MapaAgenda dados={estado.dados!} dias={dias} apoio={apoio} diaInicial={diaInicial} />
 }

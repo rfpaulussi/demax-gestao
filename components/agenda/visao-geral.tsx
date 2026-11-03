@@ -40,16 +40,28 @@ export function VisaoGeral({
 
   // Supervisor de apoio não tem agenda: fica fora de alertas, contagens e cumprimento.
   const cardsAgenda = cards.filter(c => !c.apoio)
-  const alertas: { id: string; nome: string; texto: string; nivel: 'alto' | 'medio' }[] = []
+  const OCORRENCIA_TEXTO = {
+    falta: 'visita planejada sem check-in',
+    sem_foto: 'sem a foto obrigatória',
+    alerta: 'sinal de atenção (fora do raio, permanência curta, deslocamento improvável…)',
+  } as const
+  const alertas: { id: string; nome: string; texto: string; nivel: 'alto' | 'medio'; dia?: string }[] = []
   for (const c of cardsAgenda) {
     if (c.status === 'sem_agenda' && semanaJaComecou) alertas.push({ id: c.id, nome: c.nome, texto: 'não montou a agenda desta semana', nivel: 'alto' })
     else if (c.status === 'rascunho' && semanaJaComecou) alertas.push({ id: c.id, nome: c.nome, texto: 'agenda ainda em rascunho (não publicada)', nivel: 'medio' })
     if (c.recolhimentoPendente) alertas.push({ id: c.id, nome: c.nome, texto: 'sem recolhimento de cartão marcado neste mês (janela sugerida: dias 15 a 21)', nivel: 'alto' })
-    if (c.faltas > 0) alertas.push({ id: c.id, nome: c.nome, texto: `${c.faltas} visita(s) planejada(s) sem check-in`, nivel: 'alto' })
-    if (c.semFoto > 0) alertas.push({ id: c.id, nome: c.nome, texto: `${c.semFoto} visita(s) sem a foto obrigatória`, nivel: 'alto' })
-    if (c.atencao > 0) alertas.push({ id: c.id, nome: c.nome, texto: `${c.atencao} visita(s) com sinal de atenção (fora do raio, permanência curta, deslocamento improvável…)`, nivel: 'medio' })
+    // Uma linha por ocorrência (dia + posto), não um total: pra identificar de cara qual visita é.
+    for (const o of c.ocorrencias) {
+      alertas.push({
+        id: c.id,
+        nome: c.nome,
+        texto: `${OCORRENCIA_TEXTO[o.status]} — ${o.posto} (${diaMes(o.data)})`,
+        nivel: o.status === 'alerta' ? 'medio' : 'alto',
+        dia: o.data,
+      })
+    }
   }
-  alertas.sort((a, b) => (a.nivel === b.nivel ? a.nome.localeCompare(b.nome) : a.nivel === 'alto' ? -1 : 1))
+  alertas.sort((a, b) => (a.nivel === b.nivel ? a.nome.localeCompare(b.nome) || (a.dia ?? '').localeCompare(b.dia ?? '') : a.nivel === 'alto' ? -1 : 1))
 
   const n =(s: CardSupervisor['status']) => cardsAgenda.filter(c => c.status === s).length
 
@@ -111,7 +123,7 @@ export function VisaoGeral({
             {alertas.map((a, i) => (
               <li key={i}>
                 <Link
-                  href={`/agenda?supervisor=${a.id}&semana=${semanaInicio}`}
+                  href={`/agenda?supervisor=${a.id}&semana=${semanaInicio}${a.dia ? `&aba=mapa&dia=${a.dia}` : ''}`}
                   className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition hover:brightness-95 ${
                     a.nivel === 'alto' ? 'bg-rose-50 text-rose-800' : 'bg-amber-50 text-amber-800'
                   }`}
