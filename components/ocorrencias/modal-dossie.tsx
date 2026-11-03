@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import type { DossieFuncionario, SupervisorSimples, TimelineTipo } from '@/app/(admin)/ocorrencias/actions'
 import { getDossieFuncionario, updateStatusOcorrencia, registrarRetornoRH, liberarCorrecaoOcorrencia, cancelarCorrecaoOcorrencia, corrigirTextoOcorrencia, darCienciaOcorrencia } from '@/app/(admin)/ocorrencias/actions'
@@ -88,6 +88,7 @@ export function ModalDossie({
   const [correcao, setCorrecao] = useState<{ id: string; modo: 'pedir' | 'corrigir' } | null>(null)
   const [correcaoTexto, setCorrecaoTexto] = useState('')
   const [isPending, startTransition] = useTransition()
+  const jaAutoAbriuConversa = useRef(false)
 
   // silencioso = atualiza os dados sem trocar a tela por "Carregando" (usado ao enviar mensagem)
   async function carregar(silencioso = false) {
@@ -95,9 +96,22 @@ export function ModalDossie({
     const data = await getDossieFuncionario(funcionarioId)
     setDossie(data)
     setLoading(false)
+
+    // ao abrir o dossiê, já mostra a conversa das ocorrências que estão esperando resposta de quem está vendo
+    if (!jaAutoAbriuConversa.current && data) {
+      jaAutoAbriuConversa.current = true
+      const ladoDoUsuario = ehGestao ? 'gestao' : 'supervisor'
+      const pendentes = data.timeline
+        .filter(item => item.tipo === 'ocorrencia' && item.aguardando === ladoDoUsuario)
+        .map(item => item.id)
+      if (pendentes.length > 0) {
+        setConversasAbertas(prev => new Set(Array.from(prev).concat(pendentes)))
+      }
+    }
   }
 
   useEffect(() => {
+    jaAutoAbriuConversa.current = false
     carregar()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [funcionarioId])
@@ -451,17 +465,31 @@ export function ModalDossie({
                             )}
                         </div>
 
-                        {canWrite && ehOcorrencia && (
-                          <div className="border-t border-gray-50 px-4 py-2">
-                            <button
-                              type="button"
-                              onClick={() => toggleConversa(item.id)}
-                              className="text-xs font-semibold text-purple-700 hover:text-purple-900"
-                            >
-                              {conversaAberta ? 'Ocultar conversa' : `Conversa (${item.comentarios ?? 0})`}
-                            </button>
-                          </div>
-                        )}
+                        {canWrite && ehOcorrencia && (() => {
+                          const aguardandoVoce = item.aguardando === (ehGestao ? 'gestao' : 'supervisor')
+                          return (
+                            <div className={`border-t border-gray-50 px-4 py-2 ${aguardandoVoce && !conversaAberta ? 'bg-rose-50' : ''}`}>
+                              <button
+                                type="button"
+                                onClick={() => toggleConversa(item.id)}
+                                className={
+                                  aguardandoVoce && !conversaAberta
+                                    ? 'flex items-center gap-1.5 text-xs font-semibold text-rose-700 hover:text-rose-900'
+                                    : 'text-xs font-semibold text-purple-700 hover:text-purple-900'
+                                }
+                              >
+                                {aguardandoVoce && !conversaAberta && (
+                                  <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-rose-500" />
+                                )}
+                                {conversaAberta
+                                  ? 'Ocultar conversa'
+                                  : aguardandoVoce
+                                    ? `Conversa em andamento (${item.comentarios ?? 0}) · responder`
+                                    : `Conversa (${item.comentarios ?? 0})`}
+                              </button>
+                            </div>
+                          )
+                        })()}
 
                         {correcao?.id === item.id && (
                           <div className="space-y-2 border-t border-gray-50 bg-amber-50/50 px-4 py-3">
