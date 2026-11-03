@@ -1,12 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { RefreshCw } from 'lucide-react'
 import { diaMes } from '@/lib/agenda/datas'
 import { HORA_INICIO_ESPERADA, MIN_SEM_SAIDA_ALERTA } from '@/lib/agenda/hoje'
 import type { DadosHoje, LinhaHoje, SituacaoHoje } from '@/app/(admin)/agenda/hoje-actions'
+import { MapaHoje } from './mapa-hoje'
 
 const INTERVALO_MS = 60_000
 
@@ -31,6 +32,7 @@ const duracao = (min: number) => (min < 60 ? `${min} min` : `${Math.floor(min / 
 /** Quadro do dia. Atualiza sozinho a cada minuto. */
 export function HojeEmCampo({ dados }: { dados: DadosHoje }) {
   const router = useRouter()
+  const [aba, setAba] = useState<'lista' | 'mapa'>('lista')
 
   useEffect(() => {
     const t = window.setInterval(() => router.refresh(), INTERVALO_MS)
@@ -81,10 +83,30 @@ export function HojeEmCampo({ dados }: { dados: DadosHoje }) {
         ))}
       </div>
 
-      <ul className="space-y-2">
-        {linhas.map(l => <Linha key={l.id} l={l} />)}
-        {linhas.length === 0 && <li className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm ring-1 ring-slate-200">Nenhum supervisor ativo.</li>}
-      </ul>
+      <div className="flex gap-1 rounded-xl bg-slate-100 p-1 sm:w-fit">
+        {([
+          { id: 'lista', label: '📋 Lista' },
+          { id: 'mapa', label: '🗺️ Mapa' },
+        ] as const).map(t => (
+          <button
+            key={t.id} type="button" onClick={() => setAba(t.id)}
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition sm:flex-none ${
+              aba === t.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {aba === 'mapa' && <MapaHoje dados={dados} />}
+
+      {aba === 'lista' && (
+        <ul className="space-y-2">
+          {linhas.map(l => <Linha key={l.id} l={l} />)}
+          {linhas.length === 0 && <li className="rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm ring-1 ring-slate-200">Nenhum supervisor ativo.</li>}
+        </ul>
+      )}
     </div>
   )
 }

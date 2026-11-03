@@ -26,6 +26,8 @@ export type LinhaHoje = {
   primeira: string | null // ISO da primeira chegada
   ultima: { em: string; tipo: 'entrada' | 'saida'; posto: string } | null
   aberta: { posto: string; desde: string; minutos: number } | null
+  /** Último ponto GPS registrado hoje (do próprio check-in; cai pro centro do posto se faltar). Null = sem check-in hoje. */
+  ponto: { lat: number; lng: number; doPosto: boolean } | null
 }
 
 export type DadosHoje = {
@@ -79,17 +81,27 @@ export async function carregarHoje(): Promise<{ ok: true; dados: DadosHoje } | {
   // Check-ins de hoje.
   const { data: cksRaw } = await admin
     .from('agenda_checkins')
-    .select('supervisor_id, posto_id, tipo, created_at')
+    .select('supervisor_id, posto_id, tipo, created_at, latitude, longitude')
     .gte('created_at', `${addDias(hoje, -1)}T00:00:00Z`)
     .order('created_at', { ascending: true })
-  type Ck = { supervisor_id: string; posto_id: string; tipo: 'entrada' | 'saida'; created_at: string }
+  type Ck = { supervisor_id: string; posto_id: string; tipo: 'entrada' | 'saida'; created_at: string; latitude: number | null; longitude: number | null }
   const cks = ((cksRaw ?? []) as Ck[]).filter(c => dataBR(c.created_at) === hoje)
 
   const idsPosto = Array.from(new Set(cks.map(c => c.posto_id)))
   const nomePosto = new Map<string, string>()
+  const coordPosto = new Map<string, { lat: number; lng: number }>()
   if (idsPosto.length > 0) {
-    const { data: ps } = await admin.from('postos').select('id, nome').in('id', idsPosto)
-    for (const p of (ps ?? []) as { id: string; nome: string }[]) nomePosto.set(p.id, p.nome)
+    const { data: ps } = await admin.from('postos').select('id, nome, latitude, longitude').in('id', idsPosto)
+    for (const p of (ps ?? []) as { id: string; nome: string; latitude: number | null; longitude: number | null }[]) {
+      nomePosto.set(p.id, p.nome)
+      if (p.latitude != null && p.longitude != null) coordPosto.set(p.id, { lat: p.latitude, lng: p.longitude })
+    }
+  }
+  // GPS do próprio check-in é mais preciso que o centro do posto; cai pro posto só se faltar (check-in antigo).
+  const pontoDoCheckin = (c: Ck): LinhaHoje['ponto'] => {
+    if (c.latitude != null && c.longitude != null) return { lat: c.latitude, lng: c.longitude, doPosto: false }
+    const p = coordPosto.get(c.posto_id)
+    return p ? { lat: p.lat, lng: p.lng, doPosto: true } : null
   }
 
   const feriadoHoje = (await feriadosDaSemana(segunda))[hoje]
@@ -135,6 +147,7 @@ export async function carregarHoje(): Promise<{ ok: true; dados: DadosHoje } | {
       primeira: entradas[0]?.created_at ?? null,
       ultima: ult ? { em: ult.created_at, tipo: ult.tipo, posto: nomePosto.get(ult.posto_id) ?? 'Posto' } : null,
       aberta,
+      ponto: abertas[0] ? pontoDoCheckin(abertas[0]) : ult ? pontoDoCheckin(ult) : null,
     }
   })
 
