@@ -761,6 +761,7 @@ export type ComentarioRow = {
   texto: string
   tipo: 'mensagem' | 'parecer' | 'nota_interna'
   created_at: string
+  autor_id: string
   autor_nome: string
   autor_role: string
   /** false = mensagem "só informar" (não pede resposta). */
@@ -772,6 +773,7 @@ type RawComentario = {
   texto: string
   tipo: 'mensagem' | 'parecer' | 'nota_interna'
   created_at: string
+  autor_id: string
   perfis: { nome: string | null; role: string | null } | { nome: string | null; role: string | null }[] | null
 }
 
@@ -786,7 +788,7 @@ export async function getComentarios(ocorrenciaId: string): Promise<ComentarioRo
   // O escopo do supervisor já foi checado em carregarOcorrenciaDevolutiva.
   let consulta = (createAdminClient() as unknown as AnyClient)
     .from('ocorrencia_comentarios')
-    .select('id, texto, tipo, created_at, perfis!autor_id(nome, role)')
+    .select('id, texto, tipo, created_at, autor_id, perfis!autor_id(nome, role)')
     .eq('ocorrencia_id', ocorrenciaId)
     .order('created_at', { ascending: true })
   // nota interna é só da gestão: o supervisor nunca a recebe
@@ -801,11 +803,39 @@ export async function getComentarios(ocorrenciaId: string): Promise<ComentarioRo
       texto: c.texto,
       tipo: c.tipo,
       created_at: c.created_at,
+      autor_id: c.autor_id,
       autor_nome: perfil?.nome ?? 'Usuário',
       autor_role: perfil?.role ?? '',
       requer_resposta: !semResposta.has(c.id),
     }
   })
+}
+
+export async function getUsuarioAtualId(): Promise<string | null> {
+  const auth = await getUser()
+  return auth?.user.id ?? null
+}
+
+export async function deletarComentario(comentarioId: string): Promise<ActionResult> {
+  const auth = await getUser()
+  if (!auth || auth.perfil.role === 'viewer') return { success: false, error: 'Sem permissão' }
+
+  const admin = createAdminClient() as unknown as AnyClient
+  const { data: comentario } = await admin
+    .from('ocorrencia_comentarios')
+    .select('id, autor_id, ocorrencia_id')
+    .eq('id', comentarioId)
+    .single()
+
+  if (!comentario || comentario.autor_id !== auth.user.id) {
+    return { success: false, error: 'Sem permissão' }
+  }
+
+  const { error } = await admin.from('ocorrencia_comentarios').delete().eq('id', comentarioId)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/ocorrencias')
+  return { success: true }
 }
 
 export async function comentarOcorrencia(

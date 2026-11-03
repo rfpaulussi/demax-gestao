@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { ROLE_LABELS } from '@/types'
 import type { Role } from '@/types'
 import type { ComentarioRow } from '@/app/(admin)/ocorrencias/actions'
-import { getComentarios, comentarOcorrencia } from '@/app/(admin)/ocorrencias/actions'
+import { getComentarios, comentarOcorrencia, deletarComentario, getUsuarioAtualId } from '@/app/(admin)/ocorrencias/actions'
 import { MAX_COMENTARIO } from '@/lib/ocorrencias/devolutiva'
 
 function fmtDataHora(iso: string): string {
@@ -30,6 +30,8 @@ export function ConversaOcorrencia({
   const [soInformar, setSoInformar]   = useState(false)
   const [erro, setErro]               = useState<string | null>(null)
   const [isPending, startTransition]  = useTransition()
+  const [meuId, setMeuId]             = useState<string | null>(null)
+  const [apagando, setApagando]       = useState<string | null>(null)
 
   async function carregar() {
     setComentarios(await getComentarios(ocorrenciaId))
@@ -37,8 +39,23 @@ export function ConversaOcorrencia({
 
   useEffect(() => {
     carregar()
+    getUsuarioAtualId().then(setMeuId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ocorrenciaId])
+
+  function handleApagar(id: string) {
+    if (!confirm('Apagar esta mensagem?')) return
+    setApagando(id)
+    startTransition(async () => {
+      const result = await deletarComentario(id)
+      if (result.success) {
+        await carregar()
+      } else {
+        setErro(result.error)
+      }
+      setApagando(null)
+    })
+  }
 
   function handleEnviar(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -102,6 +119,16 @@ export function ConversaOcorrencia({
                 )}
               </p>
               <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">{c.texto}</p>
+              {c.autor_id === meuId && c.tipo === 'mensagem' && (
+                <button
+                  type="button"
+                  onClick={() => handleApagar(c.id)}
+                  disabled={apagando === c.id}
+                  className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-red-400 hover:text-red-600 disabled:opacity-50"
+                >
+                  {apagando === c.id ? 'Apagando…' : 'Apagar'}
+                </button>
+              )}
             </div>
             )
           })}
