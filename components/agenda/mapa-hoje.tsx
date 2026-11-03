@@ -91,6 +91,9 @@ export function MapaHoje({ dados }: { dados: DadosHoje }) {
       pontos.push([l.ponto.lat, l.ponto.lng])
     }
 
+    // O container pode ainda não ter o tamanho final no primeiro paint (layout do grid/tabs assentando);
+    // sem isso o Leaflet calcula o zoom do fitBounds com base num tamanho errado e abre bem mais longe.
+    map.invalidateSize()
     if (pontos.length > 0) map.fitBounds(L.latLngBounds(pontos), { padding: [40, 40], maxZoom: 15 })
     return () => { g.remove() }
   }, [comPonto])
