@@ -211,7 +211,8 @@ export function ModalNovaSolicitacao({ funcionario, postos, funcoes, open, onClo
       : destino ? listarTurnosDoPosto(destino) : Promise.resolve([])
     promise.then(data => {
       const bruto = data as TurnoOpcao[]
-      const opcoes = tipo === 'mudanca_horario' && funcionario.turno_atual_nome
+      // jovem aprendiz: turno pode ficar igual, só o dia de curso muda — não filtra o turno atual
+      const opcoes = tipo === 'mudanca_horario' && funcionario.turno_atual_nome && !jovemNovo
         ? bruto.filter(t => t.nome !== funcionario.turno_atual_nome)
         : bruto
       setTurnoOpcoes(opcoes)
