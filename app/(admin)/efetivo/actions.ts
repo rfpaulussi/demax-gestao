@@ -10,6 +10,7 @@ import { existeAfastamentoAberto, fecharAfastamentosVencidos } from '@/lib/afast
 import { buscarAtestadoSobreposto, mensagemSobreposicao } from '@/lib/atestados/sobreposicao'
 import { assinaturaAbreviada } from '@/lib/desligamentos/assinatura'
 import { buscarSolicitacaoEmAnalise, mensagemEmAnalise, mensagemSolicitacaoEmAnalise } from '@/lib/solicitacoes/duplicidade'
+import { diasUnicosAtestados } from '@/lib/atestados/periodos'
 
 /** Assinatura (apelido) do supervisor logado, para o comunicado impresso; null para os demais perfis. */
 export async function assinaturaSupervisorLogado(): Promise<string | null> {
@@ -75,10 +76,34 @@ export async function registrarAtestado(formData: FormData) {
     if (!temAcesso) throw new Error('Acesso negado — funcionário fora do seu posto')
   }
 
+  const ehSupervisor = auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador'
+
   if (func.status === 'afastado') {
-    const podeIgnorar = auth.perfil.role === 'admin' || auth.perfil.role === 'coordenador'
-    if (!podeIgnorar) {
+    if (ehSupervisor) {
       throw new Error('Funcionário está afastado. Apenas admin/coordenador podem lançar atestado nesta situação — solicite o retorno de afastamento antes.')
+    }
+  } else if (ehSupervisor) {
+    // Supervisor não pode ficar empilhando atestado avulso indefinidamente: a partir de 15 dias
+    // acumulados nos últimos 30 dias corridos (mesmo cálculo de /atestados) sem o afastamento
+    // formalizado, precisa acionar admin/coordenador — é exatamente o padrão que represa os casos
+    // "Avaliar INSS" sem resolução.
+    const limite = new Date()
+    limite.setDate(limite.getDate() - 30)
+    const limiteStr = limite.toISOString().slice(0, 10)
+    const { data: atestadosRecentes } = await createAdminClient()
+      .from('atestados')
+      .select('data_inicio, data_fim')
+      .eq('funcionario_id', funcionarioId)
+      .gte('data_fim', limiteStr)
+    const acumuladoProjetado = diasUnicosAtestados([
+      ...(atestadosRecentes ?? []),
+      { data_inicio: dataInicio, data_fim: dataFim },
+    ])
+    if (acumuladoProjetado > 15) {
+      throw new Error(
+        `Este atestado levaria o acumulado a ${acumuladoProjetado} dias nos últimos 30 dias — passou do limite de 15 dias do INSS. ` +
+        'Não lance mais atestados avulsos: fale com o RH/administrador para formalizar o afastamento (botão "Solicitar INSS" em Atestados).',
+      )
     }
   }
 
