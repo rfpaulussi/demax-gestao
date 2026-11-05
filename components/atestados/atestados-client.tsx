@@ -89,6 +89,10 @@ type InssModalState = {
   // Mensagem de aviso quando o cálculo do episódio falhou e caiu no fallback antigo
   // (soma bruta de 30 dias) — mostrada no modal.
   avisoFallback?: string
+  // Episódio bruto calculado pela action (datas reais do episódio, sem o ajuste de "dia seguinte
+  // ao último atestado"). Usado pra repreencher o formulário quando o admin desmarca "Registrar
+  // atestado junto" — aí não há risco de sobreposição e as datas reais fazem mais sentido.
+  episodio?: { dataInicio: string; dataFim: string; dias: number }
 }
 
 function exportExcel(rows: AtestadoRow[]) {
@@ -149,9 +153,26 @@ function ModalSolicitarInss({
   const [dataRetorno, setDataRetorno] = useState(
     state.data_inicio ? addDays(state.data_inicio, state.dias) : '',
   )
+  const [registrarAtestadoJunto, setRegistrarAtestadoJunto] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [pending, start] = useTransition()
   const [tocouCampos, setTocouCampos] = useState(false)
+
+  // Sem atestado novo não há risco de sobreposição — nesse caso as datas reais do episódio
+  // (não o "dia seguinte ao último atestado") são o que faz sentido pré-preencher.
+  function handleToggleAtestado(checked: boolean) {
+    setRegistrarAtestadoJunto(checked)
+    if (state.avisoFallback) setTocouCampos(true)
+    if (!checked && state.episodio) {
+      setDataInicio(state.episodio.dataInicio)
+      setDias(String(state.episodio.dias))
+      setDataRetorno(addDays(state.episodio.dataInicio, state.episodio.dias))
+    } else {
+      setDataInicio(state.data_inicio)
+      setDias(String(state.dias))
+      setDataRetorno(state.data_inicio ? addDays(state.data_inicio, state.dias) : '')
+    }
+  }
 
   function handleDias(val: string) {
     setDias(val)
@@ -176,7 +197,7 @@ function ModalSolicitarInss({
     fd.set('motivo', motivo)
     fd.set('data_inicio', dataInicio)
     fd.set('data_retorno_prevista', dataRetorno)
-    fd.set('eh_medico', 'true')
+    fd.set('eh_medico', registrarAtestadoJunto ? 'true' : 'false')
     fd.set('dias', dias)
     start(async () => {
       const res = await solicitarAfastamento(fd)
@@ -196,10 +217,26 @@ function ModalSolicitarInss({
         <div className="mb-4 rounded border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
           Dados pré-preenchidos com base nos atestados acumulados. Revise antes de enviar.
         </div>
-        <div className="mb-4 rounded border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          💡 Isso gera um novo atestado “guarda-chuva” pro período do afastamento — sem CID, só pra
-          cobrir o intervalo. Não duplica os atestados já lançados, que continuam valendo no histórico.
-        </div>
+        <label className="mb-4 flex cursor-pointer items-center gap-2">
+          <input
+            type="checkbox"
+            checked={registrarAtestadoJunto}
+            onChange={e => handleToggleAtestado(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 accent-slate-900"
+          />
+          <span className="text-sm text-gray-700">Registrar atestado junto</span>
+        </label>
+        {registrarAtestadoJunto ? (
+          <div className="mb-4 rounded border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            💡 Isso gera um novo atestado “guarda-chuva” pro período do afastamento — sem CID, só pra
+            cobrir o intervalo. Não duplica os atestados já lançados, que continuam valendo no histórico.
+          </div>
+        ) : (
+          <div className="mb-4 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+            Afastamento registrado sem atestado novo — use quando o atestado já lançado já cobre o
+            período (evita erro de sobreposição). Recomendado pra INSS de longa duração já documentado.
+          </div>
+        )}
         {state.avisoFallback && (
           <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
             ⚠ {state.avisoFallback} — usando estimativa antiga (soma bruta de 30 dias). Revise as datas
@@ -400,11 +437,15 @@ export function AtestadosClient({ atestados, cids, isAdmin, ambulatorioAtivo }: 
         // Guarda-chuva não duplica os atestados já lançados (continuam valendo no histórico) —
         // por isso começa no dia seguinte ao fim do último atestado do episódio, não no início
         // do episódio. Começar no início sempre colidia com a checagem de sobreposição.
+        // "Dias" não reaproveita res.dias (span do episódio já documentado): não há base pra
+        // supor que o afastamento vai se repetir por mais esse tanto a partir daqui — fica em 1,
+        // o admin ajusta com informação real (RH/perícia).
         setInssModal({
           ...baseFallback,
           data_inicio: addDays(res.dataFim, 1),
-          dias: res.dias,
+          dias: 1,
           atestadosIncluidos: res.atestadosIncluidos,
+          episodio: { dataInicio: res.dataInicio, dataFim: res.dataFim, dias: res.dias },
         })
       }
     } catch {
