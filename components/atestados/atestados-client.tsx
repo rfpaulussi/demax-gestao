@@ -397,9 +397,12 @@ export function AtestadosClient({ atestados, cids, isAdmin, ambulatorioAtivo }: 
       if ('erro' in res) {
         setInssModal({ ...baseFallback, avisoFallback: res.erro })
       } else {
+        // Guarda-chuva não duplica os atestados já lançados (continuam valendo no histórico) —
+        // por isso começa no dia seguinte ao fim do último atestado do episódio, não no início
+        // do episódio. Começar no início sempre colidia com a checagem de sobreposição.
         setInssModal({
           ...baseFallback,
-          data_inicio: res.dataInicio,
+          data_inicio: addDays(res.dataFim, 1),
           dias: res.dias,
           atestadosIncluidos: res.atestadosIncluidos,
         })
