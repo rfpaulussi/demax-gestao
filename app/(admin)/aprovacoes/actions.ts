@@ -181,6 +181,7 @@ async function finalizarAprovacaoSemMovimentacao(
 const CAMPOS_OVERRIDE_PERMITIDOS = [
   'data_admissao', 'nome', 'registro', 'funcao_id', 'funcao_nome', 'periodo_experiencia',
   'data_desligamento', 'tipo_desligamento', 'motivo',
+  'data_inicio', 'data_retorno_prevista', 'data_retorno',
 ] as const
 export type OverrideAprovacao = Partial<Record<typeof CAMPOS_OVERRIDE_PERMITIDOS[number], string>>
 

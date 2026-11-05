@@ -82,8 +82,10 @@ export function ModalDetalheSolicitacao({
     return overrides[chave] ?? (depois[chave] != null ? String(depois[chave]) : String(fallback))
   }
 
-  const isAdmissao    = editando && sol.tipo === 'admissao'
+  const isAdmissao     = editando && sol.tipo === 'admissao'
   const isDesligamento = editando && sol.tipo === 'desligamento'
+  const isAfastamento  = editando && sol.tipo === 'afastamento'
+  const isRetorno      = editando && sol.tipo === 'retorno_afastamento'
 
   const tipoDesligAtual = (val('tipo_desligamento') || undefined) as TipoDesligamento | undefined
   const motivosDoTipo = tipoDesligAtual ? MOTIVOS_POR_TIPO[tipoDesligAtual] ?? [] : []
@@ -91,7 +93,13 @@ export function ModalDetalheSolicitacao({
   // Labels dos campos que viram input editável — somem da lista somente-leitura abaixo.
   const LABELS_OCULTOS_ADMISSAO = ['Nome', 'Função', 'Data de Admissão', 'Registro (PIS/NIT)', 'Período de Experiência']
   const LABELS_OCULTOS_DESLIGAMENTO = ['Data de Desligamento', 'Tipo de Desligamento', 'Motivação']
-  const labelsOcultos = isAdmissao ? LABELS_OCULTOS_ADMISSAO : isDesligamento ? LABELS_OCULTOS_DESLIGAMENTO : []
+  const LABELS_OCULTOS_AFASTAMENTO = ['Motivo', 'Data de Início', 'Retorno Previsto', 'Dias']
+  const LABELS_OCULTOS_RETORNO = ['Data de Retorno']
+  const labelsOcultos = isAdmissao ? LABELS_OCULTOS_ADMISSAO
+    : isDesligamento ? LABELS_OCULTOS_DESLIGAMENTO
+    : isAfastamento ? LABELS_OCULTOS_AFASTAMENTO
+    : isRetorno ? LABELS_OCULTOS_RETORNO
+    : []
 
   return (
     <Dialog.Root open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
@@ -218,6 +226,53 @@ export function ModalDetalheSolicitacao({
                   />
                 </CampoEditavel>
               </>
+            )}
+
+            {isAfastamento && (
+              <>
+                <CampoEditavel label="Motivo do Afastamento">
+                  <select
+                    value={val('motivo')}
+                    onChange={e => onOverrideChange('motivo', e.target.value)}
+                    className={cn(inputClass, 'w-56')}
+                  >
+                    <option value="">Selecione…</option>
+                    <option value="INSS - Doença">INSS — Doença</option>
+                    <option value="INSS - Acidente de Trabalho">INSS — Acidente de Trabalho</option>
+                    <option value="Licença Maternidade">Licença Maternidade</option>
+                    <option value="Licença Paternidade">Licença Paternidade</option>
+                    <option value="Afastamento Judicial">Afastamento Judicial</option>
+                    <option value="Outros">Outros</option>
+                  </select>
+                </CampoEditavel>
+                <CampoEditavel label="Data de Início">
+                  <input
+                    type="date"
+                    value={val('data_inicio').slice(0, 10)}
+                    onChange={e => onOverrideChange('data_inicio', e.target.value)}
+                    className={inputClass}
+                  />
+                </CampoEditavel>
+                <CampoEditavel label="Retorno Previsto">
+                  <input
+                    type="date"
+                    value={val('data_retorno_prevista').slice(0, 10)}
+                    onChange={e => onOverrideChange('data_retorno_prevista', e.target.value)}
+                    className={inputClass}
+                  />
+                </CampoEditavel>
+              </>
+            )}
+
+            {isRetorno && (
+              <CampoEditavel label="Data de Retorno">
+                <input
+                  type="date"
+                  value={val('data_retorno').slice(0, 10)}
+                  onChange={e => onOverrideChange('data_retorno', e.target.value)}
+                  className={inputClass}
+                />
+              </CampoEditavel>
             )}
           </div>
 
