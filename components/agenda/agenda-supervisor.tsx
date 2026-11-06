@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { addDias, diasDaSemana, rotuloSemana } from '@/lib/agenda/datas'
 import { PERIODOS, SLOTS_MAX, type Periodo } from '@/lib/agenda/tema'
 import type { AgendaDados } from '@/app/(admin)/agenda/actions'
+import type { StatusVisita, VisitaView } from '@/lib/agenda/visitas'
 import { GradeSemanal } from './grade-semanal'
 import { RecolhimentoSemana } from './recolhimento-semana'
 import { ModalBloco, type SlotAberto } from './modal-bloco'
@@ -37,14 +38,17 @@ export function AgendaSupervisor({
   const dias = diasDaSemana(semanaInicio)
   const publicada = semana.status === 'publicada'
   const [repostasLista, setRepostasLista] = useState<{ data: string; posto_id: string; reposta_em: string }[]>([])
+  const [statusLista, setStatusLista] = useState<VisitaView[]>([])
 
-  // Visitas repostas na semana (falta coberta por visita extra no mesmo posto): selo nos cards da grade.
+  // Visitas da semana (status de presença + repostas): selos na grade. Uma busca só alimenta os dois.
   useEffect(() => {
     let vivo = true
     setRepostasLista([])
+    setStatusLista([])
     if (!publicada) return
     carregarMapa(semanaInicio, supervisor.id).then(r => {
       if (!vivo || !r.ok) return
+      setStatusLista(r.dados.visitas)
       setRepostasLista(
         r.dados.visitas
           .filter(v => v.status === 'reposta' && v.reposta_em)
@@ -57,6 +61,12 @@ export function AgendaSupervisor({
     () => Object.fromEntries(repostasLista.map(r => [`${r.data}|${r.posto_id}`, r.reposta_em])),
     [repostasLista],
   )
+  // Status de presença por posto+dia (ignora 'extra': não corresponde a um bloco planejado específico).
+  const statusPorSlot = useMemo(() => {
+    const m: Record<string, StatusVisita> = {}
+    for (const v of statusLista) if (v.status !== 'extra') m[`${v.data}|${v.posto_id}`] = v.status
+    return m
+  }, [statusLista])
 
   function hrefSemana(s: string) {
     const q = new URLSearchParams()
@@ -204,6 +214,7 @@ export function AgendaSupervisor({
           podeEditar={podeEditar}
           feriados={feriados}
           repostas={repostas}
+          statusPorSlot={statusPorSlot}
           onSlot={(data, periodo, ordem, bloco) => setSlot({
             data, periodo, ordem, bloco,
             grupoPeriodos: bloco
