@@ -154,7 +154,7 @@ _Para quem vai testar o sistema antes do uso oficial_
 - [ ] No posto, toquei em Cheguei e vi a distância.
 - [ ] Anexei a foto da chegada.
 - [ ] Toquei em Saí.
-- [ ] Testei uma "+ Visita extra".
+- [ ] Testei uma "+ Visita extra" e escolhi o motivo.
 - [ ] Abri o Mapa de visitas e conferi as cores.
 - [ ] Baixei o PDF da semana.
 - [ ] Anotei (com print) tudo o que deu erro, ficou confuso ou demorado.
