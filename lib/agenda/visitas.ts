@@ -323,6 +323,8 @@ export function montarVisitas(args: {
       fotos: extra.fotos,
       motivo_extra: extra.motivo_extra,
       atividade_obs: extra.atividade_obs,
+      motivo_falta: null,
+      motivo_texto: null,
       reposta_em: extra.data,
       saida_forcada: extra.saida_forcada,
       alertas: [`Reposição: visita planejada para ${diaMes(falta.data)} feita em ${diaMes(extra.data)}`, ...extra.alertas],
