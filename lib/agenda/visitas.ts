@@ -30,6 +30,7 @@ export type CheckinRaw = {
   foco_id?: string | null // atividade informada no check-in do supervisor de apoio
   recebido_em?: string | null // quando o servidor recebeu (created_at é a hora da captura no aparelho)
   atividade_obs?: string | null
+  motivo_extra?: string | null // supervisor comum: motivo da visita extra (fora do plano do dia)
   fechamento_automatico?: boolean | null // saída (tipo='saida') criada pelo sistema ao abrir check-in em outro posto
 }
 
@@ -50,6 +51,16 @@ export type PostoGeo = {
 }
 
 export type StatusVisita = 'ok' | 'alerta' | 'sem_foto' | 'falta' | 'agendado' | 'extra' | 'reposta'
+
+const PRIORIDADE_STATUS: Record<StatusVisita, number> = {
+  falta: 0, sem_foto: 1, alerta: 2, extra: 3, ok: 4, reposta: 5, agendado: 6,
+}
+
+/** Pior (mais grave) status entre os informados — usado pra resumir um bloco com vários postos na grade. */
+export function piorStatus(status: StatusVisita[]): StatusVisita | null {
+  if (status.length === 0) return null
+  return status.reduce((pior, s) => (PRIORIDADE_STATUS[s] < PRIORIDADE_STATUS[pior] ? s : pior))
+}
 
 export type VisitaView = {
   key: string
@@ -75,6 +86,7 @@ export type VisitaView = {
   fotos: string[]
   atividade: string | null // supervisor de apoio: o que foi fazer no posto
   atividade_obs: string | null
+  motivo_extra: string | null // supervisor comum: motivo da visita extra (fora do plano do dia)
   motivo_falta: string | null // justificativa do "Fechar o dia" (tipo) quando não houve check-in
   motivo_texto: string | null
   reposta_em: string | null // dia em que a visita reposta foi de fato feita (status 'reposta')
@@ -254,6 +266,7 @@ export function montarVisitas(args: {
       fotos: [entrada?.foto_path, saida?.foto_path].filter((f): f is string => !!f),
       atividade: entrada?.foco_id ? focoPorId?.get(entrada.foco_id) ?? null : null,
       atividade_obs: entrada?.atividade_obs ?? null,
+      motivo_extra: entrada?.motivo_extra ?? null,
       motivo_falta: entrada ? null : justificativas?.get(`${data}|${postoId}`)?.tipo ?? null,
       motivo_texto: entrada ? null : justificativas?.get(`${data}|${postoId}`)?.texto ?? null,
       saida_forcada: !!saida?.fechamento_automatico,
@@ -308,6 +321,7 @@ export function montarVisitas(args: {
       lat_real: extra.lat_real,
       lng_real: extra.lng_real,
       fotos: extra.fotos,
+      motivo_extra: extra.motivo_extra,
       reposta_em: extra.data,
       saida_forcada: extra.saida_forcada,
       alertas: [`Reposição: visita planejada para ${diaMes(falta.data)} feita em ${diaMes(extra.data)}`, ...extra.alertas],
