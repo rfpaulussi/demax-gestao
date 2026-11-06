@@ -10,6 +10,8 @@ import { marcarLocalPosto, registrarCheckin } from '@/app/(admin)/agenda/geo-act
 import { comprimirImagem } from '@/lib/agenda/imagem'
 import { dataBR, MIN_PERMANENCIA_MIN } from '@/lib/agenda/visitas'
 import { NovoCheckinApoio } from './novo-checkin-apoio'
+import { CampoObservacao } from './campo-observacao'
+import { TIPOS_MOTIVO_EXTRA, exigeTextoMotivoExtra } from '@/lib/agenda/motivos-visita-extra'
 import { FecharDia } from './fechar-dia'
 import { listarFotosPendentes, salvarFotoPendente } from '@/lib/agenda/fila-fotos'
 import { listarCheckinsPendentes, salvarCheckinPendente, type CheckinPendente } from '@/lib/agenda/fila-checkins'
@@ -200,6 +202,10 @@ export function CheckinPainel({
   const [erroFila, setErroFila] = useState<string | null>(null)
   // Apoio: atividade escolhida por posto, lida em acionar() (ref: precisa estar pronta na mesma chamada).
   const atividadesRef = useRef<Record<string, { focoId: string; obs: string; postoNome: string }>>({})
+  const motivosExtraRef = useRef<Record<string, { motivo: string; obs: string }>>({})
+  const [motivoAberto, setMotivoAberto] = useState<string | null>(null) // postoId aguardando motivo da visita extra
+  const [motivoSel, setMotivoSel] = useState('')
+  const [motivoObs, setMotivoObs] = useState('')
   // Lembrete de check-in pendente a partir das 16h (só no cliente: depende do relógio do aparelho).
   const [fimDeTarde, setFimDeTarde] = useState(false)
   useEffect(() => {
@@ -448,6 +454,7 @@ export function CheckinPainel({
 
   async function acionar(postoId: string, tipo: 'entrada' | 'saida', coordsPrev?: Coords, justificativa?: string) {
     const atv = tipo === 'entrada' ? atividadesRef.current[postoId] : undefined
+    const mx = tipo === 'entrada' ? motivosExtraRef.current[postoId] : undefined
     setErro(null)
     setAviso(null)
     setAprox(null)
@@ -464,7 +471,8 @@ export function CheckinPainel({
         capturadoEm: new Date().toISOString(),
         justificativa,
         focoId: atv?.focoId,
-        atividadeObs: atv?.obs,
+        atividadeObs: atv?.obs ?? mx?.obs,
+        motivoExtra: mx?.motivo,
         postoNome: atv?.postoNome ?? [...postos, ...visitadosApoio].find(p => p.id === postoId)?.nome,
       }
       if (semConexao()) return await guardarCheckin(item, tipo)
@@ -474,6 +482,7 @@ export function CheckinPainel({
         r = await comTempoLimite(registrarCheckin({
           postoId, tipo, latitude: coords.lat, longitude: coords.lng, precisaoM: coords.precisao, justificativa,
           localId: item.localId, capturadoEm: item.capturadoEm, focoId: item.focoId, atividadeObs: item.atividadeObs,
+          motivoExtra: item.motivoExtra,
         }))
       } catch {
         // Sem sinal ou servidor sem resposta: guarda e tenta depois (o servidor não duplica).
@@ -523,6 +532,19 @@ export function CheckinPainel({
         if (min < MIN_PERMANENCIA_MIN && !window.confirm(`Você chegou há ${min < 1 ? 'menos de 1 minuto' : `${min} min`}. Só toque em "Saí" quando terminar a visita neste posto.\n\nRegistrar a saída agora?`)) return
       }
       void acionar(posto.id, 'saida')
+    }
+
+    function iniciarExtra() {
+      setErro(null)
+      setMotivoAberto(posto.id)
+      setMotivoSel('')
+      setMotivoObs('')
+    }
+
+    function confirmarExtra() {
+      motivosExtraRef.current[posto.id] = { motivo: motivoSel, obs: motivoObs.trim() }
+      setMotivoAberto(null)
+      void acionar(posto.id, 'entrada')
     }
 
     return (
@@ -578,7 +600,7 @@ export function CheckinPainel({
               <MapPinOff className="h-4 w-4" /> {carregando ? 'Localizando…' : 'Marcar local aqui'}
             </button>
           ) : !entrada ? (
-            <button type="button" disabled={!!busy} onClick={() => acionar(posto.id, 'entrada')}
+            <button type="button" disabled={!!busy} onClick={() => (extra ? iniciarExtra() : acionar(posto.id, 'entrada'))}
               className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50">
               <LogIn className="h-4 w-4" /> {carregando ? 'Localizando…' : 'Cheguei'}
             </button>
@@ -592,7 +614,7 @@ export function CheckinPainel({
               <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700">
                 {pendenteAlgum ? 'aguardando envio' : 'concluído'}
               </span>
-              {!apoio && <button type="button" disabled={!!busy} onClick={() => acionar(posto.id, 'entrada')}
+              {!apoio && <button type="button" disabled={!!busy} onClick={() => (extra ? iniciarExtra() : acionar(posto.id, 'entrada'))}
                 className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-50">
                 <LogIn className="h-3.5 w-3.5" /> {carregando ? 'Localizando…' : 'Voltei ao posto (nova visita)'}
               </button>}
@@ -619,6 +641,34 @@ export function CheckinPainel({
               className="mt-2 rounded-lg bg-amber-500 px-4 py-1.5 text-sm font-semibold text-slate-900 hover:bg-amber-400 disabled:opacity-40">
               Enviar com justificativa
             </button>
+          </div>
+        )}
+
+        {motivoAberto === posto.id && (
+          <div className="mt-3 rounded-lg border border-slate-300 bg-slate-50 p-3">
+            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-600">Por que esta visita não estava no plano?</p>
+            <select value={motivoSel} onChange={e => setMotivoSel(e.target.value)}
+              className="mb-2 w-full rounded-lg border border-slate-200 bg-white p-2 text-sm outline-none focus:border-slate-400">
+              <option value="">Motivo (obrigatório)…</option>
+              {TIPOS_MOTIVO_EXTRA.map(m => <option key={m.id} value={m.id}>{m.rotulo}</option>)}
+            </select>
+            <CampoObservacao
+              value={motivoObs}
+              onChange={setMotivoObs}
+              maxLength={300}
+              placeholder={motivoSel === 'outro' ? 'Descreva o motivo (obrigatório)' : 'Observação (opcional)'}
+            />
+            <div className="mt-2 flex gap-2">
+              <button type="button"
+                disabled={!!busy || !motivoSel || (exigeTextoMotivoExtra(motivoSel) && motivoObs.trim().length < 5)}
+                onClick={confirmarExtra}
+                className="rounded-lg bg-slate-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-40">
+                Confirmar e fazer check-in
+              </button>
+              <button type="button" onClick={() => setMotivoAberto(null)} className="rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-white">
+                Cancelar
+              </button>
+            </div>
           </div>
         )}
 
