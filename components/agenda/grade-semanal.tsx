@@ -1,12 +1,21 @@
 'use client'
 
-import { MessageSquareText, Plus, RefreshCw, RotateCcw, Sun, Sunset } from 'lucide-react'
+import { Camera, CheckCircle2, MessageSquareText, Plus, RefreshCw, RotateCcw, Sun, Sunset, XCircle } from 'lucide-react'
 import { DIAS_CURTOS, PERIODOS, slotsVisiveis, temaDe, type FeriadoDia, type Periodo } from '@/lib/agenda/tema'
 import { diaMes, numeroDia } from '@/lib/agenda/datas'
 import { ehDiaDaJanela } from '@/lib/agenda/recolhimento'
+import { piorStatus, type StatusVisita } from '@/lib/agenda/visitas'
 import type { BlocoView, TipoFoco } from '@/app/(admin)/agenda/actions'
 
 const ICONE_PERIODO = { manha: Sun, tarde: Sunset } as const
+
+type SeloStatus = { Icone: typeof CheckCircle2; cor: string; titulo: string }
+const SELO_STATUS: Partial<Record<StatusVisita, SeloStatus>> = {
+  ok: { Icone: CheckCircle2, cor: 'text-emerald-600', titulo: 'Esteve no posto' },
+  alerta: { Icone: CheckCircle2, cor: 'text-emerald-600', titulo: 'Esteve no posto, com atenção' },
+  falta: { Icone: XCircle, cor: 'text-rose-600', titulo: 'Sem check-in' },
+  sem_foto: { Icone: Camera, cor: 'text-orange-600', titulo: 'Sem foto obrigatória' },
+}
 
 export function GradeSemanal({
   dias,
@@ -16,6 +25,7 @@ export function GradeSemanal({
   podeEditar,
   feriados,
   repostas,
+  statusPorSlot,
   onSlot,
 }: {
   dias: string[]
@@ -25,6 +35,7 @@ export function GradeSemanal({
   podeEditar: boolean
   feriados: Record<string, FeriadoDia>
   repostas?: Record<string, string> // `data|postoId` → dia em que a visita foi reposta
+  statusPorSlot?: Record<string, StatusVisita> // `data|postoId` → status da visita (presença), para o selo na grade
   onSlot: (data: string, periodo: Periodo, ordem: number, bloco: BlocoView | null) => void
 }) {
   const tiposMap = new Map(tipos.map(t => [t.id, t]))
@@ -120,6 +131,10 @@ export function GradeSemanal({
                     const tema = temaDe(tipo?.cor)
                     const extras = bloco.postos.length - 2
                     const reposicao = bloco.postos.map(po => repostas?.[`${data}|${po.id}`]).find(Boolean)
+                    const statusBloco = statusPorSlot && bloco.postos.length > 0
+                      ? piorStatus(bloco.postos.map(po => statusPorSlot[`${data}|${po.id}`]).filter((s): s is StatusVisita => !!s))
+                      : null
+                    const selo = statusBloco ? SELO_STATUS[statusBloco] : null
                     return (
                       <button
                         key={ordem}
@@ -133,6 +148,7 @@ export function GradeSemanal({
                           <span className="line-clamp-2 flex-1">{tipo?.nome ?? 'Foco'}</span>
                           {bloco.replanejado && <RefreshCw className="h-3 w-3 shrink-0 text-amber-600" aria-label="Replanejado" />}
                           {bloco.observacao && <MessageSquareText className="h-3 w-3 shrink-0" aria-label="Com observação" />}
+                          {selo && <selo.Icone className={`h-3 w-3 shrink-0 ${selo.cor}`} aria-label={selo.titulo} />}
                         </span>
                         <span className="flex flex-wrap gap-1">
                           {bloco.postos.slice(0, 2).map(po => (
