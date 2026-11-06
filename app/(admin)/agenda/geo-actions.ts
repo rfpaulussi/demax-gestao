@@ -560,13 +560,16 @@ export async function registrarCheckin(input: {
   let { data: criado, error } = await inserir(camposAtividade)
   // Coluna motivo_extra pode ainda não existir (migração 20261106_agenda_motivo_extra.sql pendente):
   // grava o check-in do mesmo jeito, sem o motivo, em vez de bloquear o registro da visita.
-  if (error && 'motivo_extra' in camposAtividade && String(error.message).includes('motivo_extra')) {
+  // error.code === '42703' é o código estável do Postgres para "coluna inexistente" (undefined_column);
+  // a verificação na mensagem fica como rede de segurança redundante, caso o texto do erro mude.
+  if (error && 'motivo_extra' in camposAtividade && (error.code === '42703' || String(error.message).includes('motivo_extra'))) {
     ;({ data: criado, error } = await inserir({ atividade_obs: camposAtividade.atividade_obs }))
   }
   if (error) return { ok: false, erro: error.message }
+  if (!criado) return { ok: false, erro: 'Erro ao gravar o check-in.' }
 
   revalidatePath('/agenda')
-  return { ok: true, dentro, baixaPrecisao: baixa, distancia, checkinId: criado!.id as string }
+  return { ok: true, dentro, baixaPrecisao: baixa, distancia, checkinId: criado.id as string }
 }
 
 // ─── Foto do check-in (opcional, temporária: apagada após 90 dias) ────────────
