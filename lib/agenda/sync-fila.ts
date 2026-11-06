@@ -31,7 +31,7 @@ async function processarCheckins(): Promise<{ enviou: boolean; falhas: string[] 
       r = await comTempoLimite(registrarCheckin({
         postoId: item.postoId, tipo: item.tipo, latitude: item.latitude, longitude: item.longitude,
         precisaoM: item.precisaoM, justificativa: item.justificativa, localId: item.localId, capturadoEm: item.capturadoEm,
-        focoId: item.focoId, atividadeObs: item.atividadeObs,
+        focoId: item.focoId, atividadeObs: item.atividadeObs, motivoExtra: item.motivoExtra,
       }))
     } catch {
       break // ainda sem sinal: o check-in continua guardado
