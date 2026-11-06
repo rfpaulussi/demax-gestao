@@ -77,7 +77,7 @@ _Antes de a semana começar (ideal: sexta anterior ou segunda cedo)_
 
 4. **Publique a agenda.** Quando terminar, toque em Publicar agenda. Ela vira o seu compromisso oficial e a coordenação passa a ver. Só agenda publicada conta no cumprimento.
 
-5. **Mudou o plano depois de publicar?.** Pode alterar, mas o sistema pede o motivo. A mudança fica registrada na linha do tempo (ícone de replanejamento).
+5. **Mudou o plano depois de publicar?.** Pode alterar, mas o sistema pede o motivo. A mudança fica registrada na linha do tempo (ícone de replanejamento). **Fez a visita em outro dia?** Não precisa editar o bloco antigo (dias já passados de uma agenda publicada só o admin libera): no dia em que foi, registre o check-in nesse mesmo posto — dentro da mesma semana, o sistema reconhece sozinho como reposição da visita planejada.
 
 
 ## 3. Registre o dia em campo
@@ -98,7 +98,7 @@ _Todo dia de visita, no próprio posto_
 |---|---|
 | O posto mostra "Marcar local aqui" | O posto ainda não tem localização. Estando no posto, toque no botão: o GPS registra o ponto e a coordenação confere depois. |
 | Está no posto, mas o sistema diz "fora do raio" | Escreva a justificativa. Se o ponto cadastrado parecer errado, use "Estou no posto — marcar o local exato aqui". |
-| Fez uma visita que não estava na agenda | Toque em "+ Visita extra (não planejada)" e faça o Cheguei normalmente. |
+| Fez uma visita que não estava na agenda | Toque em "+ Visita extra (não planejada)", escolha o motivo (reposição, emergência, pedido da direção, cobertura ou outro) e faça o Cheguei normalmente. |
 | GPS impreciso | Vá para um local aberto, aguarde alguns segundos e tente de novo. |
 
 
