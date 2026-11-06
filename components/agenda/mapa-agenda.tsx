@@ -129,7 +129,7 @@ export default function MapaAgenda({
           `<b>${esc(v.posto_nome)}</b>`,
           apoio ? `Apoio a: <b>${esc(responsaveis[v.posto_id]?.nome ?? 'sem supervisor')}</b>` : '',
           apoio ? `<i>${esc(v.atividade ?? 'Sem atividade informada')}</i>` : '',
-          !apoio && v.status === 'extra' && v.motivo_extra ? `Motivo: <b>${esc(ROTULO_MOTIVO_EXTRA[v.motivo_extra] ?? v.motivo_extra)}</b>` : '',
+          !apoio && (v.status === 'extra' || v.status === 'reposta') && v.motivo_extra ? `Motivo: <b>${esc(ROTULO_MOTIVO_EXTRA[v.motivo_extra] ?? v.motivo_extra)}</b>` : '',
           v.atividade_obs ? esc(v.atividade_obs) : '',
           `${hora(v.entrada_em)}${v.saida_em ? ` – ${hora(v.saida_em)}` : ''}`,
           v.distancia_m != null ? `${formatarDistancia(v.distancia_m)} do posto` : '',
@@ -276,7 +276,7 @@ export default function MapaAgenda({
                           {v.distancia_m != null && ` · ${formatarDistancia(v.distancia_m)} do posto`}
                         </span>
                         {v.focos.length > 0 && <span className="block truncate text-[11px] text-slate-400">{v.focos.join(' · ')}</span>}
-                        {!apoio && v.status === 'extra' && v.motivo_extra && (
+                        {!apoio && (v.status === 'extra' || v.status === 'reposta') && v.motivo_extra && (
                           <span className="block text-[11px] font-semibold text-indigo-700">
                             Motivo: {ROTULO_MOTIVO_EXTRA[v.motivo_extra] ?? v.motivo_extra}
                           </span>
