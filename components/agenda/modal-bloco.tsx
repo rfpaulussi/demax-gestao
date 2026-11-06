@@ -299,7 +299,7 @@ function Conteudo({
         <div className="space-y-5 px-5 py-4">
           {passadoTravado && (
             <section className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-medium text-rose-800">
-              🔒 Este dia já passou. Numa agenda publicada, dias passados só o admin altera. Peça ao admin para liberar este dia se precisar corrigir.
+              🔒 Este dia já passou. Se a visita foi feita em <b>outro dia</b>, não precisa editar aqui: no dia em que foi, faça o check-in nesse mesmo posto (dentro da mesma semana) — o sistema reconhece sozinho como reposição desta visita. Só peça ao admin para liberar o dia se o problema for outro (bloco errado, posto errado etc.).
             </section>
           )}
 
