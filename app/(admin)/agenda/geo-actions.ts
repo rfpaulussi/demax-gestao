@@ -13,6 +13,7 @@ import {
   type BlocoPlan, type CheckinRaw, type MapaStats, type PostoGeo, type VisitaView,
 } from '@/lib/agenda/visitas'
 import type { Periodo } from '@/lib/agenda/tema'
+import { TIPOS_MOTIVO_EXTRA, exigeTextoMotivoExtra } from '@/lib/agenda/motivos-visita-extra'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyClient = { from: (table: string) => any }
@@ -372,6 +373,7 @@ export async function registrarCheckin(input: {
   capturadoEm?: string // ISO: momento do GPS (check-in guardado sem sinal)
   focoId?: string // supervisor de apoio: atividade da visita (obrigatória na entrada)
   atividadeObs?: string
+  motivoExtra?: string // supervisor comum: motivo da visita fora do plano do dia (obrigatório na entrada)
 }): Promise<ResultadoCheckin> {
   const auth = await getUser()
   if (!auth) return { ok: false, erro: 'Não autenticado' }
@@ -517,30 +519,54 @@ export async function registrarCheckin(input: {
   // Sem bloco planejado (ex.: visita extra na sede), o check-in fica sem vínculo e conta como extra.
   const blocoId = ((blocosDia ?? []) as { id: string }[])[0]?.id ?? null
 
-  const { data: criado, error } = await admin
-    .from('agenda_checkins')
-    .insert({
-      supervisor_id: auth.perfil.id,
-      posto_id: input.postoId,
-      bloco_id: blocoId,
-      tipo: input.tipo,
-      latitude: input.latitude,
-      longitude: input.longitude,
-      precisao_m: input.precisaoM,
-      distancia_m: Math.round(distancia),
-      dentro_raio: dentro,
-      baixa_precisao: baixa,
-      justificativa: justificativa || null,
-      created_at: momento,
-      local_id: input.localId ?? null,
-      ...(apoio && input.tipo === 'entrada' ? { foco_id: input.focoId, atividade_obs: atividadeObs || null } : {}),
-    })
-    .select('id')
-    .single()
+  // Supervisor comum (não apoio), visita fora do plano do dia: motivo obrigatório na entrada.
+  const motivoExtraNecessario = !apoio && input.tipo === 'entrada' && blocoId === null
+  if (motivoExtraNecessario) {
+    if (!input.motivoExtra) return { ok: false, erro: 'Escolha o motivo desta visita extra.' }
+    if (!TIPOS_MOTIVO_EXTRA.some(m => m.id === input.motivoExtra)) return { ok: false, erro: 'Motivo inválido.' }
+    if (exigeTextoMotivoExtra(input.motivoExtra) && atividadeObs.length < 5) {
+      return { ok: false, erro: 'Descreva o motivo desta visita extra.' }
+    }
+  }
+
+  const camposAtividade = apoio && input.tipo === 'entrada'
+    ? { foco_id: input.focoId, atividade_obs: atividadeObs || null }
+    : motivoExtraNecessario
+      ? { motivo_extra: input.motivoExtra, atividade_obs: atividadeObs || null }
+      : {}
+
+  const inserir = (campos: Record<string, unknown>) =>
+    admin
+      .from('agenda_checkins')
+      .insert({
+        supervisor_id: auth.perfil.id,
+        posto_id: input.postoId,
+        bloco_id: blocoId,
+        tipo: input.tipo,
+        latitude: input.latitude,
+        longitude: input.longitude,
+        precisao_m: input.precisaoM,
+        distancia_m: Math.round(distancia),
+        dentro_raio: dentro,
+        baixa_precisao: baixa,
+        justificativa: justificativa || null,
+        created_at: momento,
+        local_id: input.localId ?? null,
+        ...campos,
+      })
+      .select('id')
+      .single()
+
+  let { data: criado, error } = await inserir(camposAtividade)
+  // Coluna motivo_extra pode ainda não existir (migração 20261106_agenda_motivo_extra.sql pendente):
+  // grava o check-in do mesmo jeito, sem o motivo, em vez de bloquear o registro da visita.
+  if (error && 'motivo_extra' in camposAtividade && String(error.message).includes('motivo_extra')) {
+    ;({ data: criado, error } = await inserir({ atividade_obs: camposAtividade.atividade_obs }))
+  }
   if (error) return { ok: false, erro: error.message }
 
   revalidatePath('/agenda')
-  return { ok: true, dentro, baixaPrecisao: baixa, distancia, checkinId: criado.id as string }
+  return { ok: true, dentro, baixaPrecisao: baixa, distancia, checkinId: criado!.id as string }
 }
 
 // ─── Foto do check-in (opcional, temporária: apagada após 90 dias) ────────────
@@ -686,8 +712,9 @@ export async function carregarMapa(
       .gte('created_at', `${addDias(semanaInicio, -1)}T00:00:00Z`)
       .lte('created_at', `${addDias(fim, 1)}T23:59:59Z`)
       .order('created_at', { ascending: true })
-  // Com recebido_em (20261102), atividade (20261031) e foto_path (20261013); sem elas, cai para o select mais simples.
-  let { data: cksRaw, error: cksErr } = await buscarCheckins(`${colunas}, foto_path, foco_id, atividade_obs, recebido_em`)
+  // Com recebido_em (20261102), atividade (20261031), motivo_extra (20261106) e foto_path (20261013); sem elas, cai para o select mais simples.
+  let { data: cksRaw, error: cksErr } = await buscarCheckins(`${colunas}, foto_path, foco_id, atividade_obs, motivo_extra, recebido_em`)
+  if (cksErr) ({ data: cksRaw, error: cksErr } = await buscarCheckins(`${colunas}, foto_path, foco_id, atividade_obs, recebido_em`))
   if (cksErr) ({ data: cksRaw, error: cksErr } = await buscarCheckins(`${colunas}, foto_path, foco_id, atividade_obs`))
   if (cksErr) ({ data: cksRaw, error: cksErr } = await buscarCheckins(`${colunas}, foto_path`))
   if (cksErr) ({ data: cksRaw, error: cksErr } = await buscarCheckins(colunas))
