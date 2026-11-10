@@ -103,16 +103,24 @@ function mesCruzaPeriodo(ym: string, inicio: string, fim: string): boolean {
   return inicio <= `${ym}-31` && fim >= `${ym}-01`
 }
 
+// Data efetiva do evento pro cálculo mensal: a admissão guarda em `data` a data em que o
+// registro foi importado/criado (pode ser anos depois da admissão real) e em `dataDisplay`
+// a data real — o cálculo mensal tem que seguir a real, senão o evento (e o estado que ele
+// carrega, como a função de origem) cai no mês errado.
+function dataEfetiva(e: ProntuarioEvento): string {
+  return e.dataDisplay ?? e.data
+}
+
 function buildHistoricoMes(
   eventos: ProntuarioEvento[],
   funcionario: ProntuarioFuncionario,
   ferias: PeriodoFerias[],
 ): MesEntry[] {
-  const sorted = [...eventos].sort((a, b) => a.data.localeCompare(b.data))
+  const sorted = [...eventos].sort((a, b) => dataEfetiva(a).localeCompare(dataEfetiva(b)))
   const now = new Date()
   const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const admissaoYM    = funcionario.data_admissao?.substring(0, 7)
-  const primeiroEvYM  = sorted[0]?.data.substring(0, 7)
+  const primeiroEvYM  = sorted[0] ? dataEfetiva(sorted[0]).substring(0, 7) : undefined
   const firstYM = [admissaoYM, primeiroEvYM].filter(Boolean).sort()[0] ?? currentYM
 
   // Generate all months from first event to today
@@ -149,7 +157,7 @@ function buildHistoricoMes(
   }
 
   // Last event YM is used to override the tail with current employee data
-  const lastEventYM = sorted.length > 0 ? sorted[sorted.length - 1].data.substring(0, 7) : ''
+  const lastEventYM = sorted.length > 0 ? dataEfetiva(sorted[sorted.length - 1]).substring(0, 7) : ''
 
   const result: MesEntry[] = []
   let ei = 0
@@ -158,9 +166,9 @@ function buildHistoricoMes(
     const eventsThisMonth: string[] = []
 
     // Advance through all events that fall in or before this month
-    while (ei < sorted.length && sorted[ei].data.substring(0, 7) <= ym) {
+    while (ei < sorted.length && dataEfetiva(sorted[ei]).substring(0, 7) <= ym) {
       const e = sorted[ei]
-      if (e.data.substring(0, 7) === ym) eventsThisMonth.push(e.tipo)
+      if (dataEfetiva(e).substring(0, 7) === ym) eventsThisMonth.push(e.tipo)
 
       const d = (e.dados_novos ?? {}) as Dados
       switch (e.tipo) {
@@ -221,7 +229,8 @@ function buildHistoricoMes(
       ei++
     }
 
-    const isAfterLastEvent = lastEventYM ? ym > lastEventYM : false
+    // >= (não >): o mês do próprio último evento já reflete o cadastro atual.
+    const isAfterLastEvent = lastEventYM ? ym >= lastEventYM : false
     const isCurrent = ym === currentYM
 
     // Status base do mês: evento (afastado/desligado) ou ativo desde a admissão
