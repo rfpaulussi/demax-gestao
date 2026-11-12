@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import type { Database } from '@/types/database'
+import { SETORES_CONSULTA } from '@/lib/setores/config'
 
 function redirectTo(
   pathname: string,
@@ -47,6 +48,11 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
+
+  // Rotas públicas de consulta setorial — acesso próprio via PIN, sem login do sistema
+  if (SETORES_CONSULTA.some((s) => pathname.startsWith(`/${s.slug}`))) {
+    return supabaseResponse
+  }
 
   // Redireciona para /dashboard se já autenticado e tentando acessar /login
   if (user && pathname === '/login') {
