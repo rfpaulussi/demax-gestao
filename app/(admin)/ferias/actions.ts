@@ -423,7 +423,7 @@ export async function editarFerias(id: string, data: {
   // Sincroniza status do funcionário
   if (data.status === 'em_curso') {
     await adminSupabase.from('funcionarios').update({ status: 'ferias' }).eq('id', fer.funcionario_id)
-  } else if (['concluido', 'cancelado', 'agendado', 'aprovado'].includes(data.status)) {
+  } else if (['concluido', 'cancelado', 'agendado', 'aprovado', 'disponivel'].includes(data.status)) {
     await adminSupabase.from('funcionarios').update({ status: 'ativo' }).eq('id', fer.funcionario_id)
   }
 
