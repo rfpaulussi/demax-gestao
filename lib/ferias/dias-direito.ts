@@ -4,7 +4,7 @@
 // período aquisitivo.
 
 const DIAS_POR_MES = 2.5
-const DIAS_PLENO = 30
+export const DIAS_PLENO = 30
 
 export const DIAS_ABONO_PADRAO = 10
 const ANTECEDENCIA_ABONO_DIAS = 15

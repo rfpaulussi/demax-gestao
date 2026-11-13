@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { editarFerias, type FeriasListaItem } from '@/app/(admin)/ferias/actions'
-import { DIAS_ABONO_PADRAO, abonoForaDoPrazo } from '@/lib/ferias/dias-direito'
+import { editarFerias, liberarDireitoIntegral, type FeriasListaItem } from '@/app/(admin)/ferias/actions'
+import { DIAS_ABONO_PADRAO, DIAS_PLENO, abonoForaDoPrazo } from '@/lib/ferias/dias-direito'
 import { downloadSolicitacaoFeriasPDF } from '@/components/ferias/solicitacao-ferias-pdf'
 
 interface Props {
   item: FeriasListaItem | null
+  role?: string | null
   onClose: () => void
   onSuccess: () => void
 }
@@ -54,7 +55,7 @@ function limiteAlert(limiteGozo: string | null): { level: 'vencido' | 'critico' 
   return { level: null, dias: diff }
 }
 
-export function ModalEditarFerias({ item, onClose, onSuccess }: Props) {
+export function ModalEditarFerias({ item, role, onClose, onSuccess }: Props) {
   const [dataInicio, setDataInicio] = useState(formatDateInput(item?.data_inicio ?? null))
   const [dataFim, setDataFim]       = useState(formatDateInput(item?.data_fim   ?? null))
   const [status, setStatus]         = useState(item?.status ?? 'disponivel')
@@ -66,10 +67,15 @@ export function ModalEditarFerias({ item, onClose, onSuccess }: Props) {
   const [erro, setErro]             = useState<string | null>(null)
   const [pendingSave, startSave]    = useTransition()
   const [pendingDelete, startDelete] = useTransition()
+  const [pendingLiberar, startLiberar] = useTransition()
 
   if (!item) return null
 
   const diasDireitoTotal = item.dias_direito ?? 30
+  const podeLiberarIntegral =
+    ['admin', 'coordenador'].includes(role ?? '') &&
+    diasDireitoTotal < DIAS_PLENO &&
+    !['concluido', 'cancelado'].includes(status)
   const diasAbono = vendeuAbono ? Math.min(DIAS_ABONO_PADRAO, diasDireitoTotal) : 0
   // Dias efetivamente gozados = direito - dias vendidos
   const diasDireito = diasDireitoTotal - diasAbono
@@ -99,6 +105,19 @@ export function ModalEditarFerias({ item, onClose, onSuccess }: Props) {
         onClose()
       } catch (e: unknown) {
         setErro(e instanceof Error ? e.message : 'Erro ao salvar')
+      }
+    })
+  }
+
+  function handleLiberarIntegral() {
+    setErro(null)
+    startLiberar(async () => {
+      try {
+        await liberarDireitoIntegral(item!.id)
+        onSuccess()
+        onClose()
+      } catch (e: unknown) {
+        setErro(e instanceof Error ? e.message : 'Erro ao liberar direito integral')
       }
     })
   }
@@ -162,6 +181,17 @@ export function ModalEditarFerias({ item, onClose, onSuccess }: Props) {
                 <p className="font-semibold text-slate-700">
                   {diasDireitoTotal} dias{diasAbono > 0 && <span className="text-xs font-normal text-slate-500"> ({diasAbono} vendidos · gozo {diasDireito})</span>}
                 </p>
+                {podeLiberarIntegral && (
+                  <button
+                    type="button"
+                    onClick={handleLiberarIntegral}
+                    disabled={pendingLiberar}
+                    title="Antecipa o direito para 30 dias mesmo com o período aquisitivo ainda em curso. Use só com autorização do RH."
+                    className="mt-0.5 text-xs text-indigo-600 hover:text-indigo-800 font-medium underline decoration-dotted disabled:opacity-50"
+                  >
+                    {pendingLiberar ? 'Liberando...' : `Liberar ${DIAS_PLENO} dias (antecipar)`}
+                  </button>
+                )}
               </div>
               <div>
                 <span className="text-xs text-slate-400">Período aquisitivo</span>

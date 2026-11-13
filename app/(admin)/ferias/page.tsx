@@ -348,7 +348,7 @@ function GuiaUso() {
           <li className="flex gap-2">
             <span className="font-bold shrink-0">1.</span>
             <span>
-              <strong>Nova Férias</strong> — use <em>somente</em> para cadastrar um período aquisitivo que ainda não existe no sistema (ex.: funcionário recém-admitido iniciando seu 1º período).
+              <strong>Novo Período Aquisitivo</strong> — use <em>somente</em> para cadastrar um período que ainda não existe no sistema (ex.: funcionário recém-admitido iniciando seu 1º período).
             </span>
           </li>
           <li className="flex gap-2">
@@ -588,9 +588,10 @@ function FeriasPageInner() {
                 setModalAberto(true)
               }
             }}
+            title="Use apenas para cadastrar um período aquisitivo que ainda não existe no sistema. Para lançar férias de um período já cadastrado, use Ver/Editar na linha do funcionário."
             className="px-4 py-2 text-sm font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-700 transition"
           >
-            + Nova Férias
+            + Novo Período Aquisitivo
           </button>
         </div>
       </div>
@@ -880,6 +881,7 @@ function FeriasPageInner() {
       <ModalEditarFerias
         key={itemEditando?.id ?? 'nenhum'}
         item={itemEditando}
+        role={role}
         onClose={() => setItemEditando(null)}
         onSuccess={() => buscarFeriasLista().then(setFerias)}
       />

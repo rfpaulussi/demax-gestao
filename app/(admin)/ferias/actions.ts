@@ -7,7 +7,7 @@ import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-utei
 import { assertRole } from '@/lib/auth/assert-role'
 import { obterRegimesPorFuncionario } from '@/lib/turnos/regime-funcionario'
 import { buscarRegimePosto } from '@/lib/turnos/regime-posto'
-import { diasDireitoEfetivo } from '@/lib/ferias/dias-direito'
+import { diasDireitoEfetivo, DIAS_PLENO } from '@/lib/ferias/dias-direito'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -104,6 +104,33 @@ export async function agendarFerias(data: {
   // que supervisor só consegue inserir férias de funcionário do próprio posto.
   const { error } = await supabase.from('ferias').insert(payload)
 
+  if (error) throw new Error(error.message)
+  revalidatePath('/ferias')
+  return { ok: true }
+}
+
+/**
+ * Libera os 30 dias de direito antes do período aquisitivo fechar (antecipação de férias).
+ * Só admin/coordenador — é exceção à regra proporcional, decisão do RH.
+ */
+export async function liberarDireitoIntegral(id: string) {
+  await assertRole(['admin', 'coordenador'])
+  const adminSupabase = createAdminClient()
+
+  const { data: fer, error: fetchErr } = await adminSupabase
+    .from('ferias')
+    .select('status')
+    .eq('id', id)
+    .single()
+  if (fetchErr) throw new Error(fetchErr.message)
+  if (['concluido', 'cancelado'].includes(fer.status ?? '')) {
+    throw new Error('Período já encerrado — não é possível antecipar direito.')
+  }
+
+  const { error } = await adminSupabase
+    .from('ferias')
+    .update({ dias_direito: DIAS_PLENO })
+    .eq('id', id)
   if (error) throw new Error(error.message)
   revalidatePath('/ferias')
   return { ok: true }
