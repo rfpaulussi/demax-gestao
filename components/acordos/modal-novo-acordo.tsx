@@ -26,6 +26,7 @@ import {
   type ItemChecklistId,
 } from '@/lib/acordos/resumo'
 import { CamposTemplate, FORM_VAZIO, montarCampos, type CampoChave, type FormState } from './campos-template'
+import { sincronizarDispensa } from '@/lib/acordos/formulario'
 import { INPUT_CLS, INPUT_ERRO_CLS, LABEL_CLS, Passo, PassoResumo } from './passo'
 import { SituacaoCards } from './situacao-cards'
 import { PassoFuncionarios } from './passo-funcionarios'
@@ -145,13 +146,21 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
   function escolherSituacao(id: TemplateId) {
     setGrupoAberto(false)
     if (id !== template || !situacaoEscolhida) {
+      // dia todo (T3) ↔ a partir de uma hora (T2): é o mesmo dia dispensado, então a data acompanha a troca
+      const entreDispensas = situacaoEscolhida && (id === 'T2' || id === 'T3') && (template === 'T2' || template === 'T3')
       setTemplate(id)
       setDiasManual(false)
       setQuantidadeIA(null)
-      setF(prev => ({ ...prev, datasAjuste: [] }))
+      setF(prev => ({ ...prev, datasAjuste: [], ...(entreDispensas ? sincronizarDispensa(id as 'T2' | 'T3', prev) : {}) }))
     }
     setSituacaoEscolhida(true)
     tocar('situacao')
+  }
+
+  /** Atalho do calendário com horário (ex.: ponto facultativo até 13h) enquanto está em "dia todo": passa para "a partir de uma hora". */
+  function trocarParaDispensaParcial(patch: Partial<FormState>) {
+    escolherSituacao('T2')
+    setF(prev => ({ ...prev, ...patch }))
   }
 
   /** "Recalcular dias": volta à sugestão automática (esquece a quantidade que a IA leu do pedido). */
@@ -759,6 +768,7 @@ export function ModalNovoAcordo({ postos, calendario, nomesRecentes, iaDisponive
                   onMarcarFuncs={ids => { tocar('funcionarios'); setSelectedIds(prev => { const n = new Set(prev); ids.forEach(i => n.add(i)); return n }) }}
                   onDesmarcarFuncs={ids => { tocar('funcionarios'); setSelectedIds(prev => { const n = new Set(prev); ids.forEach(i => n.delete(i)); return n }) }}
                   atalhosCalendario={atalhosCalendario}
+                  onDispensaParcial={trocarParaDispensaParcial}
                 />
               ) : (
                 <p className="text-sm text-gray-400">Escolha a situação no passo 1 para ver os campos.</p>

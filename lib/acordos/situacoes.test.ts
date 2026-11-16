@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { GRUPO_TRABALHOU, SITUACOES } from './situacoes'
+import { GRUPO_DISPENSA, GRUPO_TRABALHOU, SITUACOES } from './situacoes'
 import { TEMPLATES } from './templates'
 import type { TemplateId } from './tipos'
 
@@ -23,5 +23,10 @@ describe('SITUACOES', () => {
   it('o grupo "trabalharam a mais" oferece T5 (folga) e T1 (horas), ambos com rótulo de opção', () => {
     expect(GRUPO_TRABALHOU.templates).toEqual(['T5', 'T1'])
     for (const id of GRUPO_TRABALHOU.templates) expect(SITUACOES[id].opcao).toBeTruthy()
+  })
+
+  it('o grupo "dispensados" oferece T3 (dia todo, padrão) e T2 (a partir de uma hora), ambos com rótulo de opção', () => {
+    expect(GRUPO_DISPENSA.templates).toEqual(['T3', 'T2'])
+    for (const id of GRUPO_DISPENSA.templates) expect(SITUACOES[id].opcao).toBeTruthy()
   })
 })

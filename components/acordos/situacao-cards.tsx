@@ -1,12 +1,13 @@
 import { Lightbulb } from 'lucide-react'
 import type { TemplateId } from '@/lib/acordos/tipos'
-import { GRUPO_TRABALHOU, SITUACOES } from '@/lib/acordos/situacoes'
+import { GRUPO_DISPENSA, GRUPO_TRABALHOU, SITUACOES } from '@/lib/acordos/situacoes'
 
-const OUTRAS: TemplateId[] = ['T2', 'T3', 'T4']
+const OUTRAS: TemplateId[] = ['T4']
 
 /** Nome curto de cada card, em etiqueta colorida no topo (achar o card sem ler o texto todo). */
-const NOME: Record<TemplateId | 'grupo' | 'diasInteiros', { nome: string; cor: string }> = {
+const NOME: Record<TemplateId | 'grupo' | 'diasInteiros' | 'dispensa', { nome: string; cor: string }> = {
   grupo: { nome: 'Trabalhou a mais', cor: 'bg-blue-100 text-blue-800' },
+  dispensa: { nome: 'Dispensa', cor: 'bg-orange-100 text-orange-800' },
   diasInteiros: { nome: 'Evento · dias de folga', cor: 'bg-teal-100 text-teal-800' },
   T1: { nome: 'Redução de jornada', cor: 'bg-amber-100 text-amber-800' },
   T2: { nome: 'Dispensa antecipada', cor: 'bg-orange-100 text-orange-800' },
@@ -74,6 +75,7 @@ function Cartao({ nome, cor, ativo, onClick, titulo, tag, exemplo, regra, radio 
 export function SituacaoCards({ selecionado, onSelect, grupoAberto, onGrupo, diasInteiros, onDiasInteiros }: Props) {
   const diretoAtivo = selecionado === 'T5' && diasInteiros
   const mostrarSub = grupoAberto || (selecionado !== null && !diretoAtivo && GRUPO_TRABALHOU.templates.includes(selecionado))
+  const dispensaAtiva = selecionado !== null && GRUPO_DISPENSA.templates.includes(selecionado)
 
   return (
     <div className="space-y-2.5">
@@ -97,6 +99,16 @@ export function SituacaoCards({ selecionado, onSelect, grupoAberto, onGrupo, dia
           tag={DIAS_INTEIROS.tag}
           exemplo={DIAS_INTEIROS.exemplo}
           regra={DIAS_INTEIROS.regra}
+        />
+        <Cartao
+          nome={NOME.dispensa.nome}
+          cor={NOME.dispensa.cor}
+          ativo={dispensaAtiva}
+          onClick={() => { if (!dispensaAtiva) onSelect(GRUPO_DISPENSA.templates[0]) }}
+          titulo={GRUPO_DISPENSA.titulo}
+          tag={GRUPO_DISPENSA.tag}
+          exemplo={GRUPO_DISPENSA.exemplo}
+          regra={GRUPO_DISPENSA.regra}
         />
         {OUTRAS.map(id => {
           const s = SITUACOES[id]
@@ -128,6 +140,30 @@ export function SituacaoCards({ selecionado, onSelect, grupoAberto, onGrupo, dia
                   nome={NOME[id].nome}
                   cor={NOME[id].cor}
                   ativo={selecionado === id && !diretoAtivo}
+                  onClick={() => onSelect(id)}
+                  titulo={s.opcao ?? s.titulo}
+                  tag={s.tag}
+                  exemplo={s.exemplo}
+                  regra={s.regra}
+                />
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {dispensaAtiva && (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-500">Quanto do dia foi dispensado?</p>
+          <div role="radiogroup" aria-label="Quanto do dia foi dispensado?" className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {GRUPO_DISPENSA.templates.map(id => {
+              const s = SITUACOES[id]
+              return (
+                <Cartao
+                  key={id}
+                  nome={NOME[id].nome}
+                  cor={NOME[id].cor}
+                  ativo={selecionado === id}
                   onClick={() => onSelect(id)}
                   titulo={s.opcao ?? s.titulo}
                   tag={s.tag}

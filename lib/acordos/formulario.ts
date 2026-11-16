@@ -32,6 +32,22 @@ export const FORM_VAZIO: FormState = {
   diasInteiros: false, participantes: {},
 }
 
+/**
+ * Troca entre "o dia todo" (T3) e "a partir de uma hora" (T2): é o mesmo dia dispensado, em campos diferentes
+ * (T3 guarda `dataFolga`, T2 guarda `dataEvento`). Devolve o que falta copiar para a pessoa não digitar a data de novo.
+ * Nunca sobrescreve uma data já preenchida no destino. O T2 não tem revezamento: vira uma data só (a mais cedo).
+ */
+export function sincronizarDispensa(para: 'T2' | 'T3', f: FormState): Partial<FormState> {
+  if (para === 'T3') {
+    return !f.dataFolga && f.dataEvento ? { dataFolga: f.dataEvento } : {}
+  }
+  const diaDispensado = f.revezamento ? Object.values(f.folgas).filter(Boolean).sort()[0] : f.dataFolga
+  return {
+    ...(!f.dataEvento && diaDispensado ? { dataEvento: diaDispensado } : {}),
+    ...(f.revezamento ? { revezamento: false, folgas: {} } : {}),
+  }
+}
+
 /** `idsSelecionados`: no revezamento só entram as datas de quem está no acordo. */
 export function montarCampos(template: TemplateId, f: FormState, idsSelecionados?: Set<string>): CamposAcordo {
   const usaEvento = template === 'T1' || template === 'T2' || template === 'T5'

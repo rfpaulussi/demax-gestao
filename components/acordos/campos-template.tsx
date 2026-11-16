@@ -76,10 +76,12 @@ interface Props {
   candidatosPlanilha?: FuncionarioFolga[]
   onMarcarFuncs?: (ids: string[]) => void
   onDesmarcarFuncs?: (ids: string[]) => void
+  /** T3 (dia todo): o atalho do calendário tem horário (ex.: "até 13h"), então o caso é T2; o pai troca e aplica estes campos. */
+  onDispensaParcial?: (patch: Partial<FormState>) => void
 }
 
 export function CamposTemplate({
-  template: t, f, set, feriados, diasManual, onDatasManuais, onRecalcular, erros, conta, semSugestao, dicaDispensa, notaPeriodo, nomesEvento, atalhosCalendario, funcionarios, candidatosPlanilha, onMarcarFuncs, onDesmarcarFuncs,
+  template: t, f, set, feriados, diasManual, onDatasManuais, onRecalcular, erros, conta, semSugestao, dicaDispensa, notaPeriodo, nomesEvento, atalhosCalendario, funcionarios, candidatosPlanilha, onMarcarFuncs, onDesmarcarFuncs, onDispensaParcial,
 }: Props) {
   const [modo, setModo] = useState<'periodo' | 'horas'>(f.duracao && !f.periodoInicio ? 'horas' : 'periodo')
   const cls = (k: CampoChave) => (erros[k] ? INPUT_ERRO_CLS : INPUT_CLS)
@@ -161,6 +163,15 @@ export function CamposTemplate({
 
   /** Clique num atalho: preenche a data, sugere o motivo (se vazio) e, em meio período no T2, a hora de dispensa. */
   function usarAtalho(chave: 'dataEvento' | 'dataFolga', l: CalendarioLinha) {
+    // data com horário no calendário (ex.: ponto facultativo até 13h) não é "dia todo": vai para "a partir de uma hora"
+    if (t === 'T3' && l.ate_hora && onDispensaParcial) {
+      onDispensaParcial({
+        dataEvento: l.data,
+        horaDispensa: l.ate_hora.slice(0, 5),
+        ...(f.motivo ? {} : { motivo: motivoDoCalendario({ nome: l.nome, tipo: l.tipo }) }),
+      })
+      return
+    }
     set(chave, l.data)
     if (t === 'T2' || t === 'T3' || t === 'T4') {
       if (!f.motivo) set('motivo', motivoDoCalendario({ nome: l.nome, tipo: l.tipo }))
