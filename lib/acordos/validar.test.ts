@@ -67,6 +67,55 @@ describe('validarAcordo', () => {
     expect(codigos(validarAcordo(c, [f1], new Map()))).toEqual(expect.arrayContaining(['LIMITE_ACRESCIMO', 'LIMITE_JORNADA']))
   })
 
+  describe('um dia pelo outro (reposição num único dia de folga da escala)', () => {
+    const sabado = '2026-06-13'
+    const domingo = '2026-06-14'
+
+    it('T3: repõe o dia inteiro (528 min) num único sábado, sem o teto de 2h nem DIA_DE_FOLGA', () => {
+      const c = { ...t3, datasAjuste: [sabado] }
+      const a = validarAcordo(c, [f1], new Map())
+      expect(temErro(a)).toBe(false)
+      expect(codigos(a)).not.toContain('LIMITE_ACRESCIMO')
+      expect(codigos(a)).not.toContain('DIA_DE_FOLGA')
+      expect(a.find(x => x.codigo === 'REPOSICAO_EM_FOLGA')?.nivel).toBe('aviso')
+    })
+
+    it('T2 (a partir de uma hora): também repõe num único sábado', () => {
+      const c: CamposAcordo = {
+        template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Ponto facultativo', horaDispensa: '12:00',
+        motivo: 'ponto facultativo municipal', datasAjuste: [sabado],
+      }
+      const a = validarAcordo(c, [f1], new Map())
+      expect(codigos(a)).not.toContain('DIA_DE_FOLGA')
+      expect(codigos(a)).not.toContain('LIMITE_ACRESCIMO')
+      expect(codigos(a)).toContain('REPOSICAO_EM_FOLGA')
+    })
+
+    it('com mais de um dia, o dia de folga continua bloqueado e o teto de 2h continua valendo', () => {
+      const c = { ...t3, datasAjuste: [sabado, domingo] }
+      expect(codigos(validarAcordo(c, [f1], new Map()))).toEqual(expect.arrayContaining(['DIA_DE_FOLGA', 'LIMITE_ACRESCIMO']))
+    })
+
+    it('um único dia útil (não é folga na escala) continua limitado a 2h e a 10h', () => {
+      const c = { ...t3, datasAjuste: ['2026-06-08'] } // segunda, 528 min de acréscimo
+      expect(codigos(validarAcordo(c, [f1], new Map()))).toEqual(expect.arrayContaining(['LIMITE_ACRESCIMO', 'LIMITE_JORNADA']))
+    })
+
+    it('T4 (banco de horas) não tem a exceção: dia de folga e teto de 2h seguem valendo', () => {
+      const c: CamposAcordo = { template: 'T4', dataFolga: '2026-06-15', motivo: 'ponto facultativo', prazoLimite: '2026-06-30', datasAjuste: [sabado] }
+      expect(codigos(validarAcordo(c, [f1], new Map()))).toEqual(expect.arrayContaining(['DIA_DE_FOLGA', 'LIMITE_ACRESCIMO']))
+    })
+
+    it('mantém o teto de 10h: acima disso o acordo é bloqueado mesmo num dia de folga', () => {
+      const longa: CamposAcordo = { ...t3, datasAjuste: [sabado], dataFolga: '2026-06-05' }
+      const turnoLongo = {
+        tipo_escala: '5x2', hora_entrada: '06:00', hora_saida_seg_qui: '18:00', hora_saida_sex: '18:00',
+        hora_inicio_almoco: '12:00', hora_fim_almoco: '13:00',
+      } // 11h/dia
+      expect(codigos(validarAcordo(longa, [func('l', turnoLongo)], new Map()))).toContain('LIMITE_JORNADA')
+    })
+  })
+
   it('bloqueia quando as horas não dividem igualmente pelos dias', () => {
     const c = { ...t3, datasAjuste: [...OITO_DIAS.slice(0, 4), '2026-06-15'] } // 528 / 5
     expect(codigos(validarAcordo(c, [f1], new Map()))).toContain('DIVISAO')
