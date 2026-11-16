@@ -20,7 +20,7 @@ const EXPLICACOES: Record<string, Explicacao> = {
   },
   LIMITE_ACRESCIMO: {
     origem: 'lei',
-    porque: 'O acréscimo por acordo de compensação vai até 2h por dia (CLT, art. 59). Espalhe as horas em mais dias. Para repor um dia inteiro de uma vez, use um único dia que seja folga na escala do funcionário (ex.: sábado ou domingo no 5x2).',
+    porque: 'O acréscimo por acordo de compensação vai até 2h por dia (CLT, art. 59). Espalhe as horas em mais dias. Para repor um dia inteiro de uma vez, use um único dia que seja folga na escala do funcionário, fim de semana ou feriado.',
     acao: 'recalcular_dias',
   },
   DIVISAO: {

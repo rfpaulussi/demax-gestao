@@ -77,7 +77,55 @@ describe('validarAcordo', () => {
       expect(temErro(a)).toBe(false)
       expect(codigos(a)).not.toContain('LIMITE_ACRESCIMO')
       expect(codigos(a)).not.toContain('DIA_DE_FOLGA')
-      expect(a.find(x => x.codigo === 'REPOSICAO_EM_FOLGA')?.nivel).toBe('aviso')
+      expect(a.find(x => x.codigo === 'REPOSICAO_UM_DIA')?.nivel).toBe('aviso')
+    })
+
+    // 5x1: seg–sex 480 min, sábado 240 min (07:00–11:00)
+    const T_SAB_4H = {
+      tipo_escala: '5x1', hora_entrada: '07:00', hora_saida_seg_qui: '16:00', hora_saida_sex: '16:00',
+      hora_inicio_almoco: '12:00', hora_fim_almoco: '13:00',
+      hora_entrada_sabado: '07:00', hora_saida_sabado: '11:00', hora_inicio_almoco_sabado: null, hora_fim_almoco_sabado: null,
+    }
+
+    it('sábado com jornada parcial: sem o teto de 2h, mas o teto de 10h vale (4h + 8h bloqueia)', () => {
+      const c: CamposAcordo = { ...t3, datasAjuste: [sabado] } // sexta 05/06 = 480 min → 240 + 480 = 720
+      const a = codigos(validarAcordo(c, [func('s', T_SAB_4H)], new Map()))
+      expect(a).not.toContain('LIMITE_ACRESCIMO')
+      expect(a).toContain('LIMITE_JORNADA')
+    })
+
+    it('sábado com jornada parcial: repõe mais de 2h num único dia quando cabe nas 10h', () => {
+      const c: CamposAcordo = {
+        template: 'T2', dataEvento: '2026-06-05', nomeEvento: 'Ponto facultativo', horaDispensa: '12:00',
+        motivo: 'ponto facultativo municipal', datasAjuste: [sabado],
+      } // 180 min após as 12h; sábado 240 + 180 = 420
+      const a = validarAcordo(c, [func('s', T_SAB_4H)], new Map())
+      expect(codigos(a)).not.toContain('LIMITE_ACRESCIMO')
+      expect(codigos(a)).not.toContain('LIMITE_JORNADA')
+      expect(a.find(x => x.codigo === 'REPOSICAO_UM_DIA')?.mensagem).toContain('fim de semana')
+    })
+
+    it('feriado como dia único de reposição: sem expediente normal, então o dia inteiro cabe', () => {
+      const segundaFeriado = '2026-06-08'
+      const feriados: MapaFeriados = new Map([[segundaFeriado, { nome: 'Corpus Christi', tipo: 'nacional' }]])
+      const c = { ...t3, datasAjuste: [segundaFeriado] }
+      const a = validarAcordo(c, [f1], feriados)
+      expect(temErro(a)).toBe(false)
+      expect(a.find(x => x.codigo === 'REPOSICAO_UM_DIA')?.mensagem).toContain('feriado (Corpus Christi)')
+    })
+
+    it('ponto facultativo NÃO conta como feriado nessa regra: dia útil segue limitado', () => {
+      const segundaFacultativa = '2026-06-08'
+      const feriados: MapaFeriados = new Map([[segundaFacultativa, { nome: 'Ponto facultativo', tipo: 'facultativo' }]])
+      const c = { ...t3, datasAjuste: [segundaFacultativa] }
+      expect(codigos(validarAcordo(c, [f1], feriados))).toEqual(expect.arrayContaining(['LIMITE_ACRESCIMO', 'LIMITE_JORNADA']))
+    })
+
+    it('feriado em dia útil com mais de um dia de reposição: teto de 2h continua', () => {
+      const segundaFeriado = '2026-06-08'
+      const feriados: MapaFeriados = new Map([[segundaFeriado, { nome: 'Corpus Christi', tipo: 'nacional' }]])
+      const c = { ...t3, datasAjuste: [segundaFeriado, '2026-06-09'] }
+      expect(codigos(validarAcordo(c, [f1], feriados))).toContain('LIMITE_ACRESCIMO')
     })
 
     it('T2 (a partir de uma hora): também repõe num único sábado', () => {
@@ -88,7 +136,7 @@ describe('validarAcordo', () => {
       const a = validarAcordo(c, [f1], new Map())
       expect(codigos(a)).not.toContain('DIA_DE_FOLGA')
       expect(codigos(a)).not.toContain('LIMITE_ACRESCIMO')
-      expect(codigos(a)).toContain('REPOSICAO_EM_FOLGA')
+      expect(codigos(a)).toContain('REPOSICAO_UM_DIA')
     })
 
     it('com mais de um dia, o dia de folga continua bloqueado e o teto de 2h continua valendo', () => {

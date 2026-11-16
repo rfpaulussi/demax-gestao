@@ -51,7 +51,7 @@ const TITULOS: Record<string, (n: number) => string> = {
   TURNO_FORA_44H: n => `${plural(n, 'funcionário', 'funcionários')} com turno que não soma 44h por semana`,
   FERIADO: n => `${plural(n, 'data', 'datas')} em feriado ou ponto facultativo`,
   DIA_DE_FOLGA: n => `${plural(n, 'caso', 'casos')} em que o dia é folga na escala do funcionário`,
-  REPOSICAO_EM_FOLGA: n => `${plural(n, 'funcionário', 'funcionários')} repondo num único dia de folga da escala (um dia pelo outro)`,
+  REPOSICAO_UM_DIA: n => `${plural(n, 'funcionário', 'funcionários')} repondo num único dia de folga, fim de semana ou feriado (um dia pelo outro)`,
   SEM_HORAS_A_COMPENSAR: n => `${plural(n, 'funcionário', 'funcionários')} sem horas a compensar`,
 }
 

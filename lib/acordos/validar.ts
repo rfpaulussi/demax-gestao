@@ -148,11 +148,21 @@ export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriado
   const porDiaDe = (f: FuncionarioCalc) => (n > 0 && c.template !== 'T5' ? Math.floor(origem.get(f.id)! / n) : 0)
 
   const acrescimo = c.template === 'T2' || c.template === 'T3' || c.template === 'T4'
-  // Um dia pelo outro (T2/T3): se a reposição é UM único dia e esse dia é folga na escala do funcionário, ele o trabalha
-  // inteiro e o teto de 2h/dia não se aplica (vale só o de 10h de jornada). Com mais de um dia, o teto de 2h continua.
-  const repoeEmDiaDeFolga = (f: FuncionarioCalc) =>
-    (t === 'T2' || t === 'T3') && ajuste.length === 1 && jornadaDoDia(f, ajuste[0]) === 0
-  const maiorPorDia = Math.max(0, ...funcs.filter(f => !repoeEmDiaDeFolga(f)).map(porDiaDe))
+  // Um dia pelo outro (T2/T3): se a reposição é UM único dia e esse dia é folga na escala do funcionário, fim de semana
+  // ou feriado, ele o trabalha inteiro e o teto de 2h/dia não se aplica (vale só o de 10h de jornada). Com mais de um
+  // dia, o teto de 2h continua. `jornadaBase` é o que o funcionário já trabalharia nesse dia: no feriado não há expediente.
+  const diaDeReposicaoUnica = (f: FuncionarioCalc): { rotulo: string; jornadaBase: number } | null => {
+    if ((t !== 'T2' && t !== 'T3') || ajuste.length !== 1) return null
+    const d = ajuste[0]
+    const jd = jornadaDoDia(f, d)
+    if (jd === 0) return { rotulo: 'folga na escala dele', jornadaBase: 0 }
+    const fer = feriados.get(d)
+    if (fer && fer.tipo !== 'facultativo') return { rotulo: `feriado (${fer.nome})`, jornadaBase: 0 }
+    const dia = diaSemanaDe(d)
+    if (dia === 'Sábado' || dia === 'Domingo') return { rotulo: 'fim de semana', jornadaBase: jd }
+    return null
+  }
+  const maiorPorDia = Math.max(0, ...funcs.filter(f => !diaDeReposicaoUnica(f)).map(porDiaDe))
   if (acrescimo && maiorPorDia > MAX_ACRESCIMO_DIA_MIN) {
     add('erro', 'LIMITE_ACRESCIMO', `Acréscimo de ${maiorPorDia} min por dia excede o limite de ${MAX_ACRESCIMO_DIA_MIN} min (2h).`)
   }
@@ -170,18 +180,20 @@ export function validarAcordo(c: CamposAcordo, funcs: FuncionarioCalc[], feriado
     const porDia = porDiaDe(f)
     for (const d of ajuste) {
       const jd = jornadaDoDia(f, d)
-      if (jd === 0 && !repoeEmDiaDeFolga(f)) {
+      const unica = diaDeReposicaoUnica(f)
+      const base = unica ? unica.jornadaBase : jd
+      if (jd === 0 && !unica) {
         add('erro', 'DIA_DE_FOLGA', `${f.nome}: ${fmtDataBR(d)} é dia de folga na escala dele.`, f.id)
-      } else if (acrescimo && jd + porDia > MAX_JORNADA_DIA_MIN) {
-        const maxDia = MAX_JORNADA_DIA_MIN - jd
+      } else if (acrescimo && base + porDia > MAX_JORNADA_DIA_MIN) {
+        const maxDia = MAX_JORNADA_DIA_MIN - base
         let nDias = Math.ceil(orig / Math.max(maxDia, 1))
         for (let k = nDias; k <= 31; k++) if (orig % k === 0 && orig / k <= maxDia) { nDias = k; break }
         const saida = maxDia > 0 && nDias <= 31 ? ` Cabe com ${nDias} dias ou mais (máx. ${maxDia} min por dia).` : ''
-        add('erro', 'LIMITE_JORNADA', `${f.nome}: em ${fmtDataBR(d)} a jornada passaria de 10h (${jd} + ${porDia} min).${saida}`, f.id)
+        add('erro', 'LIMITE_JORNADA', `${f.nome}: em ${fmtDataBR(d)} a jornada passaria de 10h (${base} + ${porDia} min).${saida}`, f.id)
       } else if (c.template === 'T1' && porDia > jd) {
         add('erro', 'REDUCAO_MAIOR', `${f.nome}: a redução de ${porDia} min é maior que a jornada de ${fmtDataBR(d)}.`, f.id)
-      } else if (jd === 0) {
-        add('aviso', 'REPOSICAO_EM_FOLGA', `${f.nome}: ${fmtDataBR(d)} é folga na escala dele; repõe ${minParaHHMM(porDia)}h nesse único dia, um dia pelo outro.`, f.id)
+      } else if (unica) {
+        add('aviso', 'REPOSICAO_UM_DIA', `${f.nome}: ${fmtDataBR(d)} é ${unica.rotulo}; repõe ${minParaHHMM(porDia)}h nesse único dia, um dia pelo outro.`, f.id)
       }
     }
     if (usaFolga) {
