@@ -1,7 +1,5 @@
 'use client'
 
-import 'leaflet/dist/leaflet.css'
-import L from 'leaflet'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, ExternalLink, History, LocateFixed, MapPin, Search, Trash2 } from 'lucide-react'
@@ -9,6 +7,12 @@ import { buscarEndereco, salvarLocalPosto } from '@/app/(admin)/agenda/geo-actio
 import type { PostoLocal, ResultadoEndereco } from '@/app/(admin)/agenda/geo-actions'
 import { escolherCandidatoGoogle, geocodificarPosto, listarHistoricoGeo } from '@/app/(admin)/agenda/geocodificar-actions'
 import type { CandidatoView, EventoHistoricoGeo, SaidaGeocodificacao } from '@/app/(admin)/agenda/geocodificar-actions'
+import { criarMapaGoogle } from './mapa-editor/google'
+import { criarMapaLeaflet } from './mapa-editor/leaflet'
+import type { EventosMapa, MapaEditor, Pos } from './mapa-editor/tipos'
+
+// Chave de NAVEGADOR do Maps JavaScript API (protegida por restrição de referrer). Sem ela, o editor usa o OpenStreetMap.
+const CHAVE_MAPS = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? ''
 
 const ORIGEM_ROTULO: Record<string, string> = {
   nominatim: 'importada automaticamente (Nominatim)',
@@ -32,19 +36,6 @@ const EVENTO_ROTULO: Record<string, string> = {
 
 const dataCurta = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
 
-const TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-const ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-
-const iconePino = () =>
-  L.divIcon({
-    className: '',
-    html: '<div style="font-size:32px;line-height:32px;text-align:center;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))">📍</div>',
-    iconSize: [32, 32],
-    iconAnchor: [16, 30],
-  })
-
-type Pos = { lat: number; lng: number }
-
 export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
   const router = useRouter()
   const [pending, start] = useTransition()
@@ -65,11 +56,14 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
   const [historico, setHistorico] = useState<EventoHistoricoGeo[] | null>(null)
   const [verHistorico, setVerHistorico] = useState(false)
 
+  const [motor, setMotor] = useState<'leaflet' | 'google'>(CHAVE_MAPS ? 'google' : 'leaflet')
+  const [mapaPronto, setMapaPronto] = useState(0) // conta quantas vezes um mapa foi criado (força redesenho do pino)
+  const [avisoMapa, setAvisoMapa] = useState<string | null>(null)
+  // Pino movido automaticamente para a posição do Google (só no mapa do Google): guarda o ponto anterior para desfazer.
+  const [pinoGoogle, setPinoGoogle] = useState<{ anterior: Pos | null } | null>(null)
+
   const divRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<L.Map | null>(null)
-  const markerRef = useRef<L.Marker | null>(null)
-  const circleRef = useRef<L.Circle | null>(null)
-  const outrosRef = useRef<L.LayerGroup | null>(null)
+  const mapaRef = useRef<MapaEditor | null>(null)
   const selRef = useRef<string | null>(null)
   selRef.current = selId
 
@@ -89,34 +83,48 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
     })
   }, [postos, filtro, soPendentes, soConferir])
 
-  // Inicializa o mapa uma vez.
+  // Cria o mapa (Google se houver chave e ele carregar; senão OpenStreetMap). Trocar `motor` recria o mapa.
   useEffect(() => {
-    if (!divRef.current || mapRef.current) return
-    const map = L.map(divRef.current, { zoomControl: true }).setView([-14.2, -51.9], 4)
-    L.tileLayer(TILES, { attribution: ATTR, maxZoom: 19 }).addTo(map)
-    outrosRef.current = L.layerGroup().addTo(map)
-    map.on('click', (e: L.LeafletMouseEvent) => {
-      if (selRef.current) setPos({ lat: e.latlng.lat, lng: e.latlng.lng })
-    })
-    mapRef.current = map
-    return () => {
-      map.remove()
-      mapRef.current = null
+    const div = divRef.current
+    if (!div) return
+    let cancelado = false
+    const eventos: EventosMapa = {
+      onClick: p => { if (selRef.current) setPos(p) },
+      onArrastar: p => setPos(p),
+      onFalha: () => {
+        setAvisoMapa('O Google recusou a chave do mapa (confira a restrição de referrer e se a Maps JavaScript API está ativada). Usando o mapa OpenStreetMap.')
+        setMotor('leaflet')
+      },
     }
-  }, [])
+    void (async () => {
+      try {
+        const api = motor === 'google' ? await criarMapaGoogle(div, CHAVE_MAPS, eventos) : criarMapaLeaflet(div, eventos)
+        if (cancelado) { api.destruir(); return }
+        mapaRef.current = api
+        setMapaPronto(n => n + 1)
+      } catch {
+        if (cancelado) return
+        if (motor === 'google') {
+          setAvisoMapa('Não foi possível carregar o mapa do Google. Usando o mapa OpenStreetMap.')
+          setMotor('leaflet')
+        }
+      }
+    })()
+    return () => {
+      cancelado = true
+      mapaRef.current?.destruir()
+      mapaRef.current = null
+    }
+  }, [motor])
 
   // Outros postos já localizados (contexto).
   useEffect(() => {
-    const g = outrosRef.current
-    if (!g) return
-    g.clearLayers()
-    for (const p of postos) {
-      if (p.latitude == null || p.longitude == null || p.id === selId) continue
-      L.circleMarker([p.latitude, p.longitude], { radius: 6, color: '#047857', weight: 2, fillColor: '#34d399', fillOpacity: 0.9 })
-        .bindTooltip(p.nome.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"))
-        .addTo(g)
-    }
-  }, [postos, selId])
+    mapaRef.current?.setOutros(
+      postos
+        .filter(p => p.latitude != null && p.longitude != null && p.id !== selId)
+        .map(p => ({ id: p.id, nome: p.nome, lat: p.latitude as number, lng: p.longitude as number })),
+    )
+  }, [postos, selId, mapaPronto])
 
   // Ao trocar de posto, carrega os dados dele.
   useEffect(() => {
@@ -125,6 +133,7 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
     setGeoRes(null)
     setHistorico(null)
     setVerHistorico(false)
+    setPinoGoogle(null)
     if (!selecionado) { setPos(null); return }
     setRaio(selecionado.raio_m ?? 150)
     setRef(selecionado.endereco_ref ?? '')
@@ -132,39 +141,46 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
     setConsulta(selecionado.nome)
     if (selecionado.latitude != null && selecionado.longitude != null) {
       setPos({ lat: selecionado.latitude, lng: selecionado.longitude })
-      mapRef.current?.setView([selecionado.latitude, selecionado.longitude], 17)
+      mapaRef.current?.irPara({ lat: selecionado.latitude, lng: selecionado.longitude }, 17)
     } else {
       setPos(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selId])
 
-  // Marcador + círculo do posto selecionado.
+  // Pino arrastável + círculo do posto selecionado.
   useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-    markerRef.current?.remove()
-    circleRef.current?.remove()
-    markerRef.current = null
-    circleRef.current = null
-    if (!pos) return
-    const m = L.marker([pos.lat, pos.lng], { draggable: true, icon: iconePino() }).addTo(map)
-    m.on('dragend', () => {
-      const ll = m.getLatLng()
-      setPos({ lat: ll.lat, lng: ll.lng })
-    })
-    markerRef.current = m
-    circleRef.current = L.circle([pos.lat, pos.lng], { radius: raio, color: '#10b981', weight: 2, fillColor: '#10b981', fillOpacity: 0.14 }).addTo(map)
+    mapaRef.current?.setPino(pos, raio)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pos])
+  }, [pos, mapaPronto])
 
   useEffect(() => {
-    circleRef.current?.setRadius(raio)
+    mapaRef.current?.setRaio(raio)
   }, [raio])
+
+  // Mapa recriado (troca de motor): volta a enquadrar o pino atual.
+  useEffect(() => {
+    if (pos) mapaRef.current?.irPara(pos, 17)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapaPronto])
 
   function irPara(p: Pos, zoom = 17) {
     setPos(p)
-    mapRef.current?.setView([p.lat, p.lng], zoom)
+    mapaRef.current?.irPara(p, zoom)
+  }
+
+  /** Só no mapa do Google (termos 6.2): leva o pino para a posição sugerida; o ponto anterior fica guardado para desfazer. */
+  function moverPinoParaGoogle(lat: number, lng: number) {
+    if (motor !== 'google') return
+    setPinoGoogle(atual => ({ anterior: atual ? atual.anterior : pos }))
+    irPara({ lat, lng }, 19)
+  }
+
+  function desfazerPinoGoogle() {
+    if (!pinoGoogle) return
+    if (pinoGoogle.anterior) irPara(pinoGoogle.anterior, 17)
+    else setPos(null)
+    setPinoGoogle(null)
   }
 
   async function pesquisar() {
@@ -184,7 +200,11 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
     const r = await geocodificarPosto({ postoId: selecionado.id, endereco: enderecoBusca, forcar })
     setGeoBusy(false)
     setGeoRes(r)
-    if (r.ok) router.refresh()
+    if (r.ok) {
+      // Endereço único e preciso: o pino já vai para o lugar certo, só falta conferir/arrastar e salvar.
+      if (r.escolhido) moverPinoParaGoogle(r.escolhido.lat, r.escolhido.lng)
+      router.refresh()
+    }
     if (verHistorico) void carregarHistorico()
   }
 
@@ -198,7 +218,8 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
     setGeoBusy(false)
     if (!r.ok) return setMsg({ tipo: 'erro', texto: r.erro })
     setGeoRes(null)
-    setMsg({ tipo: 'ok', texto: 'Endereço do Google registrado como referência (vale 30 dias).' })
+    moverPinoParaGoogle(c.lat, c.lng)
+    setMsg({ tipo: 'ok', texto: motor === 'google' ? 'Candidato escolhido: o pino foi para a posição dele. Ajuste e salve.' : 'Endereço do Google registrado como referência (vale 30 dias).' })
     router.refresh()
     if (verHistorico) void carregarHistorico()
   }
@@ -217,7 +238,7 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
 
   // Sugestão a exibir: a que acabou de vir da consulta, ou a guardada no posto (vale 30 dias).
   const sugestao = geoRes?.ok && geoRes.escolhido
-    ? { endereco: geoRes.escolhido.enderecoFormatado, tipo: String(geoRes.escolhido.tipo), parcial: geoRes.escolhido.parcial, distanciaPinoM: geoRes.escolhido.distanciaPinoM, link: geoRes.escolhido.linkGoogle }
+    ? { endereco: geoRes.escolhido.enderecoFormatado, tipo: String(geoRes.escolhido.tipo), parcial: geoRes.escolhido.parcial, distanciaPinoM: geoRes.escolhido.distanciaPinoM, link: geoRes.escolhido.linkGoogle, lat: geoRes.escolhido.lat, lng: geoRes.escolhido.lng }
     : selecionado?.google ?? null
 
   function minhaLocalizacao() {
@@ -242,6 +263,7 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
       })
       if (!r.ok) return setMsg({ tipo: 'erro', texto: r.erro })
       setMsg({ tipo: 'ok', texto: remover ? 'Localização removida.' : 'Localização salva!' })
+      setPinoGoogle(null)
       if (remover) setPos(null)
       router.refresh()
     })
@@ -395,14 +417,33 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
                     {sugestao.distanciaPinoM != null && ` · a ${sugestao.distanciaPinoM} m do pino atual`}
                     {geoRes?.ok && geoRes.fonte === 'cache' && ' · já consultado antes (sem nova chamada)'}
                   </p>
-                  {sugestao.distanciaPinoM != null && sugestao.distanciaPinoM > 300 && (
+                  {pinoGoogle && motor === 'google' && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2 rounded-md bg-emerald-50 px-2 py-1.5 font-semibold text-emerald-800">
+                      <span>📍 O pino foi para o endereço do Google. Confira no mapa (satélite/Street View), arraste até a entrada e clique em Salvar localização.</span>
+                      <button type="button" onClick={desfazerPinoGoogle} className="rounded-md bg-white px-2 py-0.5 text-emerald-800 ring-1 ring-emerald-300 hover:bg-emerald-100">
+                        Desfazer
+                      </button>
+                    </div>
+                  )}
+                  {!pinoGoogle && motor === 'google' && 'lat' in sugestao && (
+                    <button type="button" onClick={() => moverPinoParaGoogle(sugestao.lat, sugestao.lng)}
+                      className="mt-1.5 rounded-md bg-sky-700 px-2.5 py-1 font-semibold text-white hover:bg-sky-600">
+                      Mover o pino para o endereço do Google
+                    </button>
+                  )}
+                  {motor === 'leaflet' && sugestao.distanciaPinoM != null && sugestao.distanciaPinoM > 300 && (
                     <p className="mt-1.5 rounded-md bg-red-50 px-2 py-1 font-semibold text-red-700">
                       ⚠️ O pino está a {sugestao.distanciaPinoM} m do endereço que o Google encontrou. Confira qual dos dois está errado.
                     </p>
                   )}
-                  {sugestao.distanciaPinoM == null && (
+                  {motor === 'leaflet' && sugestao.distanciaPinoM == null && (
                     <p className="mt-1.5 text-slate-600">
                       Este posto ainda não tem ponto. Veja o local no Google Maps e marque o pino abaixo no mapa, ou peça ao supervisor para marcar pelo GPS no posto.
+                    </p>
+                  )}
+                  {motor === 'google' && !pinoGoogle && sugestao.distanciaPinoM != null && sugestao.distanciaPinoM > 300 && (
+                    <p className="mt-1.5 rounded-md bg-red-50 px-2 py-1 font-semibold text-red-700">
+                      ⚠️ O pino atual está a {sugestao.distanciaPinoM} m do endereço do Google. Use o botão acima para comparar os dois lugares.
                     </p>
                   )}
                   <a href={sugestao.link} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center gap-1 font-semibold text-sky-700 hover:underline">
@@ -473,7 +514,8 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
             </div>
           )}
 
-          <div ref={divRef} className="relative z-0 h-[420px] w-full overflow-hidden rounded-xl ring-1 ring-slate-200" />
+          {avisoMapa && <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900 ring-1 ring-amber-200">{avisoMapa}</p>}
+          <div key={motor} ref={divRef} className="relative z-0 h-[420px] w-full overflow-hidden rounded-xl ring-1 ring-slate-200" />
 
           {selecionado && (
             <>

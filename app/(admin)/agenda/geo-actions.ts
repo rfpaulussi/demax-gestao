@@ -58,6 +58,9 @@ export type PostoLocal = {
     distanciaPinoM: number | null
     link: string
     expiraEm: string | null
+    /** Só o editor com mapa do Google pode usar (termos 6.2): nunca desenhar no mapa OpenStreetMap. */
+    lat: number
+    lng: number
   } | null
 }
 
@@ -93,6 +96,8 @@ function montarPostoLocal(p: PostoLocalBruto): PostoLocal {
       distanciaPinoM: temPino ? Math.round(distanciaM(geo_google_lat as number, geo_google_lng as number, p.latitude as number, p.longitude as number)) : null,
       link: `https://www.google.com/maps/search/?${q.toString()}`,
       expiraEm: geo_google_expira_em ?? null,
+      lat: geo_google_lat as number,
+      lng: geo_google_lng as number,
     }
   }
   return {
