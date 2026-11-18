@@ -4,6 +4,7 @@ import { getUser } from '@/lib/auth/get-user'
 import { listarLocais, listarPropostasLocais } from '../geo-actions'
 import { LocaisCliente } from '@/components/agenda/locais-cliente'
 import { PropostasLocais } from '@/components/agenda/propostas-locais'
+import { VerificarEnderecos } from '@/components/agenda/verificar-enderecos'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,6 +21,7 @@ export default async function LocaisPage() {
       <Link href="/agenda" className="text-xs font-semibold text-slate-500 hover:text-slate-900">← Agenda</Link>
       {propostas.ok && <PropostasLocais propostas={propostas.propostas} />}
       {!propostas.ok && <p className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">{propostas.erro}</p>}
+      {r.ok && <VerificarEnderecos />}
       {r.ok ? (
         <LocaisCliente postos={r.postos} />
       ) : (

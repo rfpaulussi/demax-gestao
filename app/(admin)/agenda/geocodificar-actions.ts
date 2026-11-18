@@ -9,9 +9,10 @@ import {
   geocodificarPostoCore, persistirCandidato,
   type CandidatoView, type SaidaGeocodificacao,
 } from '@/lib/geo/geocodificar-posto'
+import { geocodificarLoteCore, listarPendentesGeo, type ItemLote, type SituacaoLote } from '@/lib/geo/lote'
 import type { AnyClient } from '@/lib/geo/historico'
 
-export type { CandidatoView, SaidaGeocodificacao }
+export type { CandidatoView, SaidaGeocodificacao, ItemLote, SituacaoLote }
 
 const db = () => createAdminClient() as unknown as AnyClient
 
@@ -67,6 +68,34 @@ export async function escolherCandidatoGoogle(input: {
     { lat: c.lat, lng: c.lng, enderecoFormatado: String(c.enderecoFormatado ?? ''), placeId: String(c.placeId), tipo: String(c.tipo ?? 'APPROXIMATE'), parcial: c.parcial === true, cidade: null, uf: null },
     endereco, auth.perfil.id, 'candidato escolhido pela coordenação',
   )
+  if (r.ok) revalidatePath('/agenda/locais')
+  return r
+}
+
+// ─── Verificação em lote ───────────────────────────────────────────────────────
+// Só preenche a sugestão do Google (geo_google_*). Nenhum ponto oficial é alterado.
+
+export type PendentesGeo = {
+  total: number // postos ativos com local físico
+  ids: string[] // a consultar agora
+  semEndereco: number
+  jaConsultados: number
+}
+
+export async function listarPendentesGeocodificacao(): Promise<{ ok: true; pendentes: PendentesGeo } | { ok: false; erro: string }> {
+  const auth = await getUser()
+  if (!auth || !ehGestao(auth.perfil.role)) return { ok: false, erro: 'Sem permissão' }
+  const r = await listarPendentesGeo(db())
+  if (!r.ok) return r
+  return { ok: true, pendentes: { total: r.total, ids: r.ids.map(i => i.id), semEndereco: r.semEndereco, jaConsultados: r.jaConsultados } }
+}
+
+/** Um bloco (até 10 postos) do lote. O cliente repete até acabar e para sozinho se vier erro fatal (cota, chave). */
+export async function geocodificarLote(ids: string[]): Promise<{ ok: true; itens: ItemLote[]; fatal?: string } | { ok: false; erro: string }> {
+  const auth = await getUser()
+  if (!auth || !ehGestao(auth.perfil.role)) return { ok: false, erro: 'Sem permissão' }
+  if (!Array.isArray(ids) || ids.length === 0 || ids.some(i => typeof i !== 'string')) return { ok: false, erro: 'Lista inválida' }
+  const r = await geocodificarLoteCore(db(), ids, auth.perfil.id)
   if (r.ok) revalidatePath('/agenda/locais')
   return r
 }

@@ -7,12 +7,14 @@ import { buscarEndereco, salvarLocalPosto } from '@/app/(admin)/agenda/geo-actio
 import type { PostoLocal, ResultadoEndereco } from '@/app/(admin)/agenda/geo-actions'
 import { escolherCandidatoGoogle, geocodificarPosto, listarHistoricoGeo } from '@/app/(admin)/agenda/geocodificar-actions'
 import type { CandidatoView, EventoHistoricoGeo, SaidaGeocodificacao } from '@/app/(admin)/agenda/geocodificar-actions'
+import { distanciaM, formatarDistancia } from '@/lib/agenda/geo'
 import { criarMapaGoogle } from './mapa-editor/google'
 import { criarMapaLeaflet } from './mapa-editor/leaflet'
 import type { EventosMapa, MapaEditor, Pos } from './mapa-editor/tipos'
 
 // Chave de NAVEGADOR do Maps JavaScript API (protegida por restrição de referrer). Sem ela, o editor usa o OpenStreetMap.
 const CHAVE_MAPS = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? ''
+const DIVERGENCIA_M = 300 // pino a mais que isso do endereço do Google = conferir
 
 const ORIGEM_ROTULO: Record<string, string> = {
   nominatim: 'importada automaticamente (Nominatim)',
@@ -43,6 +45,7 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
   const [filtro, setFiltro] = useState('')
   const [soPendentes, setSoPendentes] = useState(false)
   const [soConferir, setSoConferir] = useState(false)
+  const [soDivergentes, setSoDivergentes] = useState(false)
   const [pos, setPos] = useState<Pos | null>(null)
   const [raio, setRaio] = useState(150)
   const [ref, setRef] = useState('')
@@ -74,14 +77,22 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
   const pct = postos.length ? conferidos / postos.length : 0
   const pctAuto = postos.length ? localizados / postos.length : 0
 
+  // Pino a mais de 300 m do endereço que o Google encontrou (distância calculada no servidor ao carregar a lista).
+  const divergencia = (p: PostoLocal) => (p.google?.distanciaPinoM != null && p.google.distanciaPinoM > DIVERGENCIA_M ? p.google.distanciaPinoM : null)
+  const divergentes = postos.filter(p => divergencia(p) != null).length
+
   const lista = useMemo(() => {
     const q = filtro.trim().toLowerCase()
-    return postos.filter(p => {
+    const filtrada = postos.filter(p => {
       if (soPendentes && p.latitude != null) return false
       if (soConferir && !(p.latitude != null && !p.geo_confirmado)) return false
+      if (soDivergentes && divergencia(p) == null) return false
       return !q || p.nome.toLowerCase().includes(q) || (p.secretaria ?? '').toLowerCase().includes(q)
     })
-  }, [postos, filtro, soPendentes, soConferir])
+    // Fila de conferência: o pino mais longe do endereço vem primeiro.
+    return soDivergentes ? filtrada.sort((a, b) => (divergencia(b) ?? 0) - (divergencia(a) ?? 0)) : filtrada
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postos, filtro, soPendentes, soConferir, soDivergentes])
 
   // Cria o mapa (Google se houver chave e ele carregar; senão OpenStreetMap). Trocar `motor` recria o mapa.
   useEffect(() => {
@@ -241,6 +252,10 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
     ? { endereco: geoRes.escolhido.enderecoFormatado, tipo: String(geoRes.escolhido.tipo), parcial: geoRes.escolhido.parcial, distanciaPinoM: geoRes.escolhido.distanciaPinoM, link: geoRes.escolhido.linkGoogle, lat: geoRes.escolhido.lat, lng: geoRes.escolhido.lng }
     : selecionado?.google ?? null
 
+  // Distância do pino ATUAL (arrastado ou salvo) até a sugestão do Google: acompanha o pino em tempo real,
+  // em vez do valor calculado no servidor no momento da consulta.
+  const distPino = sugestao && pos ? Math.round(distanciaM(sugestao.lat, sugestao.lng, pos.lat, pos.lng)) : null
+
   function minhaLocalizacao() {
     if (!navigator.geolocation) return setMsg({ tipo: 'erro', texto: 'Seu navegador não permite localização.' })
     navigator.geolocation.getCurrentPosition(
@@ -301,10 +316,13 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
           </div>
           <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1 px-1 text-xs text-slate-500">
             <label className="flex items-center gap-2">
-              <input type="checkbox" checked={soPendentes} onChange={e => { setSoPendentes(e.target.checked); if (e.target.checked) setSoConferir(false) }} /> Sem localização ({postos.length - localizados})
+              <input type="checkbox" checked={soPendentes} onChange={e => { setSoPendentes(e.target.checked); if (e.target.checked) { setSoConferir(false); setSoDivergentes(false) } }} /> Sem localização ({postos.length - localizados})
             </label>
             <label className="flex items-center gap-2">
-              <input type="checkbox" checked={soConferir} onChange={e => { setSoConferir(e.target.checked); if (e.target.checked) setSoPendentes(false) }} /> A conferir ({aConferir})
+              <input type="checkbox" checked={soConferir} onChange={e => { setSoConferir(e.target.checked); if (e.target.checked) { setSoPendentes(false); setSoDivergentes(false) } }} /> A conferir ({aConferir})
+            </label>
+            <label className="flex items-center gap-2 font-semibold text-red-700" title="Pino a mais de 300 m do endereço do Google, do mais distante para o mais perto">
+              <input type="checkbox" checked={soDivergentes} onChange={e => { setSoDivergentes(e.target.checked); if (e.target.checked) { setSoPendentes(false); setSoConferir(false) } }} /> Divergentes ({divergentes})
             </label>
           </div>
           <ul className="max-h-[520px] space-y-1 overflow-y-auto pr-1">
@@ -323,6 +341,12 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold text-slate-800">{p.nome}</span>
                       <span className="block truncate text-[11px] text-slate-400">{p.secretaria ?? 'Sem secretaria'}</span>
+                      {divergencia(p) != null && (
+                        <span className="block truncate text-[11px] font-semibold text-red-600">⚠ pino a {formatarDistancia(divergencia(p) as number)} do endereço</span>
+                      )}
+                      {!divergencia(p) && p.google && p.google.distanciaPinoM != null && (
+                        <span className="block truncate text-[11px] text-emerald-600">endereço confere ({formatarDistancia(p.google.distanciaPinoM)})</span>
+                      )}
                     </span>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${!ok ? 'bg-rose-100 text-rose-700' : p.geo_confirmado ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                       {!ok ? 'pendente' : p.geo_confirmado ? `${p.raio_m} m` : 'a conferir'}
@@ -414,7 +438,7 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
                   <p className="font-semibold text-slate-800">{sugestao.endereco || 'Endereço encontrado pelo Google'}</p>
                   <p className="mt-0.5 text-slate-500">
                     {TIPO_ROTULO[sugestao.tipo ?? ''] ?? sugestao.tipo}{sugestao.parcial ? ' · correspondência parcial' : ''}
-                    {sugestao.distanciaPinoM != null && ` · a ${sugestao.distanciaPinoM} m do pino atual`}
+                    {distPino != null && ` · a ${distPino} m do pino atual`}
                     {geoRes?.ok && geoRes.fonte === 'cache' && ' · já consultado antes (sem nova chamada)'}
                   </p>
                   {pinoGoogle && motor === 'google' && (
@@ -431,19 +455,19 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
                       Mover o pino para o endereço do Google
                     </button>
                   )}
-                  {motor === 'leaflet' && sugestao.distanciaPinoM != null && sugestao.distanciaPinoM > 300 && (
+                  {motor === 'leaflet' && distPino != null && distPino > 300 && (
                     <p className="mt-1.5 rounded-md bg-red-50 px-2 py-1 font-semibold text-red-700">
-                      ⚠️ O pino está a {sugestao.distanciaPinoM} m do endereço que o Google encontrou. Confira qual dos dois está errado.
+                      ⚠️ O pino está a {distPino} m do endereço que o Google encontrou. Confira qual dos dois está errado.
                     </p>
                   )}
-                  {motor === 'leaflet' && sugestao.distanciaPinoM == null && (
+                  {motor === 'leaflet' && distPino == null && (
                     <p className="mt-1.5 text-slate-600">
                       Este posto ainda não tem ponto. Veja o local no Google Maps e marque o pino abaixo no mapa, ou peça ao supervisor para marcar pelo GPS no posto.
                     </p>
                   )}
-                  {motor === 'google' && !pinoGoogle && sugestao.distanciaPinoM != null && sugestao.distanciaPinoM > 300 && (
+                  {motor === 'google' && !pinoGoogle && distPino != null && distPino > 300 && (
                     <p className="mt-1.5 rounded-md bg-red-50 px-2 py-1 font-semibold text-red-700">
-                      ⚠️ O pino atual está a {sugestao.distanciaPinoM} m do endereço do Google. Use o botão acima para comparar os dois lugares.
+                      ⚠️ O pino atual está a {distPino} m do endereço do Google. Use o botão acima para comparar os dois lugares.
                     </p>
                   )}
                   <a href={sugestao.link} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center gap-1 font-semibold text-sky-700 hover:underline">
