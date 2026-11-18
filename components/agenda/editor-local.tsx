@@ -4,9 +4,33 @@ import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, LocateFixed, MapPin, Search, Trash2 } from 'lucide-react'
+import { CheckCircle2, ExternalLink, History, LocateFixed, MapPin, Search, Trash2 } from 'lucide-react'
 import { buscarEndereco, salvarLocalPosto } from '@/app/(admin)/agenda/geo-actions'
 import type { PostoLocal, ResultadoEndereco } from '@/app/(admin)/agenda/geo-actions'
+import { escolherCandidatoGoogle, geocodificarPosto, listarHistoricoGeo } from '@/app/(admin)/agenda/geocodificar-actions'
+import type { CandidatoView, EventoHistoricoGeo, SaidaGeocodificacao } from '@/app/(admin)/agenda/geocodificar-actions'
+
+const ORIGEM_ROTULO: Record<string, string> = {
+  nominatim: 'importada automaticamente (Nominatim)',
+  gps_supervisor: 'GPS de um supervisor no local',
+  manual_mapa: 'marcada no mapa pela coordenação',
+}
+const TIPO_ROTULO: Record<string, string> = {
+  ROOFTOP: 'endereço exato',
+  RANGE_INTERPOLATED: 'número estimado na rua',
+  GEOMETRIC_CENTER: 'centro da região',
+  APPROXIMATE: 'aproximado',
+}
+const EVENTO_ROTULO: Record<string, string> = {
+  geocodificado: 'Consulta ao Google',
+  geocodificacao_falhou: 'Consulta ao Google sem resultado',
+  confirmado_mapa: 'Ponto confirmado no mapa',
+  marcado_gps: 'Ponto marcado pelo GPS',
+  proposta_aprovada: 'Proposta de supervisor aprovada',
+  removido: 'Ponto removido',
+}
+
+const dataCurta = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
 
 const TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
 const ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -35,6 +59,11 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
   const [achados, setAchados] = useState<ResultadoEndereco[]>([])
   const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
   const [buscando, setBuscando] = useState(false)
+  const [enderecoBusca, setEnderecoBusca] = useState('')
+  const [geoRes, setGeoRes] = useState<SaidaGeocodificacao | null>(null)
+  const [geoBusy, setGeoBusy] = useState(false)
+  const [historico, setHistorico] = useState<EventoHistoricoGeo[] | null>(null)
+  const [verHistorico, setVerHistorico] = useState(false)
 
   const divRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
@@ -93,9 +122,13 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
   useEffect(() => {
     setMsg(null)
     setAchados([])
+    setGeoRes(null)
+    setHistorico(null)
+    setVerHistorico(false)
     if (!selecionado) { setPos(null); return }
     setRaio(selecionado.raio_m ?? 150)
     setRef(selecionado.endereco_ref ?? '')
+    setEnderecoBusca(selecionado.endereco_busca ?? selecionado.endereco_ref ?? '')
     setConsulta(selecionado.nome)
     if (selecionado.latitude != null && selecionado.longitude != null) {
       setPos({ lat: selecionado.latitude, lng: selecionado.longitude })
@@ -143,6 +176,49 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
     setAchados(r.itens)
     if (r.itens.length === 0) setMsg({ tipo: 'erro', texto: 'Nenhum endereço encontrado. Tente outro termo ou clique no mapa.' })
   }
+
+  async function consultarGoogle(forcar: boolean) {
+    if (!selecionado) return
+    setMsg(null)
+    setGeoBusy(true)
+    const r = await geocodificarPosto({ postoId: selecionado.id, endereco: enderecoBusca, forcar })
+    setGeoBusy(false)
+    setGeoRes(r)
+    if (r.ok) router.refresh()
+    if (verHistorico) void carregarHistorico()
+  }
+
+  async function usarCandidato(c: CandidatoView) {
+    if (!selecionado) return
+    setGeoBusy(true)
+    const r = await escolherCandidatoGoogle({
+      postoId: selecionado.id,
+      candidato: { lat: c.lat, lng: c.lng, enderecoFormatado: c.enderecoFormatado, placeId: c.placeId, tipo: String(c.tipo), parcial: c.parcial },
+    })
+    setGeoBusy(false)
+    if (!r.ok) return setMsg({ tipo: 'erro', texto: r.erro })
+    setGeoRes(null)
+    setMsg({ tipo: 'ok', texto: 'Endereço do Google registrado como referência (vale 30 dias).' })
+    router.refresh()
+    if (verHistorico) void carregarHistorico()
+  }
+
+  async function carregarHistorico() {
+    if (!selecionado) return
+    const r = await listarHistoricoGeo(selecionado.id)
+    setHistorico(r.ok ? r.eventos : [])
+  }
+
+  function alternarHistorico() {
+    const abrir = !verHistorico
+    setVerHistorico(abrir)
+    if (abrir) void carregarHistorico()
+  }
+
+  // Sugestão a exibir: a que acabou de vir da consulta, ou a guardada no posto (vale 30 dias).
+  const sugestao = geoRes?.ok && geoRes.escolhido
+    ? { endereco: geoRes.escolhido.enderecoFormatado, tipo: String(geoRes.escolhido.tipo), parcial: geoRes.escolhido.parcial, distanciaPinoM: geoRes.escolhido.distanciaPinoM, link: geoRes.escolhido.linkGoogle }
+    : selecionado?.google ?? null
 
   function minhaLocalizacao() {
     if (!navigator.geolocation) return setMsg({ tipo: 'erro', texto: 'Seu navegador não permite localização.' })
@@ -255,6 +331,117 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
               {selecionado.geo_precisao === 'gps' ? ' (marcada pelo GPS de um supervisor no local — em geral a mais exata)' : selecionado.geo_precisao === 'alta' ? ' (prédio/equipamento)' : selecionado.geo_precisao === 'media' ? ' (meio da rua — pode estar a algumas dezenas de metros)' : ' (rua aproximada)'}.
               Confira o pino no mapa, ajuste se preciso e clique em <b>Confirmar localização</b>.
             </p>
+          )}
+
+          {selecionado && (
+            <div className="space-y-2 rounded-xl border border-sky-200 bg-sky-50/60 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-sky-800">Endereço do posto · validação Google</p>
+              <div className="flex gap-2">
+                <input
+                  value={enderecoBusca} onChange={e => setEnderecoBusca(e.target.value)} maxLength={300}
+                  onKeyDown={e => { if (e.key === 'Enter') void consultarGoogle(false) }}
+                  placeholder="Rua, número, bairro (a cidade é Mogi das Cruzes - SP)"
+                  className="flex-1 rounded-lg border border-sky-200 bg-white p-2.5 text-sm outline-none focus:border-sky-400"
+                />
+                <button type="button" onClick={() => consultarGoogle(false)} disabled={geoBusy || enderecoBusca.trim().length < 5}
+                  className="rounded-lg bg-sky-700 px-4 text-sm font-medium text-white hover:bg-sky-600 disabled:opacity-40">
+                  {geoBusy ? '…' : 'Consultar'}
+                </button>
+                {selecionado.endereco_busca && (
+                  <button type="button" onClick={() => consultarGoogle(true)} disabled={geoBusy} title="Consulta o Google de novo, mesmo com o endereço igual"
+                    className="rounded-lg bg-white px-3 text-xs font-semibold text-sky-800 ring-1 ring-sky-300 hover:bg-sky-100 disabled:opacity-40">
+                    Revalidar
+                  </button>
+                )}
+              </div>
+
+              {geoRes && !geoRes.ok && (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200">{geoRes.erro}</p>
+              )}
+
+              {geoRes?.ok && geoRes.classe === 'ambiguo' && (
+                <div className="rounded-lg bg-amber-50 p-3 ring-1 ring-amber-200">
+                  <p className="mb-2 text-sm font-semibold text-amber-900">
+                    O endereço está ambíguo ({geoRes.candidatos.length} possibilidade{geoRes.candidatos.length > 1 ? 's' : ''}). Escolha a correta ou refine o texto.
+                  </p>
+                  <ul className="space-y-1.5">
+                    {geoRes.candidatos.map(c => (
+                      <li key={c.placeId} className="flex flex-wrap items-center gap-2 rounded-lg bg-white p-2 text-xs ring-1 ring-amber-100">
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-semibold text-slate-800">{c.enderecoFormatado}</span>
+                          <span className="block text-slate-500">
+                            {TIPO_ROTULO[String(c.tipo)] ?? c.tipo}{c.parcial ? ' · correspondência parcial' : ''}
+                            {c.distanciaPinoM != null && ` · a ${c.distanciaPinoM} m do pino`}
+                          </span>
+                        </span>
+                        <a href={c.linkGoogle} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sky-700 hover:underline">
+                          <ExternalLink className="h-3 w-3" /> Ver no Google Maps
+                        </a>
+                        <button type="button" disabled={geoBusy} onClick={() => usarCandidato(c)}
+                          className="rounded-md bg-amber-500 px-2.5 py-1 font-semibold text-slate-900 hover:bg-amber-400 disabled:opacity-40">
+                          Usar este
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {sugestao && (
+                <div className="rounded-lg bg-white p-3 text-xs ring-1 ring-sky-100">
+                  <p className="font-semibold text-slate-800">{sugestao.endereco || 'Endereço encontrado pelo Google'}</p>
+                  <p className="mt-0.5 text-slate-500">
+                    {TIPO_ROTULO[sugestao.tipo ?? ''] ?? sugestao.tipo}{sugestao.parcial ? ' · correspondência parcial' : ''}
+                    {sugestao.distanciaPinoM != null && ` · a ${sugestao.distanciaPinoM} m do pino atual`}
+                    {geoRes?.ok && geoRes.fonte === 'cache' && ' · já consultado antes (sem nova chamada)'}
+                  </p>
+                  {sugestao.distanciaPinoM != null && sugestao.distanciaPinoM > 300 && (
+                    <p className="mt-1.5 rounded-md bg-red-50 px-2 py-1 font-semibold text-red-700">
+                      ⚠️ O pino está a {sugestao.distanciaPinoM} m do endereço que o Google encontrou. Confira qual dos dois está errado.
+                    </p>
+                  )}
+                  {sugestao.distanciaPinoM == null && (
+                    <p className="mt-1.5 text-slate-600">
+                      Este posto ainda não tem ponto. Veja o local no Google Maps e marque o pino abaixo no mapa, ou peça ao supervisor para marcar pelo GPS no posto.
+                    </p>
+                  )}
+                  <a href={sugestao.link} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center gap-1 font-semibold text-sky-700 hover:underline">
+                    <ExternalLink className="h-3 w-3" /> Ver no Google Maps
+                  </a>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
+                {selecionado.latitude != null && (
+                  <span>
+                    Ponto: <b className="text-slate-700">{ORIGEM_ROTULO[selecionado.geo_origem ?? ''] ?? 'origem não registrada'}</b>
+                    {selecionado.geo_confirmado && selecionado.geo_confirmado_em && ` · confirmado${selecionado.geo_confirmado_por_nome ? ` por ${selecionado.geo_confirmado_por_nome}` : ''} em ${dataCurta(selecionado.geo_confirmado_em)}`}
+                  </span>
+                )}
+                {selecionado.latitude == null && selecionado.geo_status === 'nao_encontrado' && <span className="font-semibold text-amber-700">Google não encontrou este endereço</span>}
+                {selecionado.latitude == null && selecionado.geo_status === 'ambiguo' && <span className="font-semibold text-amber-700">Endereço ambíguo: falta escolher</span>}
+                {selecionado.latitude == null && selecionado.geo_status === 'erro' && <span className="font-semibold text-red-700">Última consulta falhou</span>}
+                <button type="button" onClick={alternarHistorico} className="ml-auto flex items-center gap-1 font-semibold text-slate-600 hover:text-slate-900">
+                  <History className="h-3 w-3" /> {verHistorico ? 'Ocultar histórico' : 'Ver histórico'}
+                </button>
+              </div>
+
+              {verHistorico && (
+                <ul className="max-h-40 space-y-1 overflow-y-auto rounded-lg bg-white p-2 text-[11px] text-slate-600 ring-1 ring-slate-100">
+                  {historico === null && <li>Carregando…</li>}
+                  {historico?.length === 0 && <li>Nenhum registro ainda.</li>}
+                  {historico?.map(h => (
+                    <li key={h.id}>
+                      <b className="text-slate-800">{EVENTO_ROTULO[h.evento] ?? h.evento}</b>
+                      {h.origem && ` · ${ORIGEM_ROTULO[h.origem] ?? h.origem}`}
+                      {h.statusGeo && ` · ${h.statusGeo}`}
+                      {h.detalhe && ` · ${h.detalhe}`}
+                      {` · ${h.usuarioNome ?? 'sistema'} · ${dataCurta(h.criadoEm)}`}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           )}
 
           {selecionado && (

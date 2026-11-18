@@ -8,7 +8,7 @@ import { ModalAtribuirHorariosLote } from './modal-atribuir-horarios-lote'
 import * as XLSX from 'xlsx-js-style'
 import { cn } from '@/lib/utils'
 import type { PostoRow } from '@/app/(admin)/postos/actions'
-import { criarPosto, editarPosto, desativarPosto } from '@/app/(admin)/postos/actions'
+import { criarPosto, editarPosto, desativarPosto, getEnderecoPosto } from '@/app/(admin)/postos/actions'
 import { ModalNovaAdmissao } from './modal-nova-admissao'
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -220,6 +220,8 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
   const [formSecretaria, setFormSecretaria]  = useState('')
   const [formPrevisto, setFormPrevisto]      = useState(1)
   const [formInsalubridade, setFormInsalubridade] = useState(0)
+  const [formEndereco, setFormEndereco]      = useState('')
+  const [avisoGeo, setAvisoGeo]              = useState('')
   const [gerenciarSortCol, setGerenciarSortCol] = useState<'nome' | 'secretaria' | 'efetivo_previsto' | 'cota_insalubridade'>('secretaria')
   const [gerenciarSortDir, setGerenciarSortDir] = useState<'asc' | 'desc'>('asc')
   const [buscaGerenciar, setBuscaGerenciar]   = useState('')
@@ -230,27 +232,36 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
   }
 
   function abrirCriar() {
-    setFormNome(''); setFormSecretaria(''); setFormPrevisto(1); setFormInsalubridade(0)
+    setFormNome(''); setFormSecretaria(''); setFormPrevisto(1); setFormInsalubridade(0); setFormEndereco('')
     setErroModal(''); setModalPosto('criar')
   }
 
   function abrirEditar(p: PostoRow) {
     setFormNome(p.nome); setFormSecretaria(p.secretaria ?? '')
     setFormPrevisto(p.efetivo_previsto); setFormInsalubridade(p.cota_insalubridade ?? 0)
+    setFormEndereco('')
     setErroModal(''); setModalPosto(p)
+    void getEnderecoPosto(p.id).then(e => setFormEndereco(atual => atual || e))
   }
 
   async function handleSalvar() {
     if (!formNome.trim() || !formSecretaria.trim()) { setErroModal('Nome e secretaria são obrigatórios'); return }
     setSaving(true); setErroModal('')
-    const payload = { nome: formNome, secretaria: formSecretaria, efetivo_previsto: formPrevisto, cota_insalubridade: formInsalubridade }
+    const payload = { nome: formNome, secretaria: formSecretaria, efetivo_previsto: formPrevisto, cota_insalubridade: formInsalubridade, endereco: formEndereco }
     const res = modalPosto === 'criar'
       ? await criarPosto(payload)
       : await editarPosto((modalPosto as PostoRow).id, payload)
     setSaving(false)
     if (res.error) { setErroModal(res.error); return }
     setModalPosto(null)
+    if (res.aviso) setAvisoGeo(res.aviso)
   }
+
+  useEffect(() => {
+    if (!avisoGeo) return
+    const t = setTimeout(() => setAvisoGeo(''), 9000)
+    return () => clearTimeout(t)
+  }, [avisoGeo])
 
   async function handleDesativar() {
     if (!confirmDesativar) return
@@ -747,6 +758,12 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
         </div>
       )}
 
+      {avisoGeo && (
+        <div className="fixed right-4 top-4 z-[60] max-w-sm rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-900 shadow-lg" role="status">
+          {avisoGeo}
+        </div>
+      )}
+
       {modalPosto !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
@@ -777,6 +794,13 @@ export function PostosClient({ postos, role, funcoes = [], supervisorPostos = []
                   <input type="number" min={0} value={formInsalubridade} onChange={e => setFormInsalubridade(Number(e.target.value))}
                     className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400" />
                 </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-gray-500">Endereço (opcional)</label>
+                <input value={formEndereco} onChange={e => setFormEndereco(e.target.value)} maxLength={300}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  placeholder="Rua, número, bairro (Mogi das Cruzes - SP)" />
+                <p className="mt-1 text-[11px] text-gray-400">Validado no Google ao salvar, só se for novo ou tiver mudado. O ponto do check-in é marcado em Agenda → Locais.</p>
               </div>
               {erroModal && <p className="text-xs text-red-600">{erroModal}</p>}
             </div>

@@ -8,6 +8,7 @@ import { coordenadaValida, dentroDoRaio, distanciaM, PRECISAO_RUIM_M } from '@/l
 import { postosDoSupervisor } from '@/lib/agenda/postos'
 import { buscarSedeId } from '@/lib/agenda/sede'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { registrarHistoricoGeo } from '@/lib/geo/historico'
 import {
   dataBR, montarVisitas,
   type BlocoPlan, type CheckinRaw, type MapaStats, type PostoGeo, type VisitaView,
@@ -43,6 +44,66 @@ export type PostoLocal = {
   endereco_ref: string | null
   geo_confirmado: boolean // false = importada automaticamente, ainda não conferida
   geo_precisao: string | null // alta | media | baixa
+  // Geocodificação (migração 20261118). Sem ela, vêm vazios.
+  endereco_busca: string | null
+  geo_origem: string | null // nominatim | gps_supervisor | manual_mapa
+  geo_status: string | null
+  geo_confirmado_em: string | null
+  geo_confirmado_por_nome: string | null
+  /** Sugestão do Google (vale 30 dias). Só texto e link: não é desenhada no mapa OpenStreetMap. */
+  google: {
+    endereco: string | null
+    tipo: string | null
+    parcial: boolean
+    distanciaPinoM: number | null
+    link: string
+    expiraEm: string | null
+  } | null
+}
+
+type PostoLocalBruto = Omit<PostoLocal, 'endereco_busca' | 'geo_origem' | 'geo_status' | 'geo_confirmado_em' | 'geo_confirmado_por_nome' | 'google'> & {
+  endereco_busca?: string | null
+  geo_origem?: string | null
+  geo_status?: string | null
+  geo_confirmado_em?: string | null
+  geo_place_id?: string | null
+  geo_google_lat?: number | null
+  geo_google_lng?: number | null
+  geo_google_endereco?: string | null
+  geo_google_tipo?: string | null
+  geo_google_parcial?: boolean | null
+  geo_google_expira_em?: string | null
+  confirmador?: { nome: string | null } | null
+}
+
+function montarPostoLocal(p: PostoLocalBruto): PostoLocal {
+  const {
+    geo_place_id, geo_google_lat, geo_google_lng, geo_google_endereco, geo_google_tipo, geo_google_parcial, geo_google_expira_em, confirmador, ...resto
+  } = p
+  const vigente = geo_google_lat != null && geo_google_lng != null && !!geo_place_id
+    && (!geo_google_expira_em || Date.parse(geo_google_expira_em) > Date.now())
+  let google: PostoLocal['google'] = null
+  if (vigente) {
+    const temPino = p.latitude != null && p.longitude != null
+    const q = new URLSearchParams({ api: '1', query: `${geo_google_lat},${geo_google_lng}`, query_place_id: geo_place_id as string })
+    google = {
+      endereco: geo_google_endereco ?? null,
+      tipo: geo_google_tipo ?? null,
+      parcial: geo_google_parcial === true,
+      distanciaPinoM: temPino ? Math.round(distanciaM(geo_google_lat as number, geo_google_lng as number, p.latitude as number, p.longitude as number)) : null,
+      link: `https://www.google.com/maps/search/?${q.toString()}`,
+      expiraEm: geo_google_expira_em ?? null,
+    }
+  }
+  return {
+    ...resto,
+    endereco_busca: p.endereco_busca ?? null,
+    geo_origem: p.geo_origem ?? null,
+    geo_status: p.geo_status ?? null,
+    geo_confirmado_em: p.geo_confirmado_em ?? null,
+    geo_confirmado_por_nome: confirmador?.nome ?? null,
+    google,
+  }
 }
 
 export async function listarLocais(): Promise<{ ok: true; postos: PostoLocal[] } | { ok: false; erro: string }> {
@@ -56,14 +117,18 @@ export async function listarLocais(): Promise<{ ok: true; postos: PostoLocal[] }
       .eq('ativo', true)
       .order('nome')
   const base = 'id, nome, secretaria, latitude, longitude, raio_m, endereco_ref'
-  // geo_confirmado/geo_precisao só existem após a migração 20261016.
+  // Do mais completo ao mais simples: geocodificação (20261118) e conferência (20261016) só existem após as migrações.
+  const colsGeocod =
+    'endereco_busca, geo_origem, geo_status, geo_confirmado_em, geo_place_id, geo_google_lat, geo_google_lng, geo_google_endereco, geo_google_tipo, geo_google_parcial, geo_google_expira_em, confirmador:perfis!geo_confirmado_por(nome)'
+  const completo = await buscar(`${base}, geo_confirmado, geo_precisao, ${colsGeocod}`)
+  if (!completo.error) return { ok: true, postos: ((completo.data ?? []) as PostoLocalBruto[]).map(montarPostoLocal) }
   const comConferencia = await buscar(`${base}, geo_confirmado, geo_precisao`)
-  if (!comConferencia.error) return { ok: true, postos: (comConferencia.data ?? []) as PostoLocal[] }
+  if (!comConferencia.error) return { ok: true, postos: ((comConferencia.data ?? []) as PostoLocalBruto[]).map(montarPostoLocal) }
   const simples = await buscar(base)
   if (simples.error) return { ok: false, erro: MSG_MIGRACAO }
   return {
     ok: true,
-    postos: ((simples.data ?? []) as Omit<PostoLocal, 'geo_confirmado' | 'geo_precisao'>[]).map(p => ({ ...p, geo_confirmado: true, geo_precisao: null })),
+    postos: ((simples.data ?? []) as PostoLocalBruto[]).map(p => montarPostoLocal({ ...p, geo_confirmado: true, geo_precisao: null })),
   }
 }
 
@@ -114,10 +179,33 @@ export async function salvarLocalPosto(input: {
     raio_m: raio,
     endereco_ref: input.enderecoRef.trim().slice(0, 300) || null,
   }
-  // Salvar no mapa = conferido por uma pessoa. A coluna só existe após a migração 20261016.
-  let { error } = await db().from('postos').update({ ...campos, geo_confirmado: true, geo_precisao: null }).eq('id', input.postoId)
-  if (error) ({ error } = await db().from('postos').update(campos).eq('id', input.postoId))
+  const admin = db()
+  // Ponto igual ao já gravado (só confirmando o que o GPS/importação trouxe): a origem original é preservada.
+  const { data: atual } = await admin.from('postos').select('latitude, longitude, geo_origem').eq('id', input.postoId).maybeSingle()
+  const mesmoPonto = !limpar && !!atual && atual.latitude != null && atual.longitude != null
+    && Math.abs(atual.latitude - (input.latitude as number)) < 1e-7 && Math.abs(atual.longitude - (input.longitude as number)) < 1e-7
+  const origem = limpar ? null : mesmoPonto && atual?.geo_origem ? atual.geo_origem : 'manual_mapa'
+
+  // Salvar no mapa = conferido por uma pessoa. Do mais completo ao mais simples:
+  // auditoria (20261118) → conferência (20261016) → só o ponto.
+  const agora = new Date().toISOString()
+  let { error } = await admin.from('postos').update({
+    ...campos, geo_confirmado: true, geo_precisao: null,
+    geo_origem: origem,
+    geo_status: limpar ? 'sem_coordenada' : 'confirmado',
+    geo_confirmado_por: limpar ? null : auth.perfil.id,
+    geo_confirmado_em: limpar ? null : agora,
+  }).eq('id', input.postoId)
+  if (error) ({ error } = await admin.from('postos').update({ ...campos, geo_confirmado: true, geo_precisao: null }).eq('id', input.postoId))
+  if (error) ({ error } = await admin.from('postos').update(campos).eq('id', input.postoId))
   if (error) return { ok: false, erro: error.message }
+  await registrarHistoricoGeo(admin, {
+    postoId: input.postoId,
+    evento: limpar ? 'removido' : 'confirmado_mapa',
+    executadoPor: auth.perfil.id,
+    latitude: campos.latitude, longitude: campos.longitude, raioM: raio,
+    origem, detalhe: mesmoPonto ? 'ponto conferido sem alteração' : undefined,
+  })
 
   revalidatePath('/agenda')
   revalidatePath('/agenda/locais')
@@ -204,18 +292,26 @@ export async function marcarLocalPosto(input: {
     }
   }
 
-  const { error } = await admin
+  const camposGps = {
+    latitude: input.latitude,
+    longitude: input.longitude,
+    geo_confirmado: false, // a coordenação confere e confirma depois
+    geo_precisao: 'gps',
+    geo_marcado_por: auth.perfil.id,
+    geo_marcado_em: new Date().toISOString(),
+  }
+  // Com a migração 20261118 grava também origem/status; sem ela, cai para o formato anterior.
+  let { error } = await admin
     .from('postos')
-    .update({
-      latitude: input.latitude,
-      longitude: input.longitude,
-      geo_confirmado: false, // a coordenação confere e confirma depois
-      geo_precisao: 'gps',
-      geo_marcado_por: auth.perfil.id,
-      geo_marcado_em: new Date().toISOString(),
-    })
+    .update({ ...camposGps, geo_origem: 'gps_supervisor', geo_status: 'a_conferir', geo_confirmado_por: null, geo_confirmado_em: null })
     .eq('id', input.postoId)
+  if (error) ({ error } = await admin.from('postos').update(camposGps).eq('id', input.postoId))
   if (error) return { ok: false, erro: 'Recurso indisponível: aplique as migrações 20261016 e 20261017 no Supabase Studio.' }
+  await registrarHistoricoGeo(admin, {
+    postoId: input.postoId, evento: 'marcado_gps', executadoPor: auth.perfil.id,
+    latitude: input.latitude, longitude: input.longitude, origem: 'gps_supervisor',
+    detalhe: `precisão ±${Math.round(input.precisaoM)} m`,
+  })
 
   revalidatePath('/agenda')
   revalidatePath('/agenda/locais')
@@ -326,18 +422,25 @@ export async function decidirLocalProposto(input: { id: string; aprovar: boolean
   const agora = new Date().toISOString()
   if (input.aprovar) {
     // Aprovada: o local proposto vira o ponto oficial, já conferido pela coordenação.
-    const { error: postoErr } = await admin
+    const camposAprovados = {
+      latitude: prop.latitude,
+      longitude: prop.longitude,
+      geo_confirmado: true,
+      geo_precisao: 'gps',
+      geo_marcado_por: prop.supervisor_id,
+      geo_marcado_em: agora,
+    }
+    let { error: postoErr } = await admin
       .from('postos')
-      .update({
-        latitude: prop.latitude,
-        longitude: prop.longitude,
-        geo_confirmado: true,
-        geo_precisao: 'gps',
-        geo_marcado_por: prop.supervisor_id,
-        geo_marcado_em: agora,
-      })
+      .update({ ...camposAprovados, geo_origem: 'gps_supervisor', geo_status: 'confirmado', geo_confirmado_por: auth.perfil.id, geo_confirmado_em: agora })
       .eq('id', prop.posto_id)
+    if (postoErr) ({ error: postoErr } = await admin.from('postos').update(camposAprovados).eq('id', prop.posto_id))
     if (postoErr) return { ok: false, erro: postoErr.message }
+    await registrarHistoricoGeo(admin, {
+      postoId: prop.posto_id, evento: 'proposta_aprovada', executadoPor: auth.perfil.id,
+      latitude: prop.latitude, longitude: prop.longitude, origem: 'gps_supervisor',
+      detalhe: 'ponto proposto pelo supervisor, aprovado pela coordenação',
+    })
   }
 
   const { error: decErr } = await admin

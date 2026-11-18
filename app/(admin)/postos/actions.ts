@@ -4,6 +4,9 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { getUser } from '@/lib/auth/get-user'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { geocodificarPostoCore } from '@/lib/geo/geocodificar-posto'
+import { hashEndereco, limparEnderecoBusca } from '@/lib/geo/endereco'
 import { buscarEmprestimosAtivos } from '@/lib/coberturas-emprestimos'
 import { FUNCOES_FORA_DO_EFETIVO } from '@/lib/constants'
 
@@ -313,12 +316,41 @@ export async function getPostosData(): Promise<PostoRow[]> {
   }))
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyClient = { from: (table: string) => any }
+
+/**
+ * Valida o endereço do posto no Google (posto novo ou endereço alterado). Nunca bloqueia o cadastro:
+ * o posto já foi salvo; o resultado vira só um aviso. Só admin/coordenador consomem a cota do Google.
+ */
+async function geocodificarAposSalvar(postoId: string, endereco: string): Promise<string | undefined> {
+  const auth = await getUser()
+  if (!auth || (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador')) return undefined
+  const r = await geocodificarPostoCore(createAdminClient() as unknown as AnyClient, postoId, { usuarioId: auth.perfil.id, endereco })
+  if (!r.ok) return `Posto salvo. Endereço não validado: ${r.erro}`
+  if (r.classe === 'ambiguo') return 'Posto salvo. O endereço ficou ambíguo no Google: escolha a opção correta em Agenda → Locais.'
+  return r.divergente
+    ? 'Posto salvo. Atenção: o ponto marcado está longe do endereço encontrado pelo Google. Confira em Agenda → Locais.'
+    : 'Posto salvo e endereço validado no Google. Falta marcar o ponto em Agenda → Locais, se ainda não tiver.'
+}
+
+/** Endereço guardado do posto (para preencher o formulário de edição). Vazio se a migração 20261118 ainda não foi aplicada. */
+export async function getEnderecoPosto(id: string): Promise<string> {
+  const auth = await getUser()
+  if (!auth || (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador')) return ''
+  const { data, error } = await (createAdminClient() as unknown as AnyClient)
+    .from('postos').select('endereco_busca, endereco_ref').eq('id', id).maybeSingle()
+  if (error) return ''
+  return (data?.endereco_busca ?? data?.endereco_ref ?? '') as string
+}
+
 export async function criarPosto(data: {
   nome: string
   secretaria: string
   efetivo_previsto: number
   cota_insalubridade: number
-}): Promise<{ error?: string }> {
+  endereco?: string
+}): Promise<{ error?: string; aviso?: string }> {
   const supabase = createClient()
   const { data: contratos } = await supabase
     .from('contratos')
@@ -328,17 +360,20 @@ export async function criarPosto(data: {
     .single()
   if (!contratos) return { error: 'Contrato ativo não encontrado' }
 
-  const { error } = await supabase.from('postos').insert({
+  const { data: criado, error } = await supabase.from('postos').insert({
     contrato_id: contratos.id,
     nome: data.nome.trim().toUpperCase(),
     secretaria: data.secretaria.trim().toUpperCase(),
     efetivo_previsto: data.efetivo_previsto,
     cota_insalubridade: data.cota_insalubridade,
     ativo: true,
-  })
+  }).select('id').single()
   if (error) return { error: error.message }
+
+  const endereco = limparEnderecoBusca(data.endereco ?? '')
+  const aviso = endereco.length >= 5 && criado ? await geocodificarAposSalvar(criado.id, endereco) : undefined
   revalidatePath('/postos')
-  return {}
+  return { aviso }
 }
 
 export async function editarPosto(id: string, data: {
@@ -346,7 +381,8 @@ export async function editarPosto(id: string, data: {
   secretaria: string
   efetivo_previsto: number
   cota_insalubridade: number
-}): Promise<{ error?: string }> {
+  endereco?: string
+}): Promise<{ error?: string; aviso?: string }> {
   const supabase = createClient()
   const { error } = await supabase.from('postos').update({
     nome: data.nome.trim().toUpperCase(),
@@ -356,8 +392,16 @@ export async function editarPosto(id: string, data: {
     updated_at: new Date().toISOString(),
   }).eq('id', id)
   if (error) return { error: error.message }
+
+  // Só consulta o Google se o endereço realmente mudou (texto normalizado diferente do já guardado).
+  let aviso: string | undefined
+  const endereco = limparEnderecoBusca(data.endereco ?? '')
+  if (endereco.length >= 5) {
+    const atual = await getEnderecoPosto(id)
+    if (hashEndereco(atual) !== hashEndereco(endereco)) aviso = await geocodificarAposSalvar(id, endereco)
+  }
   revalidatePath('/postos')
-  return {}
+  return { aviso }
 }
 
 export async function desativarPosto(id: string): Promise<{ error?: string }> {
