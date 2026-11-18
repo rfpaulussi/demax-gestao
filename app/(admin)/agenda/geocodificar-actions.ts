@@ -9,6 +9,7 @@ import {
   geocodificarPostoCore, persistirCandidato,
   type CandidatoView, type SaidaGeocodificacao,
 } from '@/lib/geo/geocodificar-posto'
+import { ajustarRaiosCore, previaAjusteRaiosCore, raioAlvoValido } from '@/lib/geo/ajustar-raios'
 import { confirmarEmMassaCore, limiteValido, previaConfirmacaoCore } from '@/lib/geo/confirmar-massa'
 import { geocodificarLoteCore, listarPendentesGeo, type ItemLote, type SituacaoLote } from '@/lib/geo/lote'
 import type { AnyClient } from '@/lib/geo/historico'
@@ -116,6 +117,28 @@ export async function confirmarEmMassa(limiteM: number): Promise<{ ok: true; con
   if (!auth || !ehGestao(auth.perfil.role)) return { ok: false, erro: 'Sem permissão' }
   if (!limiteValido(limiteM)) return { ok: false, erro: 'Limite inválido (use de 10 a 100 m)' }
   const r = await confirmarEmMassaCore(db(), limiteM, auth.perfil.id)
+  if (r.ok) {
+    revalidatePath('/agenda')
+    revalidatePath('/agenda/locais')
+  }
+  return r
+}
+
+// ─── Ajuste de raios em lote ───────────────────────────────────────────────────
+// Reduz o raio (500 m importado) dos postos já confirmados. Não mexe em pino nem em raio escolhido à mão.
+
+export async function previaAjusteRaios(alvoM: number): Promise<{ ok: true; total: number; aConferirGrandes: number } | { ok: false; erro: string }> {
+  const auth = await getUser()
+  if (!auth || !ehGestao(auth.perfil.role)) return { ok: false, erro: 'Sem permissão' }
+  if (!raioAlvoValido(alvoM)) return { ok: false, erro: 'Raio inválido' }
+  return previaAjusteRaiosCore(db(), alvoM)
+}
+
+export async function ajustarRaiosEmMassa(alvoM: number): Promise<{ ok: true; ajustados: number } | { ok: false; erro: string }> {
+  const auth = await getUser()
+  if (!auth || !ehGestao(auth.perfil.role)) return { ok: false, erro: 'Sem permissão' }
+  if (!raioAlvoValido(alvoM)) return { ok: false, erro: 'Raio inválido' }
+  const r = await ajustarRaiosCore(db(), alvoM, auth.perfil.id)
   if (r.ok) {
     revalidatePath('/agenda')
     revalidatePath('/agenda/locais')

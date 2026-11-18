@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, ScanSearch } from 'lucide-react'
-import { confirmarEmMassa, geocodificarLote, listarPendentesGeocodificacao, previaConfirmacaoMassa } from '@/app/(admin)/agenda/geocodificar-actions'
+import { ajustarRaiosEmMassa, confirmarEmMassa, geocodificarLote, previaAjusteRaios, listarPendentesGeocodificacao, previaConfirmacaoMassa } from '@/app/(admin)/agenda/geocodificar-actions'
 import type { ItemLote, PendentesGeo } from '@/app/(admin)/agenda/geocodificar-actions'
 
 const BLOCO = 10
@@ -127,6 +127,89 @@ export function VerificarEnderecos() {
       {aviso && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 ring-1 ring-amber-200">{aviso}</p>}
 
       <ConfirmacaoEmMassa />
+      <AjusteDeRaios />
+    </div>
+  )
+}
+
+/**
+ * Reduz o raio de check-in (500 m importado) dos postos JÁ CONFIRMADOS. Não toca em raio escolhido à mão
+ * (menor que 500 m), em posto "a conferir" nem em pino.
+ */
+function AjusteDeRaios() {
+  const router = useRouter()
+  const [alvo, setAlvo] = useState(150)
+  const [previa, setPrevia] = useState<{ total: number; aConferirGrandes: number; alvo: number } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  async function ver() {
+    setMsg(null)
+    setBusy(true)
+    const r = await previaAjusteRaios(alvo)
+    setBusy(false)
+    if (!r.ok) return setMsg({ tipo: 'erro', texto: r.erro })
+    setPrevia({ total: r.total, aConferirGrandes: r.aConferirGrandes, alvo })
+  }
+
+  async function aplicar() {
+    if (!previa || previa.total === 0) return
+    const ok = window.confirm(
+      `Reduzir o raio de ${previa.total} postos confirmados de 500 m (ou mais) para ${previa.alvo} m?\n\n` +
+      'Vale para os próximos check-ins. Raios que você ajustou à mão e postos "a conferir" não são alterados. ' +
+      'Fica registrado no histórico de cada posto.',
+    )
+    if (!ok) return
+    setMsg(null)
+    setBusy(true)
+    const r = await ajustarRaiosEmMassa(previa.alvo)
+    setBusy(false)
+    if (!r.ok) return setMsg({ tipo: 'erro', texto: r.erro })
+    setPrevia(null)
+    setMsg({ tipo: 'ok', texto: `${r.ajustados} postos ajustados para ${previa.alvo} m.` })
+    router.refresh()
+  }
+
+  return (
+    <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/50 p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-violet-800">Ajuste de raios</p>
+      <p className="text-xs text-slate-600">
+        Quase todos os postos estão com raio de 500 m, o que deixa o check-in frouxo (com a tolerância do GPS, passa a até 600 m).
+        Reduz o raio só dos postos já <b>confirmados</b>. Postos grandes (terminais, parques) você ajusta depois, um a um.
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+          Novo raio
+          <select value={alvo} onChange={e => { setAlvo(Number(e.target.value)); setPrevia(null) }}
+            className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm">
+            <option value={100}>100 m</option>
+            <option value={150}>150 m (recomendado)</option>
+            <option value={200}>200 m</option>
+            <option value={250}>250 m</option>
+          </select>
+        </label>
+        <button type="button" onClick={ver} disabled={busy}
+          className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-violet-800 ring-1 ring-violet-300 hover:bg-violet-100 disabled:opacity-50">
+          {busy && !previa ? 'Calculando…' : 'Ver quantos'}
+        </button>
+        {previa && previa.total > 0 && (
+          <button type="button" onClick={aplicar} disabled={busy}
+            className="rounded-lg bg-violet-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-violet-600 disabled:opacity-50">
+            {busy ? 'Ajustando…' : `Ajustar ${previa.total} postos`}
+          </button>
+        )}
+      </div>
+      {previa && (
+        <p className="mt-2 text-xs text-slate-600">
+          {previa.total === 0
+            ? 'Nenhum posto confirmado com raio de 500 m ou mais.'
+            : `${previa.total} postos confirmados passam de 500 m (ou mais) para ${previa.alvo} m.`}
+          {previa.aConferirGrandes > 0 && ` Outros ${previa.aConferirGrandes} ainda estão "a conferir" com 500 m e ficam de fora até serem confirmados.`}
+        </p>
+      )}
+      {msg && (
+        <p className={`mt-2 rounded-lg px-3 py-2 text-sm font-medium ${msg.tipo === 'ok' ? 'bg-violet-100 text-violet-800' : 'bg-red-50 text-red-700'}`}>{msg.texto}</p>
+      )}
     </div>
   )
 }
