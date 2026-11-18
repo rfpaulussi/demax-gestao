@@ -9,6 +9,7 @@ import {
   geocodificarPostoCore, persistirCandidato,
   type CandidatoView, type SaidaGeocodificacao,
 } from '@/lib/geo/geocodificar-posto'
+import { confirmarEmMassaCore, limiteValido, previaConfirmacaoCore } from '@/lib/geo/confirmar-massa'
 import { geocodificarLoteCore, listarPendentesGeo, type ItemLote, type SituacaoLote } from '@/lib/geo/lote'
 import type { AnyClient } from '@/lib/geo/historico'
 
@@ -97,6 +98,28 @@ export async function geocodificarLote(ids: string[]): Promise<{ ok: true; itens
   if (!Array.isArray(ids) || ids.length === 0 || ids.some(i => typeof i !== 'string')) return { ok: false, erro: 'Lista inválida' }
   const r = await geocodificarLoteCore(db(), ids, auth.perfil.id)
   if (r.ok) revalidatePath('/agenda/locais')
+  return r
+}
+
+// ─── Confirmação em massa ──────────────────────────────────────────────────────
+// Marca como conferidos os postos cujo pino já está a poucos metros do endereço (preciso) do Google.
+
+export async function previaConfirmacaoMassa(limiteM: number): Promise<{ ok: true; total: number; maisLonge: number } | { ok: false; erro: string }> {
+  const auth = await getUser()
+  if (!auth || !ehGestao(auth.perfil.role)) return { ok: false, erro: 'Sem permissão' }
+  if (!limiteValido(limiteM)) return { ok: false, erro: 'Limite inválido (use de 10 a 100 m)' }
+  return previaConfirmacaoCore(db(), limiteM)
+}
+
+export async function confirmarEmMassa(limiteM: number): Promise<{ ok: true; confirmados: number } | { ok: false; erro: string }> {
+  const auth = await getUser()
+  if (!auth || !ehGestao(auth.perfil.role)) return { ok: false, erro: 'Sem permissão' }
+  if (!limiteValido(limiteM)) return { ok: false, erro: 'Limite inválido (use de 10 a 100 m)' }
+  const r = await confirmarEmMassaCore(db(), limiteM, auth.perfil.id)
+  if (r.ok) {
+    revalidatePath('/agenda')
+    revalidatePath('/agenda/locais')
+  }
   return r
 }
 

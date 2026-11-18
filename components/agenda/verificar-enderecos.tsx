@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, ScanSearch } from 'lucide-react'
-import { geocodificarLote, listarPendentesGeocodificacao } from '@/app/(admin)/agenda/geocodificar-actions'
+import { confirmarEmMassa, geocodificarLote, listarPendentesGeocodificacao, previaConfirmacaoMassa } from '@/app/(admin)/agenda/geocodificar-actions'
 import type { ItemLote, PendentesGeo } from '@/app/(admin)/agenda/geocodificar-actions'
 
 const BLOCO = 10
@@ -125,6 +125,88 @@ export function VerificarEnderecos() {
         </p>
       )}
       {aviso && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 ring-1 ring-amber-200">{aviso}</p>}
+
+      <ConfirmacaoEmMassa />
+    </div>
+  )
+}
+
+/**
+ * Confirma de uma vez os postos "a conferir" cujo pino está a poucos metros do endereço (preciso) do Google.
+ * Não move pino nem mexe no raio: só marca como conferido, com o responsável e o motivo no histórico.
+ */
+function ConfirmacaoEmMassa() {
+  const router = useRouter()
+  const [limite, setLimite] = useState(50)
+  const [previa, setPrevia] = useState<{ total: number; maisLonge: number; limite: number } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
+
+  async function ver() {
+    setMsg(null)
+    setBusy(true)
+    const r = await previaConfirmacaoMassa(limite)
+    setBusy(false)
+    if (!r.ok) return setMsg({ tipo: 'erro', texto: r.erro })
+    setPrevia({ total: r.total, maisLonge: r.maisLonge, limite })
+  }
+
+  async function confirmar() {
+    if (!previa || previa.total === 0) return
+    const ok = window.confirm(
+      `Confirmar ${previa.total} postos cujo pino está a até ${previa.limite} m do endereço do Google?\n\n` +
+      'Eles deixam de aparecer como "a conferir". Nenhum pino ou raio é alterado. Fica registrado no histórico de cada posto.',
+    )
+    if (!ok) return
+    setMsg(null)
+    setBusy(true)
+    const r = await confirmarEmMassa(previa.limite)
+    setBusy(false)
+    if (!r.ok) return setMsg({ tipo: 'erro', texto: r.erro })
+    setPrevia(null)
+    setMsg({ tipo: 'ok', texto: `${r.confirmados} postos confirmados.` })
+    router.refresh()
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-emerald-800">Confirmação em massa</p>
+      <p className="text-xs text-slate-600">
+        Marca como conferidos os postos &quot;a conferir&quot; cujo pino já confere com o endereço do Google (endereço exato ou número estimado).
+        Os divergentes continuam na fila para você olhar.
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+          Pino a até
+          <select value={limite} onChange={e => { setLimite(Number(e.target.value)); setPrevia(null) }}
+            className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-sm">
+            <option value={30}>30 m</option>
+            <option value={50}>50 m (recomendado)</option>
+            <option value={100}>100 m</option>
+          </select>
+          do endereço
+        </label>
+        <button type="button" onClick={ver} disabled={busy}
+          className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-emerald-800 ring-1 ring-emerald-300 hover:bg-emerald-100 disabled:opacity-50">
+          {busy && !previa ? 'Calculando…' : 'Ver quantos'}
+        </button>
+        {previa && previa.total > 0 && (
+          <button type="button" onClick={confirmar} disabled={busy}
+            className="rounded-lg bg-emerald-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-50">
+            {busy ? 'Confirmando…' : `Confirmar ${previa.total} postos`}
+          </button>
+        )}
+      </div>
+      {previa && (
+        <p className="mt-2 text-xs text-slate-600">
+          {previa.total === 0
+            ? `Nenhum posto a conferir está a até ${previa.limite} m do endereço do Google.`
+            : `${previa.total} postos a até ${previa.limite} m (o mais distante está a ${previa.maisLonge} m).`}
+        </p>
+      )}
+      {msg && (
+        <p className={`mt-2 rounded-lg px-3 py-2 text-sm font-medium ${msg.tipo === 'ok' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-50 text-red-700'}`}>{msg.texto}</p>
+      )}
     </div>
   )
 }

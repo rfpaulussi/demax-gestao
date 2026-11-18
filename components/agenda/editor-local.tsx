@@ -77,8 +77,10 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
   const pct = postos.length ? conferidos / postos.length : 0
   const pctAuto = postos.length ? localizados / postos.length : 0
 
-  // Pino a mais de 300 m do endereço que o Google encontrou (distância calculada no servidor ao carregar a lista).
-  const divergencia = (p: PostoLocal) => (p.google?.distanciaPinoM != null && p.google.distanciaPinoM > DIVERGENCIA_M ? p.google.distanciaPinoM : null)
+  // Fila de conferência: pino a mais de 300 m do endereço que o Google encontrou (distância calculada no servidor)
+  // e ainda NÃO conferido. Posto que a coordenação já confirmou sai da fila: a decisão humana vale, mesmo que o
+  // endereço do Google seja outro (o aviso continua no painel do posto).
+  const divergencia = (p: PostoLocal) => (!p.geo_confirmado && p.google?.distanciaPinoM != null && p.google.distanciaPinoM > DIVERGENCIA_M ? p.google.distanciaPinoM : null)
   const divergentes = postos.filter(p => divergencia(p) != null).length
 
   const lista = useMemo(() => {
@@ -345,7 +347,9 @@ export default function EditorLocal({ postos }: { postos: PostoLocal[] }) {
                         <span className="block truncate text-[11px] font-semibold text-red-600">⚠ pino a {formatarDistancia(divergencia(p) as number)} do endereço</span>
                       )}
                       {!divergencia(p) && p.google && p.google.distanciaPinoM != null && (
-                        <span className="block truncate text-[11px] text-emerald-600">endereço confere ({formatarDistancia(p.google.distanciaPinoM)})</span>
+                        p.google.distanciaPinoM <= DIVERGENCIA_M
+                          ? <span className="block truncate text-[11px] text-emerald-600">endereço confere ({formatarDistancia(p.google.distanciaPinoM)})</span>
+                          : <span className="block truncate text-[11px] text-slate-400">conferido por pessoa · Google a {formatarDistancia(p.google.distanciaPinoM)}</span>
                       )}
                     </span>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${!ok ? 'bg-rose-100 text-rose-700' : p.geo_confirmado ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
