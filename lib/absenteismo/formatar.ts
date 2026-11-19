@@ -20,14 +20,14 @@ const sinal = (v: number): string => (v > 0 ? '+' : v < 0 ? '−' : '')
 
 /** Variação relativa ("+12,3%"). null = sem base. */
 export function fmtVariacaoPct(v: number | null): string {
-  if (v === null) return '—'
+  if (v === null || !Number.isFinite(v)) return '—'
   const arredondado = Math.round(v * 10) / 10
   return `${sinal(arredondado)}${fmtDec(Math.abs(arredondado), 1)}%`
 }
 
 /** Diferença em pontos percentuais ("−0,40 p.p."). null = sem base. */
 export function fmtVariacaoPp(v: number | null): string {
-  if (v === null) return '—'
+  if (v === null || !Number.isFinite(v)) return '—'
   const arredondado = Math.round(v * 100) / 100
   return `${sinal(arredondado)}${fmtDec(Math.abs(arredondado), 2)} p.p.`
 }

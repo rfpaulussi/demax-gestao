@@ -27,6 +27,11 @@ describe('formatar', () => {
     expect(fmtVariacaoPp(1.9)).toBe('+1,90 p.p.')
     expect(fmtVariacaoPp(null)).toBe('—')
   })
+  it('valores não finitos viram traço', () => {
+    expect(fmtVariacaoPct(NaN)).toBe('—')
+    expect(fmtVariacaoPct(Infinity)).toBe('—')
+    expect(fmtVariacaoPp(NaN)).toBe('—')
+  })
   it('rotuloMes e datas', () => {
     expect(rotuloMes('2026-11')).toBe('nov/26')
     expect(rotuloMes('2026-01')).toBe('jan/26')
