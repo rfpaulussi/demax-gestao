@@ -56,14 +56,14 @@ export function ModalEncaminharRH({
     startTransition(async () => {
       const r = await encaminharAoRH(ocorrenciaId, { para, assunto, corpo, informarSupervisor })
       if (r.success) {
+        // Posta a devolutiva ANTES de recarregar o dossiê: senão ele carrega sem a mensagem e fica
+        // mostrando "Aguardando você / sem nenhuma mensagem" até alguém reabrir.
+        const pos = aoEnviar ? await aoEnviar() : null
         onEnviado()
-        if (aoEnviar) {
-          const pos = await aoEnviar()
-          if (!pos.success) {
-            // E-mail já saiu: não fecha em silêncio, senão a devolutiva se perderia sem ninguém notar.
-            setAviso(`O e-mail foi enviado ao RH, mas a devolutiva ao supervisor NÃO foi postada: ${pos.error}. Poste-a pela conversa da ocorrência.`)
-            return
-          }
+        if (pos && !pos.success) {
+          // E-mail já saiu: não fecha em silêncio, senão a devolutiva se perderia sem ninguém notar.
+          setAviso(`O e-mail foi enviado ao RH, mas a devolutiva ao supervisor NÃO foi postada: ${pos.error}. Poste-a pela conversa da ocorrência.`)
+          return
         }
         onClose()
       } else {

@@ -676,7 +676,8 @@ export function ModalDossie({
                   consideracoes={consideracoesIA}
                   // Cancelar volta ao modal da IA intacto (a análise segue pendente).
                   onClose={() => { setEncaminharId(null); setConsideracoesIA(''); setDecisaoIA(null) }}
-                  onEnviado={() => { setAnaliseIA(null); carregar() }}
+                  // silencioso: recarregar com "Carregando" desmontaria este modal e perderia o aviso de falha da devolutiva
+                  onEnviado={() => { setAnaliseIA(null); carregar(true) }}
                   // Com devolutiva = "Aprovar e encaminhar ao RH": avisa o supervisor (selo + mensagem).
                   informarSupervisor={!!decisaoIA?.devolutiva?.trim()}
                   aoEnviar={decisaoIA ? () => decidirAnalise(decisaoIA.analiseId, {
