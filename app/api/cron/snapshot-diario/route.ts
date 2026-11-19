@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { cronAutorizado } from '@/lib/cron/autorizado'
 import { calcularKPIsAtuais } from '@/lib/dashboard-kpis'
 import { processarRetornosAtestado } from '@/lib/processar-retornos'
 import { encerrarCoberturasVencidas } from '@/app/(admin)/coberturas/actions'
@@ -357,8 +358,7 @@ async function alertarRhFaltasNaoConfirmadas(supabase: ReturnType<typeof createA
 }
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronAutorizado(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
