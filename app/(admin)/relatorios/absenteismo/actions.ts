@@ -1,5 +1,6 @@
 'use server'
 
+import { getUser } from '@/lib/auth/get-user'
 import { createClient } from '@/lib/supabase/server'
 import { feriadosDoAno, diasUteisNoPeriodo, toDate } from '@/lib/utils/dias-uteis'
 
@@ -58,6 +59,9 @@ export async function buscarAbsenteismo(
   mes: number,
   ano: number,
 ): Promise<{ absRows: AusenciaRow[]; feriasRows: FeriasRow[]; kpisAbs: AbsenteismoKpis; kpisFerias: FeriasKpis }> {
+  const auth = await getUser()
+  if (!auth || (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador')) throw new Error('Acesso negado')
+
   const supabase = createClient()
 
   const pad = (n: number) => String(n).padStart(2, '0')

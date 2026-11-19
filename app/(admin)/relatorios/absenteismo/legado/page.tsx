@@ -1,4 +1,6 @@
+import { redirect } from 'next/navigation'
 import { buscarAbsenteismo } from '../actions'
+import { getUser } from '@/lib/auth/get-user'
 import { BackButton } from '@/components/ui/back-button'
 import { AbsenteismoClient } from '@/components/relatorios/absenteismo-client'
 
@@ -13,6 +15,10 @@ export default async function AbsenteismoPage({
 }: {
   searchParams: { mes?: string; ano?: string }
 }) {
+  const auth = await getUser()
+  if (!auth) redirect('/login')
+  if (auth.perfil.role !== 'admin' && auth.perfil.role !== 'coordenador') redirect('/dashboard')
+
   const now = new Date()
   const mes = Number(searchParams.mes ?? now.getMonth() + 1)
   const ano = Number(searchParams.ano ?? now.getFullYear())
