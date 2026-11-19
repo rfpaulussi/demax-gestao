@@ -38,7 +38,7 @@ const RELATORIOS = [
     href: '/relatorios/absenteismo',
     icon: CalendarX,
     label: 'Absenteísmo',
-    desc: 'Faltas, atestados e férias consolidados com KPIs de absenteísmo',
+    desc: 'Taxa, tendência, composição por natureza, ranking por secretaria e mapa de calor',
     color: 'border-t-amber-500',
     iconColor: 'text-amber-500',
   },
