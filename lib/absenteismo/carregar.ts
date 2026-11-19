@@ -65,7 +65,7 @@ export async function carregarDados(
         .from('faltas')
         .select('id, funcionario_id, data_falta, data_fim, dias, tipo, observacao, confirmada_em')
         .lte('data_falta', fim)
-        .or(`data_fim.gte.${inicio},and(data_fim.is.null,data_falta.gte.${inicio})`)
+        .or(`data_fim.gte.${inicio},and(data_fim.is.null,data_falta.gte.${addDias(inicio, -60)})`)
         .order('id')
         .range(from, to) as unknown as Pagina<FaltaRow>,
     ),
@@ -116,6 +116,8 @@ export async function carregarDados(
       .eq('ativo', true),
     supabase.from('config_escalas_postos').select('posto_id, regime'),
   ])
+  if (supRes.error) throw new Error(supRes.error.message)
+  if (escalaRes.error) throw new Error(escalaRes.error.message)
 
   const supPorPosto = new Map<string, { id: string; nome: string }>()
   for (const s of (supRes.data ?? []) as unknown as SupRow[]) {
