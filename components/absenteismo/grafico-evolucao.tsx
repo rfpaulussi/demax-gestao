@@ -26,7 +26,7 @@ export function GraficoEvolucao({ serie }: { serie: PontoSerie[] }) {
           <LineChart data={pontos} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
             <XAxis dataKey="rotulo" fontSize={11} tickLine={false} />
-            <YAxis fontSize={11} width={44} tickLine={false} tickFormatter={v => `${v}%`} domain={[0, 'auto']} />
+            <YAxis fontSize={11} width={44} tickLine={false} tickFormatter={v => fmtPct(Number(v), 1)} domain={[0, 'auto']} />
             <Tooltip formatter={v => [fmtPct(Number(v)), 'Taxa']} />
             <Line type="monotone" dataKey="taxa" stroke="#ea580c" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
           </LineChart>

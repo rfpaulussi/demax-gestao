@@ -20,7 +20,7 @@ export function GraficoComposicao({ fatias, total }: { fatias: FatiaComposicao[]
       {total === 0 ? (
         <p className="py-10 text-center text-sm text-gray-400">Nenhuma jornada perdida no período.</p>
       ) : (
-        <div className="flex flex-col items-center gap-4 sm:flex-row">
+        <div className="flex flex-col items-center gap-4">
           <div className="relative h-40 w-40 shrink-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>

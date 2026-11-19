@@ -97,7 +97,7 @@ export function VisaoExecutivaView({ visao, params }: { visao: VisaoExecutiva; p
         </div>
       </div>
 
-      <MapaCalor linhas={visao.calor} />
+      <MapaCalor linhas={visao.calor} totalEpisodios={kpis.episodios} />
 
       <p className="text-xs text-gray-400">
         Não entram na taxa: afastamentos (INSS e licenças), atestados após o 15º dia, férias e suspensões disciplinares.
