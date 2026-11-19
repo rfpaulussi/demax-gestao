@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { cronAutorizado } from '@/lib/cron/autorizado'
 
 export const runtime = 'nodejs'
 
@@ -8,7 +9,7 @@ const RETENCAO_DIAS = 90
 
 // Retenção das fotos de check-in da agenda: apaga do Storage e limpa foto_path após 90 dias.
 export async function GET(req: NextRequest) {
-  if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronAutorizado(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

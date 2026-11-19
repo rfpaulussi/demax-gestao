@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { cronAutorizado } from '@/lib/cron/autorizado'
 
 export const runtime = 'nodejs'
 
 // Termos da Geocoding API do Google: lat/lng e endereço devolvidos só podem ficar em cache por até 30 dias.
 // Apaga as sugestões vencidas (geo_google_*). O place_id e o hash do endereço ficam; o ponto oficial nunca é tocado.
 export async function GET(req: NextRequest) {
-  if (req.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronAutorizado(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
