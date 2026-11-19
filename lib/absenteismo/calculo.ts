@@ -38,7 +38,9 @@ function agruparPorFuncionario<T extends { funcionario_id: string }>(lista: T[])
 }
 
 const fimDaFalta = (f: { data_falta: string; data_fim: string | null; dias: number }): string =>
-  f.data_fim ?? addDias(f.data_falta, Math.max(f.dias, 1) - 1)
+  f.data_fim !== null && f.data_fim >= f.data_falta
+    ? f.data_fim
+    : addDias(f.data_falta, Math.max(f.dias, 1) - 1)
 
 /**
  * Calcula o período [inicio, fim] para o conjunto de funcionários recebido.
@@ -50,6 +52,13 @@ const fimDaFalta = (f: { data_falta: string; data_fim: string | null; dias: numb
  */
 export function calcularPeriodo(entrada: EntradaCalculo): ResultadoCalculo {
   const { inicio, fim } = entrada
+  // ids duplicados dobrariam todos os totais: a primeira ocorrência vence, preservando a ordem
+  const vistos = new Set<string>()
+  const funcionarios = entrada.funcionarios.filter(f => {
+    if (vistos.has(f.id)) return false
+    vistos.add(f.id)
+    return true
+  })
   // folga de 45 dias nos dois lados: suspensões que começam antes do período e terminam dentro dele
   const feriados = feriadosDoPeriodo(addDias(inicio, -45), addDias(fim, 45))
 
@@ -69,7 +78,7 @@ export function calcularPeriodo(entrada: EntradaCalculo): ResultadoCalculo {
   const episodios: Episodio[] = []
   const porFuncionario: Record<string, PorFuncionario> = {}
 
-  for (const f of entrada.funcionarios) {
+  for (const f of funcionarios) {
     const janela = janelaDoFuncionario(f, inicio, fim)
     if (!janela) continue
 
@@ -98,7 +107,12 @@ export function calcularPeriodo(entrada: EntradaCalculo): ResultadoCalculo {
       if (classificarFalta(x.tipo) === 'suspensao') pintar(x.data_falta, fimDaFalta(x), { tipo: 'susp' })
     }
     for (const s of suspPor.get(f.id) ?? []) {
-      const dias = diasProgramados(f.regime, s.data_inicio, addDias(s.data_inicio, s.dias * 2 + 14), feriados).slice(0, s.dias)
+      // mesma fase do ciclo 5x1 da janela (que ancora em janela.inicio), recuando em múltiplos de 6 dias
+      const anchor = addDias(janela.inicio, -6 * Math.ceil(Math.max(0, diffDias(s.data_inicio, janela.inicio)) / 6))
+      const n = Math.max(0, Math.floor(s.dias))
+      const dias = diasProgramados(f.regime, anchor, addDias(s.data_inicio, n * 2 + 14), feriados)
+        .filter(d => d >= s.data_inicio)
+        .slice(0, n)
       for (const d of dias) pintar(d, d, { tipo: 'susp' })
     }
 
@@ -195,7 +209,7 @@ export function calcularPeriodo(entrada: EntradaCalculo): ResultadoCalculo {
     inicio,
     fim,
     dias_corridos: diffDias(inicio, fim) + 1,
-    quadro_medio: quadroMedio(entrada.funcionarios, inicio, fim),
+    quadro_medio: quadroMedio(funcionarios, inicio, fim),
     jornadas_programadas: programadas,
     jornadas_perdidas: perdidas,
     perdidas_por_classe: perdidasPorClasse,

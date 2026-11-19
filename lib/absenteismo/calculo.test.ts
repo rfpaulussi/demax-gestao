@@ -184,6 +184,37 @@ describe('calcularPeriodo — suspensão (fora da taxa)', () => {
     expect(r.suspensao_jornadas).toBe(2)
     expect(r.jornadas_programadas).toBe(17)
   })
+  it('advertência de suspensão na 5x1 usa o ciclo ancorado no início da janela', () => {
+    // 5x1 ancorada em 01/11: programados 1,3,4,5,7-11,13,14,16,17,19,21,22,23,25-29 = 22
+    // suspensos: 3,4,5,7,8 (o dia 6 é folga do ciclo)
+    const r = calcularPeriodo(base({
+      funcionarios: [F({ regime: '5x1' })],
+      suspensoes: [{ id: 's1', funcionario_id: 'f1', data_inicio: '2026-11-03', dias: 5 }],
+    }))
+    expect(r.suspensao_jornadas).toBe(5)
+    expect(r.jornadas_programadas).toBe(17)
+  })
+  it('advertência com dias negativo é ignorada', () => {
+    const r = calcularPeriodo(base({
+      suspensoes: [{ id: 's1', funcionario_id: 'f1', data_inicio: '2026-11-03', dias: -2 }],
+    }))
+    expect(r.suspensao_jornadas).toBe(0)
+    expect(r.jornadas_programadas).toBe(19)
+  })
+})
+
+describe('calcularPeriodo — entradas inconsistentes', () => {
+  it('funcionário duplicado na lista conta uma vez só', () => {
+    const r = calcularPeriodo(base({ funcionarios: [F(), F()], faltas: [falta()] }))
+    expect(r.jornadas_programadas).toBe(19)
+    expect(r.quadro_medio).toBe(1)
+    expect(r.episodios).toHaveLength(1)
+  })
+  it('falta com data_fim anterior a data_falta usa data_falta + dias - 1', () => {
+    const r = calcularPeriodo(base({ faltas: [falta({ data_falta: '2026-11-10', data_fim: '2026-11-05', dias: 1 })] }))
+    expect(r.episodios).toHaveLength(1)
+    expect(r.jornadas_perdidas).toBe(1)
+  })
 })
 
 describe('calcularPeriodo — janela do funcionário', () => {
