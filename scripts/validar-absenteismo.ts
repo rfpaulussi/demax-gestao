@@ -9,6 +9,7 @@ import { calcularKpis } from '../lib/absenteismo/kpis'
 import { periodoDoMes } from '../lib/absenteismo/datas'
 import { quadroNoDia } from '../lib/absenteismo/quadro'
 import { calcularSerieMensal, mesesAte, periodoEfetivo } from '../lib/absenteismo/series'
+import { DADOS_DESDE } from '../lib/absenteismo/constantes'
 
 const env = Object.fromEntries(
   readFileSync('.env.local', 'utf8')
@@ -21,7 +22,6 @@ const env = Object.fromEntries(
 )
 const supabase = createClient<Database>(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
 
-const DADOS_DESDE = '2026-06-18'
 const LIMITE_QUADRO = 0.02 // 2%, medido em 2026-11-19 (máx. 1,63%)
 
 async function main() {
