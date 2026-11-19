@@ -78,7 +78,7 @@ Biblioteca pura em `lib/absenteismo/` com testes unitários em `vitest` (`npm te
 - **Duração média por ocorrência** = jornadas perdidas ÷ episódios.
 - **Funcionários afetados** = distintos com ≥ 1 episódio no período; **% afetados** = afetados ÷ quadro médio.
 - **Taxa de reincidência** = afetados com ≥ 2 episódios no período ÷ afetados.
-- **Variação** = (atual − anterior) ÷ anterior para contagens; diferença em p.p. para taxas. Período anterior = mês imediatamente anterior completo; para junho/2026 aparece "sem base completa".
+- **Variação** = (atual − anterior) ÷ anterior para contagens; diferença em p.p. para taxas. Período anterior = mês imediatamente anterior (cortado no mesmo dia do mês quando o mês atual é parcial por "hoje", para comparar períodos equivalentes); para junho/2026 aparece "sem base completa".
 - **Disponibilidade** (aba própria): funcionários-dia indisponíveis por classe, em dias corridos, e **taxa de indisponibilidade** = dias-pessoa indisponíveis ÷ dias-pessoa do quadro.
 - Tooltips ⓘ de cada métrica explicam a fórmula e a diferença entre dia corrido, dia útil e jornada. Horas trabalháveis ficam como métrica secundária derivada do horário do turno e só são exibidas quando o turno do funcionário tem horário cadastrado; a métrica principal é jornada.
 - Faltas ainda sem `confirmada_em` entram na taxa com marca visível; filtro "somente confirmadas" disponível.
