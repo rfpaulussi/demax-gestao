@@ -68,7 +68,7 @@ O mapeamento de afastamentos é por dicionário (regex sobre `motivo`, sem acent
 Biblioteca pura em `lib/absenteismo/` com testes unitários em `vitest` (`npm test`, já usado em `lib/atestados/periodos.test.ts`).
 
 - **Dia útil por escala:** `diasUteisNoPeriodo(inicio, fim, regime, feriados)` existente; regime por funcionário via `obterRegimesPorFuncionario(..., asOfDate = fim do mês)`.
-- **Quadro do dia:** funcionário com `data_admissao ≤ dia` e (`data_desligamento` nulo ou `> dia`). **Quadro médio** = soma dos dias-pessoa do quadro no período ÷ dias corridos do período. Critério de aceite: diferença ≤ 1% contra `snapshots_diarios.ativos + afastados + em_ferias` (ou definição equivalente) nos dias em que há snapshot; qualquer divergência maior é investigada antes de seguir.
+- **Quadro do dia:** funcionário com `data_admissao ≤ dia` e (`data_desligamento` nulo ou `> dia`). **Quadro médio** = soma dos dias-pessoa do quadro no período ÷ dias corridos do período. Funcionários com status `desligado` ou `rescisao_indireta` e sem `data_desligamento` ficam fora do quadro (hoje: 19 casos de rescisão indireta sem data). Critério de aceite: diferença relativa ≤ 2% contra `snapshots_diarios.ativos + afastados + em_ferias` em todos os dias com snapshot. Medido em 2026-11-19 sobre os 155 dias existentes: máximo de 1,63% (a diferença vem de mudanças de status que o histórico não registra); acima de 2% o trabalho para e é investigado.
 - **Jornadas programadas** (por funcionário): dias úteis da escala entre `max(início do período, admissão)` e `min(fim do período, desligamento − 1)`, menos os dias úteis em férias e em afastamento/atestado prolongado (indisponibilidade).
 - **Jornadas perdidas:** união dos dias de ausência da taxa, cada dia contado uma vez, em dias úteis da escala do funcionário, cortados ao período. Precedência quando há sobreposição entre fontes: afastamento > atestado > falta (coerente com a regra existente "falta nunca coexiste com atestado/afastamento"). Dia compartilhado entre atestados seguidos (passagem de bastão) conta uma vez (`diasUnicosAtestados`).
 - **Episódio:** cada falta (inclusive multi-dia) é 1 episódio; atestados contíguos (inclusive passagem de bastão) formam 1 episódio.
@@ -82,6 +82,12 @@ Biblioteca pura em `lib/absenteismo/` com testes unitários em `vitest` (`npm te
 - **Disponibilidade** (aba própria): funcionários-dia indisponíveis por classe, em dias corridos, e **taxa de indisponibilidade** = dias-pessoa indisponíveis ÷ dias-pessoa do quadro.
 - Tooltips ⓘ de cada métrica explicam a fórmula e a diferença entre dia corrido, dia útil e jornada. Horas trabalháveis ficam como métrica secundária derivada do horário do turno e só são exibidas quando o turno do funcionário tem horário cadastrado; a métrica principal é jornada.
 - Faltas ainda sem `confirmada_em` entram na taxa com marca visível; filtro "somente confirmadas" disponível.
+- **Precedência por dia** (do menor para o maior; o último vence): falta `outras` < falta injustificada < falta justificada < suspensão < atestado (até o 15º dia, contado a partir de `data_inicio` de cada atestado) < atestado prolongado < férias < afastamento. Cada dia pertence a uma única classe.
+- **Suspensão** (falta tipo `suspensao` ou advertência de grau suspensão) não conta como jornada programada nem como perdida; vira o indicador disciplinar `suspensao_jornadas`. Para advertência, as jornadas suspensas são os primeiros `dias_suspensao` dias programados a partir de `data_ocorrencia`.
+- **Dia fora da escala:** falta lançada em dia não programado (ex.: fim de semana em 5x2) não gera jornada perdida, mas o episódio continua contado; a aba Qualidade dos dados sinaliza episódios com 0 jornadas.
+- **Mês corrente e mês inicial:** o mês corrente é calculado até hoje (jornadas programadas só até hoje) e marcado como parcial; o mês que contém 2026-06-18 começa nessa data e também é parcial. Meses anteriores a 2026-06-18 ficam "sem dados".
+- **Série mensal:** usa um único mapa de regimes (vigente no fim do período mais recente). Resolver o regime mês a mês fica fora da primeira versão.
+- **Posto/secretaria/supervisor nos filtros:** são os atuais do funcionário (não há histórico de posto por dia); vale para todas as fontes.
 
 ## 6. Interface
 
