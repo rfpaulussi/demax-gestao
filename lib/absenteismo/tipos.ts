@@ -85,6 +85,8 @@ export interface Episodio {
   /** primeiro e último dia do episódio dentro do período. */
   inicio: string
   fim: string
+  /** início real do registro de origem (falta: data_falta; atestado: início do primeiro atestado do episódio), sem corte pelo período. */
+  inicio_origem: string
   /** jornadas programadas perdidas por este episódio (pode ser 0 se cair em dia fora da escala). */
   jornadas: number
   /** só faltas: confirmada pelo supervisor. null para atestado. */

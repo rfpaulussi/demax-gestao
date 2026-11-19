@@ -250,3 +250,24 @@ describe('calcularPeriodo — escalas', () => {
     expect(r.episodios[0].jornadas).toBe(0)
   })
 })
+
+describe('calcularPeriodo — inicio_origem', () => {
+  it('falta que começou antes do período: inicio recortado, inicio_origem real', () => {
+    const r = calcularPeriodo(base({
+      inicio: '2026-11-13',
+      fim: '2026-11-30',
+      faltas: [falta({ data_falta: '2026-11-12', data_fim: '2026-11-16', dias: 5 })],
+    }))
+    expect(r.episodios[0]).toMatchObject({ inicio: '2026-11-13', inicio_origem: '2026-11-12' })
+  })
+  it('atestados emendados: inicio_origem é o início do primeiro', () => {
+    const r = calcularPeriodo(base({
+      atestados: [
+        atestado({ id: 'b', data_inicio: '2026-11-05', data_fim: '2026-11-06' }),
+        atestado({ id: 'a', data_inicio: '2026-11-03', data_fim: '2026-11-04' }),
+      ],
+    }))
+    expect(r.episodios).toHaveLength(1)
+    expect(r.episodios[0].inicio_origem).toBe('2026-11-03')
+  })
+})

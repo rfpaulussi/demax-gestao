@@ -85,7 +85,7 @@ export function calcularPeriodo(entrada: EntradaCalculo): ResultadoCalculo {
     const prog = diasProgramados(f.regime, janela.inicio, janela.fim, feriados)
     const progSet = new Set(prog)
     const estado = new Map<string, EstadoDia>()
-    const origem = new Map<string, { classe: ClasseTaxa; ids: string[]; confirmada: boolean | null }>()
+    const origem = new Map<string, { classe: ClasseTaxa; ids: string[]; confirmada: boolean | null; inicio_origem: string }>()
 
     const pintar = (de: string, ate: string, e: EstadoDia) => {
       const a = maxData(de, janela.inicio)
@@ -99,7 +99,7 @@ export function calcularPeriodo(entrada: EntradaCalculo): ResultadoCalculo {
     for (const classe of ORDEM_FALTAS) {
       for (const x of faltasF) {
         if (classificarFalta(x.tipo) !== classe) continue
-        origem.set(x.id, { classe, ids: [x.id], confirmada: x.confirmada })
+        origem.set(x.id, { classe, ids: [x.id], confirmada: x.confirmada, inicio_origem: x.data_falta })
         pintar(x.data_falta, fimDaFalta(x), { tipo: 'taxa', classe, dono: x.id })
       }
     }
@@ -120,7 +120,7 @@ export function calcularPeriodo(entrada: EntradaCalculo): ResultadoCalculo {
     const atestadosF = atestadosPor.get(f.id) ?? []
     const donoDoAtestado = new Map<string, string>()
     for (const grupo of agruparAtestadosContiguos(atestadosF)) {
-      origem.set(grupo[0].id, { classe: 'atestado', ids: grupo.map(a => a.id), confirmada: null })
+      origem.set(grupo[0].id, { classe: 'atestado', ids: grupo.map(a => a.id), confirmada: null, inicio_origem: grupo[0].data_inicio })
       for (const a of grupo) donoDoAtestado.set(a.id, grupo[0].id)
     }
     for (const a of atestadosF) {
@@ -183,6 +183,7 @@ export function calcularPeriodo(entrada: EntradaCalculo): ResultadoCalculo {
         funcionario_id: f.id,
         classe: o.classe,
         inicio: dias[0],
+        inicio_origem: o.inicio_origem,
         fim: dias[dias.length - 1],
         jornadas: dias.filter(d => progSet.has(d)).length,
         confirmada: o.confirmada,
