@@ -37,7 +37,8 @@ function normalizar(texto: string | null): string {
   return (texto ?? '')
     .normalize('NFD')
     .toLowerCase()
-    .replace(/[^a-z0-9 ]/g, '') // NFD separa o acento da letra; tudo que não é a-z, 0-9 ou espaço sai
+    .replace(/[^\x00-\x7f]/g, '') // NFD separa o acento da letra; tira todo char não ASCII (inclui os acentos)
+    .replace(/[^a-z0-9]+/g, ' ') // qualquer separador (hífen, barra, pontuação) vira um espaço
     .trim()
 }
 

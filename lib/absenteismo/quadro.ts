@@ -1,7 +1,7 @@
 // lib/absenteismo/quadro.ts
 import { addDias, diffDias, listarDias, maxData, minData } from './datas'
 
-/** Campos mínimos para decidir se alguém está no quadro. `FuncionarioCalc` satisfaz este tipo. */
+/** Campos mínimos para decidir se alguém está no quadro. O tipo FuncionarioCalc de lib/absenteismo/tipos.ts satisfaz este tipo por estrutura. */
 export interface FuncQuadro {
   id: string
   admissao: string | null

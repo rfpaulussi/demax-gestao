@@ -29,6 +29,11 @@ describe('classificarAfastamento', () => {
     expect(classificarAfastamento('Licença Paternidade')).toBe('licenca_legal')
     expect(classificarAfastamento('licenca maternidade')).toBe('licenca_legal')
   })
+  it('separadores sem espaço não colam as palavras', () => {
+    expect(classificarAfastamento('INSS-Doença')).toBe('afastamento_inss')
+    expect(classificarAfastamento('INSS/Acidente de Trabalho')).toBe('afastamento_inss')
+    expect(classificarAfastamento('Licença-Maternidade')).toBe('licenca_legal')
+  })
   it('o resto, inclusive nulo e texto solto, é outros', () => {
     expect(classificarAfastamento('Outros')).toBe('afastamento_outros')
     expect(classificarAfastamento('NA')).toBe('afastamento_outros')
