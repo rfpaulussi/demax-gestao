@@ -137,16 +137,25 @@ type RawComentarioLeve = { id: string; ocorrencia_id: string; autor_id: string; 
 
 // Mensagens marcadas "só informar" (não pedem resposta). Coluna nova: sem a migração devolve vazio
 // e tudo se comporta como antes.
+// Paginado (PostgREST corta em 1000 linhas): sem isso, passado esse volume algumas mensagens
+// "só informar" ficariam de fora e a pendência voltaria sem aviso.
 async function idsSemResposta(ocorrenciaIds?: string[]): Promise<Set<string>> {
-  let q = (createAdminClient() as unknown as AnyClient)
-    .from('ocorrencia_comentarios')
-    .select('id')
-    .eq('tipo', 'mensagem')
-    .eq('requer_resposta', false)
-  if (ocorrenciaIds) q = q.in('ocorrencia_id', ocorrenciaIds)
-  const { data, error } = await q
-  if (error) return new Set()
-  return new Set(((data ?? []) as { id: string }[]).map(r => r.id))
+  const admin = createAdminClient() as unknown as AnyClient
+  try {
+    const rows = await fetchAllRows<{ id: string }>((from, to) => {
+      let q = admin
+        .from('ocorrencia_comentarios')
+        .select('id')
+        .eq('tipo', 'mensagem')
+        .eq('requer_resposta', false)
+        .order('id')
+      if (ocorrenciaIds) q = q.in('ocorrencia_id', ocorrenciaIds)
+      return q.range(from, to) as unknown as PromiseLike<{ data: { id: string }[] | null; error: { message: string } | null }>
+    })
+    return new Set(rows.map(r => r.id))
+  } catch {
+    return new Set()
+  }
 }
 export type LadoConversa = 'gestao' | 'supervisor'
 export type AguardandoInfo = { lado: LadoConversa; desde: string }

@@ -217,6 +217,22 @@ export function ModalDossie({
     ? (filtroTipo ? dossie.timeline.filter(t => t.tipo === filtroTipo) : dossie.timeline)
     : []
 
+  // Ocorrências que estão esperando resposta de quem está vendo. A pendência é por ocorrência:
+  // responder numa encerrada (ou em outra) não resolve a que está pendente.
+  const ladoDoUsuario = ehGestao ? 'gestao' : 'supervisor'
+  const pendentesVoce = dossie
+    ? dossie.timeline.filter(item => item.tipo === 'ocorrencia' && item.aguardando === ladoDoUsuario)
+    : []
+
+  function irParaOcorrencia(id: string) {
+    if (filtroTipo && filtroTipo !== 'ocorrencia') setFiltroTipo('')
+    setConversasAbertas(prev => new Set(Array.from(prev).concat(id)))
+    // espera o filtro/conversa renderizarem antes de rolar
+    setTimeout(() => {
+      document.getElementById(`dossie-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 50)
+  }
+
   return (
     <Dialog.Root open onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
       <Dialog.Portal>
@@ -255,6 +271,36 @@ export function ModalDossie({
                 <CounterCard label="Faltas"           value={dossie.kpis.faltas}             topColor="border-t-red-500"    />
                 <CounterCard label="Ocorrências Abertas" value={dossie.kpis.ocorrenciasAbertas} topColor="border-t-purple-500" />
               </div>
+
+              {pendentesVoce.length > 0 && (
+                <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-rose-700">
+                    {pendentesVoce.length === 1
+                      ? '1 ocorrência aguardando você'
+                      : `${pendentesVoce.length} ocorrências aguardando você`}
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {pendentesVoce.map(item => (
+                      <li key={item.id} className="flex items-center justify-between gap-3 text-sm text-rose-900">
+                        <span className="min-w-0 truncate">
+                          {item.data ? new Date(item.data + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
+                          {' · '}{item.titulo}
+                          {' · '}
+                          {item.aguardando_origem === 'mensagem' ? 'supervisor respondeu' : 'sem nenhuma mensagem ainda'}
+                          {item.aguardando_desde ? ` · há ${diasDesdeIso(item.aguardando_desde)}d` : ''}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => irParaOcorrencia(item.id)}
+                          className="h-7 flex-shrink-0 rounded-lg bg-rose-600 px-3 text-xs font-semibold uppercase tracking-widest text-white hover:bg-rose-700"
+                        >
+                          Ir para ela
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap gap-2">
@@ -310,7 +356,15 @@ export function ModalDossie({
                     const ehOcorrencia   = item.tipo === 'ocorrencia'
                     const conversaAberta = conversasAbertas.has(item.id)
                     return (
-                      <div key={item.id} className="rounded-lg border border-gray-100">
+                      <div
+                        key={item.id}
+                        id={`dossie-${item.id}`}
+                        className={`rounded-lg border ${
+                          ehOcorrencia && item.aguardando === ladoDoUsuario
+                            ? 'border-rose-300 ring-1 ring-rose-200'
+                            : 'border-gray-100'
+                        }`}
+                      >
                         <div className="flex items-start justify-between gap-3 px-4 py-3">
                           <div className="flex items-start gap-3">
                             <span className={`mt-0.5 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${TIPO_COLOR[item.tipo]}`}>
@@ -597,6 +651,7 @@ export function ModalDossie({
                             <ConversaOcorrencia
                               ocorrenciaId={item.id.replace('ocorrencia-', '')}
                               onEnviado={() => carregar(true)}
+                              encerrada={item.status === 'encerrada' || item.status === 'resolvido'}
                               onCiente={ehGestao && item.aguardando === 'gestao' && item.aguardando_origem === 'mensagem' ? () => handleCiente(item.id) : undefined}
                             />
                           </div>

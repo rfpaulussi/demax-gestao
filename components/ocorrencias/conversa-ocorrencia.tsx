@@ -19,9 +19,12 @@ export function ConversaOcorrencia({
   ocorrenciaId,
   onEnviado,
   onCiente,
+  encerrada = false,
 }: {
   ocorrenciaId: string
   onEnviado: () => void
+  /** Ocorrência já encerrada: avisa que mensagens aqui não resolvem pendências de outras ocorrências. */
+  encerrada?: boolean
   /** Só para a gestão quando a bola está com ela: marca como visto, sem responder. */
   onCiente?: () => void
 }) {
@@ -149,6 +152,11 @@ export function ConversaOcorrencia({
       )}
 
       <form onSubmit={handleEnviar} className="space-y-2">
+        {encerrada && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            Esta ocorrência já está encerrada. Mensagens aqui não resolvem pendências de outras ocorrências do funcionário.
+          </p>
+        )}
         <p className="text-xs text-gray-500">
           Conversa entre a gestão e o supervisor que registrou. Não é enviada ao RH. Quem recebe é avisado por sino e e-mail, sem o texto da mensagem.
         </p>
