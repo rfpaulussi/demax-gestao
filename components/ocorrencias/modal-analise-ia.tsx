@@ -427,7 +427,7 @@ export function ModalAnaliseIA({
                       <button
                         disabled={isPending}
                         onClick={() => handleEncaminhar(false)}
-                        title="Abre o e-mail ao RH. Nada é enviado ao supervisor."
+                        title="Abre o e-mail ao RH. O supervisor não é avisado e não vê nada de diferente na ocorrência."
                         className="h-9 rounded-lg border border-indigo-200 px-4 text-xs font-semibold uppercase tracking-widest text-indigo-600 hover:bg-indigo-50 disabled:opacity-50"
                       >
                         Só encaminhar ao RH
@@ -435,7 +435,7 @@ export function ModalAnaliseIA({
                       <button
                         disabled={isPending || !devolutiva.trim()}
                         onClick={() => handleEncaminhar(true)}
-                        title="Abre o e-mail ao RH. A devolutiva só vai ao supervisor depois que o e-mail sair."
+                        title="Abre o e-mail ao RH. Depois que o e-mail sair, a devolutiva vai ao supervisor (sem pedir resposta) e a ocorrência passa a mostrar 'Encaminhada ao RH' para ele."
                         className="h-9 rounded-lg bg-indigo-600 px-4 text-xs font-semibold uppercase tracking-widest text-white hover:bg-indigo-700 disabled:opacity-50"
                       >
                         Aprovar e encaminhar ao RH

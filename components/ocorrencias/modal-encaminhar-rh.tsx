@@ -14,11 +14,14 @@ export function ModalEncaminharRH({
   onEnviado,
   consideracoes,
   aoEnviar,
+  informarSupervisor = false,
 }: {
   ocorrenciaId: string
   onClose: () => void
   onEnviado: () => void
   consideracoes?: string
+  /** true = depois do e-mail o supervisor é avisado (devolutiva na conversa + selo "Encaminhada ao RH"). */
+  informarSupervisor?: boolean
   /** Roda só depois que o e-mail saiu (ex.: postar a devolutiva ao supervisor). */
   aoEnviar?: () => Promise<{ success: true } | { success: false; error: string }>
 }) {
@@ -51,7 +54,7 @@ export function ModalEncaminharRH({
   function handleEnviar() {
     setErro(null)
     startTransition(async () => {
-      const r = await encaminharAoRH(ocorrenciaId, { para, assunto, corpo })
+      const r = await encaminharAoRH(ocorrenciaId, { para, assunto, corpo, informarSupervisor })
       if (r.success) {
         onEnviado()
         if (aoEnviar) {
@@ -96,6 +99,12 @@ export function ModalEncaminharRH({
                 Este e-mail sai do sistema. Ele leva o que você ver abaixo, e você pode editar tudo.
                 <strong> CPF, salário, PCD, CID e motivo de atestado nunca são incluídos</strong>, nem a conversa
                 com o supervisor e as notas internas. O RH responde direto para o seu e-mail.
+              </p>
+
+              <p className={`rounded-lg px-3 py-2 text-xs ${informarSupervisor ? 'bg-indigo-50 text-indigo-800' : 'bg-slate-100 text-slate-600'}`}>
+                {informarSupervisor
+                  ? 'O supervisor será avisado: depois do e-mail, a devolutiva vai para a conversa dele e a ocorrência passa a mostrar "Encaminhada ao RH" no ambiente dele (sem o conteúdo do e-mail).'
+                  : 'O supervisor não será avisado deste encaminhamento. Ele não vê nada de diferente na ocorrência.'}
               </p>
 
               <div className="space-y-1">

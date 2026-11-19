@@ -504,7 +504,13 @@ export type ResultadoDecisao = { success: true } | { success: false; error: stri
 
 export async function decidirAnalise(
   analiseId: string,
-  dados: { decisao: 'aprovada' | 'reprovada'; devolutivaEditada?: string; motivo?: string },
+  dados: {
+    decisao: 'aprovada' | 'reprovada'
+    devolutivaEditada?: string
+    motivo?: string
+    /** false = devolutiva só informativa: não deixa o supervisor com pendência de resposta (padrão: true). */
+    requerResposta?: boolean
+  },
 ): Promise<ResultadoDecisao> {
   const guard = await requireRole(['admin', 'coordenador'])
   if (!guard.success) return { success: false, error: guard.error }
@@ -538,7 +544,7 @@ export async function decidirAnalise(
   // Aprovar com devolutiva: posta na conversa, em nome do coordenador, o texto que ELE editou.
   // Se a postagem falhar, devolve a análise a "pendente" para ele poder tentar de novo.
   if (dados.decisao === 'aprovada' && dados.devolutivaEditada?.trim()) {
-    const postada = await comentarOcorrencia(analise.ocorrencia_id, dados.devolutivaEditada)
+    const postada = await comentarOcorrencia(analise.ocorrencia_id, dados.devolutivaEditada, dados.requerResposta ?? true)
     if (!postada.success) {
       await admin
         .from('ocorrencia_analises_ia')

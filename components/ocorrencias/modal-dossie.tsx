@@ -438,6 +438,14 @@ export function ModalDossie({
                                 Ciente (sem pendência)
                               </button>
                             )}
+                            {ehOcorrencia && item.rh_informado_desde && (item.status === 'aberta' || item.status === 'em_analise') && (
+                              <span
+                                className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700"
+                                title={ehGestao ? 'O supervisor foi avisado deste encaminhamento e vê este selo.' : 'A gestão encaminhou esta ocorrência ao RH.'}
+                              >
+                                {ehGestao ? 'Supervisor avisado' : `Encaminhada ao RH · há ${diasDesdeIso(item.rh_informado_desde)}d`}
+                              </span>
+                            )}
                             {ehOcorrencia && (item.status === 'aberta' || item.status === 'em_analise') && item.correcao_liberada_em && (
                               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
                                 Aguardando correção do supervisor
@@ -669,9 +677,13 @@ export function ModalDossie({
                   // Cancelar volta ao modal da IA intacto (a análise segue pendente).
                   onClose={() => { setEncaminharId(null); setConsideracoesIA(''); setDecisaoIA(null) }}
                   onEnviado={() => { setAnaliseIA(null); carregar() }}
+                  // Com devolutiva = "Aprovar e encaminhar ao RH": avisa o supervisor (selo + mensagem).
+                  informarSupervisor={!!decisaoIA?.devolutiva?.trim()}
                   aoEnviar={decisaoIA ? () => decidirAnalise(decisaoIA.analiseId, {
                     decisao: 'aprovada',
                     devolutivaEditada: decisaoIA.devolutiva ?? undefined,
+                    // aviso informativo: não deixa o supervisor com "Aguardando você"
+                    requerResposta: false,
                   }) : undefined}
                 />
               )}

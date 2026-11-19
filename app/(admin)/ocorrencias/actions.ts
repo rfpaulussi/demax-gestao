@@ -84,6 +84,8 @@ export type FuncionarioPainel = {
   aguardandoDesde: string | null
   /** Desde quando há ocorrência aberta com o RH (só gestão; supervisor/viewer sempre null). */
   comRHDesde: string | null
+  /** Só supervisor: desde quando há ocorrência aberta que a gestão encaminhou ao RH E quis avisá-lo. */
+  encaminhadaRHDesde: string | null
 }
 
 type RawFuncPainel = {
@@ -269,6 +271,27 @@ async function getComRHPorFuncionario(auth: AuthUser | null): Promise<Map<string
   return map
 }
 
+// Funcionário -> desde quando tem ocorrência aberta encaminhada ao RH com aviso ao supervisor (a mais antiga).
+// Só para supervisor: a gestão já vê "Com o RH" completo. Coluna nova: sem a migração o mapa fica vazio.
+async function getEncaminhadaRHPorFuncionario(auth: AuthUser | null): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  if (!auth || auth.perfil.role !== 'supervisor') return map
+  const { data, error } = await (createAdminClient() as unknown as AnyClient)
+    .from('ocorrencias')
+    .select('funcionario_id, com_rh_desde')
+    .eq('tipo', 'ocorrencia')
+    .in('status', ['aberta', 'em_analise'])
+    .not('com_rh_desde', 'is', null)
+    .not('rh_informado_supervisor_em', 'is', null)
+    .not('funcionario_id', 'is', null)
+  if (error) return map
+  for (const r of (data ?? []) as { funcionario_id: string; com_rh_desde: string }[]) {
+    const atual = map.get(r.funcionario_id)
+    if (!atual || r.com_rh_desde < atual) map.set(r.funcionario_id, r.com_rh_desde)
+  }
+  return map
+}
+
 export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
   const supabase = createClient()
   const auth = await getUser()
@@ -292,7 +315,7 @@ export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
     return query as unknown as PromiseLike<{ data: RawFuncPainel[] | null; error: { message: string } | null }>
   })
 
-  const [advertenciasMap, atestadosMap, faltasMap, ocorrenciasMap, supervisoresPorPosto, aguardandoPorFuncionario, comRHPorFuncionario] = await Promise.all([
+  const [advertenciasMap, atestadosMap, faltasMap, ocorrenciasMap, supervisoresPorPosto, aguardandoPorFuncionario, comRHPorFuncionario, encaminhadaRHPorFuncionario] = await Promise.all([
     contarPorFuncionario((from, to) =>
       supabase.from('advertencias').select('funcionario_id').range(from, to) as unknown as PromiseLike<{ data: RawContagem[] | null; error: { message: string } | null }>,
     ),
@@ -313,6 +336,7 @@ export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
     getSupervisoresPorPosto(supabase),
     getFuncionarioAguardando(supabase, auth),
     getComRHPorFuncionario(auth),
+    getEncaminhadaRHPorFuncionario(auth),
   ])
 
   return funcionariosRaw.map(f => ({
@@ -331,6 +355,7 @@ export async function getPainelFuncionarios(): Promise<FuncionarioPainel[]> {
     aguardando: aguardandoPorFuncionario.get(f.id)?.lado ?? null,
     aguardandoDesde: aguardandoPorFuncionario.get(f.id)?.desde ?? null,
     comRHDesde: comRHPorFuncionario.get(f.id) ?? null,
+    encaminhadaRHDesde: encaminhadaRHPorFuncionario.get(f.id) ?? null,
   }))
 }
 
@@ -467,6 +492,8 @@ export type TimelineItem = {
   comentarios?: number
   supervisor_nome?: string | null
   com_rh_desde?: string | null
+  /** Encaminhada ao RH com aviso ao supervisor: desde quando. Visível ao supervisor (a gestão usa também para ver que ele foi avisado). */
+  rh_informado_desde?: string | null
   /** Gestão liberou o supervisor para corrigir o texto (aguardando correção). */
   correcao_liberada_em?: string | null
   correcao_motivo?: string | null
@@ -609,6 +636,21 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
     }
   }
 
+  // "Encaminhada ao RH" com aviso ao supervisor: só vale enquanto está com o RH. Consulta tolerante
+  // (coluna nova): sem a migração o mapa fica vazio e ninguém vê o selo.
+  const rhInformadoMap = new Map<string, string>()
+  if (ocorrencias.length > 0 && auth.perfil.role !== 'viewer') {
+    const { data: ri, error: erroRi } = await (createAdminClient() as unknown as AnyClient)
+      .from('ocorrencias')
+      .select('id, com_rh_desde, rh_informado_supervisor_em')
+      .in('id', ocorrencias.map(o => o.id))
+      .not('com_rh_desde', 'is', null)
+      .not('rh_informado_supervisor_em', 'is', null)
+    if (!erroRi) {
+      for (const r of (ri ?? []) as { id: string; com_rh_desde: string }[]) rhInformadoMap.set(r.id, r.com_rh_desde)
+    }
+  }
+
   // "Aguardando correção": consulta separada e tolerante (coluna nova; sem a migração fica vazio).
   // Supervisor e gestão precisam ver. O escopo do supervisor já foi checado acima.
   const correcaoMap = new Map<string, { em: string; motivo: string | null }>()
@@ -685,6 +727,7 @@ export async function getDossieFuncionario(funcionarioId: string): Promise<Dossi
       comentarios: contagemComentarios.get(o.id) ?? 0,
       supervisor_nome: o.supervisor_id ? (supervisorNomesMap.get(o.supervisor_id) ?? null) : null,
       com_rh_desde: ehGestao ? (comRhMap.get(o.id) ?? null) : null,
+      rh_informado_desde: rhInformadoMap.get(o.id) ?? null,
       correcao_liberada_em: correcaoMap.get(o.id)?.em ?? null,
       correcao_motivo: correcaoMap.get(o.id)?.motivo ?? null,
       aguardando: estado?.lado ?? null,
@@ -981,6 +1024,7 @@ export async function updateStatusOcorrencia(formData: FormData): Promise<Action
   // (migração pendente) o erro é ignorado e o encerramento segue normal.
   if (status === 'encerrada') {
     await adminSupabase.from('ocorrencias').update({ com_rh_desde: null, com_rh_por: null }).eq('id', id)
+    await marcarRHInformado(adminSupabase, id, null)
   }
 
   // Parecer depois de garantir a transição. Se a gravação falhar, desfaz o status
@@ -1132,9 +1176,21 @@ export async function getRascunhoRH(ocorrenciaId: string): Promise<RascunhoRH> {
 
 const MAX_CORPO_RH = 20000
 
+// Grava/limpa "o supervisor foi avisado do encaminhamento ao RH" (o selo dele depende disso).
+// Coluna nova: se a migração estiver pendente o erro é ignorado e o resto do fluxo segue.
+async function marcarRHInformado(admin: AnyClient, ocorrenciaId: string, em: string | null): Promise<void> {
+  await admin.from('ocorrencias').update({ rh_informado_supervisor_em: em }).eq('id', ocorrenciaId)
+}
+
 export async function encaminharAoRH(
   ocorrenciaId: string,
-  dados: { para: string; assunto: string; corpo: string },
+  dados: {
+    para: string
+    assunto: string
+    corpo: string
+    /** true = avisa o supervisor (selo "Encaminhada ao RH"). false/omitido = encaminhamento silencioso. */
+    informarSupervisor?: boolean
+  },
 ): Promise<ActionResult> {
   const auth = await exigirGestao()
   if (!auth) return { success: false, error: 'Sem permissão' }
@@ -1187,11 +1243,14 @@ export async function encaminharAoRH(
     }
   }
 
+  // E-mail saiu: só agora liga (ou garante desligado) o selo do supervisor.
+  await marcarRHInformado(admin, ocorrenciaId, dados.informarSupervisor ? desde : null)
+
   const { error: erroNota } = await admin.from('ocorrencia_comentarios').insert({
     ocorrencia_id: ocorrenciaId,
     autor_id: auth.user.id,
     tipo: 'nota_interna',
-    texto: `Encaminhado ao RH (para: ${destinatarios.emails.join(', ')})\nAssunto: ${assunto}\n\n${corpo}`,
+    texto: `Encaminhado ao RH${dados.informarSupervisor ? ' (supervisor avisado)' : ' (supervisor NÃO avisado)'} (para: ${destinatarios.emails.join(', ')})\nAssunto: ${assunto}\n\n${corpo}`,
   })
   // O e-mail já saiu e a ocorrência está marcada; a nota é só o registro do que foi enviado.
   if (erroNota) console.error('[encaminhar-rh] falha ao gravar a nota do encaminhamento:', erroNota.message)
@@ -1427,6 +1486,7 @@ export async function registrarRetornoRH(ocorrenciaId: string, texto: string): P
     .select('id')
   if (erroLimpa) return { success: false, error: erroLimpa.message }
   if (!limpas || limpas.length === 0) return { success: false, error: 'Esta ocorrência não está com o RH' }
+  await marcarRHInformado(admin, ocorrenciaId, null)
 
   const { error: erroNota } = await admin.from('ocorrencia_comentarios').insert({
     ocorrencia_id: ocorrenciaId,
