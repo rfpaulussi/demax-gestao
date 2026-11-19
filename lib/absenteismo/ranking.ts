@@ -39,3 +39,37 @@ export function rankingPor(chave: ChaveRanking, entrada: EntradaCalculo): LinhaR
 
   return linhas.sort((a, b) => b.taxa - a.taxa || b.jornadas_perdidas - a.jornadas_perdidas || a.valor.localeCompare(b.valor))
 }
+
+/** Abaixo disso a taxa de um grupo oscila com 1 ou 2 casos; a tela avisa em vez de pintar de alerta. */
+export const MIN_JORNADAS_CONFIAVEL = 15
+
+export interface LinhaRankingTela extends LinhaRanking {
+  poucos_casos: boolean
+}
+
+export interface RankingParaTela {
+  /** Grupos com pelo menos 1 jornada perdida, na ordem recebida. */
+  linhas: LinhaRankingTela[]
+  /** Grupos sem nenhuma jornada perdida (menos AFASTADOS), em ordem alfabética. */
+  sem_ocorrencias: string[]
+  /** AFASTADOS não é secretaria: quem está afastado sai da base da taxa, então o 0,00% enganaria. */
+  afastados_quadro: number | null
+}
+
+/** Separa o que merece linha no ranking do que vira nota de rodapé. Não altera nenhum cálculo. */
+export function prepararRanking(linhas: LinhaRanking[]): RankingParaTela {
+  let afastados_quadro: number | null = null
+  const sem_ocorrencias: string[] = []
+  const principais: LinhaRankingTela[] = []
+  for (const l of linhas) {
+    if (l.jornadas_perdidas > 0) {
+      principais.push({ ...l, poucos_casos: l.jornadas_perdidas < MIN_JORNADAS_CONFIAVEL })
+    } else if (l.valor === 'AFASTADOS') {
+      afastados_quadro = l.quadro_medio
+    } else {
+      sem_ocorrencias.push(l.valor)
+    }
+  }
+  sem_ocorrencias.sort((a, b) => a.localeCompare(b))
+  return { linhas: principais, sem_ocorrencias, afastados_quadro }
+}

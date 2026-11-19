@@ -84,15 +84,19 @@ export function VisaoExecutivaView({ visao, params }: { visao: VisaoExecutiva; p
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+        <div className="min-w-0 lg:col-span-2">
           <GraficoEvolucao serie={visao.serie} />
         </div>
-        <GraficoComposicao fatias={visao.composicao} total={kpis.jornadas_perdidas} />
+        <div className="min-w-0">
+          <GraficoComposicao fatias={visao.composicao} total={kpis.jornadas_perdidas} />
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Indicadores kpis={kpis} vs={vsMesAnterior} rotuloVs={rotuloMesAnt} />
-        <div className="lg:col-span-2">
+        <div className="min-w-0">
+          <Indicadores kpis={kpis} vs={vsMesAnterior} rotuloVs={rotuloMesAnt} />
+        </div>
+        <div className="min-w-0 lg:col-span-2">
           <RankingSecretaria linhas={visao.ranking} taxaGeral={kpis.taxa} params={params} />
         </div>
       </div>

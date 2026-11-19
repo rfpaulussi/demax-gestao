@@ -41,3 +41,31 @@ describe('rankingPor', () => {
     expect(l.map(x => x.valor)).toEqual(['SME', 'SMEL'])
   })
 })
+
+import { prepararRanking, MIN_JORNADAS_CONFIAVEL, type LinhaRanking } from './ranking'
+
+describe('prepararRanking', () => {
+  const L = (valor: string, jornadas_perdidas: number, quadro_medio = 10): LinhaRanking => ({
+    valor, quadro_medio, jornadas_perdidas, episodios: jornadas_perdidas, taxa: jornadas_perdidas,
+  })
+  const r = prepararRanking([L('SME', 162, 615), L('SMEL', 12, 30), L('AFASTADOS', 0, 11), L('SMMT', 0, 29), L('SEDE', 0, 18)])
+
+  it('mantém só quem teve jornada perdida, na ordem recebida', () => {
+    expect(r.linhas.map(l => l.valor)).toEqual(['SME', 'SMEL'])
+  })
+  it('marca poucos casos abaixo do limite', () => {
+    expect(r.linhas.map(l => l.poucos_casos)).toEqual([false, true])
+    expect(MIN_JORNADAS_CONFIAVEL).toBe(15)
+  })
+  it('zerados viram lista alfabética, sem AFASTADOS', () => {
+    expect(r.sem_ocorrencias).toEqual(['SEDE', 'SMMT'])
+  })
+  it('AFASTADOS zerado sai do ranking e informa o quadro', () => {
+    expect(r.afastados_quadro).toBe(11)
+  })
+  it('AFASTADOS com jornadas perdidas continua na tabela', () => {
+    const x = prepararRanking([L('AFASTADOS', 3, 11)])
+    expect(x.linhas.map(l => l.valor)).toEqual(['AFASTADOS'])
+    expect(x.afastados_quadro).toBeNull()
+  })
+})

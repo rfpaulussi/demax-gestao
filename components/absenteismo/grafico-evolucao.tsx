@@ -15,7 +15,7 @@ export function GraficoEvolucao({ serie }: { serie: PontoSerie[] }) {
     }))
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+    <div className="min-w-0 overflow-hidden rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
       <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-500">
         Evolução da taxa de absenteísmo
       </p>
