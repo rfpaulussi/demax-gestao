@@ -54,4 +54,8 @@ describe('calcularSerieMensal', () => {
     expect(serie[2].episodios).toBe(1)
     expect(serie[2].jornadas_perdidas).toBe(1)
   })
+  it('recorte sem nenhuma jornada programada (fim de semana) vem com taxa null', () => {
+    const s2 = calcularSerieMensal(dados, [{ ano: 2026, mes: 11 }], '2026-11-07', '2026-11-08')
+    expect(s2[0]).toMatchObject({ mes: '2026-11', taxa: null, parcial: true })
+  })
 })

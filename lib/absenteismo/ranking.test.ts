@@ -34,4 +34,10 @@ describe('rankingPor', () => {
     expect(porPosto[0]).toMatchObject({ valor: 'Posto a', jornadas_perdidas: 1 })
     expect(porPosto).toHaveLength(3)
   })
+  it('funcionário sem secretaria ("—") não gera linha no ranking', () => {
+    const comVazio: EntradaCalculo = { ...entrada, funcionarios: [...entrada.funcionarios, F('e', '—')] }
+    const l = rankingPor('secretaria', comVazio)
+    expect(l.find(x => x.valor === '—')).toBeUndefined()
+    expect(l.map(x => x.valor)).toEqual(['SME', 'SMEL'])
+  })
 })

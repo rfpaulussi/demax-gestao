@@ -59,7 +59,8 @@ export function calcularSerieMensal(
     const mesCheio = periodoDoMes(ano, mes)
     const p = periodoEfetivo(mesCheio.inicio, mesCheio.fim, dadosDesde, hoje)
     if (!p) return { mes: rotulo, taxa: null, jornadas_perdidas: 0, episodios: 0, parcial: false }
-    const k = calcularKpis(calcularPeriodo({ ...dados, inicio: p.inicio, fim: p.fim }))
-    return { mes: rotulo, taxa: k.taxa, jornadas_perdidas: k.jornadas_perdidas, episodios: k.episodios, parcial: p.parcial }
+    const r = calcularPeriodo({ ...dados, inicio: p.inicio, fim: p.fim })
+    const k = calcularKpis(r)
+    return { mes: rotulo, taxa: r.jornadas_programadas === 0 ? null : k.taxa, jornadas_perdidas: k.jornadas_perdidas, episodios: k.episodios, parcial: p.parcial }
   })
 }

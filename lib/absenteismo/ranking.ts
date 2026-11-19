@@ -25,6 +25,7 @@ export function rankingPor(chave: ChaveRanking, entrada: EntradaCalculo): LinhaR
 
   const linhas: LinhaRanking[] = []
   Array.from(grupos.entries()).forEach(([valor, funcionarios]) => {
+    if (valor === '—') return
     const k = calcularKpis(calcularPeriodo({ ...entrada, funcionarios }))
     if (k.quadro_medio <= 0) return
     linhas.push({
